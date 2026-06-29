@@ -7,7 +7,6 @@
       "python3 .github/scripts/generate_api.py --src-root src/dnd --output-dir web/dist/api"
     ],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
-    "cleanUrls": false,
-    "trailingSlash": false
+    "trailingSlash": true
   }
 }

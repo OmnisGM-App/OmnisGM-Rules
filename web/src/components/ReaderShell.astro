@@ -32,7 +32,7 @@ const crumb = trail.slice(0, -1).map((n) => label(n, lang)).join('  ·  ');
 const node = nodeById(currentId);
 const curSlug = node && !isGroup(node) ? node.slug : null;
 const other: Lang = lang === 'en' ? 'ru' : 'en';
-const counterpart = curSlug ? `/${other}/${curSlug}` : `/${other}`;
+const counterpart = curSlug ? `/${other}/${curSlug}/` : `/${other}/`;
 
 const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
 const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;

@@ -197,12 +197,14 @@ export const nodeById = (id: string): NavNode | undefined =>
   FLAT_PAGES.find((p) => p.id === id) ?? (findPath(id) ?? []).slice(-1)[0];
 
 export const label = (n: NavNode, lang: Lang) => (lang === 'en' ? n.en : n.ru);
-export const routeOf = (slug: string, lang: Lang) => `/${lang}/${slug}`;
+// Trailing slash везде (см. astro.config trailingSlash:'always')
+export const routeOf = (slug: string, lang: Lang) => `/${lang}/${slug}/`;
+export const homeRoute = (lang: Lang) => `/${lang}/`;
 
 // Маршрут для верхнего таба системы
 export function systemRoute(sysId: string, lang: Lang): string {
-  if (sysId === 'home') return `/${lang}`;
+  if (sysId === 'home') return homeRoute(lang);
   const sys = SYSTEMS.find((s) => s.id === sysId);
   const node = sys && nodeById(sys.firstId);
-  return node && !isGroup(node) ? routeOf(node.slug, lang) : `/${lang}`;
+  return node && !isGroup(node) ? routeOf(node.slug, lang) : homeRoute(lang);
 }

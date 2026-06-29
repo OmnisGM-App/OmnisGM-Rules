@@ -8,7 +8,9 @@ import rehypePromoteHeadings from './src/lib/rehype-promote-headings.mjs';
 // рендерится на билде. Pagefind (статический поиск) и PWA подключаются следующими шагами.
 export default defineConfig({
   site: 'https://rules.omnisgm.com',
-  trailingSlash: 'ignore',
+  // Везде trailing slash: директорийные URL (/en/.../legal/) и индекс API (/api/dnd/) тогда
+  // работают с относительными ссылками; Firebase trailingSlash:true их не ломает редиректом.
+  trailingSlash: 'always',
   integrations: [
     react(),
     sitemap(),
