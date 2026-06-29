@@ -37,6 +37,16 @@
 .rd-lang { display: inline-flex; border: 1px solid var(--og-border); border-radius: 7px; overflow: hidden; background: var(--og-bg); }
 .rd-lang-btn { appearance: none; border: none; padding: 6px 12px; background: transparent; color: var(--og-text-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; font-weight: 600; }
 .rd-lang-btn.on { background: var(--og-bg-3); color: var(--og-accent); }
+/* мобильный выпадающий список языка (как в News) — скрыт на десктопе */
+.rd-lang-sel {
+  display: none; appearance: none; -webkit-appearance: none;
+  background-color: var(--og-bg-2); color: var(--og-text-2);
+  border: 1px solid var(--og-border); border-radius: 7px; cursor: pointer;
+  padding: 7px 26px 7px 11px; min-height: 38px;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; font-weight: 600;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%2380829C' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+}
 .rd-burger { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--og-border); border-radius: 8px; background: var(--og-bg-2); color: var(--og-text-2); }
 
 /* ── System tabs ───────────────────────────────────────────────────────── */
@@ -156,13 +166,52 @@
 .rd-body { display: grid; grid-template-columns: 278px minmax(0,1fr) 236px; flex: 1; min-height: 0; }
 .rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr); }
 @media (max-width: 1100px) { .rd-body, .rd-body.rd-no-toc { grid-template-columns: 258px minmax(0,1fr); } .rd-toc { display: none; } }
-@media (max-width: 760px) { .rd-body, .rd-body.rd-no-toc { grid-template-columns: 1fr; } .rd-nav { display: none; } .rd-content-inner { padding: 24px 20px 56px; } .rd-doc h1 { font-size: 32px; } }
+@media (max-width: 760px) {
+  .rd-body, .rd-body.rd-no-toc { grid-template-columns: 1fr; }
+  .rd-nav { display: none; }
+  .rd-content-inner { padding: 24px 20px 56px; }
+  .rd-doc h1 { font-size: 32px; }
+  /* язык — выпадающим списком вместо пары кнопок */
+  .rd-lang { display: none; }
+  .rd-lang-sel { display: inline-flex; }
+  /* page-scroll: контент не скроллит внутри себя, скроллит страница */
+  .rd-root { min-height: 100dvh; }
+  .rd-content { overflow: visible; }
+  /* закрепляем СПИСОК СИСТЕМ, а шапку с лого отпускаем (уезжает при скролле) */
+  .rd-topbar { position: static; }
+  .rd-systabs { position: sticky; top: 0; z-index: 25; }
+}
 
-/* ── Mobile drawer ─────────────────────────────────────────────────────── */
-.rd-drawer-scrim { position: fixed; inset: 0; z-index: 60; background: rgba(8,9,14,0.62); display: flex; }
-.rd-drawer { width: 84%; max-width: 340px; height: 100%; background: var(--og-bg-2); border-right: 1px solid var(--og-border-strong); padding: 14px 10px 40px; overflow-y: auto; box-shadow: 24px 0 60px rgba(0,0,0,0.5); }
-.rd-drawer-top { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 12px; }
+/* ── Mobile drawer (триггер «Разделы», открытие на CSS-чекбоксе — без JS) ── */
+.rd-drawer-cb { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+.rd-burger-btn {
+  display: none; align-items: center; gap: 7px; cursor: pointer; white-space: nowrap;
+  border: 1px solid var(--og-border); border-radius: 8px; background: var(--og-bg-2);
+  color: var(--og-text-2); font-family: var(--font-body); font-size: 13px; font-weight: 600;
+  padding: 8px 12px; min-height: 38px;
+}
+.rd-burger-btn:hover { color: var(--og-text); border-color: var(--og-border-strong); }
+
+/* базовые свойства панели/затемнения; видимость и слайд — в мобильном медиа-запросе */
+.rd-drawer-scrim { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(8,9,14,0.62); }
+.rd-drawer {
+  display: none; position: fixed; top: 0; left: 0; z-index: 61;
+  width: 86%; max-width: 360px; height: 100%; background: var(--og-bg-2);
+  border-right: 1px solid var(--og-border-strong);
+  padding: 14px 10px calc(40px + env(safe-area-inset-bottom));
+  overflow-y: auto; box-shadow: 24px 0 60px rgba(0,0,0,0.5);
+}
+.rd-drawer-top { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 12px; position: sticky; top: 0; background: var(--og-bg-2); }
 .rd-drawer-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
-.rd-drawer-x { width: 40px; height: 40px; background: none; border: none; color: var(--og-text-3); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
+.rd-drawer-x { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: none; border: none; color: var(--og-text-3); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
+
+@media (max-width: 760px) {
+  .rd-burger-btn { display: inline-flex; }
+  .rd-gh { display: none; }
+  .rd-drawer-scrim { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+  .rd-drawer { display: block; transform: translateX(-100%); transition: transform .22s ease; }
+  .rd-drawer-cb:checked ~ .rd-drawer-scrim { opacity: 1; pointer-events: auto; }
+  .rd-drawer-cb:checked ~ .rd-drawer { transform: translateX(0); }
+}
 .rd-search-wrap-m { max-width: none; margin: 4px 6px 14px; }
 .rd-nomatch { padding: 16px; font-size: 13px; color: var(--og-text-4); font-family: var(--font-mono); }

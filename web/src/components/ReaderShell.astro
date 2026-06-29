@@ -33,6 +33,10 @@ const node = nodeById(currentId);
 const curSlug = node && !isGroup(node) ? node.slug : null;
 const other: Lang = lang === 'en' ? 'ru' : 'en';
 const counterpart = curSlug ? `/${other}/${curSlug}/` : `/${other}/`;
+// URL каждого языка (для мобильного <select>): текущий язык → текущий путь, другой → counterpart
+const currentPath = Astro.url.pathname;
+const enUrl = lang === 'en' ? currentPath : counterpart;
+const ruUrl = lang === 'ru' ? currentPath : counterpart;
 
 const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
 const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;
@@ -42,6 +46,9 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 ---
 <Reader title={title} description={description} lang={lang}>
   <div class="rd-root">
+    {/* Мобильный drawer на CSS-чекбоксе (без JS): чекбокс-якорь первым в .rd-root */}
+    <input type="checkbox" id="rd-drawer-cb" class="rd-drawer-cb" hidden />
+
     <header class="rd-topbar">
       <div class="rd-brand">
         <a href={MAIN} class="rd-brand-link" aria-label="OmnisGM">
@@ -56,11 +63,21 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         <span class="rd-brand-sub">/ rules</span>
       </div>
       <div class="rd-top-right">
+        {/* Кнопка «Разделы» — только на мобиле, открывает drawer (вместо скрытого слева дерева) */}
+        <label for="rd-drawer-cb" class="rd-burger-btn" aria-label={t('Открыть разделы', 'Open contents')}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          {t('Разделы', 'Contents')}
+        </label>
         <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
+        {/* десктоп — кнопки-пара; мобила — выпадающий список (как в News) */}
         <div class="rd-lang">
           <a class={'rd-lang-btn' + (lang === 'en' ? ' on' : '')} href={lang === 'en' ? undefined : counterpart}>ENG</a>
           <a class={'rd-lang-btn' + (lang === 'ru' ? ' on' : '')} href={lang === 'ru' ? undefined : counterpart} style="border-left:1px solid var(--og-border)">RU</a>
         </div>
+        <select class="rd-lang-sel" aria-label="Language" onchange="if(this.value)location.href=this.value">
+          <option value={enUrl} selected={lang === 'en'}>ENG</option>
+          <option value={ruUrl} selected={lang === 'ru'}>RU</option>
+        </select>
       </div>
     </header>
 
@@ -121,5 +138,15 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         </aside>
       )}
     </div>
+
+    {/* Мобильный drawer (открывается кнопкой «Разделы») — тёмный, наш скин, то же дерево */}
+    <label for="rd-drawer-cb" class="rd-drawer-scrim" aria-hidden="true"></label>
+    <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Contents')}>
+      <div class="rd-drawer-top">
+        <span class="rd-drawer-title">{t('Разделы', 'Contents')}</span>
+        <label for="rd-drawer-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+      </div>
+      <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
+    </aside>
   </div>
 </Reader>

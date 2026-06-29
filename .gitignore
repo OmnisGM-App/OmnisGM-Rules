@@ -8,3 +8,4 @@ DND-SRD-5.2.1-RU.md
 /mkdocs.yml
 /overrides/
 firebase-debug.log
+.firebase/
