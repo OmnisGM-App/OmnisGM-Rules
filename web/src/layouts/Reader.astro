@@ -46,5 +46,10 @@ const FONTS =
   </head>
   <body>
     <slot />
+    <script>
+      import { initAnalytics } from '../lib/analytics-client';
+      // module-скрипт по умолчанию отложен — не блокирует рендер/LCP
+      initAnalytics();
+    </script>
   </body>
 </html>

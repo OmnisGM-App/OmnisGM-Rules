@@ -116,6 +116,20 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
             <slot />
           </article>
 
+          {/* CTA-воронка в основной продукт (лист персонажа). Событие Analytics на клик. */}
+          <a
+            class="rd-cta"
+            href="https://omnisgm.com"
+            data-pagefind-ignore
+            onclick="window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader'})"
+          >
+            <span class="rd-cta-body">
+              <span class="rd-cta-title">{t('Соберите персонажа в OmnisGM', 'Build your character in OmnisGM')}</span>
+              <span class="rd-cta-sub">{t('Интерактивный лист персонажа — по этим самым правилам.', 'An interactive character sheet — for these very rules.')}</span>
+            </span>
+            <span class="rd-cta-arrow" aria-hidden="true">→</span>
+          </a>
+
           {sourceId && (
             <div class="rd-source">
               <span>{t('Источник', 'Source')}</span>
