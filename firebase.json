@@ -2,6 +2,10 @@
   "hosting": {
     "site": "omnisgm-rules",
     "public": "web/dist",
+    "predeploy": [
+      "npm --prefix web run build",
+      "python3 .github/scripts/generate_api.py --src-root src/dnd --output-dir web/dist/api"
+    ],
     "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
     "cleanUrls": false,
     "trailingSlash": false
