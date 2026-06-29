@@ -1,27 +1,220 @@
 ---
 import { getCollection } from 'astro:content';
+import Reader from '../../layouts/Reader.astro';
 import { parseId, pageUrl } from '../../lib/slug';
 
 export async function getStaticPaths() {
   return [{ params: { lang: 'en' } }, { params: { lang: 'ru' } }];
 }
 
-const { lang } = Astro.params;
-// → первая страница D&D SRD 5.2 на нужном языке
+const lang = Astro.params.lang as 'en' | 'ru';
+const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
+
+const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
+const API = 'https://rules.omnisgm.com/api/';
+const ISSUE = `${REPO}/issues/new`;
+
 const all = await getCollection('srd');
-const first = all
-  .map((e) => parseId(e.id))
-  .filter((r) => r.game === 'dnd' && r.version === 'srd-5.2' && r.lang === lang)
-  .sort((a, b) => a.order.localeCompare(b.order))[0];
-const target = first ? pageUrl(first) : '/en';
+const firstPageUrl = (game: string, version: string): string => {
+  const first = all
+    .map((e) => parseId(e.id))
+    .filter((r) => r.game === game && r.version === version && r.lang === lang)
+    .sort((a, b) => a.order.localeCompare(b.order))[0];
+  return first ? pageUrl(first) : `/${lang}`;
+};
+
+// Системы и версии (данные из дизайна site-rules.jsx). Ссылки «Читать» — на реальный первый раздел.
+const SYSTEMS = [
+  {
+    name: 'Dungeons & Dragons',
+    download: `${REPO}/releases?q=dnd-srd`,
+    versions: [
+      { game: 'dnd', version: 'srd-5.2', label: 'SRD 5.2.1', lic: 'CC BY 4.0',
+        ru: 'Базовые правила D&D 5-й редакции (2024): классы, заклинания, монстры, магические предметы, снаряжение.',
+        en: 'The core rules of D&D 5e (2024): classes, spells, monsters, magic items, equipment.' },
+      { game: 'dnd', version: 'srd-5.1', label: 'SRD 5.1', lic: 'CC BY 4.0',
+        ru: 'Базовые правила D&D 5e (2014).',
+        en: 'The core rules of D&D 5e (2014).' },
+      { game: 'dnd', version: 'converting-srd-5.2', label: t('Конвертация в 5.2.1', 'Converting to 5.2.1'), lic: '',
+        ru: 'Гайд по переходу с SRD 5.1 на SRD 5.2.1.',
+        en: 'A guide to moving from SRD 5.1 to SRD 5.2.1.' },
+    ],
+  },
+  {
+    name: 'Daggerheart',
+    download: `${REPO}/releases?q=dh-srd`,
+    versions: [
+      { game: 'daggerheart', version: 'srd-1.0', label: 'SRD 1.0', lic: 'DPCGL',
+        ru: 'Правила Daggerheart: классы, домены, происхождения, противники, оружие, броня. © 2025 Critical Role LLC.',
+        en: 'The Daggerheart rules: classes, domains, ancestries, adversaries, weapons, armor. © 2025 Critical Role LLC.' },
+    ],
+  },
+  {
+    name: 'Basic Roleplaying',
+    download: `${REPO}/releases?q=brp-srd`,
+    versions: [
+      { game: 'brp', version: 'srd-1.0', label: 'SRD 1.0', lic: 'BRP OGL',
+        ru: 'Универсальная d100-система от Chaosium — ядро Call of Cthulhu, RuneQuest и других.',
+        en: 'Chaosium’s universal d100 system — the engine behind Call of Cthulhu, RuneQuest and more.' },
+    ],
+  },
+];
+
+const readerUrl = firstPageUrl('dnd', 'srd-5.2');
+const title = t('OmnisGM / rules — свободные правила НРИ', 'OmnisGM / rules — Free TTRPG rules, gathered & translated');
+const description = t(
+  'Открытый свод свободно-лицензированных SRD настольных ролевых игр (D&D, Daggerheart, Basic Roleplaying) в Markdown, EN/RU, со статичным API. Проект экосистемы OmnisGM.',
+  'The Open Codex — freely-licensed tabletop RPG System Reference Documents (D&D, Daggerheart, Basic Roleplaying) as Markdown, EN/RU, with a static API. A project of the OmnisGM ecosystem.',
+);
 ---
-<!DOCTYPE html>
-<html lang={lang}>
-  <head>
-    <meta charset="UTF-8" />
-    <meta http-equiv="refresh" content={`0;url=${target}`} />
-    <link rel="canonical" href={target} />
-    <title>OmnisGM Rules</title>
-  </head>
-  <body><a href={target}>OmnisGM Rules</a></body>
-</html>
+<Reader title={title} description={description} lang={lang}>
+  <div class="home">
+    <header class="home-head">
+      <div class="home-brand">
+        <a href="https://omnisgm.com" class="home-brand-link" aria-label="OmnisGM">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
+            <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
+            <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
+            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
+          </svg>
+          <span class="home-brand-name">OmnisGM</span>
+        </a>
+        <span class="home-brand-sub">/ rules</span>
+      </div>
+      <div class="home-head-right">
+        <a href={REPO} target="_blank" rel="noopener" class="home-gh">GitHub ↗</a>
+        <div class="rd-lang">
+          <a class={'rd-lang-btn' + (lang === 'en' ? ' on' : '')} href="/en">ENG</a>
+          <a class={'rd-lang-btn' + (lang === 'ru' ? ' on' : '')} href="/ru" style="border-left:1px solid var(--og-border)">RU</a>
+        </div>
+        <a href={readerUrl} class="home-cta">{t('Открыть ридер', 'Open the reader')}</a>
+      </div>
+    </header>
+
+    <section class="home-intro">
+      <div class="home-eyebrow">{t('Открытый свод · проект OmnisGM', 'The Open Codex · an OmnisGM project')}</div>
+      <h1 class="home-h1">
+        {t('Свободные правила НРИ.', 'Free tabletop rules.')}<br />
+        <span class="home-h1-sub">{t('Собранные. Переведённые.', 'Gathered. Translated.')}</span>
+      </h1>
+      <p class="home-lede">
+        {t(
+          'Свободно доступные SRD — в Markdown, на двух языках. Выбери систему и читай. Или скачай исходный текст.',
+          'Freely-licensed SRDs — as Markdown, in two languages. Pick a system and read. Or download the source text.',
+        )}
+      </p>
+    </section>
+
+    <section class="home-systems">
+      {SYSTEMS.map((sys) => (
+        <div class="home-sys">
+          <div class="home-sys-head">
+            <h2 class="home-sys-name">{sys.name}</h2>
+            <a href={sys.download} target="_blank" rel="noopener" class="home-dl">{t('Скачать', 'Download')} ↗</a>
+          </div>
+          <div class="home-vers">
+            {sys.versions.map((ver) => (
+              <a href={firstPageUrl(ver.game, ver.version)} class="home-ver">
+                <div class="home-ver-meta">
+                  <span class="home-ver-label">{ver.label}</span>
+                  {ver.lic && <span class="home-ver-lic">{ver.lic}</span>}
+                </div>
+                <p class="home-ver-desc">{lang === 'en' ? ver.en : ver.ru}</p>
+                <span class="home-ver-read">{t('Читать', 'Read')} →</span>
+              </a>
+            ))}
+          </div>
+        </div>
+      ))}
+
+      <div class="home-note">
+        <span class="home-note-mark">❦</span>
+        <p>
+          {t('Перевод на русский выполнен с помощью ИИ и вычитывается. Нашли ошибку — ', 'The translation is produced with AI assistance and is being proofread. Found an error? ')}
+          <a href={ISSUE} target="_blank" rel="noopener">{t('создайте issue', 'Open an issue')}</a>.
+        </p>
+      </div>
+    </section>
+
+    <footer class="home-foot">
+      <div class="home-foot-in">
+        <div class="home-brand">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
+            <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
+            <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
+          </svg>
+          <span class="home-brand-name" style="font-size:15px">OmnisGM <span style="color:var(--og-text-4);font-weight:500">/ rules</span></span>
+        </div>
+        <div class="home-foot-links">
+          <a href={readerUrl}>{t('Ридер', 'Reader')}</a>
+          <a href={API} target="_blank" rel="noopener">API</a>
+          <a href={REPO} target="_blank" rel="noopener">GitHub</a>
+        </div>
+        <span class="home-foot-url">rules.omnisgm.com</span>
+      </div>
+    </footer>
+  </div>
+
+  <style>
+    .home { background: var(--og-bg); color: var(--og-text); min-height: 100vh; }
+
+    .home-head {
+      display: flex; align-items: center; justify-content: space-between; gap: 12px;
+      padding: 18px clamp(22px, 6vw, 80px); border-bottom: 1px solid var(--og-border);
+      background: rgba(15,16,22,0.85); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
+    }
+    .home-brand { display: inline-flex; align-items: center; gap: 10px; min-width: 0; }
+    .home-brand-link { display: inline-flex; align-items: center; gap: 10px; }
+    .home-brand-link:hover .home-brand-name { color: var(--og-accent); }
+    .home-brand-name { font-family: var(--font-display); font-size: 17px; font-weight: 700; letter-spacing: -0.4px; color: var(--og-text); white-space: nowrap; }
+    .home-brand-sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-4); letter-spacing: 1px; }
+    .home-head-right { display: flex; align-items: center; gap: 16px; }
+    .home-gh { font-size: 13.5px; color: var(--og-text-2); font-weight: 500; white-space: nowrap; }
+    .home-gh:hover { color: var(--og-warm); }
+    .home-cta { padding: 9px 18px; background: var(--og-accent); color: #0c0b14; border-radius: 6px; font-size: 13.5px; font-weight: 600; letter-spacing: -0.1px; white-space: nowrap; }
+
+    .home-intro { max-width: 880px; margin: 0 auto; padding: clamp(48px, 9vw, 80px) clamp(22px, 6vw, 80px) 16px; }
+    .home-eyebrow { font-family: var(--font-mono); font-size: 11px; color: var(--og-warm); letter-spacing: 1.6px; text-transform: uppercase; }
+    .home-h1 { font-family: var(--font-display); font-weight: 500; font-size: clamp(38px, 7vw, 62px); line-height: 1.03; letter-spacing: -2.2px; margin: 18px 0 22px; color: var(--og-text); text-wrap: pretty; }
+    .home-h1-sub { color: var(--og-text-3); font-style: italic; }
+    .home-lede { font-size: clamp(16px, 2.4vw, 18px); line-height: 1.55; color: var(--og-text-2); margin: 0; max-width: 600px; }
+
+    .home-systems { max-width: 880px; margin: 0 auto; padding: 40px clamp(22px, 6vw, 80px) 64px; }
+    .home-sys { border-top: 1px solid var(--og-border); padding: clamp(28px, 5vw, 40px) 0; }
+    .home-sys-head { display: flex; align-items: baseline; justify-content: space-between; gap: 14px; margin-bottom: 24px; flex-wrap: wrap; }
+    .home-sys-name { font-family: var(--font-display); font-weight: 600; font-size: clamp(26px, 4vw, 32px); letter-spacing: -0.8px; margin: 0; color: var(--og-text); }
+    .home-dl { display: inline-flex; align-items: center; gap: 6px; font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.4px; color: var(--og-text-3); border-bottom: 1px dotted var(--og-text-4); padding-bottom: 1px; }
+    .home-dl:hover { color: var(--og-warm); }
+
+    .home-vers { border-top: 1px solid var(--og-border-soft); }
+    .home-ver { display: grid; grid-template-columns: 0.7fr 2fr auto; gap: 28px; align-items: baseline; padding: 18px 0; border-bottom: 1px solid var(--og-border-soft); text-decoration: none; }
+    .home-ver-meta { display: flex; flex-direction: column; gap: 5px; }
+    .home-ver-label { font-family: var(--font-display); font-weight: 600; font-size: 20px; letter-spacing: -0.3px; color: var(--og-text); }
+    .home-ver-lic { font-family: var(--font-mono); font-size: 10.5px; color: var(--og-warm); letter-spacing: 1px; text-transform: uppercase; }
+    .home-ver-desc { margin: 0; font-size: 15.5px; line-height: 1.6; color: var(--og-text-2); text-wrap: pretty; }
+    .home-ver-read { font-family: var(--font-body); font-size: 13.5px; font-weight: 600; color: var(--og-text-3); white-space: nowrap; justify-self: end; transition: color .15s ease; }
+    .home-ver:hover .home-ver-read { color: var(--og-accent); }
+    .home-ver:hover .home-ver-label { color: var(--og-accent); }
+
+    .home-note { border-top: 1px solid var(--og-border); margin-top: 16px; padding-top: 28px; display: flex; align-items: baseline; gap: 12px; }
+    .home-note-mark { color: var(--og-warm); font-family: var(--font-display); font-size: 18px; line-height: 1; }
+    .home-note p { margin: 0; font-family: var(--font-display); font-style: italic; font-size: 16.5px; line-height: 1.5; color: var(--og-text-3); text-wrap: pretty; }
+    .home-note a { color: var(--og-accent); border-bottom: 1px solid var(--og-accent); }
+
+    .home-foot { border-top: 1px solid var(--og-border); background: var(--og-bg-2); padding: 36px clamp(22px, 6vw, 80px); }
+    .home-foot-in { max-width: 880px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; gap: 14px; flex-wrap: wrap; }
+    .home-foot-links { display: flex; gap: 22px; font-family: var(--font-mono); font-size: 12px; color: var(--og-text-3); }
+    .home-foot-links a { color: var(--og-text-3); }
+    .home-foot-links a:hover { color: var(--og-warm); }
+    .home-foot-url { font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-4); letter-spacing: 0.3px; }
+
+    @media (max-width: 640px) {
+      .home-ver { grid-template-columns: 1fr; gap: 6px; }
+      .home-ver-read { justify-self: start; }
+      .home-cta { padding: 8px 13px; font-size: 12.5px; }
+      .home-h1 { letter-spacing: -1.4px; }
+    }
+  </style>
+</Reader>

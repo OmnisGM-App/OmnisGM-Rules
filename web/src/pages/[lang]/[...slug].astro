@@ -90,16 +90,18 @@ const description = t(
   <div class="rd-root">
     <!-- Top bar -->
     <header class="rd-topbar">
-      <a href={`/${ref.lang}`} class="rd-brand">
-        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
-          <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
-          <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
-          <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
-          <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
-        </svg>
-        <span class="rd-brand-name">OmnisGM</span>
+      <div class="rd-brand">
+        <a href="https://omnisgm.com" class="rd-brand-link" aria-label="OmnisGM">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
+            <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
+            <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
+            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
+          </svg>
+          <span class="rd-brand-name">OmnisGM</span>
+        </a>
         <span class="rd-brand-sub">/ rules</span>
-      </a>
+      </div>
 
       <div class="rd-top-right">
         <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
