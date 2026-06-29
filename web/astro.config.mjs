@@ -1,5 +1,4 @@
 import { defineConfig } from 'astro/config';
-import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
 import pagefind from 'astro-pagefind';
 import AstroPWA from '@vite-pwa/astro';
@@ -14,7 +13,6 @@ export default defineConfig({
   // работают с относительными ссылками; Firebase trailingSlash:true их не ломает редиректом.
   trailingSlash: 'always',
   integrations: [
-    react(),
     sitemap(),
     pagefind(),
     AstroPWA({

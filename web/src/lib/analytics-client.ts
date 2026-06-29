@@ -1,39 +1,30 @@
-// Клиентская инициализация Firebase Analytics (GA4). Грузится отложенным module-скриптом из
-// Reader.astro, чтобы не влиять на LCP. Если конфига нет (VITE_FIREBASE_* не заданы) — тихо пропускаем.
-// Экспортит window.omnisTrack(name, params) для событий (например, клик CTA-воронки в лист персонажа).
-import { initializeApp } from 'firebase/app';
-import { getAnalytics, isSupported, logEvent } from 'firebase/analytics';
-
-const cfg = {
-  apiKey: import.meta.env.VITE_FIREBASE_API_KEY,
-  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN,
-  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID,
-  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET,
-  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID,
-  appId: import.meta.env.VITE_FIREBASE_APP_ID,
-  measurementId: import.meta.env.VITE_FIREBASE_MEASUREMENT_ID,
-};
+// Аналитика GA4 через gtag.js (тот же measurementId, что в Firebase Analytics — Firebase Analytics
+// это GA4 под капотом). Намеренно НЕ тащим firebase SDK в бандл: грузим лёгкий gtag с Google CDN
+// отложенно (не влияет на LCP). Без measurementId — тихо пропускаем.
+// Экспортит window.omnisTrack(name, params) для событий (клик CTA-воронки в лист персонажа).
+const ID = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined;
 
 declare global {
   interface Window {
+    dataLayer?: unknown[];
     omnisTrack?: (name: string, params?: Record<string, unknown>) => void;
   }
 }
 
-export async function initAnalytics(): Promise<void> {
-  if (!cfg.apiKey || !cfg.measurementId) return; // нет конфига — не инициализируем
-  try {
-    if (!(await isSupported())) return;
-    const app = initializeApp(cfg);
-    const analytics = getAnalytics(app); // авто-событие page_view (трафик)
-    window.omnisTrack = (name, params) => {
-      try {
-        logEvent(analytics, name, params);
-      } catch {
-        /* no-op */
-      }
-    };
-  } catch {
-    /* analytics не критичен — игнорируем сбои */
+export function initAnalytics(): void {
+  if (!ID || typeof document === 'undefined') return;
+
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${ID}`;
+  document.head.appendChild(s);
+
+  window.dataLayer = window.dataLayer || [];
+  function gtag(...args: unknown[]) {
+    window.dataLayer!.push(args);
   }
+  gtag('js', new Date());
+  gtag('config', ID); // авто page_view (трафик)
+
+  window.omnisTrack = (name, params) => gtag('event', name, params);
 }
