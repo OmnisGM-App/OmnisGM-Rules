@@ -1,0 +1,177 @@
+---
+import { getCollection, render } from 'astro:content';
+import Reader from '../../layouts/Reader.astro';
+import { parseId, pageUrl, titleFromBody, type ContentRef } from '../../lib/slug';
+
+const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
+
+// Системы (порядок + двуязычные подписи). Полное дерево nav портируется из mkdocs.yml позже.
+const SYSTEMS = [
+  { game: 'dnd', version: 'srd-5.2', en: 'D&D SRD 5.2', ru: 'D&D SRD 5.2' },
+  { game: 'dnd', version: 'srd-5.1', en: 'D&D SRD 5.1', ru: 'D&D SRD 5.1' },
+  { game: 'daggerheart', version: 'srd-1.0', en: 'Daggerheart SRD 1.0', ru: 'Daggerheart SRD 1.0' },
+  { game: 'brp', version: 'srd-1.0', en: 'Basic Roleplaying 1.0', ru: 'Basic Roleplaying 1.0' },
+];
+
+export async function getStaticPaths() {
+  const all = await getCollection('srd');
+  return all.map((entry) => {
+    const ref = parseId(entry.id);
+    return {
+      params: { lang: ref.lang, slug: `${ref.game}/${ref.version}/${ref.slug}` },
+      props: { entry },
+    };
+  });
+}
+
+const { entry } = Astro.props;
+const ref = parseId(entry.id);
+const { Content, headings } = await render(entry);
+
+const all = await getCollection('srd');
+const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
+
+// Заголовок страницы — из H1 тела
+const pageTitle = titleFromBody(entry.body) || ref.slug;
+
+// Страницы текущей системы и языка, по порядку
+const siblings = all
+  .map((e) => ({ e, r: parseId(e.id) }))
+  .filter(({ r }) => r.game === ref.game && r.version === ref.version && r.lang === ref.lang)
+  .sort((a, b) => a.r.order.localeCompare(b.r.order));
+
+const idx = siblings.findIndex(({ e }) => e.id === entry.id);
+const prev = idx > 0 ? siblings[idx - 1] : null;
+const next = idx >= 0 && idx < siblings.length - 1 ? siblings[idx + 1] : null;
+
+const navTitle = (e: typeof entry) => titleFromBody(e.body) || parseId(e.id).slug;
+
+// Группировка nav по первой папке slug ("classes/barbarian" → группа "classes")
+type NavGroup = { key: string; label: string | null; items: { url: string; label: string; active: boolean }[] };
+const groups: NavGroup[] = [];
+for (const { e, r } of siblings) {
+  const segs = r.slug.split('/');
+  const groupKey = segs.length > 1 ? segs[0] : '';
+  let g = groups.find((x) => x.key === groupKey);
+  if (!g) {
+    g = { key: groupKey, label: groupKey ? groupKey.replace(/-/g, ' ').replace(/\b\w/g, (c) => c.toUpperCase()) : null, items: [] };
+    groups.push(g);
+  }
+  g.items.push({ url: pageUrl(r), label: navTitle(e), active: e.id === entry.id });
+}
+
+// Языковой аналог этой же страницы (для переключателя)
+const other = ref.lang === 'en' ? 'ru' : 'en';
+const counterpart = all.find((e) => {
+  const r = parseId(e.id);
+  return r.game === ref.game && r.version === ref.version && r.lang === other && r.slug === ref.slug;
+});
+const counterpartUrl = counterpart ? pageUrl(parseId(counterpart.id)) : `/${other}`;
+
+const sys = SYSTEMS.find((s) => s.game === ref.game && s.version === ref.version);
+const sysLabel = sys ? (ref.lang === 'en' ? sys.en : sys.ru) : ref.version;
+
+// Первая страница каждой системы (для табов)
+const sysFirst = (s: typeof SYSTEMS[number]) => {
+  const first = all
+    .map((e) => parseId(e.id))
+    .filter((r) => r.game === s.game && r.version === s.version && r.lang === ref.lang)
+    .sort((a, b) => a.order.localeCompare(b.order))[0];
+  return first ? pageUrl(first) : `/${ref.lang}`;
+};
+
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+const description = t(
+  `${pageTitle} — ${sysLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
+  `${pageTitle} — ${sysLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
+);
+---
+<Reader title={`${pageTitle} · ${sysLabel} · OmnisGM Rules`} description={description} lang={ref.lang}>
+  <div class="rd-root">
+    <!-- Top bar -->
+    <header class="rd-topbar">
+      <a href={`/${ref.lang}`} class="rd-brand">
+        <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+          <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
+          <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
+          <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
+          <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
+        </svg>
+        <span class="rd-brand-name">OmnisGM</span>
+        <span class="rd-brand-sub">/ rules</span>
+      </a>
+
+      <div class="rd-top-right">
+        <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
+        <div class="rd-lang">
+          <a class={'rd-lang-btn' + (ref.lang === 'en' ? ' on' : '')} href={ref.lang === 'en' ? '#' : counterpartUrl}>ENG</a>
+          <a class={'rd-lang-btn' + (ref.lang === 'ru' ? ' on' : '')} href={ref.lang === 'ru' ? '#' : counterpartUrl} style="border-left:1px solid var(--og-border)">RU</a>
+        </div>
+      </div>
+    </header>
+
+    <!-- System tabs -->
+    <nav class="rd-systabs og-scroll">
+      {SYSTEMS.map((s) => (
+        <a
+          href={sysFirst(s)}
+          class={'rd-systab' + (s.game === ref.game && s.version === ref.version ? ' on' : '')}
+        >{ref.lang === 'en' ? s.en : s.ru}</a>
+      ))}
+    </nav>
+
+    <!-- Body -->
+    <div class={'rd-body' + (toc.length > 1 ? '' : ' rd-no-toc')}>
+      <aside class="rd-nav og-scroll">
+        {groups.map((g) => (
+          <div>
+            {g.label && <div class="rd-nav-group"><span class="rd-nav-grouplabel">{g.label}</span></div>}
+            {g.items.map((it) => (
+              <a href={it.url} class={'rd-nav-page' + (it.active ? ' rd-nav-active' : '')} style={g.label ? 'padding-left:28px' : ''}>{it.label}</a>
+            ))}
+          </div>
+        ))}
+      </aside>
+
+      <main class="rd-content og-scroll">
+        <div class="rd-content-inner">
+          <div class="rd-crumb">{sysLabel}{ref.slug.includes('/') ? '  ·  ' + groups.find((g) => g.items.some((i) => i.active))?.label : ''}</div>
+          <article class="rd-doc">
+            <Content />
+          </article>
+
+          <div class="rd-source">
+            <span>{t('Источник', 'Source')}</span>
+            <a href={`${REPO}/blob/master/src/${entry.id}.md`} target="_blank" rel="noopener">src/{entry.id}.md ↗</a>
+          </div>
+
+          <div class="rd-prevnext">
+            {prev ? (
+              <a class="rd-pn" href={pageUrl(prev.r)}>
+                <span class="rd-pn-k">← {t('Назад', 'Previous')}</span>
+                <span class="rd-pn-t">{navTitle(prev.e)}</span>
+              </a>
+            ) : <span />}
+            {next ? (
+              <a class="rd-pn rd-pn-r" href={pageUrl(next.r)}>
+                <span class="rd-pn-k">{t('Вперёд', 'Next')} →</span>
+                <span class="rd-pn-t">{navTitle(next.e)}</span>
+              </a>
+            ) : <span />}
+          </div>
+        </div>
+      </main>
+
+      {toc.length > 1 && (
+        <aside class="rd-toc og-scroll">
+          <div class="rd-toc-h">{t('На этой странице', 'On this page')}</div>
+          <div class="rd-toc-list">
+            {toc.map((h) => (
+              <a class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')} href={`#${h.slug}`}>{h.text}</a>
+            ))}
+          </div>
+        </aside>
+      )}
+    </div>
+  </div>
+</Reader>

@@ -1,0 +1,27 @@
+---
+import { getCollection } from 'astro:content';
+import { parseId, pageUrl } from '../../lib/slug';
+
+export async function getStaticPaths() {
+  return [{ params: { lang: 'en' } }, { params: { lang: 'ru' } }];
+}
+
+const { lang } = Astro.params;
+// → первая страница D&D SRD 5.2 на нужном языке
+const all = await getCollection('srd');
+const first = all
+  .map((e) => parseId(e.id))
+  .filter((r) => r.game === 'dnd' && r.version === 'srd-5.2' && r.lang === lang)
+  .sort((a, b) => a.order.localeCompare(b.order))[0];
+const target = first ? pageUrl(first) : '/en';
+---
+<!DOCTYPE html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content={`0;url=${target}`} />
+    <link rel="canonical" href={target} />
+    <title>OmnisGM Rules</title>
+  </head>
+  <body><a href={target}>OmnisGM Rules</a></body>
+</html>

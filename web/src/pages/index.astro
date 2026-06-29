@@ -1,0 +1,14 @@
+---
+// Корень → EN (дефолтное лицо экосистемы — английское). Позже заменим на лендинг.
+const target = '/en';
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta http-equiv="refresh" content={`0;url=${target}`} />
+    <link rel="canonical" href={target} />
+    <title>OmnisGM Rules — TTRPG SRD reader</title>
+  </head>
+  <body><a href={target}>OmnisGM Rules</a></body>
+</html>

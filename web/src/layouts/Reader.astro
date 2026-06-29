@@ -1,0 +1,42 @@
+---
+import '../styles/tokens.css';
+import '../styles/reader.css';
+
+export interface Props {
+  title: string;
+  description?: string;
+  lang?: 'en' | 'ru';
+  canonical?: string;
+}
+const { title, description = '', lang = 'en', canonical } = Astro.props;
+const canonicalURL = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
+
+// Шрифты грузим не блокируя рендер (урок из новостей): preconnect + media=print onload swap + noscript.
+const FONTS =
+  'https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap';
+---
+<!DOCTYPE html>
+<html lang={lang}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={canonicalURL} />
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href={FONTS} />
+    <link rel="stylesheet" href={FONTS} media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href={FONTS} /></noscript>
+
+    <meta name="theme-color" content="#0F1016" />
+    <meta property="og:type" content="website" />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={canonicalURL} />
+  </head>
+  <body>
+    <slot />
+  </body>
+</html>
