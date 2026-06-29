@@ -64,6 +64,22 @@
 .rd-systab:hover { color: var(--og-text); }
 .rd-systab.on { color: var(--og-text); font-weight: 600; border-bottom-color: var(--og-accent); }
 
+/* мобильная строка табов: Home + активная система слева, «Разделы» справа (скрыта на десктопе) */
+.rd-mobtabs { display: none; align-items: center; justify-content: space-between; gap: 12px;
+  padding: 0 16px; border-bottom: 1px solid var(--og-border); background: var(--og-bg); }
+.rd-mobtabs-tabs { display: flex; align-items: stretch; gap: 22px; min-width: 0; overflow-x: auto; }
+.rd-mobtabs .rd-systab { padding: 12px 0 10px; font-size: 15px; }
+.rd-mobtabs .rd-burger-btn { flex-shrink: 0; }
+
+/* выбор систем в drawer */
+.rd-drawer-seclabel { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.4px;
+  text-transform: uppercase; color: var(--og-text-4); padding: 14px 14px 8px; }
+.rd-drawer-systems { display: flex; flex-direction: column; margin-bottom: 6px; }
+.rd-drawer-sys { display: block; text-decoration: none; padding: 9px 14px; border-radius: 6px; margin: 1px 6px;
+  font-family: var(--font-display); font-size: 15px; font-weight: 600; letter-spacing: -0.2px; color: var(--og-text-2); }
+.rd-drawer-sys:hover { background: var(--og-bg-3); color: var(--og-text); }
+.rd-drawer-sys.on { color: var(--og-accent); background: color-mix(in oklab, var(--og-accent) 11%, transparent); }
+
 /* ── Nav tree ──────────────────────────────────────────────────────────── */
 .rd-nav { border-right: 1px solid var(--og-border); overflow-y: auto; padding: 16px 8px 40px; background: var(--og-bg); }
 .rd-nav-group {
@@ -174,12 +190,15 @@
   /* язык — выпадающим списком вместо пары кнопок */
   .rd-lang { display: none; }
   .rd-lang-sel { display: inline-flex; }
+  .rd-gh { display: inline; }
   /* page-scroll: контент не скроллит внутри себя, скроллит страница */
   .rd-root { min-height: 100dvh; }
   .rd-content { overflow: visible; }
   /* закрепляем СПИСОК СИСТЕМ, а шапку с лого отпускаем (уезжает при скролле) */
   .rd-topbar { position: static; }
-  .rd-systabs { position: sticky; top: 0; z-index: 25; }
+  /* десктоп-табы прячем, показываем компактную строку и закрепляем ЕЁ */
+  .rd-systabs { display: none; }
+  .rd-mobtabs { display: flex; position: sticky; top: 0; z-index: 25; }
 }
 
 /* ── Mobile drawer (триггер «Разделы», открытие на CSS-чекбоксе — без JS) ── */
@@ -207,7 +226,6 @@
 
 @media (max-width: 760px) {
   .rd-burger-btn { display: inline-flex; }
-  .rd-gh { display: none; }
   .rd-drawer-scrim { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
   .rd-drawer { display: block; transform: translateX(-100%); transition: transform .22s ease; }
   .rd-drawer-cb:checked ~ .rd-drawer-scrim { opacity: 1; pointer-events: auto; }

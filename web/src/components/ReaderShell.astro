@@ -3,7 +3,7 @@ import Reader from '../layouts/Reader.astro';
 import NavTree from './NavTree.astro';
 import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup,
-  label, routeOf, systemRoute, type Lang, type NavGroup,
+  label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup,
 } from '../lib/nav';
 
 export interface Props {
@@ -20,6 +20,7 @@ const MAIN = 'https://omnisgm.com';
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
 
 const activeSys = systemOf(currentId);
+const activeSysTab = SYSTEMS.find((s) => s.id === activeSys);
 const navRoots = activeSys === 'home' ? NAV : ((NAV.find((n) => n.id === activeSys) as NavGroup)?.kids ?? NAV);
 
 // Открытые группы: предки текущей + на Home по умолчанию раскрываем D&D → SRD 5.2.1
@@ -63,11 +64,6 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         <span class="rd-brand-sub">/ rules</span>
       </div>
       <div class="rd-top-right">
-        {/* Кнопка «Разделы» — только на мобиле, открывает drawer (вместо скрытого слева дерева) */}
-        <label for="rd-drawer-cb" class="rd-burger-btn" aria-label={t('Открыть разделы', 'Open contents')}>
-          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-          {t('Разделы', 'Contents')}
-        </label>
         <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
         {/* десктоп — кнопки-пара; мобила — выпадающий список (как в News) */}
         <div class="rd-lang">
@@ -81,6 +77,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       </div>
     </header>
 
+    {/* десктоп — все табы систем */}
     <nav class="rd-systabs og-scroll">
       {SYSTEMS.map((s) => (
         <a href={systemRoute(s.id, lang)} class={'rd-systab' + (s.id === activeSys ? ' on' : '')} aria-current={s.id === activeSys ? 'page' : undefined}>
@@ -88,6 +85,20 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         </a>
       ))}
     </nav>
+
+    {/* мобила — компактная липкая строка: Home + активная система слева, «Разделы» справа */}
+    <div class="rd-mobtabs">
+      <div class="rd-mobtabs-tabs og-scroll">
+        <a href={homeRoute(lang)} class={'rd-systab' + (activeSys === 'home' ? ' on' : '')}>{t('Главная', 'Home')}</a>
+        {activeSysTab && activeSys !== 'home' && (
+          <a href={systemRoute(activeSys, lang)} class="rd-systab on">{label(activeSysTab as any, lang)}</a>
+        )}
+      </div>
+      <label for="rd-drawer-cb" class="rd-burger-btn" aria-label={t('Открыть разделы', 'Open contents')}>
+        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+        {t('Разделы', 'Contents')}
+      </label>
+    </div>
 
     <div class={'rd-body' + (toc.length > 1 ? '' : ' rd-no-toc')}>
       <aside class="rd-nav og-scroll">
@@ -143,9 +154,20 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     <label for="rd-drawer-cb" class="rd-drawer-scrim" aria-hidden="true"></label>
     <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Contents')}>
       <div class="rd-drawer-top">
-        <span class="rd-drawer-title">{t('Разделы', 'Contents')}</span>
+        <span class="rd-drawer-title">{t('Навигация', 'Navigation')}</span>
         <label for="rd-drawer-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
+
+      {/* сперва — выбор системы */}
+      <div class="rd-drawer-seclabel">{t('Системы', 'Systems')}</div>
+      <div class="rd-drawer-systems">
+        {SYSTEMS.map((s) => (
+          <a href={systemRoute(s.id, lang)} class={'rd-drawer-sys' + (s.id === activeSys ? ' on' : '')}>{label(s as any, lang)}</a>
+        ))}
+      </div>
+
+      {/* потом — разделы текущей системы */}
+      <div class="rd-drawer-seclabel">{t('Разделы', 'Sections')}</div>
       <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
     </aside>
   </div>
