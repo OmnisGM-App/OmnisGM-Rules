@@ -1,6 +1,6 @@
 # OmnisGM Rules — TTRPG SRD Markdown
 
-[Live site](https://rules.omnisgm.com) · [Static API](https://rules.omnisgm.com/api/)
+[Live site](https://rules.omnisgm.com)
 
 A curated collection of tabletop RPG **System Reference Documents (SRDs)** in Markdown, published as a
 fast, static reader at **rules.omnisgm.com**. Part of the **OmnisGM** ecosystem. Content is available in

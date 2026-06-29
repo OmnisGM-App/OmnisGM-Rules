@@ -1,0 +1,33 @@
+---
+import { isGroup, label, routeOf, type NavNode, type Lang } from '../lib/nav';
+
+export interface Props {
+  nodes: NavNode[];
+  lang: Lang;
+  currentId: string;
+  openIds: Set<string>;
+  depth?: number;
+}
+const { nodes, lang, currentId, openIds, depth = 0 } = Astro.props;
+const pad = (d: number, leaf: boolean) => 14 + d * 14 + (leaf ? 18 : 0);
+---
+{nodes.map((n) =>
+  isGroup(n) ? (
+    <details class="rd-nav-det" open={openIds.has(n.id)}>
+      <summary class="rd-nav-group" style={`padding-left:${pad(depth, false)}px`}>
+        <span class="rd-nav-caret" aria-hidden="true">
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1.5 7 5 3 8.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        <span class="rd-nav-grouplabel">{label(n, lang)}</span>
+      </summary>
+      <Astro.self nodes={n.kids} lang={lang} currentId={currentId} openIds={openIds} depth={depth + 1} />
+    </details>
+  ) : (
+    <a
+      href={routeOf(n.slug, lang)}
+      class={'rd-nav-page' + (n.id === currentId ? ' rd-nav-active' : '')}
+      style={`padding-left:${pad(depth, true)}px`}
+      aria-current={n.id === currentId ? 'page' : undefined}
+    >{label(n, lang)}</a>
+  )
+)}

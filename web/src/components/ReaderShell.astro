@@ -1,0 +1,125 @@
+---
+import Reader from '../layouts/Reader.astro';
+import NavTree from './NavTree.astro';
+import {
+  NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup,
+  label, routeOf, systemRoute, type Lang, type NavGroup,
+} from '../lib/nav';
+
+export interface Props {
+  lang: Lang;
+  currentId: string;          // 'home' или id страницы NAV
+  title: string;
+  description?: string;
+  headings?: { depth: number; slug: string; text: string }[];
+  sourceId?: string;          // id записи коллекции для ссылки «Источник»
+}
+const { lang, currentId, title, description, headings = [], sourceId } = Astro.props;
+const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
+const MAIN = 'https://omnisgm.com';
+const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
+
+const activeSys = systemOf(currentId);
+const navRoots = activeSys === 'home' ? NAV : ((NAV.find((n) => n.id === activeSys) as NavGroup)?.kids ?? NAV);
+
+// Открытые группы: предки текущей + на Home по умолчанию раскрываем D&D → SRD 5.2.1
+const trail = findPath(currentId) ?? [];
+const openIds = new Set(trail.map((n) => n.id));
+if (currentId === 'home') { openIds.add('dnd'); openIds.add('d52'); }
+
+const crumb = trail.slice(0, -1).map((n) => label(n, lang)).join('  ·  ');
+
+const node = nodeById(currentId);
+const curSlug = node && !isGroup(node) ? node.slug : null;
+const other: Lang = lang === 'en' ? 'ru' : 'en';
+const counterpart = curSlug ? `/${other}/${curSlug}` : `/${other}`;
+
+const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
+const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;
+const next = idx >= 0 && idx < FLAT_PAGES.length - 1 ? FLAT_PAGES[idx + 1] : null;
+
+const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+---
+<Reader title={title} description={description} lang={lang}>
+  <div class="rd-root">
+    <header class="rd-topbar">
+      <div class="rd-brand">
+        <a href={MAIN} class="rd-brand-link" aria-label="OmnisGM">
+          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
+            <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
+            <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
+            <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
+            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
+          </svg>
+          <span class="rd-brand-name">OmnisGM</span>
+        </a>
+        <span class="rd-brand-sub">/ rules</span>
+      </div>
+      <div class="rd-top-right">
+        <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
+        <div class="rd-lang">
+          <a class={'rd-lang-btn' + (lang === 'en' ? ' on' : '')} href={lang === 'en' ? undefined : counterpart}>ENG</a>
+          <a class={'rd-lang-btn' + (lang === 'ru' ? ' on' : '')} href={lang === 'ru' ? undefined : counterpart} style="border-left:1px solid var(--og-border)">RU</a>
+        </div>
+      </div>
+    </header>
+
+    <nav class="rd-systabs og-scroll">
+      {SYSTEMS.map((s) => (
+        <a href={systemRoute(s.id, lang)} class={'rd-systab' + (s.id === activeSys ? ' on' : '')} aria-current={s.id === activeSys ? 'page' : undefined}>
+          {label(s as any, lang)}
+        </a>
+      ))}
+    </nav>
+
+    <div class={'rd-body' + (toc.length > 1 ? '' : ' rd-no-toc')}>
+      <aside class="rd-nav og-scroll">
+        <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
+      </aside>
+
+      <main class="rd-content og-scroll">
+        <div class="rd-content-inner">
+          {crumb && <div class="rd-crumb">{crumb}</div>}
+          <article class="rd-doc">
+            <slot />
+          </article>
+
+          {sourceId && (
+            <div class="rd-source">
+              <span>{t('Источник', 'Source')}</span>
+              <a href={`${REPO}/blob/master/src/${sourceId}.md`} target="_blank" rel="noopener">src/{sourceId}.md ↗</a>
+            </div>
+          )}
+
+          {(prev || next) && (
+            <div class="rd-prevnext">
+              {prev ? (
+                <a class="rd-pn" href={routeOf(prev.slug, lang)}>
+                  <span class="rd-pn-k">← {t('Назад', 'Previous')}</span>
+                  <span class="rd-pn-t">{label(prev, lang)}</span>
+                </a>
+              ) : <span />}
+              {next ? (
+                <a class="rd-pn rd-pn-r" href={routeOf(next.slug, lang)}>
+                  <span class="rd-pn-k">{t('Вперёд', 'Next')} →</span>
+                  <span class="rd-pn-t">{label(next, lang)}</span>
+                </a>
+              ) : <span />}
+            </div>
+          )}
+        </div>
+      </main>
+
+      {toc.length > 1 && (
+        <aside class="rd-toc og-scroll">
+          <div class="rd-toc-h">{t('На этой странице', 'On this page')}</div>
+          <div class="rd-toc-list">
+            {toc.map((h) => (
+              <a class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')} href={`#${h.slug}`}>{h.text}</a>
+            ))}
+          </div>
+        </aside>
+      )}
+    </div>
+  </div>
+</Reader>
