@@ -38,6 +38,7 @@ export function pageUrl(ref: ContentRef): string {
 // Заголовок страницы из первой строки Markdown (# H1), т.к. frontmatter нет
 export function titleFromBody(body: string | undefined): string {
   if (!body) return '';
-  const m = body.match(/^\s*#\s+(.+?)\s*$/m);
-  return m ? m[1].trim() : '';
+  // Заголовок любого уровня: топ-страницы начинаются с "# H1", файлы классов — с "## H2".
+  const m = body.match(/^\s*#{1,6}\s+(.+?)\s*$/m);
+  return m ? m[1].replace(/\s*#+\s*$/, '').trim() : '';
 }
