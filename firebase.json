@@ -1,0 +1,9 @@
+{
+  "hosting": {
+    "site": "omnisgm-rules",
+    "public": "web/dist",
+    "ignore": ["firebase.json", "**/.*", "**/node_modules/**"],
+    "cleanUrls": false,
+    "trailingSlash": false
+  }
+}
