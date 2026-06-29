@@ -12,7 +12,7 @@ NS = {
 SITE_DIR = Path("site")
 SITEMAP_PATH = SITE_DIR / "sitemap.xml"
 TODAY = date.today().isoformat()
-SITE_URL = "https://nemo-illusionist.github.io/ttrpg_srd_markdown/"
+SITE_URL = "https://rules.omnisgm.com/"
 
 
 def classify(loc: str) -> str:
