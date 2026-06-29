@@ -1,6 +1,7 @@
 ---
 import Reader from '../layouts/Reader.astro';
 import NavTree from './NavTree.astro';
+import Search from 'astro-pagefind/components/Search';
 import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup,
   label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup,
@@ -63,6 +64,9 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         </a>
         <span class="rd-brand-sub">/ rules</span>
       </div>
+      <div class="rd-search-slot">
+        <Search id="rd-search-d" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
+      </div>
       <div class="rd-top-right">
         <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
         {/* десктоп — кнопки-пара; мобила — выпадающий список (как в News) */}
@@ -108,7 +112,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       <main class="rd-content og-scroll">
         <div class="rd-content-inner">
           {crumb && <div class="rd-crumb">{crumb}</div>}
-          <article class="rd-doc">
+          <article class="rd-doc" data-pagefind-body>
             <slot />
           </article>
 
@@ -156,6 +160,10 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       <div class="rd-drawer-top">
         <span class="rd-drawer-title">{t('Навигация', 'Navigation')}</span>
         <label for="rd-drawer-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+      </div>
+
+      <div class="rd-drawer-search">
+        <Search id="rd-search-m" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
       </div>
 
       {/* сперва — выбор системы */}

@@ -1,6 +1,7 @@
 import { defineConfig } from 'astro/config';
 import react from '@astrojs/react';
 import sitemap from '@astrojs/sitemap';
+import pagefind from 'astro-pagefind';
 import rehypePromoteHeadings from './src/lib/rehype-promote-headings.mjs';
 
 // rules.omnisgm.com — статический (SSG) ридер SRD экосистемы OmnisGM.
@@ -14,6 +15,7 @@ export default defineConfig({
   integrations: [
     react(),
     sitemap(),
+    pagefind(),
   ],
   build: {
     format: 'directory',
