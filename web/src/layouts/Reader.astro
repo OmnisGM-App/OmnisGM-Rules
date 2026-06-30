@@ -15,8 +15,10 @@ const canonicalURL = canonical ?? new URL(Astro.url.pathname, Astro.site).toStri
 const ORIGIN = Astro.site ? Astro.site.origin : 'https://rules.omnisgm.com';
 
 // Шрифты грузим не блокируя рендер (урок из новостей): preconnect + media=print onload swap + noscript.
+// Запрашиваем только используемые веса: Inter без 700 (нигде не используется),
+// JetBrains 600 вместо 700 (моно-элементы в CSS — 600). Fraunces 700 нужен бренду «OmnisGM».
 const FONTS =
-  'https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap';
+  'https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500;600&display=swap';
 ---
 <!DOCTYPE html>
 <html lang={lang} data-title-ru={bilingual ? titleRu : undefined}>
