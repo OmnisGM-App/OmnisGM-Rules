@@ -5,13 +5,16 @@
   "type": "module",
   "description": "rules.omnisgm.com — Astro (SSG) SRD reader for the OmnisGM ecosystem",
   "scripts": {
+    "predev": "node scripts/copy-brand-assets.mjs",
     "dev": "astro dev",
+    "prebuild": "node scripts/copy-brand-assets.mjs",
     "build": "astro build",
     "preview": "astro preview",
     "astro": "astro"
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.3.0",
+    "@omnisgm-app/brand": "^0.1.0",
     "astro": "^5.7.0"
   },
   "devDependencies": {

@@ -16,6 +16,7 @@ on:
 
 permissions:
   contents: read
+  packages: read   # установка приватного @omnisgm-app/brand из GitHub Packages
 
 concurrency:
   group: deploy-hosting
@@ -36,6 +37,8 @@ jobs:
       - name: Install web deps
         working-directory: web
         run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
 
       - uses: actions/setup-python@v5
         with:
