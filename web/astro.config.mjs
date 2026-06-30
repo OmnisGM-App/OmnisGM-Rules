@@ -24,7 +24,7 @@ export default defineConfig({
       includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icon.svg'],
       manifest: {
         id: '/',
-        name: 'OmnisGM Rules — TTRPG SRD',
+        name: 'OmnisGM Rules — tabletop RPG reference',
         short_name: 'OmnisGM Rules',
         description:
           'A fast, offline-ready reader for freely-licensed tabletop RPG System Reference Documents — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying.',
