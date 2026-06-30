@@ -314,13 +314,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .pagefind-ui__search-input { color: var(--og-text); }
 /* opacity:1 обязательно — дефолт Pagefind держит 0.2 (эффективный цвет тусклее → провал контраста) */
 .pagefind-ui__search-input::placeholder { color: var(--og-text-muted) !important; opacity: 1 !important; }
-/* кнопка очистки — не «клавиша»: убираем рамку/фон, просто приглушённая подпись */
-.pagefind-ui__search-clear {
-  background: none !important; border: none !important; box-shadow: none !important;
-  color: var(--og-text-muted) !important; padding: 0 10px !important;
-  font-size: 12px !important; font-family: var(--font-mono) !important; cursor: pointer;
-}
-.pagefind-ui__search-clear:hover { color: var(--og-text) !important; }
+/* кнопка очистки Pagefind убрана — на компактном поле лишняя (чистится удалением текста) */
+.pagefind-ui__search-clear { display: none !important; }
 /* бейдж системы у результата (навешивается скриптом из URL): D&D 5.2 / Daggerheart / … */
 .rd-sys-badge {
   display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
