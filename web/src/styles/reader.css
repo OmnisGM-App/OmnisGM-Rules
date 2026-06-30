@@ -62,16 +62,15 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 }
 .rd-burger { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--og-border); border-radius: 8px; background: var(--og-bg-2); color: var(--og-text-2); }
 
-/* ── System tabs ───────────────────────────────────────────────────────── */
+/* ── Адаптивная панель: системы (вкладки↔список) + поиск (поле↔кнопка) + кнопки сайдбаров ── */
 .rd-systabs {
-  flex: none; display: flex; align-items: stretch; gap: 18px;
-  padding: 0 20px 0 24px; height: var(--rd-bar);
+  flex: none; display: flex; align-items: stretch; gap: 14px;
+  padding: 0 14px 0 20px; height: var(--rd-bar);
   border-bottom: 1px solid var(--og-border); background: var(--og-bg);
   /* ЗАКРЕПЛЯЕМ панель систем (а не шапку) */
   position: sticky; top: 0; z-index: 25;
 }
 .rd-systabs-tabs { display: flex; align-items: stretch; gap: 26px; overflow-x: auto; min-width: 0; }
-.rd-systabs .rd-search-slot { flex: 0 0 auto; margin-left: auto; align-self: center; width: 300px; max-width: 38vw; }
 .rd-systab {
   appearance: none; border: none; background: none; white-space: nowrap; text-decoration: none;
   padding: 13px 0 11px; font-family: var(--font-display); font-size: 15px; font-weight: 500;
@@ -81,25 +80,28 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-systab:hover { color: var(--og-text); }
 .rd-systab.on { color: var(--og-text); font-weight: 600; border-bottom-color: var(--og-accent); }
 
-/* мобильная панель: Системы(список) | поиск | Разделы | На странице (скрыта на десктопе) */
-.rd-mobtabs { display: none; align-items: center; justify-content: space-between; gap: 10px;
-  padding: 8px 14px; border-bottom: 1px solid var(--og-border); background: var(--og-bg); }
+/* системы списком — появляется, когда вкладки не влезают (≤760) */
 .rd-sysmenu {
-  appearance: none; -webkit-appearance: none; min-width: 0; flex: 0 1 auto; max-width: 46%;
+  display: none; appearance: none; -webkit-appearance: none; min-width: 0; flex: 0 1 auto; max-width: 46%;
+  align-self: center;
   background-color: var(--og-bg-2); color: var(--og-text); cursor: pointer;
-  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 44px;
+  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 40px;
   font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.2px;
   text-overflow: ellipsis; white-space: nowrap;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%23A1A3B8' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center;
 }
-.rd-mobtabs-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
+/* правый кластер: поиск (поле/кнопка) + Разделы + На странице */
+.rd-bar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+.rd-bar-actions .rd-search-slot { width: 300px; max-width: 34vw; }
 .rd-iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
-  min-height: 44px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
+  min-height: 40px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
   background: var(--og-bg-2); color: var(--og-text-2);
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rd-iconbtn-txt { padding: 8px 11px; }
 .rd-iconbtn:hover { color: var(--og-text); border-color: var(--og-border-strong); }
+/* кнопки-замены сайдбаров/поиска — скрыты на широком, появляются по брейкпоинтам ниже */
+.rd-act { display: none; }
 
 /* ── Nav tree ──────────────────────────────────────────────────────────── */
 .rd-nav {
@@ -225,25 +227,37 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-root { --rd-bar: 48px; display: flex; flex-direction: column; min-height: 100vh; background: var(--og-bg); color: var(--og-text); }
 .rd-body { display: grid; grid-template-columns: 278px minmax(0,1fr) 236px; flex: 1; min-height: 0; }
 .rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr); }
-@media (max-width: 1100px) { .rd-body, .rd-body.rd-no-toc { grid-template-columns: 258px minmax(0,1fr); } .rd-toc { display: none; } }
+/* ① TOC не помещается → скрываем правый столбец, в панель приходит кнопка «На странице» */
+@media (max-width: 1100px) {
+  .rd-body, .rd-body.rd-no-toc { grid-template-columns: 258px minmax(0,1fr); }
+  .rd-toc { display: none; }
+  .rd-act-toc { display: inline-flex; }
+}
+/* ② Поиску нет места → поле превращается в кнопку 🔍 (по ТЗ — раньше систем) */
+@media (max-width: 920px) {
+  .rd-bar-actions .rd-search-slot { display: none; }
+  .rd-act-search { display: inline-flex; }
+}
+/* ③ Системам нет места → выпадающий список; дерево скрыто → кнопка «Разделы»; мобильный режим */
 @media (max-width: 760px) {
   .rd-body, .rd-body.rd-no-toc { grid-template-columns: 1fr; }
+  .rd-systabs-tabs { display: none; }
+  .rd-sysmenu { display: block; }
   .rd-nav { display: none; }
+  .rd-act-nav { display: inline-flex; }
   .rd-content-inner { padding: 24px 20px 56px; }
   .rd-doc h1 { font-size: 32px; }
   /* язык — выпадающим списком вместо пары кнопок */
   .rd-lang { display: none; }
   .rd-lang-sel { display: inline-flex; }
   .rd-gh { display: inline; }
-  /* page-scroll: контент не скроллит внутри себя, скроллит страница */
+  /* page-scroll: контент скроллит страницу; шапку отпускаем, панель пинится ниже выреза */
   .rd-root { min-height: 100dvh; }
   .rd-content { overflow: visible; }
-  /* закрепляем СПИСОК СИСТЕМ, а шапку с лого отпускаем (уезжает при скролле) */
   .rd-topbar { position: static; }
-  /* десктоп-табы прячем, показываем компактную строку и закрепляем ЕЁ (пин ниже выреза) */
-  .rd-systabs { display: none; }
-  .rd-mobtabs { display: flex; position: sticky; top: env(safe-area-inset-top); z-index: 25; }
-  /* тач-зоны ≥44pt (Apple HIG): пункты дерева, группы, ссылки «На странице» */
+  .rd-systabs { top: env(safe-area-inset-top); }
+  /* тач-зоны ≥44pt (Apple HIG) */
+  .rd-iconbtn, .rd-sysmenu { min-height: 44px; }
   .rd-nav-page, .rd-nav-group { min-height: 44px; display: flex; align-items: center; }
   .rd-toc-link { min-height: 44px; display: flex; align-items: center; }
 }
@@ -275,21 +289,20 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-drawer-x { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: none; border: none; color: var(--og-text-2); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
 .rd-onpage .rd-toc-list { border-left: 1px solid var(--og-border); margin: 4px 8px; }
 
-@media (max-width: 760px) {
-  .rd-scrim { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
-  .rd-drawer  { display: block; transform: translateX(-100%); transition: transform .22s ease; }
-  .rd-onpage  { display: block; transform: translateX(100%);  transition: transform .22s ease; }
-  .rd-search-overlay { display: block; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
-
-  /* открытие каждой панели своим чекбоксом */
-  #rd-drawer-cb:checked ~ .rd-drawer,
-  #rd-onpage-cb:checked ~ .rd-onpage { transform: translateX(0); }
-  #rd-search-cb:checked ~ .rd-search-overlay { opacity: 1; pointer-events: auto; }
-  /* скрим виден, когда открыта любая панель (клик по нему = rd-panel-none = закрыть) */
-  #rd-drawer-cb:checked ~ .rd-scrim,
-  #rd-onpage-cb:checked ~ .rd-scrim,
-  #rd-search-cb:checked ~ .rd-scrim { opacity: 1; pointer-events: auto; }
-}
+/* Панели работают при ЛЮБОЙ ширине (открываются кнопками, которые показываются по брейкпоинтам:
+   «На странице» ≤1100, поиск ≤920, «Разделы» ≤760). На широком — кнопок нет, панели off-screen. */
+.rd-scrim { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.rd-drawer  { display: block; transform: translateX(-100%); transition: transform .22s ease; }
+.rd-onpage  { display: block; transform: translateX(100%);  transition: transform .22s ease; }
+.rd-search-overlay { display: block; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+/* открытие каждой панели своим чекбоксом */
+#rd-drawer-cb:checked ~ .rd-drawer,
+#rd-onpage-cb:checked ~ .rd-onpage { transform: translateX(0); }
+#rd-search-cb:checked ~ .rd-search-overlay { opacity: 1; pointer-events: auto; }
+/* скрим виден, когда открыта любая панель (клик = rd-panel-none = закрыть) */
+#rd-drawer-cb:checked ~ .rd-scrim,
+#rd-onpage-cb:checked ~ .rd-scrim,
+#rd-search-cb:checked ~ .rd-scrim { opacity: 1; pointer-events: auto; }
 .rd-search-wrap-m { max-width: none; margin: 4px 6px 14px; }
 .rd-nomatch { padding: 16px; font-size: 13px; color: var(--og-text-muted); font-family: var(--font-mono); }
 
@@ -341,7 +354,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   background: color-mix(in oklab, var(--og-accent) 24%, transparent);
   color: var(--og-text); border-radius: 3px; padding: 0 2px;
 }
-@media (max-width: 760px) { .rd-search-slot { display: none; } }
+/* поиск-поле скрывается на ≤920 (в баре, см. .rd-bar-actions .rd-search-slot) — отдельное правило не нужно */
 
 /* ── CTA-воронка в основной продукт (лист персонажа) ── */
 .rd-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px;

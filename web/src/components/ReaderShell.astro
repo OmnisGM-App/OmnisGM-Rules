@@ -114,37 +114,34 @@ const searchUi = {
       </div>
     </header>
 
-    {/* десктоп — панель систем (липкая): вкладки слева, поиск справа */}
+    {/* Адаптивная липкая панель: системы (вкладки→список) + поиск (поле→кнопка) +
+        кнопки «Разделы»/«На странице» (появляются, когда сайдбары скрыты по ширине). */}
     <div class="rd-systabs">
-      <nav class="rd-systabs-tabs og-scroll">
+      <nav class="rd-systabs-tabs og-scroll" aria-label={t('Системы', 'Systems')}>
         {SYSTEMS.map((s) => (
           <a href={systemRoute(s.id, lang)} class={'rd-systab' + (s.id === activeSys ? ' on' : '')} aria-current={s.id === activeSys ? 'page' : undefined}>
             <I18n en={label(s as any, 'en')} ru={label(s as any, 'ru')} bilingual={bilingual} lang={lang} />
           </a>
         ))}
       </nav>
-      <div class="rd-search-slot">
-        <Search id="rd-search-d" className="pagefind-ui" uiOptions={searchUi} />
-      </div>
-    </div>
-
-    {/* мобила — липкая панель: Системы (список) | поиск | Разделы (слева) | На странице (справа) */}
-    <div class="rd-mobtabs">
       <select class="rd-sysmenu" aria-label={t('Система', 'System')} onchange="if(this.value)location.href=this.value">
         {SYSTEMS.map((s) => (
           <option value={systemRoute(s.id, lang)} selected={s.id === activeSys} data-ru={bilingual ? label(s as any, 'ru') : undefined}>{label(s as any, lang)}</option>
         ))}
       </select>
-      <div class="rd-mobtabs-actions">
-        <label for="rd-search-cb" class="rd-iconbtn" aria-label={t('Поиск', 'Search')}>
+      <div class="rd-bar-actions">
+        <div class="rd-search-slot">
+          <Search id="rd-search-d" className="pagefind-ui" uiOptions={searchUi} />
+        </div>
+        <label for="rd-search-cb" class="rd-iconbtn rd-act rd-act-search" aria-label={t('Поиск', 'Search')}>
           <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.4" stroke="currentColor" stroke-width="1.4" /><path d="m10.6 10.6 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
         </label>
-        <label for="rd-drawer-cb" class="rd-iconbtn rd-iconbtn-txt" aria-label={t('Разделы', 'Sections')}>
+        <label for="rd-drawer-cb" class="rd-iconbtn rd-iconbtn-txt rd-act rd-act-nav" aria-label={t('Разделы', 'Sections')}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
           <span><I18n en="Sections" ru="Разделы" bilingual={bilingual} lang={lang} /></span>
         </label>
         {toc.length > 1 && (
-          <label for="rd-onpage-cb" class="rd-iconbtn rd-iconbtn-txt" aria-label={t('На странице', 'On this page')}>
+          <label for="rd-onpage-cb" class="rd-iconbtn rd-iconbtn-txt rd-act rd-act-toc" aria-label={t('На странице', 'On this page')}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4h8M6 8h8M6 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
             <span><I18n en="Page" ru="Страница" bilingual={bilingual} lang={lang} /></span>
           </label>
