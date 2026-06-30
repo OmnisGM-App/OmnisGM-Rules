@@ -242,9 +242,10 @@
   #rd-drawer-cb:checked ~ .rd-drawer,
   #rd-onpage-cb:checked ~ .rd-onpage { transform: translateX(0); }
   #rd-search-cb:checked ~ .rd-search-overlay { opacity: 1; pointer-events: auto; }
-  #rd-drawer-cb:checked ~ label[for="rd-drawer-cb"].rd-scrim,
-  #rd-onpage-cb:checked ~ label[for="rd-onpage-cb"].rd-scrim,
-  #rd-search-cb:checked ~ label[for="rd-search-cb"].rd-scrim { opacity: 1; pointer-events: auto; }
+  /* скрим виден, когда открыта любая панель (клик по нему = rd-panel-none = закрыть) */
+  #rd-drawer-cb:checked ~ .rd-scrim,
+  #rd-onpage-cb:checked ~ .rd-scrim,
+  #rd-search-cb:checked ~ .rd-scrim { opacity: 1; pointer-events: auto; }
 }
 .rd-search-wrap-m { max-width: none; margin: 4px 6px 14px; }
 .rd-nomatch { padding: 16px; font-size: 13px; color: var(--og-text-4); font-family: var(--font-mono); }
@@ -271,6 +272,12 @@
 .rd-drawer-search { padding: 2px 6px 8px; }
 .pagefind-ui__result-link { color: var(--og-text); }
 .pagefind-ui__result-excerpt { color: var(--og-text-2); }
+/* подсветка совпадений — наш акцент вместо дефолтной жёлтой */
+.pagefind-ui__result-excerpt mark,
+.rd-search-slot mark, .rd-search-overlay mark {
+  background: color-mix(in oklab, var(--og-accent) 24%, transparent);
+  color: var(--og-text); border-radius: 3px; padding: 0 2px;
+}
 @media (max-width: 760px) { .rd-search-slot { display: none; } }
 
 /* ── CTA-воронка в основной продукт (лист персонажа) ── */

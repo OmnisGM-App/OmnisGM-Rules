@@ -48,11 +48,13 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 ---
 <Reader title={title} description={description} lang={lang}>
   <div class="rd-root">
-    {/* Мобильные тогглы на CSS-чекбоксах (без JS): якоря первыми в .rd-root.
+    {/* Мобильные тогглы на CSS-радио (без JS): якоря первыми в .rd-root. Общий name="rd-panel"
+        делает панели взаимоисключающими; rd-panel-none — закрытое состояние (по умолчанию).
         rd-drawer-cb — «Разделы» (слева), rd-onpage-cb — «На странице» (справа), rd-search-cb — поиск (оверлей). */}
-    <input type="checkbox" id="rd-drawer-cb" class="rd-toggle-cb" hidden />
-    <input type="checkbox" id="rd-onpage-cb" class="rd-toggle-cb" hidden />
-    <input type="checkbox" id="rd-search-cb" class="rd-toggle-cb" hidden />
+    <input type="radio" name="rd-panel" id="rd-panel-none" class="rd-toggle-cb" hidden checked />
+    <input type="radio" name="rd-panel" id="rd-drawer-cb" class="rd-toggle-cb" hidden />
+    <input type="radio" name="rd-panel" id="rd-onpage-cb" class="rd-toggle-cb" hidden />
+    <input type="radio" name="rd-panel" id="rd-search-cb" class="rd-toggle-cb" hidden />
 
     <header class="rd-topbar">
       <div class="rd-brand">
@@ -182,21 +184,21 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     </div>
 
     {/* «Разделы» — левый drawer, только дерево разделов (системы ушли в список выше) */}
-    <label for="rd-drawer-cb" class="rd-scrim" aria-hidden="true"></label>
+    <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Sections')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title">{t('Разделы', 'Sections')}</span>
-        <label for="rd-drawer-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+        <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
     </aside>
 
     {/* «На странице» — правый drawer, навигация по текущей странице (заголовки) */}
-    <label for="rd-onpage-cb" class="rd-scrim" aria-hidden="true"></label>
+    <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <aside class="rd-onpage og-scroll" aria-label={t('На этой странице', 'On this page')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title">{t('На этой странице', 'On this page')}</span>
-        <label for="rd-onpage-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+        <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       {toc.length > 1 ? (
         <div class="rd-toc-list">
@@ -204,7 +206,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
             <a
               class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')}
               href={`#${h.slug}`}
-              onclick="var c=document.getElementById('rd-onpage-cb');if(c)c.checked=false"
+              onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true"
             >{h.text}</a>
           ))}
         </div>
@@ -214,11 +216,11 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     </aside>
 
     {/* Поиск — полноэкранный оверлей (отдельная кнопка 🔍) */}
-    <label for="rd-search-cb" class="rd-scrim" aria-hidden="true"></label>
+    <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <div class="rd-search-overlay">
       <div class="rd-drawer-top">
         <span class="rd-drawer-title">{t('Поиск', 'Search')}</span>
-        <label for="rd-search-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+        <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       <div class="rd-search-overlay-body">
         <Search id="rd-search-m" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
