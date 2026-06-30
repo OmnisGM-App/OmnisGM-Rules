@@ -20,8 +20,8 @@ const r = (id: string) => {
 
 const title = t('Главная · OmnisGM Rules', 'Home · OmnisGM Rules');
 const description = t(
-  'Открытый свод свободно-лицензированных SRD настольных ролевых игр (D&D, Daggerheart, Basic Roleplaying) в Markdown, EN/RU. Проект экосистемы OmnisGM.',
-  'Freely-licensed tabletop RPG System Reference Documents (D&D, Daggerheart, Basic Roleplaying) as Markdown, EN/RU. A project of the OmnisGM ecosystem.',
+  'Открытый свод свободно-лицензированных SRD настольных ролевых игр (D&D, Daggerheart, Basic Roleplaying) в Markdown. Проект экосистемы OmnisGM.',
+  'Freely-licensed tabletop RPG System Reference Documents (D&D, Daggerheart, Basic Roleplaying) as Markdown. A project of the OmnisGM ecosystem.',
 );
 
 // Заголовки для TOC (контент авторский, не из Markdown)
@@ -35,8 +35,8 @@ const headings = [
   <h1 id="ttrpg-srd">{t('TTRPG SRD — правила настольных ролёвок', 'TTRPG SRD — tabletop rules')}</h1>
   <p>
     {t(
-      'Свободно доступные System Reference Document, собранные в одном месте, в Markdown, переведённые на русский и английский. Читайте онлайн или берите исходный текст.',
-      'Freely-licensed System Reference Documents, gathered in one place, as Markdown, translated into English and Russian. Read online or take the source text.',
+      'Свободно доступные System Reference Document, собранные в одном месте, в Markdown. Читайте онлайн или берите исходный текст.',
+      'Freely-licensed System Reference Documents, gathered in one place, as Markdown. Read online or take the source text.',
     )}
   </p>
 
@@ -59,7 +59,7 @@ const headings = [
 
   <hr />
   <blockquote>
-    {t('Перевод на русский выполнен с помощью ИИ и вычитывается. Нашли ошибку — ', 'The translation is produced with AI assistance and is being proofread. Found an error? ')}
+    {t('Нашли ошибку — ', 'Found an error? ')}
     <a href={ISSUE} target="_blank" rel="noopener">{t('создайте issue', 'Open an issue')}</a>
     {t(' в репозитории проекта.', ' in the project repository.')}
   </blockquote>

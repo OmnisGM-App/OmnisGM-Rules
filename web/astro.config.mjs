@@ -26,7 +26,7 @@ export default defineConfig({
         name: 'OmnisGM Rules — TTRPG SRD',
         short_name: 'OmnisGM Rules',
         description:
-          'A fast, offline-ready reader for freely-licensed tabletop RPG System Reference Documents — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying — in English and Russian.',
+          'A fast, offline-ready reader for freely-licensed tabletop RPG System Reference Documents — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying.',
         lang: 'en',
         dir: 'ltr',
         categories: ['books', 'reference', 'education', 'games'],
@@ -58,7 +58,7 @@ export default defineConfig({
             name: 'OmnisGM Rules — SRD настольных игр',
             short_name: 'OmnisGM Rules',
             description:
-              'Быстрый офлайн-ридер свободно-лицензированных SRD настольных ролевых игр — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying — на русском и английском.',
+              'Быстрый офлайн-ридер свободно-лицензированных SRD настольных ролевых игр — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying.',
           },
         },
         icons: [
