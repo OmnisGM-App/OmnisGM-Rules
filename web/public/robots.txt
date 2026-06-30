@@ -1,0 +1,7 @@
+# OmnisGM Rules — rules.omnisgm.com
+User-agent: *
+Allow: /
+# /api — внутренний JSON-рендер для основного приложения, не для индексации
+Disallow: /api/
+
+Sitemap: https://rules.omnisgm.com/sitemap-index.xml
