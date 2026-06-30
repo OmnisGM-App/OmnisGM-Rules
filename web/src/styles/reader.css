@@ -271,7 +271,9 @@
 .rd-search-slot .pagefind-ui__drawer:empty { display: none; }
 .rd-drawer-search { padding: 2px 6px 8px; }
 .pagefind-ui__result-link { color: var(--og-text); }
-.pagefind-ui__result-excerpt { color: var(--og-text-2); }
+/* выдержка кликабельна (JS ведёт к тому же разделу, что и заголовок под-результата) */
+.pagefind-ui__result-excerpt { color: var(--og-text-2); cursor: pointer; transition: color .12s ease; }
+.pagefind-ui__result-excerpt:hover { color: var(--og-text); }
 /* подсветка совпадений — наш акцент вместо дефолтной жёлтой */
 .pagefind-ui__result-excerpt mark,
 .rd-search-slot mark, .rd-search-overlay mark {

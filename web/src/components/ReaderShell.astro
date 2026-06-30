@@ -228,3 +228,19 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     </div>
   </div>
 </Reader>
+
+{/* Клик по тексту-выдержке результата поиска ведёт туда же, куда заголовок этого под-результата
+    (Pagefind рендерит выдержку обычным <p>, поэтому навигацию вешаем делегированно). */}
+<script>
+  document.addEventListener('click', (e) => {
+    const target = e.target as HTMLElement;
+    const ex = target.closest?.('.pagefind-ui__result-excerpt');
+    if (!ex) return;
+    // не мешаем выделению текста
+    const sel = window.getSelection?.();
+    if (sel && String(sel).trim()) return;
+    const box = ex.closest('.pagefind-ui__result-nested') || ex.closest('.pagefind-ui__result-inner');
+    const link = box?.querySelector<HTMLAnchorElement>('a.pagefind-ui__result-link');
+    if (link) link.click();
+  });
+</script>
