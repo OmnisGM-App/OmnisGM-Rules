@@ -293,7 +293,22 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-search-overlay .rd-drawer-top { background: var(--og-bg); }
 .rd-drawer-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
 .rd-drawer-x { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: none; border: none; color: var(--og-text-2); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
-.rd-onpage .rd-toc-list { border-left: 1px solid var(--og-border); margin: 4px 8px; }
+/* «На странице» (drawer): без вертикальной полосы — как десктопный TOC; сворачиваемые группы */
+.rd-onpage .rd-toc-list { margin: 4px 8px; }
+.rd-onpage .rd-toc-row { display: flex; align-items: center; gap: 2px; }
+.rd-onpage .rd-toc-row .rd-toc-h2 { flex: 1 1 auto; min-height: 44px; }
+/* десктопная каретка-псевдоэлемент не нужна (h2 не прямой потомок группы) — рисуем кнопку-каретку */
+.rd-toc-caret {
+  flex: 0 0 auto; width: 40px; height: 44px; background: none; border: none; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--og-text-4);
+}
+.rd-toc-caret::before {
+  content: ''; width: 7px; height: 7px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); transition: transform .15s ease;
+}
+.rd-toc-grp.open > .rd-toc-row .rd-toc-caret::before { transform: rotate(45deg); }
+.rd-onpage .rd-toc-sub { padding-left: 42px; }
 
 /* Панели работают при ЛЮБОЙ ширине (открываются кнопками, которые показываются по брейкпоинтам:
    «На странице» ≤1100, поиск ≤920, «Разделы» ≤760). На широком — кнопок нет, панели off-screen. */

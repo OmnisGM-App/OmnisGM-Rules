@@ -4,8 +4,8 @@ import NavTree from './NavTree.astro';
 import I18n from './I18n.astro';
 import Search from 'astro-pagefind/components/Search';
 import {
-  NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup,
-  label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup,
+  NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup, flattenPages,
+  label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup, type NavNode,
 } from '../lib/nav';
 
 export interface Props {
@@ -48,6 +48,37 @@ const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
 const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;
 const next = idx >= 0 && idx < FLAT_PAGES.length - 1 ? FLAT_PAGES[idx + 1] : null;
 
+// ── JSON-LD (schema.org) — для rich-результатов и хлебных крошек в выдаче ───────
+const SITE = 'https://rules.omnisgm.com';
+const pageUrl = SITE + currentPath; // currentPath с trailing slash (trailingSlash:'always')
+// URL узла: страница → её маршрут, группа → первая страница-лист под ней.
+const nodeRoute = (n: NavNode): string =>
+  isGroup(n) ? (flattenPages(n.kids)[0] ? routeOf(flattenPages(n.kids)[0].slug, lang) : homeRoute(lang))
+             : routeOf(n.slug, lang);
+const org = {
+  '@type': 'Organization', '@id': SITE + '/#org', name: 'OmnisGM', url: MAIN,
+  logo: { '@type': 'ImageObject', url: SITE + '/icon-512.png', width: 512, height: 512 },
+};
+const webSite = {
+  '@type': 'WebSite', '@id': SITE + '/#website', url: SITE + '/',
+  name: 'OmnisGM Rules', inLanguage: lang, publisher: { '@id': SITE + '/#org' },
+};
+const graph: object[] = [org, webSite];
+if (currentId !== 'home' && trail.length) {
+  const crumbs = [{ name: t('Главная', 'Home'), url: homeRoute(lang) }, ...trail.map((n) => ({ name: label(n, lang), url: nodeRoute(n) }))];
+  graph.push({
+    '@type': 'BreadcrumbList',
+    itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: SITE + c.url })),
+  });
+  graph.push({
+    '@type': 'Article', '@id': pageUrl + '#article',
+    headline: searchTitle ?? title, url: pageUrl, inLanguage: lang,
+    ...(description ? { description } : {}),
+    isPartOf: { '@id': SITE + '/#website' }, publisher: { '@id': SITE + '/#org' },
+  });
+}
+const jsonLd = { '@context': 'https://schema.org', '@graph': graph };
+
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 // Группируем h3 под их h2 для сворачиваемого TOC (по умолчанию свёрнуто, активная секция раскрыта скриптом)
 type TocGroup = { h2: { slug: string; text: string }; subs: { slug: string; text: string }[] };
@@ -68,7 +99,7 @@ const searchUi = {
   },
 };
 ---
-<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu}>
+<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd}>
   <div class="rd-root">
     {/* Мобильные тогглы на CSS-радио (без JS): якоря первыми в .rd-root. Общий name="rd-panel"
         делает панели взаимоисключающими; rd-panel-none — закрытое состояние (по умолчанию).
@@ -224,7 +255,7 @@ const searchUi = {
 
     {/* «Разделы» — левый drawer, только дерево разделов (системы ушли в список выше) */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
-    <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Sections')}>
+    <aside class="rd-drawer og-scroll" role="dialog" aria-modal="true" aria-label={t('Разделы', 'Sections')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title"><I18n en="Sections" ru="Разделы" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
@@ -232,21 +263,34 @@ const searchUi = {
       <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} bilingual={bilingual} />
     </aside>
 
-    {/* «На странице» — правый drawer, навигация по текущей странице (заголовки) */}
+    {/* «На странице» — правый drawer, навигация по текущей странице. Сворачиваемые группы
+        (h3 под h2) — как в десктопном TOC: каретка разворачивает группу, тап по пункту ведёт + закрывает. */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
-    <aside class="rd-onpage og-scroll" aria-label={t('На этой странице', 'On this page')}>
+    <aside class="rd-onpage og-scroll" role="dialog" aria-modal="true" aria-label={t('На этой странице', 'On this page')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title"><I18n en="On this page" ru="На этой странице" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       {toc.length > 1 ? (
         <div class="rd-toc-list">
-          {toc.map((h) => (
-            <a
-              class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')}
-              href={`#${h.slug}`}
-              onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true"
-            >{h.text}</a>
+          {tocGroups.map((g) => (
+            <div class={'rd-toc-grp' + (g.subs.length ? ' has-subs' : '')}>
+              <div class="rd-toc-row">
+                {g.subs.length > 0 && (
+                  <button type="button" class="rd-toc-caret" aria-label={t('Развернуть', 'Expand')} aria-expanded="false"></button>
+                )}
+                <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`}
+                   onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true">{g.h2.text}</a>
+              </div>
+              {g.subs.length > 0 && (
+                <div class="rd-toc-subs">
+                  {g.subs.map((s) => (
+                    <a class="rd-toc-link rd-toc-sub" href={`#${s.slug}`}
+                       onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true">{s.text}</a>
+                  ))}
+                </div>
+              )}
+            </div>
           ))}
         </div>
       ) : (
@@ -256,7 +300,7 @@ const searchUi = {
 
     {/* Поиск — полноэкранный оверлей (отдельная кнопка 🔍) */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
-    <div class="rd-search-overlay">
+    <div class="rd-search-overlay" role="dialog" aria-modal="true" aria-label={t('Поиск', 'Search')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title"><I18n en="Search" ru="Поиск" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
@@ -375,5 +419,84 @@ const searchUi = {
     let t: number;
     new MutationObserver(() => { clearTimeout(t); t = window.setTimeout(() => process(root), 60); })
       .observe(root, { childList: true, subtree: true });
+  }
+</script>
+
+{/* Доступность панелей (drawer'ы/поиск): открытие фокусирует панель, Tab зациклен внутри,
+    Esc закрывает, фокус возвращается на триггер. Панели открываются CSS-радио — реагируем на change. */}
+<script>
+  const PANELS: Record<string, string> = {
+    'rd-drawer-cb': '.rd-drawer',
+    'rd-onpage-cb': '.rd-onpage',
+    'rd-search-cb': '.rd-search-overlay',
+  };
+  const noneCb = document.getElementById('rd-panel-none') as HTMLInputElement | null;
+  let active: HTMLElement | null = null;
+  let lastFocus: HTMLElement | null = null;
+  const focusables = (el: HTMLElement) =>
+    Array.from(el.querySelectorAll<HTMLElement>('a[href],button:not([disabled]),input:not([disabled]),select:not([disabled]),textarea,[tabindex]:not([tabindex="-1"])'))
+      .filter((e) => e.offsetParent !== null);
+
+  const sync = () => {
+    let panel: HTMLElement | null = null;
+    for (const [id, sel] of Object.entries(PANELS)) {
+      const cb = document.getElementById(id) as HTMLInputElement | null;
+      if (cb?.checked) { panel = document.querySelector<HTMLElement>(sel); break; }
+    }
+    if (panel === active) return;
+    if (panel) {
+      if (!active) lastFocus = document.activeElement as HTMLElement;
+      active = panel;
+      const f = focusables(panel);
+      requestAnimationFrame(() => (f[0] || panel!).focus());
+    } else {
+      active = null;
+      if (lastFocus) { lastFocus.focus(); lastFocus = null; }
+    }
+  };
+  document.querySelectorAll<HTMLInputElement>('input[name="rd-panel"]').forEach((r) => r.addEventListener('change', sync));
+  document.addEventListener('keydown', (e) => {
+    if (!active) return;
+    if (e.key === 'Escape') { e.preventDefault(); if (noneCb) { noneCb.checked = true; sync(); } }
+    else if (e.key === 'Tab') {
+      const f = focusables(active);
+      if (!f.length) return;
+      const first = f[0], last = f[f.length - 1];
+      if (e.shiftKey && document.activeElement === first) { e.preventDefault(); last.focus(); }
+      else if (!e.shiftKey && document.activeElement === last) { e.preventDefault(); first.focus(); }
+    }
+  });
+</script>
+
+{/* «На странице» (drawer): каретка разворачивает/сворачивает группу подразделов (h3). */}
+<script>
+  document.querySelectorAll<HTMLButtonElement>('.rd-onpage .rd-toc-caret').forEach((btn) => {
+    btn.addEventListener('click', () => {
+      const grp = btn.closest('.rd-toc-grp');
+      if (!grp) return;
+      const open = grp.classList.toggle('open');
+      btn.setAttribute('aria-expanded', String(open));
+    });
+  });
+</script>
+
+{/* Двуязычный корень в RU-режиме: UI поиска собран на EN (lang="en"), а data-rootlang=ru
+    ставит только корень при RU-локали. Локализуем плейсхолдер, кнопку очистки и «ничего не найдено». */}
+<script>
+  if (document.documentElement.getAttribute('data-rootlang') === 'ru') {
+    const localize = (root: Element) => {
+      root.querySelectorAll<HTMLInputElement>('input.pagefind-ui__search-input').forEach((i) => { i.placeholder = 'Поиск'; });
+      root.querySelectorAll('.pagefind-ui__search-clear').forEach((b) => b.setAttribute('aria-label', 'Очистить'));
+      root.querySelectorAll('.pagefind-ui__message').forEach((m) => {
+        const mm = (m.textContent || '').match(/^No results for\s+(.*)$/i);
+        if (mm) m.textContent = `Ничего не найдено: ${mm[1]}`;
+      });
+    };
+    for (const id of ['rd-search-d', 'rd-search-m']) {
+      const root = document.getElementById(id);
+      if (!root) continue;
+      localize(root);
+      new MutationObserver(() => localize(root)).observe(root, { childList: true, subtree: true });
+    }
   }
 </script>
