@@ -11,7 +11,9 @@ export default function rehypeWrapTables() {
           node.children[i] = {
             type: 'element',
             tagName: 'div',
-            properties: { className: ['rd-table-wrap'] },
+            // tabindex=0 — чтобы скроллящуюся по горизонтали обёртку можно было прокрутить
+            // с клавиатуры (иначе axe scrollable-region-focusable: контент недостижим без мыши).
+            properties: { className: ['rd-table-wrap'], tabIndex: 0 },
             children: [child],
           };
           walk(child); // вложенные таблицы (редко)

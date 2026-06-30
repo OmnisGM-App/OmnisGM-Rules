@@ -95,7 +95,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-bar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
 .rd-bar-actions .rd-search-slot { width: 300px; max-width: 34vw; }
 .rd-iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
-  min-height: 44px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
+  min-height: 44px; min-width: 44px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
   background: var(--og-bg-2); color: var(--og-text-2);
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rd-iconbtn-txt { padding: 8px 11px; }
@@ -181,6 +181,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* Таблицы: Astro рендерит <table>; оборачиваем в .rd-doc для скролла на узких экранах */
 /* широкая таблица скроллится внутри обёртки (rehype-wrap-tables), а не растягивает страницу */
 .rd-table-wrap { overflow-x: auto; max-width: 100%; margin: 0 0 22px; -webkit-overflow-scrolling: touch; }
+/* фокус обёртки (клавиатурный скролл) — заметная рамка-акцент */
+.rd-table-wrap:focus-visible { outline: 2px solid var(--og-accent); outline-offset: 2px; border-radius: 6px; }
 .rd-table-wrap table { margin: 0; }
 .rd-doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 22px; border: 1px solid var(--og-border); border-radius: 10px; overflow: hidden; display: table; }
 .rd-doc th, .rd-doc td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--og-border-soft); }
