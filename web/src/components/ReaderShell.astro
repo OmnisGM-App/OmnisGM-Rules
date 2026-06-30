@@ -48,8 +48,11 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 ---
 <Reader title={title} description={description} lang={lang}>
   <div class="rd-root">
-    {/* Мобильный drawer на CSS-чекбоксе (без JS): чекбокс-якорь первым в .rd-root */}
-    <input type="checkbox" id="rd-drawer-cb" class="rd-drawer-cb" hidden />
+    {/* Мобильные тогглы на CSS-чекбоксах (без JS): якоря первыми в .rd-root.
+        rd-drawer-cb — «Разделы» (слева), rd-onpage-cb — «На странице» (справа), rd-search-cb — поиск (оверлей). */}
+    <input type="checkbox" id="rd-drawer-cb" class="rd-toggle-cb" hidden />
+    <input type="checkbox" id="rd-onpage-cb" class="rd-toggle-cb" hidden />
+    <input type="checkbox" id="rd-search-cb" class="rd-toggle-cb" hidden />
 
     <header class="rd-topbar">
       <div class="rd-brand">
@@ -90,18 +93,28 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       ))}
     </nav>
 
-    {/* мобила — компактная липкая строка: Home + активная система слева, «Разделы» справа */}
+    {/* мобила — липкая панель: Системы (список) | поиск | Разделы (слева) | На странице (справа) */}
     <div class="rd-mobtabs">
-      <div class="rd-mobtabs-tabs og-scroll">
-        <a href={homeRoute(lang)} class={'rd-systab' + (activeSys === 'home' ? ' on' : '')}>{t('Главная', 'Home')}</a>
-        {activeSysTab && activeSys !== 'home' && (
-          <a href={systemRoute(activeSys, lang)} class="rd-systab on">{label(activeSysTab as any, lang)}</a>
+      <select class="rd-sysmenu" aria-label={t('Система', 'System')} onchange="if(this.value)location.href=this.value">
+        {SYSTEMS.map((s) => (
+          <option value={systemRoute(s.id, lang)} selected={s.id === activeSys}>{label(s as any, lang)}</option>
+        ))}
+      </select>
+      <div class="rd-mobtabs-actions">
+        <label for="rd-search-cb" class="rd-iconbtn" aria-label={t('Поиск', 'Search')}>
+          <svg width="16" height="16" viewBox="0 0 16 16" fill="none"><circle cx="7" cy="7" r="4.4" stroke="currentColor" stroke-width="1.4" /><path d="m10.6 10.6 3 3" stroke="currentColor" stroke-width="1.4" stroke-linecap="round" /></svg>
+        </label>
+        <label for="rd-drawer-cb" class="rd-iconbtn rd-iconbtn-txt" aria-label={t('Разделы', 'Sections')}>
+          <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+          <span>{t('Разделы', 'Sections')}</span>
+        </label>
+        {toc.length > 1 && (
+          <label for="rd-onpage-cb" class="rd-iconbtn rd-iconbtn-txt" aria-label={t('На странице', 'On this page')}>
+            <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4h8M6 8h8M6 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
+            <span>{t('Страница', 'Page')}</span>
+          </label>
         )}
       </div>
-      <label for="rd-drawer-cb" class="rd-burger-btn" aria-label={t('Открыть разделы', 'Open contents')}>
-        <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-        {t('Разделы', 'Contents')}
-      </label>
     </div>
 
     <div class={'rd-body' + (toc.length > 1 ? '' : ' rd-no-toc')}>
@@ -168,29 +181,48 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       )}
     </div>
 
-    {/* Мобильный drawer (открывается кнопкой «Разделы») — тёмный, наш скин, то же дерево */}
-    <label for="rd-drawer-cb" class="rd-drawer-scrim" aria-hidden="true"></label>
-    <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Contents')}>
+    {/* «Разделы» — левый drawer, только дерево разделов (системы ушли в список выше) */}
+    <label for="rd-drawer-cb" class="rd-scrim" aria-hidden="true"></label>
+    <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Sections')}>
       <div class="rd-drawer-top">
-        <span class="rd-drawer-title">{t('Навигация', 'Navigation')}</span>
+        <span class="rd-drawer-title">{t('Разделы', 'Sections')}</span>
         <label for="rd-drawer-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
-
-      <div class="rd-drawer-search">
-        <Search id="rd-search-m" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
-      </div>
-
-      {/* сперва — выбор системы */}
-      <div class="rd-drawer-seclabel">{t('Системы', 'Systems')}</div>
-      <div class="rd-drawer-systems">
-        {SYSTEMS.map((s) => (
-          <a href={systemRoute(s.id, lang)} class={'rd-drawer-sys' + (s.id === activeSys ? ' on' : '')}>{label(s as any, lang)}</a>
-        ))}
-      </div>
-
-      {/* потом — разделы текущей системы */}
-      <div class="rd-drawer-seclabel">{t('Разделы', 'Sections')}</div>
       <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
     </aside>
+
+    {/* «На странице» — правый drawer, навигация по текущей странице (заголовки) */}
+    <label for="rd-onpage-cb" class="rd-scrim" aria-hidden="true"></label>
+    <aside class="rd-onpage og-scroll" aria-label={t('На этой странице', 'On this page')}>
+      <div class="rd-drawer-top">
+        <span class="rd-drawer-title">{t('На этой странице', 'On this page')}</span>
+        <label for="rd-onpage-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+      </div>
+      {toc.length > 1 ? (
+        <div class="rd-toc-list">
+          {toc.map((h) => (
+            <a
+              class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')}
+              href={`#${h.slug}`}
+              onclick="var c=document.getElementById('rd-onpage-cb');if(c)c.checked=false"
+            >{h.text}</a>
+          ))}
+        </div>
+      ) : (
+        <div class="rd-nomatch">{t('На этой странице нет разделов', 'No sections on this page')}</div>
+      )}
+    </aside>
+
+    {/* Поиск — полноэкранный оверлей (отдельная кнопка 🔍) */}
+    <label for="rd-search-cb" class="rd-scrim" aria-hidden="true"></label>
+    <div class="rd-search-overlay">
+      <div class="rd-drawer-top">
+        <span class="rd-drawer-title">{t('Поиск', 'Search')}</span>
+        <label for="rd-search-cb" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
+      </div>
+      <div class="rd-search-overlay-body">
+        <Search id="rd-search-m" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
+      </div>
+    </div>
   </div>
 </Reader>
