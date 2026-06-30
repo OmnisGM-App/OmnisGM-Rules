@@ -100,6 +100,15 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rd-iconbtn-txt { padding: 8px 11px; }
 .rd-iconbtn:hover { color: var(--og-text); border-color: var(--og-border-strong); }
+/* Единый заметный фокус клавиатуры (2.4.7/2.4.11) для интерактивного «хрома» ридера */
+.rd-root a:focus-visible,
+.rd-root button:focus-visible,
+.rd-root summary:focus-visible,
+.rd-root select:focus-visible,
+.pagefind-ui__search-input:focus-visible,
+.pagefind-ui__result-link:focus-visible {
+  outline: 2px solid var(--og-accent); outline-offset: 2px; border-radius: 6px;
+}
 /* кнопки-замены сайдбаров/поиска — скрыты на широком, появляются по брейкпоинтам ниже */
 .rd-act { display: none; }
 /* поле поиска в баре — единой высоты с кнопками (44px). Pagefind считает высоту как
@@ -125,7 +134,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* Сворачивание через <details>: прячем нативный маркер, своя каретка вращается на [open] */
 .rd-nav-det > summary { list-style: none; cursor: pointer; }
 .rd-nav-det > summary::-webkit-details-marker { display: none; }
-.rd-nav-caret { display: inline-flex; color: var(--og-text-4); transition: transform .15s ease; flex-shrink: 0; }
+.rd-nav-caret { display: inline-flex; color: var(--og-text-3); transition: transform .15s ease; flex-shrink: 0; }
 .rd-nav-det[open] > summary .rd-nav-caret { transform: rotate(90deg); }
 .rd-nav-page {
   width: 100%; display: block; text-align: left; background: none; border: none; text-decoration: none;
@@ -222,7 +231,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-toc-grp.has-subs > .rd-toc-h2 { position: relative; padding-left: 20px; }
 .rd-toc-grp.has-subs > .rd-toc-h2::before {
   content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
-  border-right: 1.4px solid var(--og-text-4); border-bottom: 1.4px solid var(--og-text-4);
+  border-right: 1.4px solid var(--og-text-3); border-bottom: 1.4px solid var(--og-text-3);
   transform: rotate(-45deg); transition: transform .15s ease;
 }
 .rd-toc-grp.open.has-subs > .rd-toc-h2::before { transform: rotate(45deg); }
@@ -301,8 +310,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-onpage .rd-toc-row .rd-toc-h2 { flex: 1 1 auto; min-height: 44px; }
 /* десктопная каретка-псевдоэлемент не нужна (h2 не прямой потомок группы) — рисуем кнопку-каретку */
 .rd-toc-caret {
-  flex: 0 0 auto; width: 40px; height: 44px; background: none; border: none; cursor: pointer; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--og-text-4);
+  flex: 0 0 auto; width: 44px; height: 44px; background: none; border: none; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--og-text-3);
 }
 .rd-toc-caret::before {
   content: ''; width: 7px; height: 7px;
