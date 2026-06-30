@@ -20,7 +20,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* ── Top bar ───────────────────────────────────────────────────────────── */
 .rd-topbar {
   flex: none; display: flex; align-items: center; gap: 18px;
-  padding: 0 20px; height: 56px;
+  /* safe-area: контент шапки ниже выреза/Dynamic Island, боковые вырезы в альбоме (standalone iOS) */
+  padding: env(safe-area-inset-top) calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left));
+  height: calc(56px + env(safe-area-inset-top));
   border-bottom: 1px solid var(--og-border);
   background: rgba(15,16,22,0.92); backdrop-filter: blur(8px);
   position: sticky; top: 0; z-index: 30;
@@ -53,7 +55,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   display: none; appearance: none; -webkit-appearance: none;
   background-color: var(--og-bg-2); color: var(--og-text-2);
   border: 1px solid var(--og-border); border-radius: 7px; cursor: pointer;
-  padding: 7px 26px 7px 11px; min-height: 38px;
+  padding: 7px 26px 7px 11px; min-height: 44px;
   font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; font-weight: 600;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%2380829C' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
   background-repeat: no-repeat; background-position: right 9px center;
@@ -81,7 +83,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-sysmenu {
   appearance: none; -webkit-appearance: none; min-width: 0; flex: 0 1 auto; max-width: 46%;
   background-color: var(--og-bg-2); color: var(--og-text); cursor: pointer;
-  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 38px;
+  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 44px;
   font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.2px;
   text-overflow: ellipsis; white-space: nowrap;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%23A1A3B8' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -89,7 +91,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 }
 .rd-mobtabs-actions { display: flex; align-items: center; gap: 7px; flex-shrink: 0; }
 .rd-iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
-  min-height: 38px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
+  min-height: 44px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
   background: var(--og-bg-2); color: var(--og-text-2);
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rd-iconbtn-txt { padding: 8px 11px; }
@@ -211,9 +213,12 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   .rd-content { overflow: visible; }
   /* закрепляем СПИСОК СИСТЕМ, а шапку с лого отпускаем (уезжает при скролле) */
   .rd-topbar { position: static; }
-  /* десктоп-табы прячем, показываем компактную строку и закрепляем ЕЁ */
+  /* десктоп-табы прячем, показываем компактную строку и закрепляем ЕЁ (пин ниже выреза) */
   .rd-systabs { display: none; }
-  .rd-mobtabs { display: flex; position: sticky; top: 0; z-index: 25; }
+  .rd-mobtabs { display: flex; position: sticky; top: env(safe-area-inset-top); z-index: 25; }
+  /* тач-зоны ≥44pt (Apple HIG): пункты дерева, группы, ссылки «На странице» */
+  .rd-nav-page, .rd-nav-group { min-height: 44px; display: flex; align-items: center; }
+  .rd-toc-link { min-height: 44px; display: flex; align-items: center; }
 }
 
 /* ── Мобильные панели на CSS-чекбоксах (без JS): «Разделы» (слева), «На странице» (справа), поиск (оверлей) ── */
@@ -240,7 +245,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-drawer-top { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 12px; position: sticky; top: 0; background: var(--og-bg-2); }
 .rd-search-overlay .rd-drawer-top { background: var(--og-bg); }
 .rd-drawer-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
-.rd-drawer-x { display: inline-flex; align-items: center; justify-content: center; width: 40px; height: 40px; background: none; border: none; color: var(--og-text-2); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
+.rd-drawer-x { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: none; border: none; color: var(--og-text-2); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
 .rd-onpage .rd-toc-list { border-left: 1px solid var(--og-border); margin: 4px 8px; }
 
 @media (max-width: 760px) {

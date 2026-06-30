@@ -34,6 +34,9 @@ export default defineConfig({
         background_color: '#0F1016',
         display: 'standalone',
         display_override: ['standalone', 'minimal-ui'],
+        // Ридер читают и в портрете (телефон), и в альбоме (планшет/десктоп) — 'any'
+        // (в News стоит 'portrait', т.к. там телефонная лента). Закрывает warning PWABuilder.
+        orientation: 'any',
         start_url: '/en/',
         scope: '/',
         // Фокусируем уже открытое окно (ридер — одно-инстансный).
