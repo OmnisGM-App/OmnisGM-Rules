@@ -4,6 +4,17 @@
 
 .rd-root { --rd-nav-w: 278px; font-family: var(--font-body); position: relative; }
 .rd-root *, .rd-root *::before, .rd-root *::after { box-sizing: border-box; }
+
+/* ── Двуязычный корень «/» (bilingual): подписи обоих языков в DOM, видимость по флагу
+   html[data-rootlang]. Дефолт (без флага / EN) — EN; ru-локаль ставит флаг до отрисовки. ── */
+.l-ru { display: none; }
+html[data-rootlang="ru"] .l-en { display: none; }
+html[data-rootlang="ru"] .l-ru { display: revert; }
+/* активный язык в переключателе — по флагу (на корне у обеих кнопок есть href) */
+html:not([data-rootlang="ru"]) .rd-lang-btn[data-l="ru"],
+html[data-rootlang="ru"] .rd-lang-btn[data-l="en"] { color: var(--og-text-3); background: transparent; }
+html:not([data-rootlang="ru"]) .rd-lang-btn[data-l="en"],
+html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); background: var(--og-bg-3); }
 .rd-root button { font-family: inherit; cursor: pointer; }
 
 /* ── Top bar ───────────────────────────────────────────────────────────── */

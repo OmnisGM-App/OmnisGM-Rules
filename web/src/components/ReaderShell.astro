@@ -1,6 +1,7 @@
 ---
 import Reader from '../layouts/Reader.astro';
 import NavTree from './NavTree.astro';
+import I18n from './I18n.astro';
 import Search from 'astro-pagefind/components/Search';
 import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup,
@@ -14,8 +15,10 @@ export interface Props {
   description?: string;
   headings?: { depth: number; slug: string; text: string }[];
   sourceId?: string;          // id записи коллекции для ссылки «Источник»
+  bilingual?: boolean;        // корень «/»: рендерим обе подписи, язык — по локали (без редиректа)
+  titleRu?: string;           // RU-заголовок (своп document.title при bilingual)
 }
-const { lang, currentId, title, description, headings = [], sourceId } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, bilingual = false, titleRu } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const MAIN = 'https://omnisgm.com';
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
@@ -46,7 +49,7 @@ const next = idx >= 0 && idx < FLAT_PAGES.length - 1 ? FLAT_PAGES[idx + 1] : nul
 
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 ---
-<Reader title={title} description={description} lang={lang}>
+<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu}>
   <div class="rd-root">
     {/* Мобильные тогглы на CSS-радио (без JS): якоря первыми в .rd-root. Общий name="rd-panel"
         делает панели взаимоисключающими; rd-panel-none — закрытое состояние (по умолчанию).
@@ -76,12 +79,21 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
         {/* десктоп — кнопки-пара; мобила — выпадающий список (как в News) */}
         <div class="rd-lang">
-          <a class={'rd-lang-btn' + (lang === 'en' ? ' on' : '')} href={lang === 'en' ? undefined : counterpart}>ENG</a>
-          <a class={'rd-lang-btn' + (lang === 'ru' ? ' on' : '')} href={lang === 'ru' ? undefined : counterpart} style="border-left:1px solid var(--og-border)">RU</a>
+          {bilingual ? (
+            <>
+              <a class="rd-lang-btn" data-l="en" href="/en/">ENG</a>
+              <a class="rd-lang-btn" data-l="ru" href="/ru/" style="border-left:1px solid var(--og-border)">RU</a>
+            </>
+          ) : (
+            <>
+              <a class={'rd-lang-btn' + (lang === 'en' ? ' on' : '')} href={lang === 'en' ? undefined : counterpart}>ENG</a>
+              <a class={'rd-lang-btn' + (lang === 'ru' ? ' on' : '')} href={lang === 'ru' ? undefined : counterpart} style="border-left:1px solid var(--og-border)">RU</a>
+            </>
+          )}
         </div>
         <select class="rd-lang-sel" aria-label="Language" onchange="if(this.value)location.href=this.value">
-          <option value={enUrl} selected={lang === 'en'}>ENG</option>
-          <option value={ruUrl} selected={lang === 'ru'}>RU</option>
+          <option value={bilingual ? '/en/' : enUrl} selected={lang === 'en'}>ENG</option>
+          <option value={bilingual ? '/ru/' : ruUrl} selected={lang === 'ru'}>RU</option>
         </select>
       </div>
     </header>
@@ -90,7 +102,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     <nav class="rd-systabs og-scroll">
       {SYSTEMS.map((s) => (
         <a href={systemRoute(s.id, lang)} class={'rd-systab' + (s.id === activeSys ? ' on' : '')} aria-current={s.id === activeSys ? 'page' : undefined}>
-          {label(s as any, lang)}
+          <I18n en={label(s as any, 'en')} ru={label(s as any, 'ru')} bilingual={bilingual} lang={lang} />
         </a>
       ))}
     </nav>
@@ -99,7 +111,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     <div class="rd-mobtabs">
       <select class="rd-sysmenu" aria-label={t('Система', 'System')} onchange="if(this.value)location.href=this.value">
         {SYSTEMS.map((s) => (
-          <option value={systemRoute(s.id, lang)} selected={s.id === activeSys}>{label(s as any, lang)}</option>
+          <option value={systemRoute(s.id, lang)} selected={s.id === activeSys} data-ru={bilingual ? label(s as any, 'ru') : undefined}>{label(s as any, lang)}</option>
         ))}
       </select>
       <div class="rd-mobtabs-actions">
@@ -108,12 +120,12 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         </label>
         <label for="rd-drawer-cb" class="rd-iconbtn rd-iconbtn-txt" aria-label={t('Разделы', 'Sections')}>
           <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M2 4h12M2 8h12M2 12h12" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-          <span>{t('Разделы', 'Sections')}</span>
+          <span><I18n en="Sections" ru="Разделы" bilingual={bilingual} lang={lang} /></span>
         </label>
         {toc.length > 1 && (
           <label for="rd-onpage-cb" class="rd-iconbtn rd-iconbtn-txt" aria-label={t('На странице', 'On this page')}>
             <svg width="14" height="14" viewBox="0 0 16 16" fill="none"><path d="M6 4h8M6 8h8M6 12h8M2.5 4h.01M2.5 8h.01M2.5 12h.01" stroke="currentColor" stroke-width="1.5" stroke-linecap="round" /></svg>
-            <span>{t('Страница', 'Page')}</span>
+            <span><I18n en="Page" ru="Страница" bilingual={bilingual} lang={lang} /></span>
           </label>
         )}
       </div>
@@ -121,13 +133,13 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
     <div class={'rd-body' + (toc.length > 1 ? '' : ' rd-no-toc')}>
       <aside class="rd-nav og-scroll">
-        <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
+        <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} bilingual={bilingual} />
       </aside>
 
       <main class="rd-content og-scroll">
         <div class="rd-content-inner">
           {crumb && <div class="rd-crumb">{crumb}</div>}
-          <article class="rd-doc" data-pagefind-body>
+          <article class="rd-doc" data-pagefind-body={bilingual ? undefined : true} data-pagefind-ignore={bilingual ? true : undefined}>
             <slot />
           </article>
 
@@ -139,8 +151,8 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
             onclick="window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader'})"
           >
             <span class="rd-cta-body">
-              <span class="rd-cta-title">{t('Соберите персонажа в OmnisGM', 'Build your character in OmnisGM')}</span>
-              <span class="rd-cta-sub">{t('Интерактивный лист персонажа — по этим самым правилам.', 'An interactive character sheet — for these very rules.')}</span>
+              <span class="rd-cta-title"><I18n en="Build your character in OmnisGM" ru="Соберите персонажа в OmnisGM" bilingual={bilingual} lang={lang} /></span>
+              <span class="rd-cta-sub"><I18n en="An interactive character sheet — for these very rules." ru="Интерактивный лист персонажа — по этим самым правилам." bilingual={bilingual} lang={lang} /></span>
             </span>
             <span class="rd-cta-arrow" aria-hidden="true">→</span>
           </a>
@@ -173,7 +185,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 
       {toc.length > 1 && (
         <aside class="rd-toc og-scroll">
-          <div class="rd-toc-h">{t('На этой странице', 'On this page')}</div>
+          <div class="rd-toc-h"><I18n en="On this page" ru="На этой странице" bilingual={bilingual} lang={lang} /></div>
           <div class="rd-toc-list">
             {toc.map((h) => (
               <a class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')} href={`#${h.slug}`}>{h.text}</a>
@@ -187,17 +199,17 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <aside class="rd-drawer og-scroll" aria-label={t('Разделы', 'Sections')}>
       <div class="rd-drawer-top">
-        <span class="rd-drawer-title">{t('Разделы', 'Sections')}</span>
+        <span class="rd-drawer-title"><I18n en="Sections" ru="Разделы" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
-      <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} />
+      <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} bilingual={bilingual} />
     </aside>
 
     {/* «На странице» — правый drawer, навигация по текущей странице (заголовки) */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <aside class="rd-onpage og-scroll" aria-label={t('На этой странице', 'On this page')}>
       <div class="rd-drawer-top">
-        <span class="rd-drawer-title">{t('На этой странице', 'On this page')}</span>
+        <span class="rd-drawer-title"><I18n en="On this page" ru="На этой странице" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       {toc.length > 1 ? (
@@ -219,7 +231,7 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <div class="rd-search-overlay">
       <div class="rd-drawer-top">
-        <span class="rd-drawer-title">{t('Поиск', 'Search')}</span>
+        <span class="rd-drawer-title"><I18n en="Search" ru="Поиск" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       <div class="rd-search-overlay-body">

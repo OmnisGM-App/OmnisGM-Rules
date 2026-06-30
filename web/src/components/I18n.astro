@@ -1,0 +1,11 @@
+---
+// Видимая подпись: в обычном режиме — один язык; в bilingual (корень /) рендерим оба
+// варианта спанами, переключение — CSS по флагу html[data-rootlang] (без мигания, без JS).
+interface Props { en: string; ru: string; bilingual?: boolean; lang?: 'en' | 'ru'; }
+const { en, ru, bilingual = false, lang = 'en' } = Astro.props;
+---
+{bilingual ? (
+  <><span class="l-en">{en}</span><span class="l-ru">{ru}</span></>
+) : (
+  lang === 'en' ? en : ru
+)}
