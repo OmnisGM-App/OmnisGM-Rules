@@ -69,11 +69,17 @@ export default defineConfig({
           { src: '/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
           { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
+        // Скриншоты для install-промпта/сторов (закрывают последний пункт PWABuilder).
+        screenshots: [
+          { src: '/screenshot-wide.png', sizes: '1280x800', type: 'image/png', form_factor: 'wide', label: 'OmnisGM Rules — десктопный ридер SRD' },
+          { src: '/screenshot-narrow-1.png', sizes: '780x1688', type: 'image/png', form_factor: 'narrow', label: 'Главная — системы и разделы' },
+          { src: '/screenshot-narrow-2.png', sizes: '780x1688', type: 'image/png', form_factor: 'narrow', label: 'Чтение правил на телефоне' },
+        ],
       },
       workbox: {
         // Прекэшим только лёгкие ассеты (не 228 HTML); страницы и pagefind — рантайм-кэш.
         globPatterns: ['**/*.{js,css,svg,woff2}'],
-        globIgnores: ['**/og*.png', '**/pagefind/**'],
+        globIgnores: ['**/og*.png', '**/screenshot-*.png', '**/pagefind/**'],
         navigateFallback: null,
         cleanupOutdatedCaches: true,
         skipWaiting: true,
