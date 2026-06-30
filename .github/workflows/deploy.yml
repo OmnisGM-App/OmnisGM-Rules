@@ -64,3 +64,32 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+
+      # Сброс edge-кэша Cloudflare после деплоя — точечно, фикс-имена на rules.omnisgm.com
+      # (иконки/favicon/manifest/sw/og кэшируются на edge; HTML/хэш-ассеты не трогаем).
+      # Без секретов CLOUDFLARE_* шаг тихо пропускается.
+      - name: Purge Cloudflare cache
+        if: success()
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ZONE_ID" ]; then
+            echo "Cloudflare-секреты не заданы — purge пропущен."
+            exit 0
+          fi
+          base="https://rules.omnisgm.com"
+          files=$(printf '"%s",' \
+            "$base/favicon.svg" "$base/icon.svg" "$base/maskable.svg" \
+            "$base/icon-192.png" "$base/icon-512.png" \
+            "$base/maskable-192.png" "$base/maskable-512.png" \
+            "$base/apple-touch-icon.png" "$base/og.png" \
+            "$base/manifest.webmanifest" "$base/sw.js")
+          resp=$(curl -s -X POST \
+            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache" \
+            -H "Authorization: Bearer $CF_API_TOKEN" \
+            -H "Content-Type: application/json" \
+            --data "{\"files\":[${files%,}]}")
+          echo "$resp"
+          echo "$resp" | grep -q '"success":true' || { echo "❌ Cloudflare purge не удался"; exit 1; }
+          echo "✔ Cloudflare: edge-кэш фикс-файлов rules.omnisgm.com сброшен"
