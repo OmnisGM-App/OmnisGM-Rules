@@ -328,7 +328,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-nomatch { padding: 16px; font-size: 13px; color: var(--og-text-muted); font-family: var(--font-mono); }
 
 /* ── Поиск (Pagefind UI) — тёмная тема OmnisGM ── */
-.rd-search-slot, .rd-drawer-search {
+/* .rd-search-overlay-body — контейнер полноэкранного моб. поиска: без этих переменных
+   Pagefind рендерит поле на БЕЛОМ дефолтном фоне → светлый текст на белом (контраст 1.23:1). */
+.rd-search-slot, .rd-drawer-search, .rd-search-overlay-body {
   --pagefind-ui-primary: var(--og-accent);
   --pagefind-ui-text: var(--og-text);
   --pagefind-ui-background: var(--og-bg-2);
