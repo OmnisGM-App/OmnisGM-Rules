@@ -1,4 +1,4 @@
 User-agent: *
 Allow: /
 
-Sitemap: https://nemo-illusionist.github.io/ttrpg_srd_markdown/sitemap.xml
+Sitemap: https://rules.omnisgm.com/sitemap.xml

@@ -1,0 +1,161 @@
+---
+import '../styles/tokens.css';
+const FONTS =
+  'https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;0,800;1,400;1,600&family=Inter:wght@400;500;600;700&family=JetBrains+Mono:wght@400;500;700&display=swap';
+---
+<!DOCTYPE html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>404 — Page not found · OmnisGM</title>
+    <meta name="description" content="Page not found. Looks like the Search check came up a natural 1." />
+    <meta name="robots" content="noindex" />
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="stylesheet" href={FONTS} />
+    <meta name="theme-color" content="#0F1016" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+  </head>
+  <body class="grain">
+    <header class="nf-header">
+      <div class="nf-brand">
+        <a href="https://omnisgm.com" class="nf-brand-link" aria-label="OmnisGM">
+          <svg width="22" height="22" viewBox="0 0 24 24" fill="none">
+            <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
+            <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
+            <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
+            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
+          </svg>
+          <span class="word">OmnisGM</span>
+        </a>
+        <span class="sub">/ rules</span>
+      </div>
+      <nav class="nf-nav">
+        <div class="nf-lang" role="group" aria-label="Language">
+          <button data-lang="en">EN</button>
+          <button data-lang="ru">RU</button>
+        </div>
+      </nav>
+    </header>
+
+    <main class="nf-stage">
+      <div class="nf-inner">
+        <div class="nf-tag" data-ru="OmnisGM · Ошибка 404" data-en="OmnisGM · Error 404">OmnisGM · Error 404</div>
+
+        <div class="nf-die" aria-hidden="true">
+          <svg viewBox="0 0 120 120">
+            <polygon class="face" points="60,6 106.8,33 106.8,87 60,114 13.2,87 13.2,33" />
+            <path class="edge" d="M60,42 L60,6 M60,42 L13.2,33 M60,42 L106.8,33 M37,81 L13.2,33 M37,81 L13.2,87 M37,81 L60,114 M83,81 L106.8,33 M83,81 L106.8,87 M83,81 L60,114" />
+            <polygon class="front" points="60,42 37,81 83,81" />
+            <text class="nf-num" x="60" y="69">1</text>
+          </svg>
+        </div>
+
+        <h1 class="nf-code">404</h1>
+        <h2 class="nf-title" data-ru="Эта страница потерялась в подземелье" data-en="This page got lost in the dungeon">This page got lost in the dungeon</h2>
+        <p class="nf-body" data-ru="Свиток, который вы искали, рассыпался в прах — или его здесь никогда и не было. Проверьте адрес или вернитесь к началу приключения." data-en="The scroll you were looking for crumbled to dust — or was never here at all. Check the address or return to the start of the adventure.">The scroll you were looking for crumbled to dust — or was never here at all. Check the address or return to the start of the adventure.</p>
+        <p class="nf-roll" data-ru="Бросок на Поиск: |натуральная 1| — критический провал." data-en="Search check: |natural 1| — critical failure.">Search check: <b>natural 1</b> — critical failure.</p>
+
+        <div class="nf-actions">
+          <a class="nf-btn primary nf-home" href="/en/" data-href-ru="/ru/" data-href-en="/en/" data-ru="← На главную" data-en="← Home">← Home</a>
+        </div>
+      </div>
+    </main>
+
+    <footer class="nf-footer">
+      <span data-ru="© 2026 OmnisGM. Сделано в одиночку, медленно, осознанно." data-en="© 2026 OmnisGM. Built solo, slowly, deliberately.">© 2026 OmnisGM. Built solo, slowly, deliberately.</span>
+      <span>rules.omnisgm.com</span>
+    </footer>
+
+    <style>
+      body { display: flex; flex-direction: column; min-height: 100vh; font-family: var(--font-body); }
+      .grain { position: relative; }
+      .grain::after {
+        content: ''; position: absolute; inset: 0; pointer-events: none;
+        background-image: url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence baseFrequency='0.85' numOctaves='2' seed='5'/><feColorMatrix values='0 0 0 0 1  0 0 0 0 1  0 0 0 0 1  0 0 0 0.04 0'/></filter><rect width='100%' height='100%' filter='url(%23n)' opacity='0.6'/></svg>");
+        mix-blend-mode: overlay; opacity: 0.5;
+      }
+      .nf-header {
+        padding: 22px clamp(22px, 6vw, 80px); border-bottom: 1px solid var(--og-border);
+        display: flex; align-items: center; justify-content: space-between;
+        background: rgba(15,14,19,0.85); backdrop-filter: blur(8px); position: sticky; top: 0; z-index: 20;
+      }
+      .nf-brand { display: flex; align-items: center; gap: 9px; }
+      .nf-brand-link { display: inline-flex; align-items: center; gap: 10px; }
+      .nf-brand-link:hover .word { color: var(--og-accent); }
+      .nf-brand svg { flex-shrink: 0; }
+      .nf-brand .word { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.4px; color: var(--og-text); }
+      .nf-brand .sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-4); letter-spacing: 1px; }
+      .nf-nav { display: flex; align-items: center; gap: 28px; }
+      .nf-lang { display: inline-flex; align-items: center; border: 1px solid var(--og-border); border-radius: 6px; overflow: hidden; }
+      .nf-lang button {
+        appearance: none; background: transparent; border: 0; cursor: pointer;
+        font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; color: var(--og-text-4);
+        padding: 5px 9px; transition: color .15s, background .15s;
+      }
+      .nf-lang button:hover { color: var(--og-text-2); }
+      .nf-lang button.active { color: var(--og-accent); background: var(--og-bg-3); }
+
+      .nf-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; text-align: center; }
+      .nf-inner { max-width: 560px; width: 100%; }
+      .nf-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--og-text-4); margin-bottom: 32px; }
+      .nf-die { width: 132px; height: 132px; margin: 0 auto 32px; position: relative; transform: rotate(-8deg); }
+      .nf-die svg { display: block; width: 100%; height: 100%; overflow: visible; }
+      .nf-die .face { fill: var(--og-bg-3); stroke: var(--og-border-strong); stroke-width: 1.5; stroke-linejoin: round; }
+      .nf-die .front { fill: var(--og-bg-4); stroke: var(--og-border-strong); stroke-width: 1.2; stroke-linejoin: round; }
+      .nf-die .edge { fill: none; stroke: var(--og-border); stroke-width: 1; stroke-linecap: round; }
+      .nf-num { font-family: var(--font-display); font-weight: 700; font-size: 32px; fill: var(--og-danger); text-anchor: middle; dominant-baseline: central; }
+      .nf-code {
+        font-family: var(--font-display); font-weight: 800; font-size: clamp(72px, 18vw, 140px);
+        line-height: 0.9; letter-spacing: -0.02em; margin: 0 0 8px;
+        background: linear-gradient(180deg, var(--og-text) 0%, var(--og-text-3) 130%);
+        -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
+      }
+      .nf-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(22px, 4vw, 30px); margin: 0 0 16px; color: var(--og-text); }
+      .nf-body { font-size: 16px; line-height: 1.65; color: var(--og-text-2); margin: 0 auto 12px; max-width: 440px; }
+      .nf-roll { font-family: var(--font-mono); font-size: 12.5px; color: var(--og-text-3); margin: 0 auto 36px; }
+      .nf-roll b { color: var(--og-danger); font-weight: 500; }
+      .nf-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
+      .nf-btn { cursor: pointer; font-family: var(--font-body); font-size: 14px; font-weight: 600; padding: 12px 22px; border-radius: 10px; border: 1px solid var(--og-border-strong); background: var(--og-bg-3); color: var(--og-text); transition: border-color .15s ease, color .15s ease, background .15s ease; }
+      .nf-btn:hover { border-color: var(--og-accent); color: var(--og-accent); }
+      .nf-btn.primary { background: var(--og-accent); border-color: var(--og-accent); color: #0F1016; }
+      .nf-btn.primary:hover { background: var(--og-accent-2); border-color: var(--og-accent-2); color: #0F1016; }
+      .nf-footer { padding: 24px clamp(22px, 6vw, 80px); border-top: 1px solid var(--og-border); background: var(--og-bg-2); display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-4); letter-spacing: 0.3px; }
+
+      @keyframes nf-tumble { 0% { transform: rotate(-8deg) translateY(0); } 50% { transform: rotate(-3deg) translateY(-6px); } 100% { transform: rotate(-8deg) translateY(0); } }
+      @media (prefers-reduced-motion: no-preference) { .nf-die { animation: nf-tumble 4.5s ease-in-out infinite; } }
+      @media (max-width: 720px) { .nf-footer { flex-direction: column; gap: 6px; text-align: center; } }
+    </style>
+
+    <script is:inline>
+      (function () {
+        var STRINGS = { ru: { title: '404 — Страница не найдена · OmnisGM' }, en: { title: '404 — Page not found · OmnisGM' } };
+        function applyLang(lang) {
+          document.documentElement.lang = lang;
+          document.title = STRINGS[lang].title;
+          document.querySelectorAll('[data-ru]').forEach(function (el) {
+            var txt = el.getAttribute('data-' + lang);
+            if (txt == null) return;
+            if (txt.indexOf('|') !== -1) el.innerHTML = txt.replace(/\|([^|]+)\|/g, '<b>$1</b>');
+            else el.textContent = txt;
+          });
+          var home = document.querySelector('.nf-home');
+          if (home) home.setAttribute('href', home.getAttribute('data-href-' + lang));
+          document.querySelectorAll('.nf-lang button').forEach(function (b) {
+            b.classList.toggle('active', b.getAttribute('data-lang') === lang);
+          });
+          try { localStorage.setItem('omnis-lang', lang); } catch (e) {}
+        }
+        var saved = 'en';
+        try { saved = localStorage.getItem('omnis-lang') || 'en'; } catch (e) {}
+        if (saved !== 'ru' && saved !== 'en') saved = 'en';
+        document.querySelectorAll('.nf-lang button').forEach(function (b) {
+          b.addEventListener('click', function () { applyLang(b.getAttribute('data-lang')); });
+        });
+        applyLang(saved);
+      })();
+    </script>
+  </body>
+</html>

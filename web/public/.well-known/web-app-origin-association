@@ -1,0 +1,5 @@
+{
+  "https://rules.omnisgm.com/": { "scope": "/" },
+  "https://omnisgm-rules.web.app/": { "scope": "/" },
+  "https://omnisgm-rules.firebaseapp.com/": { "scope": "/" }
+}

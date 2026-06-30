@@ -1,0 +1,117 @@
+---
+import '../styles/tokens.css';
+import '../styles/reader.css';
+
+export interface Props {
+  title: string;
+  description?: string;
+  lang?: 'en' | 'ru';
+  canonical?: string;
+  bilingual?: boolean;   // корень «/»: x-default, автоязык по локали, без редиректа
+  titleRu?: string;      // RU-заголовок для свопа document.title при bilingual
+  image?: string;        // og:image (путь от корня); по умолчанию /og.png
+  jsonLd?: object;       // граф schema.org (Organization/WebSite/BreadcrumbList/Article)
+}
+const { title, description = '', lang = 'en', canonical, bilingual = false, titleRu, image = '/og.png', jsonLd } = Astro.props;
+const canonicalURL = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
+const ORIGIN = Astro.site ? Astro.site.origin : 'https://rules.omnisgm.com';
+const imageURL = new URL(image, ORIGIN).toString();
+const ogLocale = lang === 'ru' ? 'ru_RU' : 'en_US';
+const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';
+
+// Шрифты грузим не блокируя рендер (урок из новостей): preconnect + media=print onload swap + noscript.
+// Запрашиваем только используемые веса: Inter без 700 (нигде не используется),
+// JetBrains 600 вместо 700 (моно-элементы в CSS — 600). Fraunces 700 нужен бренду «OmnisGM».
+const FONTS =
+  'https://fonts.googleapis.com/css2?family=Fraunces:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap';
+---
+<!DOCTYPE html>
+<html lang={lang} data-title-ru={bilingual ? titleRu : undefined}>
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    {bilingual && (
+      /* Автоязык по локали ДО отрисовки (без редиректа): ru-* → флаг на <html>, CSS показывает RU. */
+      <script is:inline>
+        (function () {
+          try {
+            if ((navigator.language || '').toLowerCase().indexOf('ru') === 0) {
+              document.documentElement.setAttribute('data-rootlang', 'ru');
+              document.documentElement.lang = 'ru';
+            }
+          } catch (e) {}
+        })();
+      </script>
+    )}
+    <title>{title}</title>
+    {description && <meta name="description" content={description} />}
+    <link rel="canonical" href={canonicalURL} />
+    {bilingual && (
+      <>
+        <link rel="alternate" hreflang="en" href={`${ORIGIN}/en/`} />
+        <link rel="alternate" hreflang="ru" href={`${ORIGIN}/ru/`} />
+        <link rel="alternate" hreflang="x-default" href={`${ORIGIN}/`} />
+      </>
+    )}
+
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link rel="preload" as="style" href={FONTS} />
+    <link rel="stylesheet" href={FONTS} media="print" onload="this.media='all'" />
+    <noscript><link rel="stylesheet" href={FONTS} /></noscript>
+
+    <meta name="theme-color" content="#0F1016" />
+    <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
+    <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
+    <link rel="manifest" href="/manifest.webmanifest" />
+    <script is:inline>
+      if ('serviceWorker' in navigator) {
+        window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+      }
+    </script>
+    <meta property="og:type" content="website" />
+    <meta property="og:site_name" content="OmnisGM Rules" />
+    <meta property="og:title" content={title} />
+    {description && <meta property="og:description" content={description} />}
+    <meta property="og:url" content={canonicalURL} />
+    <meta property="og:image" content={imageURL} />
+    <meta property="og:image:width" content="1200" />
+    <meta property="og:image:height" content="630" />
+    <meta property="og:locale" content={ogLocale} />
+    <meta property="og:locale:alternate" content={ogAltLocale} />
+    <meta name="twitter:card" content="summary_large_image" />
+    <meta name="twitter:title" content={title} />
+    {description && <meta name="twitter:description" content={description} />}
+    <meta name="twitter:image" content={imageURL} />
+    {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
+  </head>
+  <body>
+    <slot />
+    {bilingual && (
+      /* RU-адаптация после парса (ссылки/селекты невидимы до клика — мигания нет):
+         переписываем /en/ → /ru/ в ссылках и значениях селектов, чиним язык в нативных <option>. */
+      <script is:inline>
+        (function () {
+          if (document.documentElement.getAttribute('data-rootlang') !== 'ru') return;
+          var swap = function (s) { return s ? s.replace(/^\/en\//, '/ru/') : s; };
+          // ссылки /en/ → /ru/, КРОМЕ переключателя языка (он должен вести именно на /en/)
+          document.querySelectorAll('a[href^="/en/"]:not([data-l])').forEach(function (a) {
+            a.setAttribute('href', swap(a.getAttribute('href')));
+          });
+          document.querySelectorAll('select.rd-sysmenu option').forEach(function (o) {
+            o.value = swap(o.value);
+          });
+          // нативные <option> не переключаются CSS — показываем RU-подпись из data-ru, где есть
+          document.querySelectorAll('option[data-ru]').forEach(function (o) { o.textContent = o.getAttribute('data-ru'); });
+          var ls = document.querySelector('select.rd-lang-sel'); if (ls) ls.value = '/ru/';
+          var rt = document.documentElement.getAttribute('data-title-ru'); if (rt) document.title = rt;
+        })();
+      </script>
+    )}
+    <script>
+      import { initAnalytics } from '../lib/analytics-client';
+      // module-скрипт по умолчанию отложен — не блокирует рендер/LCP
+      initAnalytics();
+    </script>
+  </body>
+</html>

@@ -1,0 +1,60 @@
+---
+// Корень «/» — x-default главная: рендерим EN (canonical), а язык выбираем по локали браузера
+// БЕЗ редиректа (флаг на <html> ставит ранний скрипт, RU-подписи показывает CSS). См. Reader/ReaderShell.
+import ReaderShell from '../components/ReaderShell.astro';
+import { nodeById, routeOf, isGroup } from '../lib/nav';
+
+const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
+const ISSUE = `${REPO}/issues/new`;
+
+// Ссылки рендерим в EN-форме; для RU-локали клиентский скрипт перепишет /en/ → /ru/.
+const r = (id: string) => {
+  const n = nodeById(id);
+  return n && !isGroup(n) ? routeOf(n.slug, 'en') : '/en/';
+};
+
+const title = 'OmnisGM Rules — TTRPG SRD reader (D&D, Daggerheart, Basic Roleplaying)';
+const titleRu = 'OmnisGM Rules — ридер SRD настольных игр (D&D, Daggerheart, BRP)';
+const description =
+  'Freely-licensed tabletop RPG System Reference Documents (D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying) as Markdown. A project of the OmnisGM ecosystem.';
+
+// Заголовки для правого TOC (текст одинаков в обоих языках — собственные имена систем)
+const headings = [
+  { depth: 2, slug: 'dnd', text: 'Dungeons & Dragons' },
+  { depth: 2, slug: 'daggerheart', text: 'Daggerheart' },
+  { depth: 2, slug: 'brp', text: 'Basic Roleplaying' },
+];
+---
+<ReaderShell lang="en" currentId="home" bilingual title={title} titleRu={titleRu} description={description} headings={headings}>
+  <h1 id="ttrpg-srd">
+    <span class="l-en">OmnisGM Rules — tabletop RPG reference</span>
+    <span class="l-ru">OmnisGM Rules — справочник настольных ролёвок</span>
+  </h1>
+  <p>
+    <span class="l-en">Freely-licensed System Reference Documents, gathered in one place, as Markdown. Read online or take the source text.</span>
+    <span class="l-ru">Свободно доступные System Reference Document, собранные в одном месте, в Markdown. Читайте онлайн или берите исходный текст.</span>
+  </p>
+
+  <h2 id="dnd">Dungeons &amp; Dragons</h2>
+  <ul>
+    <li><a href={r('d52-legal')}><strong>SRD 5.2.1</strong></a> — <span class="l-en">the core rules of D&D 5e (2024): classes, spells, monsters, magic items, equipment. CC BY 4.0.</span><span class="l-ru">базовые правила D&D 5e (2024): классы, заклинания, монстры, магические предметы, снаряжение. Лицензия CC BY 4.0.</span></li>
+    <li><a href={r('d51-legal')}><strong>SRD 5.1</strong></a> — <span class="l-en">the core rules of D&D 5e (2014). CC BY 4.0.</span><span class="l-ru">базовые правила D&D 5e (2014). Лицензия CC BY 4.0.</span></li>
+    <li><a href={r('d52-converting')}><strong><span class="l-en">Converting to SRD 5.2.1</span><span class="l-ru">Конвертация в SRD 5.2.1</span></strong></a> — <span class="l-en">a guide to moving from 5.1 to 5.2.1.</span><span class="l-ru">гайд по переходу с 5.1 на 5.2.1.</span></li>
+  </ul>
+
+  <h2 id="daggerheart">Daggerheart</h2>
+  <ul>
+    <li><a href={r('dh-legal')} aria-label="Daggerheart SRD 1.0"><strong>SRD 1.0</strong></a> — <span class="l-en">the Daggerheart rules: classes, domains, ancestries, adversaries, weapons, armor. DPCGL. © 2025 Critical Role LLC.</span><span class="l-ru">правила Daggerheart: классы, домены, происхождения, противники, оружие, броня. Лицензия DPCGL. © 2025 Critical Role LLC.</span></li>
+  </ul>
+
+  <h2 id="brp">Basic Roleplaying</h2>
+  <ul>
+    <li><a href={r('brp-legal')} aria-label="Basic Roleplaying SRD 1.0"><strong>SRD 1.0</strong></a> — <span class="l-en">Chaosium’s universal d100 system (the engine behind Call of Cthulhu, RuneQuest and more). BRP OGL.</span><span class="l-ru">универсальная d100-система от Chaosium (ядро Call of Cthulhu, RuneQuest и др.). Лицензия BRP OGL.</span></li>
+  </ul>
+
+  <hr />
+  <blockquote>
+    <span class="l-en">Found an error? <a href={ISSUE} target="_blank" rel="noopener">Open an issue</a> in the project repository.</span>
+    <span class="l-ru">Нашли ошибку — <a href={ISSUE} target="_blank" rel="noopener">создайте issue</a> в репозитории проекта.</span>
+  </blockquote>
+</ReaderShell>

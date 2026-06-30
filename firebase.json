@@ -1,0 +1,38 @@
+{
+  "hosting": {
+    "site": "omnisgm-rules",
+    "public": "web/dist",
+    "predeploy": [
+      "npm --prefix web run build",
+      "python3 .github/scripts/generate_api.py --src-root src/dnd --output-dir web/dist/api"
+    ],
+    "ignore": ["firebase.json", "**/node_modules/**"],
+    "trailingSlash": true,
+    "headers": [
+      {
+        "source": "/.well-known/web-app-origin-association",
+        "headers": [{ "key": "Content-Type", "value": "application/json" }]
+      },
+      {
+        "source": "/_astro/**",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "/workbox-*.js",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "**/*.@(woff2|woff|ttf)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=31536000, immutable" }]
+      },
+      {
+        "source": "**/*.@(jpg|jpeg|gif|png|svg|webp|ico)",
+        "headers": [{ "key": "Cache-Control", "value": "public, max-age=86400" }]
+      },
+      {
+        "source": "/@(sw.js|manifest.webmanifest)",
+        "headers": [{ "key": "Cache-Control", "value": "no-cache" }]
+      }
+    ]
+  }
+}

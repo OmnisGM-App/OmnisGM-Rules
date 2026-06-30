@@ -1,36 +1,41 @@
-# TTRPG SRD Markdown
+# OmnisGM Rules — TTRPG SRD Markdown
 
-[Главная страница проекта](https://nemo-illusionist.github.io/ttrpg_srd_markdown/) | [Статичное API](https://nemo-illusionist.github.io/ttrpg_srd_markdown/api/)
+[Live site](https://rules.omnisgm.com)
 
-Коллекция System Reference Document (SRD) для настольных ролевых игр в формате Markdown.
+A curated collection of tabletop RPG **System Reference Documents (SRDs)** in Markdown, published as a
+fast, static reader at **rules.omnisgm.com**. Part of the **OmnisGM** ecosystem. Content is available in
+**English and Russian** (the Russian edition is a full, glossary-driven translation).
 
-## Источники
+> **Issues & contributions are welcome — please file them in English.** This keeps the project
+> accessible to the broadest audience. Russian is fine too if English is hard for you, but English is preferred.
+
+## Sources
 
 ### D&D
 
-- [SRD 5.2.1](https://www.dndbeyond.com/srd) — System Reference Document 5.2.1 от Wizards of the Coast LLC, лицензия [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode)
-- [dndsrd5.2_markdown](https://github.com/springbov/dndsrd5.2_markdown) — английская версия SRD 5.2 в формате Markdown
-- [dndsrd5.2_markdown (yuvalsapir)](https://github.com/yuvalsapir/dndsrd5.2_markdown) — обновления до версии 5.2.1
-- [DND.SRD.Wiki](https://github.com/oldmanumby/DND.SRD.Wiki) — SRD 5.1 в формате Markdown (wiki)
-- [dnd-5e-srd-markdown](https://github.com/downfallx/dnd-5e-srd-markdown) — недостающие статблоки драконов
-- [Lazy GM Tools](https://github.com/mshea/lazy_gm_tools) / [slyflourish.com](https://slyflourish.com/) — данные о монстрах
+- [SRD 5.2.1](https://www.dndbeyond.com/srd) — System Reference Document 5.2.1 by Wizards of the Coast LLC, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/legalcode)
+- [dndsrd5.2_markdown](https://github.com/springbov/dndsrd5.2_markdown) — English SRD 5.2 in Markdown
+- [dndsrd5.2_markdown (yuvalsapir)](https://github.com/yuvalsapir/dndsrd5.2_markdown) — updates to 5.2.1
+- [DND.SRD.Wiki](https://github.com/oldmanumby/DND.SRD.Wiki) — SRD 5.1 in Markdown (wiki)
+- [dnd-5e-srd-markdown](https://github.com/downfallx/dnd-5e-srd-markdown) — missing dragon stat blocks
+- [Lazy GM Tools](https://github.com/mshea/lazy_gm_tools) / [slyflourish.com](https://slyflourish.com/) — monster data
 
-### Инструменты
+### Tools
 
-- [marker](https://github.com/VikParuchuri/marker) — конвертация PDF в Markdown
+- [marker](https://github.com/VikParuchuri/marker) — PDF → Markdown conversion
 
-## Планы
+## Roadmap
 
-### В работе / планируется
+### Done / planned / considered
 
-| Статус | Система | Издатель | Лицензия | Формат SRD |
+| Status | System | Publisher | License | SRD format |
 |:---:|---|---|---|---|
 | :white_check_mark: | D&D SRD 5.2.1 | Wizards of the Coast | CC BY 4.0 | [PDF](https://www.dndbeyond.com/srd) |
 | :white_check_mark: | D&D SRD 5.1 | Wizards of the Coast | CC BY 4.0 | [PDF](https://www.dndbeyond.com/srd) |
 | :white_check_mark: | Daggerheart SRD 1.0 | Darrington Press | [DPCGL](https://darringtonpress.com/license/) | [PDF](https://www.daggerheart.com/srd/), [Markdown](https://github.com/seansbox/daggerheart-srd) |
+| :white_check_mark: | Basic Roleplaying (BRP) | Chaosium | [ORC](https://www.chaosium.com/orclicense/) | [PDF](https://www.chaosium.com/brp-system-reference-document/) |
 | :calendar: | Pathfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonprd.com/) |
 | :calendar: | Starfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonsrd.com/) |
-| :white_check_mark: | Basic Roleplaying (BRP) | Chaosium | [ORC](https://www.chaosium.com/orclicense/) | [PDF](https://www.chaosium.com/brp-system-reference-document/) |
 | :calendar: | Year Zero Engine | Free League | [FTL](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | [PDF](https://freeleaguepublishing.com/wp-content/uploads/2023/11/YZE-Standard-Reference-Document.pdf) |
 | :grey_question: | Dragonbane | Free League | [3rd Party License](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | PDF |
 | :grey_question: | Fate Core / FAE | Evil Hat Productions | CC BY 3.0 | [Web](https://fate-srd.com/), [Markdown](https://github.com/amazingrando/fate-srd-content) |
@@ -41,21 +46,27 @@
 | :grey_question: | Worlds Without Number | Sine Nomine | CC0 | PDF (DriveThruRPG) |
 | :grey_question: | Cypher System | Monte Cook Games | [CSOL](https://www.montecookgames.com/cypher-system-open-license/) | [Web](https://callmepartario.github.io/og-csrd/) |
 
-> :white_check_mark: — готово, :calendar: — планируется, :grey_question: — рассматривается
+> :white_check_mark: — done · :calendar: — planned · :grey_question: — under consideration
 
-### Лицензия не позволяет
+### Licensing does not permit
 
-| Система | Издатель | Причина |
+| System | Publisher | Reason |
 |---|---|---|
-| World of Darkness (VtM, WtA, DtD...) | Paradox Interactive | Нет открытого SRD. [Dark Pack](https://worldofdarkness.com/dark-pack) только для бесплатного фанатского контента |
-| 2d20 (Dune, Fallout, Star Trek...) | Modiphius | SRD существует, но [World Builders](https://modiphius.net/en-us/pages/2d20worldbuilders) привязан к DriveThruRPG. Свободное распространение запрещено |
+| World of Darkness (VtM, WtA, DtD…) | Paradox Interactive | No open SRD. The [Dark Pack](https://worldofdarkness.com/dark-pack) covers free fan content only |
+| 2d20 (Dune, Fallout, Star Trek…) | Modiphius | An SRD exists, but [World Builders](https://modiphius.net/en-us/pages/2d20worldbuilders) is tied to DriveThruRPG; free redistribution is not permitted |
 
-## Лицензии
+## Licenses
 
-Каждый SRD распространяется под собственной лицензией. См. `LICENSE.md` в соответствующей папке.
+Each SRD is distributed under its own license. See `LICENSE.md` in the corresponding folder.
 
 - D&D SRD 5.2 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.2/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.2/LICENSE-RU.md)
 
+## Repository layout
+
+- `src/{game}/{version}/{en,ru}/` — Markdown content (input to the import/translation pipeline)
+- `web/` — the [Astro](https://astro.build) static-site reader published at rules.omnisgm.com
+- `.claude/` — import & translation pipeline (skills + rules). See [CLAUDE.md](CLAUDE.md)
+
 ---
 
-*Это неофициальный фанатский проект. Все торговые знаки принадлежат их правообладателям.*
+*This is an unofficial fan project. All trademarks belong to their respective owners.*

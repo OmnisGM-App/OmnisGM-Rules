@@ -1,0 +1,409 @@
+/* rules.omnisgm.com reader — OmnisGM-скин (из дизайна rules-docs.css), на токенах tokens.css.
+   Шелл-классы (.rd-*) — 1:1 из дизайна. Контентный блок (.rd-doc …) переписан под HTML,
+   который Astro рендерит из Markdown на билде (плоские теги h1/p/table вместо классов JS-рендерера). */
+
+.rd-root { --rd-nav-w: 278px; font-family: var(--font-body); position: relative; }
+.rd-root *, .rd-root *::before, .rd-root *::after { box-sizing: border-box; }
+
+/* ── Двуязычный корень «/» (bilingual): подписи обоих языков в DOM, видимость по флагу
+   html[data-rootlang]. Дефолт (без флага / EN) — EN; ru-локаль ставит флаг до отрисовки. ── */
+.l-ru { display: none; }
+html[data-rootlang="ru"] .l-en { display: none; }
+html[data-rootlang="ru"] .l-ru { display: revert; }
+/* активный язык в переключателе — по флагу (на корне у обеих кнопок есть href) */
+html:not([data-rootlang="ru"]) .rd-lang-btn[data-l="ru"],
+html[data-rootlang="ru"] .rd-lang-btn[data-l="en"] { color: var(--og-text-muted); background: transparent; }
+html:not([data-rootlang="ru"]) .rd-lang-btn[data-l="en"],
+html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); background: var(--og-bg-3); }
+.rd-root button { font-family: inherit; cursor: pointer; }
+
+/* ── Top bar ───────────────────────────────────────────────────────────── */
+.rd-topbar {
+  flex: none; display: flex; align-items: center; gap: 18px;
+  /* safe-area: контент шапки ниже выреза/Dynamic Island, боковые вырезы в альбоме (standalone iOS) */
+  padding: env(safe-area-inset-top) calc(20px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left));
+  height: calc(56px + env(safe-area-inset-top));
+  border-bottom: 1px solid var(--og-border);
+  background: rgba(15,16,22,0.92); backdrop-filter: blur(8px);
+  /* шапка НЕ липкая — уезжает при скролле; закреплена панель систем (ниже) */
+}
+.rd-brand { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; flex: none; }
+.rd-brand-link { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; }
+.rd-brand-link:hover .rd-brand-name { color: var(--og-accent); }
+.rd-brand-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: -0.4px; color: var(--og-text); }
+.rd-brand-sub { font-family: var(--font-mono); font-size: 11px; color: var(--og-text-muted); letter-spacing: 1px; }
+
+.rd-search-wrap { position: relative; flex: 1 1 auto; max-width: 460px; }
+.rd-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--og-text-4); pointer-events: none; display: flex; }
+.rd-search {
+  width: 100%; appearance: none; background: var(--og-bg-2); color: var(--og-text);
+  border: 1px solid var(--og-border); border-radius: 8px;
+  padding: 8px 12px 8px 34px; font-family: var(--font-body); font-size: 13.5px; outline: none;
+  transition: border-color .15s ease, background .15s ease;
+}
+.rd-search::placeholder { color: var(--og-text-muted); }
+.rd-search:focus { border-color: var(--og-border-strong); background: var(--og-bg-3); }
+
+.rd-top-right { display: flex; align-items: center; gap: 14px; flex: none; margin-left: auto; }
+.rd-gh { display: inline-flex; align-items: center; min-height: 44px; font-size: 13px; color: var(--og-text-2); font-weight: 500; white-space: nowrap; }
+.rd-gh:hover { color: var(--og-warm); }
+.rd-lang { display: inline-flex; border: 1px solid var(--og-border); border-radius: 7px; overflow: hidden; background: var(--og-bg); }
+.rd-lang-btn { appearance: none; border: none; padding: 6px 12px; background: transparent; color: var(--og-text-muted); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; font-weight: 600; }
+.rd-lang-btn.on { background: var(--og-bg-3); color: var(--og-accent); }
+/* мобильный выпадающий список языка (как в News) — скрыт на десктопе */
+.rd-lang-sel {
+  display: none; appearance: none; -webkit-appearance: none;
+  background-color: var(--og-bg-2); color: var(--og-text-2);
+  border: 1px solid var(--og-border); border-radius: 7px; cursor: pointer;
+  padding: 7px 26px 7px 11px; min-height: 44px;
+  font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; font-weight: 600;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%2380829C' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+}
+.rd-burger { display: inline-flex; align-items: center; justify-content: center; width: 38px; height: 38px; border: 1px solid var(--og-border); border-radius: 8px; background: var(--og-bg-2); color: var(--og-text-2); }
+
+/* ── Адаптивная панель: системы (вкладки↔список) + поиск (поле↔кнопка) + кнопки сайдбаров ── */
+.rd-systabs {
+  flex: none; display: flex; align-items: stretch; gap: 14px;
+  padding: 0 calc(14px + env(safe-area-inset-right)) 0 calc(20px + env(safe-area-inset-left)); height: var(--rd-bar);
+  border-bottom: 1px solid var(--og-border); background: var(--og-bg);
+  /* ЗАКРЕПЛЯЕМ панель систем (а не шапку) */
+  position: sticky; top: 0; z-index: 25;
+}
+.rd-systabs-tabs { display: flex; align-items: stretch; gap: 26px; overflow-x: auto; min-width: 0; }
+.rd-systab {
+  appearance: none; border: none; background: none; white-space: nowrap; text-decoration: none;
+  padding: 13px 0 11px; font-family: var(--font-display); font-size: 15px; font-weight: 500;
+  color: var(--og-text-muted); border-bottom: 2px solid transparent; transition: color .15s ease;
+  display: inline-flex; align-items: center;
+}
+.rd-systab:hover { color: var(--og-text); }
+.rd-systab.on { color: var(--og-text); font-weight: 600; border-bottom-color: var(--og-accent); }
+
+/* системы списком — появляется, когда вкладки не влезают (≤820) */
+.rd-sysmenu {
+  display: none; appearance: none; -webkit-appearance: none; min-width: 0; flex: 0 1 auto; max-width: 46%;
+  align-self: center;
+  background-color: var(--og-bg-2); color: var(--og-text); cursor: pointer;
+  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 44px;
+  font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.2px;
+  text-overflow: ellipsis; white-space: nowrap;
+  background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%23A1A3B8' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
+  background-repeat: no-repeat; background-position: right 9px center;
+}
+/* правый кластер: поиск (поле/кнопка) + Разделы + На странице */
+.rd-bar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
+.rd-bar-actions .rd-search-slot { width: 300px; max-width: 34vw; }
+.rd-iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
+  min-height: 44px; min-width: 44px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
+  background: var(--og-bg-2); color: var(--og-text-2);
+  font-family: var(--font-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
+.rd-iconbtn-txt { padding: 8px 11px; }
+.rd-iconbtn:hover { color: var(--og-text); border-color: var(--og-border-strong); }
+/* Единый заметный фокус клавиатуры (2.4.7/2.4.11) для интерактивного «хрома» ридера */
+.rd-root a:focus-visible,
+.rd-root button:focus-visible,
+.rd-root summary:focus-visible,
+.rd-root select:focus-visible,
+.pagefind-ui__search-input:focus-visible,
+.pagefind-ui__result-link:focus-visible {
+  outline: 2px solid var(--og-accent); outline-offset: 2px; border-radius: 6px;
+}
+/* Контейнер панели получает программный фокус (для Esc/trap) — без видимой рамки */
+.rd-drawer:focus, .rd-onpage:focus, .rd-search-overlay:focus { outline: none; }
+/* кнопки-замены сайдбаров/поиска — скрыты на широком, появляются по брейкпоинтам ниже */
+.rd-act { display: none; }
+/* поле поиска в баре — единой высоты с кнопками (44px). Pagefind считает высоту как
+   calc(64px * scale); scale 0.6875 → 44px, иконка масштабируется пропорционально (без съезда). */
+.rd-bar-actions .rd-search-slot { --pagefind-ui-scale: 0.6875; }
+.rd-bar-actions .pagefind-ui__search-input { font-size: 14px; }
+/* выпадашку результатов держим читаемой (не ужимаем вместе с полем) */
+.rd-bar-actions .pagefind-ui__drawer { --pagefind-ui-scale: 0.82; }
+
+/* ── Nav tree ──────────────────────────────────────────────────────────── */
+.rd-nav {
+  border-right: 1px solid var(--og-border); background: var(--og-bg); padding: 16px 8px 40px calc(8px + env(safe-area-inset-left));
+  /* закреплён под липкой панелью систем, скроллится независимо от страницы */
+  position: sticky; top: var(--rd-bar); align-self: start; height: calc(100dvh - var(--rd-bar)); overflow-y: auto;
+}
+.rd-nav-group {
+  width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
+  background: none; border: none; padding: 7px 10px 7px 14px; border-radius: 6px;
+  color: var(--og-text-muted); transition: background .12s ease, color .12s ease;
+}
+.rd-nav-group:hover { background: var(--og-bg-2); color: var(--og-text); }
+.rd-nav-grouplabel { font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.2px; }
+/* Сворачивание через <details>: прячем нативный маркер, своя каретка вращается на [open] */
+.rd-nav-det > summary { list-style: none; cursor: pointer; }
+.rd-nav-det > summary::-webkit-details-marker { display: none; }
+.rd-nav-caret { display: inline-flex; color: var(--og-text-3); transition: transform .15s ease; flex-shrink: 0; }
+.rd-nav-det[open] > summary .rd-nav-caret { transform: rotate(90deg); }
+.rd-nav-page {
+  width: 100%; display: block; text-align: left; background: none; border: none; text-decoration: none;
+  padding: 6px 10px; border-radius: 6px; font-size: 13.5px; line-height: 1.35;
+  color: var(--og-text-muted); border-left: 2px solid transparent; margin: 1px 0;
+  transition: background .12s ease, color .12s ease;
+}
+.rd-nav-page:hover { background: var(--og-bg-2); color: var(--og-text); }
+.rd-nav-active { color: var(--og-accent); background: color-mix(in oklab, var(--og-accent) 11%, transparent); border-left-color: var(--og-accent); font-weight: 500; }
+
+/* ── Content ───────────────────────────────────────────────────────────── */
+.rd-content { overflow: visible; min-width: 0; background: var(--og-bg); }
+.rd-content-inner { max-width: 820px; margin: 0 auto; padding: 30px calc(48px + env(safe-area-inset-right)) 64px calc(48px + env(safe-area-inset-left)); }
+.rd-crumb { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); margin-bottom: 26px; }
+
+/* overflow-wrap — страховка от горизонтального скролла на узких экранах:
+   длинные URL/токены в Legal/OGL/глоссарии переносятся, а не распирают страницу */
+.rd-doc { color: var(--og-text-2); overflow-wrap: break-word; }
+.rd-doc h1, .rd-doc h2, .rd-doc h3, .rd-doc h4 {
+  font-family: var(--font-display); color: var(--og-text); letter-spacing: -0.6px;
+  text-wrap: pretty; scroll-margin-top: 72px;
+}
+.rd-doc h1 { font-size: 40px; font-weight: 600; line-height: 1.06; letter-spacing: -1.4px; margin: 0 0 22px; padding-bottom: 18px; border-bottom: 1px solid var(--og-border); }
+.rd-doc h2 { font-size: 26px; font-weight: 600; line-height: 1.15; margin: 42px 0 14px; }
+.rd-doc h3 { font-size: 19px; font-weight: 600; line-height: 1.2; margin: 30px 0 10px; color: var(--og-text); }
+.rd-doc h4 { font-size: 16px; font-weight: 600; margin: 24px 0 8px; color: var(--og-text); }
+.rd-doc p { font-size: 16px; line-height: 1.72; margin: 0 0 18px; color: var(--og-text-2); text-wrap: pretty; }
+.rd-doc ul, .rd-doc ol { margin: 0 0 18px; padding-left: 0; list-style: none; display: flex; flex-direction: column; gap: 9px; }
+.rd-doc ul > li, .rd-doc ol > li { position: relative; padding-left: 26px; font-size: 16px; line-height: 1.6; color: var(--og-text-2); }
+.rd-doc ul > li::before { content: ''; position: absolute; left: 6px; top: 11px; width: 5px; height: 5px; border-radius: 1px; background: var(--og-accent); }
+.rd-doc ol { counter-reset: rdol; }
+.rd-doc ol > li { counter-increment: rdol; }
+.rd-doc ol > li::before { content: counter(rdol); position: absolute; left: 0; top: 1px; font-family: var(--font-mono); font-size: 12px; color: var(--og-warm); font-weight: 600; }
+.rd-doc li > ul, .rd-doc li > ol { margin: 9px 0 0; }
+.rd-doc blockquote {
+  margin: 0 0 20px; padding: 4px 0 4px 20px; border-left: 2px solid var(--og-warm);
+  font-family: var(--font-display); font-style: italic; font-size: 17px; line-height: 1.55; color: var(--og-text-2); text-wrap: pretty;
+}
+.rd-doc blockquote p { font-family: inherit; font-style: inherit; font-size: inherit; margin: 0; color: inherit; }
+.rd-doc hr { border: 0; border-top: 1px solid var(--og-border); margin: 30px 0; }
+.rd-doc strong { color: var(--og-text); font-weight: 600; }
+.rd-doc em { font-style: italic; }
+.rd-doc code {
+  font-family: var(--font-mono); font-size: 0.86em; background: var(--og-bg-3);
+  border: 1px solid var(--og-border); border-radius: 5px; padding: 1px 5px; color: var(--og-text);
+}
+.rd-doc pre { background: var(--og-bg-2); border: 1px solid var(--og-border); border-radius: 10px; padding: 14px 16px; overflow-x: auto; margin: 0 0 20px; }
+.rd-doc pre code { background: none; border: 0; padding: 0; font-size: 13px; }
+
+.rd-doc a { color: var(--og-accent); border-bottom: 1px solid color-mix(in oklab, var(--og-accent) 45%, transparent); }
+.rd-doc a:hover { border-bottom-color: var(--og-accent); }
+.rd-doc a[href^="http"] { color: var(--og-warm); border-bottom: 1px solid color-mix(in oklab, var(--og-warm) 40%, transparent); }
+.rd-doc a[href^="http"]:hover { border-bottom-color: var(--og-warm); }
+
+/* Таблицы: Astro рендерит <table>; оборачиваем в .rd-doc для скролла на узких экранах */
+/* широкая таблица скроллится внутри обёртки (rehype-wrap-tables), а не растягивает страницу */
+.rd-table-wrap { overflow-x: auto; max-width: 100%; margin: 0 0 22px; -webkit-overflow-scrolling: touch; }
+/* фокус обёртки (клавиатурный скролл) — заметная рамка-акцент */
+.rd-table-wrap:focus-visible { outline: 2px solid var(--og-accent); outline-offset: 2px; border-radius: 6px; }
+.rd-table-wrap table { margin: 0; }
+.rd-doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 22px; border: 1px solid var(--og-border); border-radius: 10px; overflow: hidden; display: table; }
+.rd-doc th, .rd-doc td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--og-border-soft); }
+.rd-doc thead th { background: var(--og-bg-3); font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); font-weight: 600; }
+.rd-doc tbody tr:last-child td { border-bottom: none; }
+.rd-doc tbody td { color: var(--og-text-2); line-height: 1.5; }
+.rd-doc tbody td:first-child { color: var(--og-text); font-weight: 500; }
+
+.rd-source {
+  margin: 36px 0 0; padding-top: 16px; border-top: 1px solid var(--og-border);
+  display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
+  font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-muted); letter-spacing: 0.3px;
+}
+.rd-source a { display: inline-flex; align-items: center; min-height: 44px; color: var(--og-text-2); border-bottom: 1px dotted var(--og-text-4); }
+.rd-source a:hover { color: var(--og-warm); }
+
+.rd-prevnext { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
+.rd-pn { display: flex; flex-direction: column; gap: 5px; text-align: left; text-decoration: none; background: var(--og-bg-2); border: 1px solid var(--og-border); border-radius: 10px; padding: 14px 16px; transition: border-color .15s ease, background .15s ease; }
+.rd-pn:hover { border-color: var(--og-border-strong); background: var(--og-bg-3); }
+.rd-pn-r { text-align: right; align-items: flex-end; }
+.rd-pn-k { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); }
+.rd-pn-t { font-family: var(--font-display); font-size: 15px; font-weight: 600; color: var(--og-text); letter-spacing: -0.3px; }
+
+/* ── TOC ───────────────────────────────────────────────────────────────── */
+.rd-toc {
+  border-left: 1px solid var(--og-border); background: var(--og-bg); padding: 24px 18px 40px;
+  position: sticky; top: var(--rd-bar); align-self: start; height: calc(100dvh - var(--rd-bar)); overflow-y: auto;
+}
+.rd-toc-h { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--og-text-muted); margin-bottom: 12px; }
+.rd-toc-list { display: flex; flex-direction: column; gap: 1px; }
+.rd-toc-grp { display: flex; flex-direction: column; gap: 1px; }
+/* ссылка пункта: без вертикальной полосы, подсветка — фон/цвет */
+.rd-toc-link { text-align: left; text-decoration: none; background: none; border: none; border-radius: 6px; padding: 6px 8px; font-size: 12.5px; line-height: 1.35; color: var(--og-text-muted); transition: color .12s ease, background .12s ease; }
+.rd-toc-link:hover { color: var(--og-text); background: var(--og-bg-2); }
+.rd-toc-link.rd-toc-active { color: var(--og-accent); }
+/* h2-строка группы: каретка-индикатор для сворачиваемых (с подразделами) */
+.rd-toc-grp.has-subs > .rd-toc-h2 { position: relative; padding-left: 20px; }
+.rd-toc-grp.has-subs > .rd-toc-h2::before {
+  content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
+  border-right: 1.4px solid var(--og-text-3); border-bottom: 1.4px solid var(--og-text-3);
+  transform: rotate(-45deg); transition: transform .15s ease;
+}
+.rd-toc-grp.open.has-subs > .rd-toc-h2::before { transform: rotate(45deg); }
+/* подразделы (h3) свёрнуты по умолчанию; раскрываются у активной группы (скриптом) */
+.rd-toc-subs { display: none; flex-direction: column; gap: 1px; }
+.rd-toc-grp.open .rd-toc-subs { display: flex; }
+.rd-toc-sub { padding-left: 22px; font-size: 12px; }
+
+/* ── Layout grid ───────────────────────────────────────────────────────── */
+.rd-root { --rd-bar: 54px; display: flex; flex-direction: column; min-height: 100vh; background: var(--og-bg); color: var(--og-text); }
+.rd-body { display: grid; grid-template-columns: 278px minmax(0,1fr) 236px; flex: 1; min-height: 0; }
+.rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr); }
+/* ① TOC не помещается → скрываем правый столбец, в панель приходит кнопка «На странице» */
+@media (max-width: 1100px) {
+  .rd-body, .rd-body.rd-no-toc { grid-template-columns: 258px minmax(0,1fr); }
+  .rd-toc { display: none; }
+  .rd-act-toc { display: inline-flex; }
+}
+/* ② Поиску нет места → поле превращается в кнопку 🔍 (по ТЗ — раньше систем) */
+@media (max-width: 920px) {
+  .rd-bar-actions .rd-search-slot { display: none; }
+  .rd-act-search { display: inline-flex; }
+}
+/* ③ Системам нет места → выпадающий список; дерево скрыто → кнопка «Разделы»; мобильный режим.
+   Порог 820 (не 760): iPad portrait = 768pt — десктопные табы/языковые кнопки там <44pt,
+   поэтому планшет получает мобильную раскладку с select'ами (≥44pt). */
+@media (max-width: 820px) {
+  .rd-body, .rd-body.rd-no-toc { grid-template-columns: 1fr; }
+  .rd-systabs-tabs { display: none; }
+  .rd-sysmenu { display: block; }
+  .rd-nav { display: none; }
+  .rd-act-nav { display: inline-flex; }
+  .rd-content-inner { padding: 24px calc(20px + env(safe-area-inset-right)) 56px calc(20px + env(safe-area-inset-left)); }
+  .rd-doc h1 { font-size: 32px; }
+  /* язык — выпадающим списком вместо пары кнопок */
+  .rd-lang { display: none; }
+  .rd-lang-sel { display: inline-flex; }
+  .rd-gh { display: inline; }
+  /* page-scroll: контент скроллит страницу; шапку отпускаем, панель пинится ниже выреза */
+  .rd-root { min-height: 100dvh; }
+  .rd-content { overflow: visible; }
+  .rd-topbar { position: static; }
+  .rd-systabs { top: env(safe-area-inset-top); }
+  /* тач-зоны ≥44pt (Apple HIG) */
+  .rd-iconbtn, .rd-sysmenu { min-height: 44px; }
+  .rd-nav-page, .rd-nav-group { min-height: 44px; display: flex; align-items: center; }
+  .rd-toc-link { min-height: 44px; display: flex; align-items: center; }
+}
+
+/* ── Мобильные панели на CSS-чекбоксах (без JS): «Разделы» (слева), «На странице» (справа), поиск (оверлей) ── */
+.rd-toggle-cb { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
+
+/* затемнение (общее для всех панелей) */
+.rd-scrim { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(8,9,14,0.62); }
+
+/* базовые свойства панелей; видимость/слайд — в мобильном медиа-запросе */
+.rd-drawer, .rd-onpage {
+  display: none; position: fixed; top: 0; z-index: 61;
+  width: 86%; max-width: 360px; height: 100%; background: var(--og-bg-2);
+  padding: calc(14px + env(safe-area-inset-top)) calc(10px + env(safe-area-inset-right)) calc(40px + env(safe-area-inset-bottom)) calc(10px + env(safe-area-inset-left));
+  overflow-y: auto;
+}
+.rd-drawer { left: 0; border-right: 1px solid var(--og-border-strong); box-shadow: 24px 0 60px rgba(0,0,0,0.5); }
+.rd-onpage { right: 0; border-left: 1px solid var(--og-border-strong); box-shadow: -24px 0 60px rgba(0,0,0,0.5); }
+.rd-search-overlay {
+  display: none; position: fixed; inset: 0; z-index: 61; background: var(--og-bg);
+  padding: calc(10px + env(safe-area-inset-top)) calc(14px + env(safe-area-inset-right)) calc(20px + env(safe-area-inset-bottom)) calc(14px + env(safe-area-inset-left)); overflow-y: auto;
+}
+.rd-search-overlay-body { padding: 8px 2px; }
+
+.rd-drawer-top { display: flex; align-items: center; justify-content: space-between; padding: 4px 8px 12px; position: sticky; top: env(safe-area-inset-top); background: var(--og-bg-2); }
+.rd-search-overlay .rd-drawer-top { background: var(--og-bg); }
+.rd-drawer-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.3px; }
+.rd-drawer-x { display: inline-flex; align-items: center; justify-content: center; width: 44px; height: 44px; background: none; border: none; color: var(--og-text-2); font-size: 24px; line-height: 1; margin-right: -6px; cursor: pointer; }
+/* «На странице» (drawer): без вертикальной полосы — как десктопный TOC; сворачиваемые группы */
+.rd-onpage .rd-toc-list { margin: 4px 8px; }
+.rd-onpage .rd-toc-row { display: flex; align-items: center; gap: 2px; }
+.rd-onpage .rd-toc-row .rd-toc-h2 { flex: 1 1 auto; min-height: 44px; }
+/* десктопная каретка-псевдоэлемент не нужна (h2 не прямой потомок группы) — рисуем кнопку-каретку */
+.rd-toc-caret {
+  flex: 0 0 auto; width: 44px; height: 44px; background: none; border: none; cursor: pointer; padding: 0;
+  display: inline-flex; align-items: center; justify-content: center; color: var(--og-text-3);
+}
+.rd-toc-caret::before {
+  content: ''; width: 7px; height: 7px;
+  border-right: 1.5px solid currentColor; border-bottom: 1.5px solid currentColor;
+  transform: rotate(-45deg); transition: transform .15s ease;
+}
+.rd-toc-grp.open > .rd-toc-row .rd-toc-caret::before { transform: rotate(45deg); }
+.rd-onpage .rd-toc-sub { padding-left: 42px; }
+
+/* Панели работают при ЛЮБОЙ ширине (открываются кнопками, которые показываются по брейкпоинтам:
+   «На странице» ≤1100, поиск ≤920, «Разделы» ≤820). На широком — кнопок нет, панели off-screen. */
+.rd-scrim { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
+.rd-drawer  { display: block; transform: translateX(-100%); transition: transform .22s ease; }
+.rd-onpage  { display: block; transform: translateX(100%);  transition: transform .22s ease; }
+.rd-search-overlay { display: block; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
+/* открытие каждой панели своим чекбоксом */
+#rd-drawer-cb:checked ~ .rd-drawer,
+#rd-onpage-cb:checked ~ .rd-onpage { transform: translateX(0); }
+#rd-search-cb:checked ~ .rd-search-overlay { opacity: 1; pointer-events: auto; }
+/* скрим виден, когда открыта любая панель (клик = rd-panel-none = закрыть) */
+#rd-drawer-cb:checked ~ .rd-scrim,
+#rd-onpage-cb:checked ~ .rd-scrim,
+#rd-search-cb:checked ~ .rd-scrim { opacity: 1; pointer-events: auto; }
+.rd-search-wrap-m { max-width: none; margin: 4px 6px 14px; }
+.rd-nomatch { padding: 16px; font-size: 13px; color: var(--og-text-muted); font-family: var(--font-mono); }
+
+/* ── Поиск (Pagefind UI) — тёмная тема OmnisGM ── */
+/* .rd-search-overlay-body — контейнер полноэкранного моб. поиска: без этих переменных
+   Pagefind рендерит поле на БЕЛОМ дефолтном фоне → светлый текст на белом (контраст 1.23:1). */
+.rd-search-slot, .rd-drawer-search, .rd-search-overlay-body {
+  --pagefind-ui-primary: var(--og-accent);
+  --pagefind-ui-text: var(--og-text);
+  --pagefind-ui-background: var(--og-bg-2);
+  --pagefind-ui-border: var(--og-border);
+  --pagefind-ui-tag: var(--og-bg-3);
+  --pagefind-ui-border-width: 1px;
+  --pagefind-ui-border-radius: 8px;
+  --pagefind-ui-font: var(--font-body);
+}
+.rd-search-slot { position: relative; flex: 1 1 auto; max-width: 420px; }
+.rd-search-slot .pagefind-ui__drawer {
+  position: absolute; top: calc(100% + 6px); left: 0; right: 0; z-index: 50;
+  background: var(--og-bg-2); border: 1px solid var(--og-border-strong);
+  border-radius: 10px; box-shadow: 0 24px 60px -24px rgba(0,0,0,0.7);
+  max-height: 72vh; overflow-y: auto; padding: 6px;
+}
+.rd-search-slot .pagefind-ui__drawer:empty { display: none; }
+.rd-drawer-search { padding: 2px 6px 8px; }
+/* поле поиска: текст и плейсхолдер — AA-контраст (дефолтный Pagefind-плейсхолдер слишком тусклый) */
+.pagefind-ui__search-input { color: var(--og-text); }
+/* opacity:1 обязательно — дефолт Pagefind держит 0.2 (эффективный цвет тусклее → провал контраста) */
+.pagefind-ui__search-input::placeholder { color: var(--og-text-muted) !important; opacity: 1 !important; }
+/* кнопка очистки Pagefind убрана — на компактном поле лишняя (чистится удалением текста) */
+.pagefind-ui__search-clear { display: none !important; }
+/* счётчик «N results»/«Searching…» убран (пустая строка) → прячем пустое сообщение и его отступ.
+   Непустое (zero_results «ничего не найдено») — компактно. */
+.pagefind-ui__message:empty { display: none !important; padding: 0 !important; margin: 0 !important; }
+.pagefind-ui__message { padding: 6px 0 2px !important; margin: 0 !important; font-size: 11.5px !important; color: var(--og-text-muted) !important; }
+.pagefind-ui__results { margin-top: 6px !important; }
+/* бейдж системы у результата (навешивается скриптом из URL): D&D 5.2 / Daggerheart / … */
+.rd-sys-badge {
+  display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.3px; font-weight: 600;
+  color: var(--og-text-2); background: var(--og-bg-3); border: 1px solid var(--og-border);
+  vertical-align: middle; white-space: nowrap;
+}
+.pagefind-ui__result-link { color: var(--og-text); }
+/* выдержка кликабельна (JS ведёт к тому же разделу, что и заголовок под-результата) */
+.pagefind-ui__result-excerpt { color: var(--og-text-2); cursor: pointer; transition: color .12s ease; }
+.pagefind-ui__result-excerpt:hover { color: var(--og-text); }
+/* подсветка совпадений — наш акцент вместо дефолтной жёлтой */
+.pagefind-ui__result-excerpt mark,
+.rd-search-slot mark, .rd-search-overlay mark {
+  background: color-mix(in oklab, var(--og-accent) 24%, transparent);
+  color: var(--og-text); border-radius: 3px; padding: 0 2px;
+}
+/* поиск-поле скрывается на ≤920 (в баре, см. .rd-bar-actions .rd-search-slot) — отдельное правило не нужно */
+
+/* ── CTA-воронка в основной продукт (лист персонажа) ── */
+.rd-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px;
+  margin: 38px 0 0; padding: 18px 22px; border-radius: 12px; text-decoration: none;
+  background: color-mix(in oklab, var(--og-accent) 12%, var(--og-bg-2));
+  border: 1px solid color-mix(in oklab, var(--og-accent) 45%, transparent);
+  transition: border-color .15s ease, background .15s ease; }
+.rd-cta:hover { border-color: var(--og-accent); background: color-mix(in oklab, var(--og-accent) 18%, var(--og-bg-2)); }
+.rd-cta-body { display: flex; flex-direction: column; gap: 4px; min-width: 0; }
+.rd-cta-title { font-family: var(--font-display); font-size: 17px; font-weight: 600; letter-spacing: -0.3px; color: var(--og-text); }
+.rd-cta-sub { font-size: 13.5px; color: var(--og-text-2); line-height: 1.45; }
+.rd-cta-arrow { flex-shrink: 0; font-size: 22px; color: var(--og-accent); }

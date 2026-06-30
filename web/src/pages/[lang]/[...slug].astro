@@ -1,0 +1,51 @@
+---
+import { getCollection, render } from 'astro:content';
+import ReaderShell from '../../components/ReaderShell.astro';
+import { parseId, titleFromBody } from '../../lib/slug';
+import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
+
+export async function getStaticPaths() {
+  const all = await getCollection('srd');
+  return all.map((entry) => {
+    const ref = parseId(entry.id);
+    return {
+      params: { lang: ref.lang, slug: `${ref.game}/${ref.version}/${ref.slug}` },
+      props: { entry },
+    };
+  });
+}
+
+const { entry } = Astro.props;
+const ref = parseId(entry.id);
+const { Content, headings } = await render(entry);
+
+const curSlug = `${ref.game}/${ref.version}/${ref.slug}`;
+const navNode = nodeBySlug(curSlug);
+const currentId = navNode?.id ?? curSlug;
+
+// Чистый заголовок страницы (и для <title>, и для Pagefind): подпись из nav — надёжнее h1/слага.
+// На глоссарных страницах titleFromBody падает в слаг типа «glossary/magic-items», что лезло
+// прямо в <title> и в выдачу Google. Nav-подпись локализована и всегда опрятна; слаг — лишь фолбэк.
+const searchTitle = navNode ? navLabel(navNode, ref.lang) : (titleFromBody(entry.body) || ref.slug);
+const trail = findPath(currentId) ?? [];
+const sysLabel = trail.length ? navLabel(trail[0], ref.lang) : ref.game.toUpperCase();
+const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
+
+const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
+const title = `${searchTitle} · ${sysLabel} ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `${searchTitle} — ${sysLabel} ${verLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
+  `${searchTitle} — ${sysLabel} ${verLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
+);
+---
+<ReaderShell
+  lang={ref.lang}
+  currentId={currentId}
+  title={title}
+  searchTitle={searchTitle}
+  description={description}
+  headings={headings}
+  sourceId={entry.id}
+>
+  <Content />
+</ReaderShell>

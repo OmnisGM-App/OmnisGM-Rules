@@ -1,0 +1,50 @@
+---
+import { isGroup, label, routeOf, type NavNode, type Lang } from '../lib/nav';
+
+export interface Props {
+  nodes: NavNode[];
+  lang: Lang;
+  currentId: string;
+  openIds: Set<string>;
+  depth?: number;
+  bilingual?: boolean;   // корень /: рендерим обе подписи + EN-ссылки (скрипт перепишет на /ru/)
+}
+const { nodes, lang, currentId, openIds, depth = 0, bilingual = false } = Astro.props;
+const pad = (d: number, leaf: boolean) => 14 + d * 14 + (leaf ? 18 : 0);
+const dual = (n: NavNode) =>
+  bilingual
+    ? `<span class="l-en">${label(n, 'en')}</span><span class="l-ru">${label(n, 'ru')}</span>`
+    : null;
+---
+{nodes.map((n) =>
+  isGroup(n) ? (
+    <details class="rd-nav-det" open={openIds.has(n.id)}>
+      <summary class="rd-nav-group" style={`padding-left:${pad(depth, false)}px`}>
+        <span class="rd-nav-caret" aria-hidden="true">
+          <svg width="9" height="9" viewBox="0 0 10 10" fill="none"><path d="M3 1.5 7 5 3 8.5" stroke="currentColor" stroke-width="1.3" stroke-linecap="round" stroke-linejoin="round"/></svg>
+        </span>
+        {dual(n)
+          ? <span class="rd-nav-grouplabel" set:html={dual(n)} />
+          : <span class="rd-nav-grouplabel">{label(n, lang)}</span>}
+      </summary>
+      <Astro.self nodes={n.kids} lang={lang} currentId={currentId} openIds={openIds} depth={depth + 1} bilingual={bilingual} />
+    </details>
+  ) : (
+    dual(n) ? (
+      <a
+        href={routeOf(n.slug, 'en')}
+        class={'rd-nav-page' + (n.id === currentId ? ' rd-nav-active' : '')}
+        style={`padding-left:${pad(depth, true)}px`}
+        aria-current={n.id === currentId ? 'page' : undefined}
+        set:html={dual(n)}
+      />
+    ) : (
+      <a
+        href={routeOf(n.slug, lang)}
+        class={'rd-nav-page' + (n.id === currentId ? ' rd-nav-active' : '')}
+        style={`padding-left:${pad(depth, true)}px`}
+        aria-current={n.id === currentId ? 'page' : undefined}
+      >{label(n, lang)}</a>
+    )
+  )
+)}

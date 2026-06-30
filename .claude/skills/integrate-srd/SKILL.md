@@ -41,7 +41,7 @@ user-invocable: true
 ```markdown
 ## {Game Title RU}
 
-[:material-download: Скачать](https://github.com/Nemo-Illusionist/ttrpg_srd_markdown/releases?q={short}-srd)
+[:material-download: Скачать](https://github.com/OmnisGM-App/OmnisGM-Rules/releases?q={short}-srd)
 
 - **[SRD {ver}]({game}/{version}/00_Legal.md)** — Описание SRD на русском. Опубликовано по лицензии [название](url).
 ```
@@ -50,7 +50,7 @@ user-invocable: true
 ```markdown
 ## {Game Title EN}
 
-[:material-download: Download](https://github.com/Nemo-Illusionist/ttrpg_srd_markdown/releases?q={short}-srd)
+[:material-download: Download](https://github.com/OmnisGM-App/OmnisGM-Rules/releases?q={short}-srd)
 
 - **[SRD {ver}]({game}/{version}/00_Legal.md)** — Description in English. Published under [License Name](url).
 ```

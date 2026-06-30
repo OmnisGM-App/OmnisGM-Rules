@@ -1,0 +1,73 @@
+/* OmnisGM — общие токены экосистемы (из дизайна omnis-site.css). Шрифты грузятся в Layout.astro
+   не блокируя рендер (preconnect + media-print swap), поэтому здесь @import нет. */
+
+/* Фолбэк-шрифты с подогнанными метриками (size-adjust/ascent/descent, по алгоритму fontaine/capsize):
+   локальный фолбэк занимает ту же высоту строки, что и веб-шрифт → swap НЕ вызывает layout shift
+   (CLS от шрифтов ≈ 0). Значения единые с News. Меняешь шрифт — пересчитывай метрики. */
+@font-face {
+  font-family: 'Fraunces Fallback';
+  src: local('Georgia');
+  size-adjust: 105.204%; ascent-override: 92.962%; descent-override: 24.239%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  size-adjust: 107.119%; ascent-override: 90.436%; descent-override: 22.518%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'JetBrains Mono Fallback';
+  src: local('Courier New');
+  size-adjust: 99.984%; ascent-override: 102.017%; descent-override: 30.005%; line-gap-override: 0%;
+}
+
+:root {
+  --og-bg:           #0F1016;
+  --og-bg-2:         #15161E;
+  --og-bg-3:         #1C1E29;
+  --og-bg-4:         #242636;
+  --og-text:         #E8E6F0;
+  --og-text-2:       #A1A3B8;
+  --og-text-muted:   #888BA6;   /* приглушённый AA-текст (~5.7:1 к --og-bg); значение единое с News (GZ.text3) */
+  --og-text-3:       #6B6D83;   /* декоративное (иконки, каретки) — НЕ для читаемого текста на тёмном фоне */
+  --og-text-4:       #4F516A;
+  --og-accent:       oklch(0.72 0.17 265);
+  --og-accent-2:     oklch(0.62 0.19 265);
+  --og-accent-soft:  oklch(0.4 0.12 265 / 0.25);
+  --og-warm:         oklch(0.78 0.14 75);
+  --og-success:      oklch(0.75 0.14 155);
+  --og-danger:       oklch(0.7 0.18 25);
+  --og-border:       #2A2C3B;
+  --og-border-strong:#363A4E;
+  --og-border-soft:  #1F2130;
+
+  --font-display:    'Fraunces', 'Fraunces Fallback', Georgia, serif;
+  --font-body:       'Inter', 'Inter Fallback', system-ui, sans-serif;
+  --font-mono:       'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, monospace;
+}
+
+*, *::before, *::after { box-sizing: border-box; }
+html, body { margin: 0; padding: 0; }
+body {
+  background: var(--og-bg);
+  color: var(--og-text);
+  font-family: var(--font-body);
+  font-size: 16px;
+  line-height: 1.55;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+  text-rendering: optimizeLegibility;
+}
+
+a { color: inherit; text-decoration: none; }
+button { font-family: inherit; }
+
+.serif { font-family: var(--font-display); }
+.mono  { font-family: var(--font-mono); }
+
+::selection { background: color-mix(in oklab, var(--og-accent) 50%, var(--og-bg)); color: var(--og-text); }
+
+/* Scrollbars */
+.og-scroll::-webkit-scrollbar { width: 10px; height: 10px; }
+.og-scroll::-webkit-scrollbar-thumb { background: var(--og-border); border-radius: 5px; }
+.og-scroll::-webkit-scrollbar-thumb:hover { background: var(--og-text-4); }
+.og-scroll::-webkit-scrollbar-track { background: transparent; }
