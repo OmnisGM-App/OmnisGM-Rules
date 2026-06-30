@@ -279,13 +279,13 @@ const searchUi = {
                 {g.subs.length > 0 && (
                   <button type="button" class="rd-toc-caret" aria-label={t('Развернуть', 'Expand')} aria-expanded="false"></button>
                 )}
-                <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`}
+                <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`} data-toc={g.h2.slug}
                    onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true">{g.h2.text}</a>
               </div>
               {g.subs.length > 0 && (
                 <div class="rd-toc-subs">
                   {g.subs.map((s) => (
-                    <a class="rd-toc-link rd-toc-sub" href={`#${s.slug}`}
+                    <a class="rd-toc-link rd-toc-sub" href={`#${s.slug}`} data-toc={s.slug}
                        onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true">{s.text}</a>
                   ))}
                 </div>
@@ -331,21 +331,26 @@ const searchUi = {
 {/* Скроллспай «На этой странице»: подсветка читаемого раздела в реальном времени +
     авто-раскрытие активной группы (h3 свёрнуты по умолчанию). */}
 <script>
-  const toc = document.getElementById('rd-toc');
-  if (toc) {
-    const links = Array.from(toc.querySelectorAll<HTMLAnchorElement>('.rd-toc-link[data-toc]'));
-    const heads = links
-      .map((l) => document.getElementById(l.dataset.toc!))
+  // Ссылки TOC в ОБОИХ контейнерах: правый столбец #rd-toc (десктоп) и drawer .rd-onpage (мобила).
+  const links = Array.from(document.querySelectorAll<HTMLAnchorElement>('.rd-toc-link[data-toc]'));
+  if (links.length) {
+    // уникальные id заголовков в порядке появления (общие для обоих контейнеров)
+    const ids = [...new Set(links.map((l) => l.dataset.toc!))];
+    const heads = ids
+      .map((id) => document.getElementById(id))
       .filter((h): h is HTMLElement => !!h);
-    const grps = Array.from(toc.querySelectorAll('.rd-toc-grp'));
+    const grps = Array.from(document.querySelectorAll('.rd-toc-grp'));
     let activeId = '';
     const setActive = (id: string) => {
       if (id === activeId) return;
       activeId = id;
       for (const l of links) l.classList.toggle('rd-toc-active', l.dataset.toc === id);
-      const link = links.find((l) => l.dataset.toc === id);
-      const open = link?.closest('.rd-toc-grp');
-      for (const g of grps) g.classList.toggle('open', g === open);
+      // раскрываем активную группу в каждом контейнере (та, что содержит активную ссылку)
+      for (const g of grps) {
+        const open = !!g.querySelector(`.rd-toc-link[data-toc="${id}"]`);
+        g.classList.toggle('open', open);
+        g.querySelector('.rd-toc-caret')?.setAttribute('aria-expanded', String(open));
+      }
     };
     let ticking = false;
     const update = () => {
@@ -448,7 +453,13 @@ const searchUi = {
       if (!active) lastFocus = document.activeElement as HTMLElement;
       active = panel;
       const f = focusables(panel);
-      requestAnimationFrame(() => (f[0] || panel!).focus());
+      requestAnimationFrame(() => {
+        (f[0] || panel!).focus({ preventScroll: true });
+        // «На странице»: доскроллить подсвеченный текущий раздел в центр панели
+        if (panel!.classList.contains('rd-onpage')) {
+          panel!.querySelector('.rd-toc-active')?.scrollIntoView({ block: 'center' });
+        }
+      });
     } else {
       active = null;
       if (lastFocus) { lastFocus.focus(); lastFocus = null; }
