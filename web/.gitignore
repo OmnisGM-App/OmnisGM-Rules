@@ -3,3 +3,13 @@ dist/
 .astro/
 .DS_Store
 .env
+
+# Бренд-иконки — копируются из @omnisgm-app/brand на pre(dev|build)
+public/favicon.svg
+public/icon.svg
+public/maskable.svg
+public/icon-192.png
+public/icon-512.png
+public/maskable-192.png
+public/maskable-512.png
+public/apple-touch-icon.png
