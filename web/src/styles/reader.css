@@ -122,7 +122,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-nav {
   border-right: 1px solid var(--og-border); background: var(--og-bg); padding: 16px 8px 40px calc(8px + env(safe-area-inset-left));
   /* закреплён под липкой панелью систем, скроллится независимо от страницы */
-  position: sticky; top: var(--rd-bar); align-self: start; height: calc(100vh - var(--rd-bar)); overflow-y: auto;
+  position: sticky; top: var(--rd-bar); align-self: start; height: calc(100dvh - var(--rd-bar)); overflow-y: auto;
 }
 .rd-nav-group {
   width: 100%; display: flex; align-items: center; gap: 8px; text-align: left;
@@ -150,7 +150,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-content-inner { max-width: 820px; margin: 0 auto; padding: 30px calc(48px + env(safe-area-inset-right)) 64px calc(48px + env(safe-area-inset-left)); }
 .rd-crumb { font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); margin-bottom: 26px; }
 
-.rd-doc { color: var(--og-text-2); }
+/* overflow-wrap — страховка от горизонтального скролла на узких экранах:
+   длинные URL/токены в Legal/OGL/глоссарии переносятся, а не распирают страницу */
+.rd-doc { color: var(--og-text-2); overflow-wrap: break-word; }
 .rd-doc h1, .rd-doc h2, .rd-doc h3, .rd-doc h4 {
   font-family: var(--font-display); color: var(--og-text); letter-spacing: -0.6px;
   text-wrap: pretty; scroll-margin-top: 72px;
@@ -195,7 +197,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-table-wrap table { margin: 0; }
 .rd-doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 22px; border: 1px solid var(--og-border); border-radius: 10px; overflow: hidden; display: table; }
 .rd-doc th, .rd-doc td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--og-border-soft); }
-.rd-doc thead th { background: var(--og-bg-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); font-weight: 600; }
+.rd-doc thead th { background: var(--og-bg-3); font-family: var(--font-mono); font-size: 12px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); font-weight: 600; }
 .rd-doc tbody tr:last-child td { border-bottom: none; }
 .rd-doc tbody td { color: var(--og-text-2); line-height: 1.5; }
 .rd-doc tbody td:first-child { color: var(--og-text); font-weight: 500; }
@@ -218,7 +220,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* ── TOC ───────────────────────────────────────────────────────────────── */
 .rd-toc {
   border-left: 1px solid var(--og-border); background: var(--og-bg); padding: 24px 18px 40px;
-  position: sticky; top: var(--rd-bar); align-self: start; height: calc(100vh - var(--rd-bar)); overflow-y: auto;
+  position: sticky; top: var(--rd-bar); align-self: start; height: calc(100dvh - var(--rd-bar)); overflow-y: auto;
 }
 .rd-toc-h { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--og-text-muted); margin-bottom: 12px; }
 .rd-toc-list { display: flex; flex-direction: column; gap: 1px; }
@@ -374,7 +376,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* бейдж системы у результата (навешивается скриптом из URL): D&D 5.2 / Daggerheart / … */
 .rd-sys-badge {
   display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
-  font-family: var(--font-mono); font-size: 10px; letter-spacing: 0.3px; font-weight: 600;
+  font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.3px; font-weight: 600;
   color: var(--og-text-2); background: var(--og-bg-3); border: 1px solid var(--og-border);
   vertical-align: middle; white-space: nowrap;
 }
