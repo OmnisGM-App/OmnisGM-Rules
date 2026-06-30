@@ -23,19 +23,19 @@ const curSlug = `${ref.game}/${ref.version}/${ref.slug}`;
 const navNode = nodeBySlug(curSlug);
 const currentId = navNode?.id ?? curSlug;
 
-const pageTitle = titleFromBody(entry.body) || ref.slug;
-// Чистый заголовок для поиска (Pagefind): подпись из nav (надёжнее, чем h1/слаг —
-// на глоссарных страницах titleFromBody падает в слаг типа «glossary/magic-items»).
-const searchTitle = navNode ? navLabel(navNode, ref.lang) : pageTitle;
+// Чистый заголовок страницы (и для <title>, и для Pagefind): подпись из nav — надёжнее h1/слага.
+// На глоссарных страницах titleFromBody падает в слаг типа «glossary/magic-items», что лезло
+// прямо в <title> и в выдачу Google. Nav-подпись локализована и всегда опрятна; слаг — лишь фолбэк.
+const searchTitle = navNode ? navLabel(navNode, ref.lang) : (titleFromBody(entry.body) || ref.slug);
 const trail = findPath(currentId) ?? [];
 const sysLabel = trail.length ? navLabel(trail[0], ref.lang) : ref.game.toUpperCase();
 const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
 
 const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
-const title = `${pageTitle} · ${sysLabel} ${verLabel} · OmnisGM Rules`;
+const title = `${searchTitle} · ${sysLabel} ${verLabel} · OmnisGM Rules`;
 const description = t(
-  `${pageTitle} — ${sysLabel} ${verLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
-  `${pageTitle} — ${sysLabel} ${verLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
+  `${searchTitle} — ${sysLabel} ${verLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
+  `${searchTitle} — ${sysLabel} ${verLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
 );
 ---
 <ReaderShell
