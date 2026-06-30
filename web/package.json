@@ -12,7 +12,8 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.3.0",
-    "astro": "^5.7.0"
+    "astro": "^5.7.0",
+    "@omnisgm/brand": "file:/Users/petrradilov/Documents/omnisgm-brand"
   },
   "devDependencies": {
     "@vite-pwa/astro": "^0.5.0",
