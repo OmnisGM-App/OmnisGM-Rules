@@ -312,3 +312,59 @@ for (const h of toc) {
     update();
   }
 </script>
+
+{/* Поиск: бейдж системы у результата (из URL) + сортировка
+    «текущая страница → текущая система → остальное» (пост-обработка DOM Pagefind). */}
+<script>
+  const SYS: Record<string, string> = {
+    'dnd/srd-5.2': 'D&D 5.2.1',
+    'dnd/srd-5.1': 'D&D 5.1',
+    'dnd/converting-srd-5.2': 'D&D 5.1→5.2.1',
+    'daggerheart/srd-1.0': 'Daggerheart',
+    'brp/srd-1.0': 'Basic Roleplaying',
+  };
+  const sysKey = (p: string) => {
+    const s = p.split('?')[0].split('#')[0].split('/').filter(Boolean); // [lang, game, version, …]
+    return s.length >= 3 ? `${s[1]}/${s[2]}` : '';
+  };
+  const curPath = location.pathname.replace(/\/$/, '');
+  const curSys = sysKey(location.pathname);
+
+  const process = (root: Element) => {
+    const results = Array.from(root.querySelectorAll<HTMLElement>('.pagefind-ui__result'));
+    if (!results.length) return;
+    const list = results[0].parentNode as HTMLElement;
+    const order: number[] = [];
+    results.forEach((r, i) => {
+      const link = r.querySelector<HTMLAnchorElement>('.pagefind-ui__result-link');
+      const path = (link?.getAttribute('href') || '').split('?')[0].split('#')[0];
+      const key = sysKey(path);
+      // бейдж системы (один раз)
+      if (!r.querySelector('.rd-sys-badge') && SYS[key]) {
+        const title = r.querySelector('.pagefind-ui__result-title');
+        if (title) {
+          const b = document.createElement('span');
+          b.className = 'rd-sys-badge';
+          b.textContent = SYS[key];
+          title.appendChild(b);
+        }
+      }
+      const norm = path.replace(/\/$/, '');
+      (r as any)._prio = norm === curPath ? 0 : key && key === curSys ? 1 : 2;
+      order[i] = i;
+    });
+    // стабильная сортировка по приоритету; трогаем DOM только если порядок изменился
+    const sorted = results.map((r, i) => ({ r, i })).sort((a, b) => ((a.r as any)._prio - (b.r as any)._prio) || (a.i - b.i));
+    let changed = false;
+    for (let i = 0; i < sorted.length; i++) if (sorted[i].r !== results[i]) { changed = true; break; }
+    if (changed) for (const { r } of sorted) list.appendChild(r);
+  };
+
+  for (const id of ['rd-search-d', 'rd-search-m']) {
+    const root = document.getElementById(id);
+    if (!root) continue;
+    let t: number;
+    new MutationObserver(() => { clearTimeout(t); t = window.setTimeout(() => process(root), 60); })
+      .observe(root, { childList: true, subtree: true });
+  }
+</script>
