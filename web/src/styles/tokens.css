@@ -1,6 +1,25 @@
 /* OmnisGM — общие токены экосистемы (из дизайна omnis-site.css). Шрифты грузятся в Layout.astro
    не блокируя рендер (preconnect + media-print swap), поэтому здесь @import нет. */
 
+/* Фолбэк-шрифты с подогнанными метриками (size-adjust/ascent/descent, по алгоритму fontaine/capsize):
+   локальный фолбэк занимает ту же высоту строки, что и веб-шрифт → swap НЕ вызывает layout shift
+   (CLS от шрифтов ≈ 0). Значения единые с News. Меняешь шрифт — пересчитывай метрики. */
+@font-face {
+  font-family: 'Fraunces Fallback';
+  src: local('Georgia');
+  size-adjust: 105.204%; ascent-override: 92.962%; descent-override: 24.239%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'Inter Fallback';
+  src: local('Arial');
+  size-adjust: 107.119%; ascent-override: 90.436%; descent-override: 22.518%; line-gap-override: 0%;
+}
+@font-face {
+  font-family: 'JetBrains Mono Fallback';
+  src: local('Courier New');
+  size-adjust: 99.984%; ascent-override: 102.017%; descent-override: 30.005%; line-gap-override: 0%;
+}
+
 :root {
   --og-bg:           #0F1016;
   --og-bg-2:         #15161E;
@@ -21,9 +40,9 @@
   --og-border-strong:#363A4E;
   --og-border-soft:  #1F2130;
 
-  --font-display:    'Fraunces', Georgia, serif;
-  --font-body:       'Inter', system-ui, sans-serif;
-  --font-mono:       'JetBrains Mono', ui-monospace, monospace;
+  --font-display:    'Fraunces', 'Fraunces Fallback', Georgia, serif;
+  --font-body:       'Inter', 'Inter Fallback', system-ui, sans-serif;
+  --font-mono:       'JetBrains Mono', 'JetBrains Mono Fallback', ui-monospace, monospace;
 }
 
 *, *::before, *::after { box-sizing: border-box; }
