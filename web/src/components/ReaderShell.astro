@@ -48,6 +48,13 @@ const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;
 const next = idx >= 0 && idx < FLAT_PAGES.length - 1 ? FLAT_PAGES[idx + 1] : null;
 
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
+// Группируем h3 под их h2 для сворачиваемого TOC (по умолчанию свёрнуто, активная секция раскрыта скриптом)
+type TocGroup = { h2: { slug: string; text: string }; subs: { slug: string; text: string }[] };
+const tocGroups: TocGroup[] = [];
+for (const h of toc) {
+  if (h.depth === 2 || tocGroups.length === 0) tocGroups.push({ h2: h, subs: [] });
+  else tocGroups[tocGroups.length - 1].subs.push(h);
+}
 ---
 <Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu}>
   <div class="rd-root">
@@ -72,9 +79,6 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
         </a>
         <span class="rd-brand-sub">/ rules</span>
       </div>
-      <div class="rd-search-slot">
-        <Search id="rd-search-d" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
-      </div>
       <div class="rd-top-right">
         <a href={REPO} target="_blank" rel="noopener" class="rd-gh">GitHub ↗</a>
         {/* десктоп — кнопки-пара; мобила — выпадающий список (как в News) */}
@@ -98,14 +102,19 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       </div>
     </header>
 
-    {/* десктоп — все табы систем */}
-    <nav class="rd-systabs og-scroll">
-      {SYSTEMS.map((s) => (
-        <a href={systemRoute(s.id, lang)} class={'rd-systab' + (s.id === activeSys ? ' on' : '')} aria-current={s.id === activeSys ? 'page' : undefined}>
-          <I18n en={label(s as any, 'en')} ru={label(s as any, 'ru')} bilingual={bilingual} lang={lang} />
-        </a>
-      ))}
-    </nav>
+    {/* десктоп — панель систем (липкая): вкладки слева, поиск справа */}
+    <div class="rd-systabs">
+      <nav class="rd-systabs-tabs og-scroll">
+        {SYSTEMS.map((s) => (
+          <a href={systemRoute(s.id, lang)} class={'rd-systab' + (s.id === activeSys ? ' on' : '')} aria-current={s.id === activeSys ? 'page' : undefined}>
+            <I18n en={label(s as any, 'en')} ru={label(s as any, 'ru')} bilingual={bilingual} lang={lang} />
+          </a>
+        ))}
+      </nav>
+      <div class="rd-search-slot">
+        <Search id="rd-search-d" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
+      </div>
+    </div>
 
     {/* мобила — липкая панель: Системы (список) | поиск | Разделы (слева) | На странице (справа) */}
     <div class="rd-mobtabs">
@@ -184,11 +193,20 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
       </main>
 
       {toc.length > 1 && (
-        <aside class="rd-toc og-scroll">
+        <aside class="rd-toc og-scroll" id="rd-toc">
           <div class="rd-toc-h"><I18n en="On this page" ru="На этой странице" bilingual={bilingual} lang={lang} /></div>
           <div class="rd-toc-list">
-            {toc.map((h) => (
-              <a class={'rd-toc-link' + (h.depth === 3 ? ' rd-toc-sub' : '')} href={`#${h.slug}`}>{h.text}</a>
+            {tocGroups.map((g) => (
+              <div class={'rd-toc-grp' + (g.subs.length ? ' has-subs' : '')}>
+                <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`} data-toc={g.h2.slug}>{g.h2.text}</a>
+                {g.subs.length > 0 && (
+                  <div class="rd-toc-subs">
+                    {g.subs.map((s) => (
+                      <a class="rd-toc-link rd-toc-sub" href={`#${s.slug}`} data-toc={s.slug}>{s.text}</a>
+                    ))}
+                  </div>
+                )}
+              </div>
             ))}
           </div>
         </aside>
@@ -255,4 +273,42 @@ const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
     const link = box?.querySelector<HTMLAnchorElement>('a.pagefind-ui__result-link');
     if (link) link.click();
   });
+</script>
+
+{/* Скроллспай «На этой странице»: подсветка читаемого раздела в реальном времени +
+    авто-раскрытие активной группы (h3 свёрнуты по умолчанию). */}
+<script>
+  const toc = document.getElementById('rd-toc');
+  if (toc) {
+    const links = Array.from(toc.querySelectorAll<HTMLAnchorElement>('.rd-toc-link[data-toc]'));
+    const heads = links
+      .map((l) => document.getElementById(l.dataset.toc!))
+      .filter((h): h is HTMLElement => !!h);
+    const grps = Array.from(toc.querySelectorAll('.rd-toc-grp'));
+    let activeId = '';
+    const setActive = (id: string) => {
+      if (id === activeId) return;
+      activeId = id;
+      for (const l of links) l.classList.toggle('rd-toc-active', l.dataset.toc === id);
+      const link = links.find((l) => l.dataset.toc === id);
+      const open = link?.closest('.rd-toc-grp');
+      for (const g of grps) g.classList.toggle('open', g === open);
+    };
+    let ticking = false;
+    const update = () => {
+      ticking = false;
+      const threshold = window.scrollY + 140;
+      let cur = heads[0];
+      for (const h of heads) {
+        if (h.getBoundingClientRect().top + window.scrollY <= threshold) cur = h;
+        else break;
+      }
+      if (cur) setActive(cur.id);
+    };
+    window.addEventListener('scroll', () => {
+      if (!ticking) { ticking = true; requestAnimationFrame(update); }
+    }, { passive: true });
+    window.addEventListener('resize', update, { passive: true });
+    update();
+  }
 </script>
