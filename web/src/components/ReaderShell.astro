@@ -255,7 +255,7 @@ const searchUi = {
 
     {/* «Разделы» — левый drawer, только дерево разделов (системы ушли в список выше) */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
-    <aside class="rd-drawer og-scroll" role="dialog" aria-modal="true" aria-label={t('Разделы', 'Sections')}>
+    <aside class="rd-drawer og-scroll" role="dialog" aria-modal="true" tabindex="-1" aria-label={t('Разделы', 'Sections')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title"><I18n en="Sections" ru="Разделы" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
@@ -266,7 +266,7 @@ const searchUi = {
     {/* «На странице» — правый drawer, навигация по текущей странице. Сворачиваемые группы
         (h3 под h2) — как в десктопном TOC: каретка разворачивает группу, тап по пункту ведёт + закрывает. */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
-    <aside class="rd-onpage og-scroll" role="dialog" aria-modal="true" aria-label={t('На этой странице', 'On this page')}>
+    <aside class="rd-onpage og-scroll" role="dialog" aria-modal="true" tabindex="-1" aria-label={t('На этой странице', 'On this page')}>
       <div class="rd-drawer-top">
         <span class="rd-drawer-title"><I18n en="On this page" ru="На этой странице" bilingual={bilingual} lang={lang} /></span>
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
@@ -454,7 +454,10 @@ const searchUi = {
       active = panel;
       const f = focusables(panel);
       requestAnimationFrame(() => {
-        (f[0] || panel!).focus({ preventScroll: true });
+        // Фокусируем САМ контейнер (tabindex=-1) — без видимой рамки на контроле.
+        // Исключение — поиск: фокус на поле, чтобы сразу печатать (рамка поля ожидаема).
+        const target = panel!.classList.contains('rd-search-overlay') ? (f[0] || panel!) : panel!;
+        target.focus({ preventScroll: true });
         // «На странице»: доскроллить подсвеченный текущий раздел в центр панели
         if (panel!.classList.contains('rd-onpage')) {
           panel!.querySelector('.rd-toc-active')?.scrollIntoView({ block: 'center' });

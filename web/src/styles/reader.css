@@ -109,6 +109,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .pagefind-ui__result-link:focus-visible {
   outline: 2px solid var(--og-accent); outline-offset: 2px; border-radius: 6px;
 }
+/* Контейнер панели получает программный фокус (для Esc/trap) — без видимой рамки */
+.rd-drawer:focus, .rd-onpage:focus, .rd-search-overlay:focus { outline: none; }
 /* кнопки-замены сайдбаров/поиска — скрыты на широком, появляются по брейкпоинтам ниже */
 .rd-act { display: none; }
 /* поле поиска в баре — единой высоты с кнопками (44px). Pagefind считает высоту как
