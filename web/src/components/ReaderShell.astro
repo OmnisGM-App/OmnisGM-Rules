@@ -15,10 +15,11 @@ export interface Props {
   description?: string;
   headings?: { depth: number; slug: string; text: string }[];
   sourceId?: string;          // id записи коллекции для ссылки «Источник»
+  searchTitle?: string;       // чистый заголовок для индекса Pagefind (иначе берёт h1/документный title)
   bilingual?: boolean;        // корень «/»: рендерим обе подписи, язык — по локали (без редиректа)
   titleRu?: string;           // RU-заголовок (своп document.title при bilingual)
 }
-const { lang, currentId, title, description, headings = [], sourceId, bilingual = false, titleRu } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const MAIN = 'https://omnisgm.com';
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
@@ -55,6 +56,17 @@ for (const h of toc) {
   if (h.depth === 2 || tocGroups.length === 0) tocGroups.push({ h2: h, subs: [] });
   else tocGroups[tocGroups.length - 1].subs.push(h);
 }
+
+// Опции Pagefind UI: локализованный плейсхолдер; счётчик «N results»/«Searching…»
+// убран (пустые строки → скрыто CSS), оставлен только полезный «ничего не найдено».
+const searchUi = {
+  showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false,
+  translations: {
+    placeholder: t('Поиск', 'Search'),
+    zero_results: t('Ничего не найдено: [SEARCH_TERM]', 'No results for [SEARCH_TERM]'),
+    searching: '', many_results: '', one_result: '',
+  },
+};
 ---
 <Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu}>
   <div class="rd-root">
@@ -112,7 +124,7 @@ for (const h of toc) {
         ))}
       </nav>
       <div class="rd-search-slot">
-        <Search id="rd-search-d" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
+        <Search id="rd-search-d" className="pagefind-ui" uiOptions={searchUi} />
       </div>
     </div>
 
@@ -148,7 +160,7 @@ for (const h of toc) {
       <main class="rd-content og-scroll">
         <div class="rd-content-inner">
           {crumb && <div class="rd-crumb">{crumb}</div>}
-          <article class="rd-doc" data-pagefind-body={bilingual ? undefined : true} data-pagefind-ignore={bilingual ? true : undefined}>
+          <article class="rd-doc" data-pagefind-body={bilingual ? undefined : true} data-pagefind-ignore={bilingual ? true : undefined} data-pagefind-meta={!bilingual && searchTitle ? `title:${searchTitle}` : undefined}>
             <slot />
           </article>
 
@@ -253,7 +265,7 @@ for (const h of toc) {
         <label for="rd-panel-none" class="rd-drawer-x" aria-label={t('Закрыть', 'Close')}>×</label>
       </div>
       <div class="rd-search-overlay-body">
-        <Search id="rd-search-m" className="pagefind-ui" uiOptions={{ showImages: false, showSubResults: true, excerptLength: 12, resetStyles: false }} />
+        <Search id="rd-search-m" className="pagefind-ui" uiOptions={searchUi} />
       </div>
     </div>
   </div>

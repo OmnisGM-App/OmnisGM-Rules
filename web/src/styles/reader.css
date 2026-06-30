@@ -171,6 +171,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc a[href^="http"]:hover { border-bottom-color: var(--og-warm); }
 
 /* Таблицы: Astro рендерит <table>; оборачиваем в .rd-doc для скролла на узких экранах */
+/* широкая таблица скроллится внутри обёртки (rehype-wrap-tables), а не растягивает страницу */
+.rd-table-wrap { overflow-x: auto; max-width: 100%; margin: 0 0 22px; -webkit-overflow-scrolling: touch; }
+.rd-table-wrap table { margin: 0; }
 .rd-doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 22px; border: 1px solid var(--og-border); border-radius: 10px; overflow: hidden; display: table; }
 .rd-doc th, .rd-doc td { text-align: left; padding: 10px 14px; border-bottom: 1px solid var(--og-border-soft); }
 .rd-doc thead th { background: var(--og-bg-3); font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; text-transform: uppercase; color: var(--og-text-muted); font-weight: 600; }
@@ -316,6 +319,11 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .pagefind-ui__search-input::placeholder { color: var(--og-text-muted) !important; opacity: 1 !important; }
 /* кнопка очистки Pagefind убрана — на компактном поле лишняя (чистится удалением текста) */
 .pagefind-ui__search-clear { display: none !important; }
+/* счётчик «N results»/«Searching…» убран (пустая строка) → прячем пустое сообщение и его отступ.
+   Непустое (zero_results «ничего не найдено») — компактно. */
+.pagefind-ui__message:empty { display: none !important; padding: 0 !important; margin: 0 !important; }
+.pagefind-ui__message { padding: 6px 0 2px !important; margin: 0 !important; font-size: 11.5px !important; color: var(--og-text-muted) !important; }
+.pagefind-ui__results { margin-top: 6px !important; }
 /* бейдж системы у результата (навешивается скриптом из URL): D&D 5.2 / Daggerheart / … */
 .rd-sys-badge {
   display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;

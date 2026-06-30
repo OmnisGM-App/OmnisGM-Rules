@@ -3,6 +3,7 @@ import sitemap from '@astrojs/sitemap';
 import pagefind from 'astro-pagefind';
 import AstroPWA from '@vite-pwa/astro';
 import rehypePromoteHeadings from './src/lib/rehype-promote-headings.mjs';
+import rehypeWrapTables from './src/lib/rehype-wrap-tables.mjs';
 
 // rules.omnisgm.com — статический (SSG) ридер SRD экосистемы OmnisGM.
 // Контент — Markdown из ../src/{game}/{version}/{en,ru}/**.md (вход контентного пайплайна),
@@ -107,6 +108,6 @@ export default defineConfig({
   },
   markdown: {
     // Нормализуем уровни заголовков ДО сбора TOC (headings) Astro — чтобы titled h1 не попадал в TOC.
-    rehypePlugins: [rehypePromoteHeadings],
+    rehypePlugins: [rehypePromoteHeadings, rehypeWrapTables],
   },
 });
