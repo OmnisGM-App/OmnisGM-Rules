@@ -85,7 +85,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   display: none; appearance: none; -webkit-appearance: none; min-width: 0; flex: 0 1 auto; max-width: 46%;
   align-self: center;
   background-color: var(--og-bg-2); color: var(--og-text); cursor: pointer;
-  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 40px;
+  border: 1px solid var(--og-border); border-radius: 8px; padding: 8px 26px 8px 12px; min-height: 44px;
   font-family: var(--font-display); font-size: 14px; font-weight: 600; letter-spacing: -0.2px;
   text-overflow: ellipsis; white-space: nowrap;
   background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 10 10'%3E%3Cpath d='M2 3.5 5 6.5 8 3.5' stroke='%23A1A3B8' stroke-width='1.2' fill='none' stroke-linecap='round'/%3E%3C/svg%3E");
@@ -95,13 +95,19 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-bar-actions { display: flex; align-items: center; gap: 8px; margin-left: auto; flex-shrink: 0; }
 .rd-bar-actions .rd-search-slot { width: 300px; max-width: 34vw; }
 .rd-iconbtn { display: inline-flex; align-items: center; justify-content: center; gap: 6px; cursor: pointer;
-  min-height: 40px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
+  min-height: 44px; padding: 8px; border: 1px solid var(--og-border); border-radius: 8px;
   background: var(--og-bg-2); color: var(--og-text-2);
   font-family: var(--font-body); font-size: 12.5px; font-weight: 600; white-space: nowrap; }
 .rd-iconbtn-txt { padding: 8px 11px; }
 .rd-iconbtn:hover { color: var(--og-text); border-color: var(--og-border-strong); }
 /* кнопки-замены сайдбаров/поиска — скрыты на широком, появляются по брейкпоинтам ниже */
 .rd-act { display: none; }
+/* поле поиска в баре — единой высоты с кнопками (44px). Pagefind считает высоту как
+   calc(64px * scale); scale 0.6875 → 44px, иконка масштабируется пропорционально (без съезда). */
+.rd-bar-actions .rd-search-slot { --pagefind-ui-scale: 0.6875; }
+.rd-bar-actions .pagefind-ui__search-input { font-size: 14px; }
+/* выпадашку результатов держим читаемой (не ужимаем вместе с полем) */
+.rd-bar-actions .pagefind-ui__drawer { --pagefind-ui-scale: 0.82; }
 
 /* ── Nav tree ──────────────────────────────────────────────────────────── */
 .rd-nav {
@@ -224,7 +230,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-toc-sub { padding-left: 22px; font-size: 12px; }
 
 /* ── Layout grid ───────────────────────────────────────────────────────── */
-.rd-root { --rd-bar: 48px; display: flex; flex-direction: column; min-height: 100vh; background: var(--og-bg); color: var(--og-text); }
+.rd-root { --rd-bar: 54px; display: flex; flex-direction: column; min-height: 100vh; background: var(--og-bg); color: var(--og-text); }
 .rd-body { display: grid; grid-template-columns: 278px minmax(0,1fr) 236px; flex: 1; min-height: 0; }
 .rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr); }
 /* ① TOC не помещается → скрываем правый столбец, в панель приходит кнопка «На странице» */
