@@ -286,6 +286,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 }
 .rd-search-slot .pagefind-ui__drawer:empty { display: none; }
 .rd-drawer-search { padding: 2px 6px 8px; }
+/* поле поиска: текст и плейсхолдер — AA-контраст (дефолтный Pagefind-плейсхолдер слишком тусклый) */
+.pagefind-ui__search-input { color: var(--og-text); }
+.pagefind-ui__search-input::placeholder { color: var(--og-text-muted); opacity: 1; }
 .pagefind-ui__result-link { color: var(--og-text); }
 /* выдержка кликабельна (JS ведёт к тому же разделу, что и заголовок под-результата) */
 .pagefind-ui__result-excerpt { color: var(--og-text-2); cursor: pointer; transition: color .12s ease; }
