@@ -22,7 +22,7 @@
   "devDependencies": {
     "@astrojs/check": "^0.9.9",
     "@playwright/test": "^1.61.1",
-    "@vite-pwa/astro": "^0.5.0",
+    "@vite-pwa/astro": "^1.2.0",
     "astro-pagefind": "^1.8.0",
     "typescript": "^5.9.3"
   }
