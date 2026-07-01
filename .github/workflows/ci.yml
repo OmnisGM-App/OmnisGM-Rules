@@ -1,0 +1,43 @@
+name: CI
+
+# Лёгкая проверка на PR в main: типы (astro check) + прод-сборка. E2E (Playwright) в CI
+# НЕ гоняем — они тяжёлые/нестабильные на раннере; запускаются локально: npm run test:e2e.
+on:
+  pull_request:
+    branches: [main]
+
+permissions:
+  contents: read
+  packages: read   # установка приватного @omnisgm-app/brand из GitHub Packages
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  check-build:
+    name: Check & Build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
+      - name: Install web deps
+        working-directory: web
+        run: npm ci
+        env:
+          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'   # e2e в CI не гоняем — браузеры не качаем
+
+      - name: Type-check (astro check)
+        working-directory: web
+        run: npm run check
+
+      - name: Build
+        working-directory: web
+        run: npm run build

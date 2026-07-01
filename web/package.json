@@ -10,6 +10,8 @@
     "prebuild": "node scripts/copy-brand-assets.mjs",
     "build": "astro build",
     "preview": "astro preview",
+    "check": "astro check",
+    "test:e2e": "playwright test",
     "astro": "astro"
   },
   "dependencies": {
@@ -18,7 +20,10 @@
     "astro": "^5.7.0"
   },
   "devDependencies": {
+    "@astrojs/check": "^0.9.9",
+    "@playwright/test": "^1.61.1",
     "@vite-pwa/astro": "^0.5.0",
-    "astro-pagefind": "^1.8.0"
+    "astro-pagefind": "^1.8.0",
+    "typescript": "^5.9.3"
   }
 }

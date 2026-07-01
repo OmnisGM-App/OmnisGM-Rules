@@ -4,6 +4,11 @@ dist/
 .DS_Store
 .env
 
+# Playwright e2e-артефакты
+test-results/
+playwright-report/
+playwright/.cache/
+
 # Бренд-иконки — копируются из @omnisgm-app/brand на pre(dev|build)
 public/favicon.svg
 public/icon.svg
