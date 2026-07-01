@@ -11,7 +11,7 @@ jobs:
 
     steps:
       - name: Checkout repository
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
 
       - name: Build combined RU document
         uses: ./.github/actions/build-markdown
@@ -103,7 +103,7 @@ jobs:
           toc-title: "Содержание"
 
       - name: Create release
-        uses: softprops/action-gh-release@v1
+        uses: softprops/action-gh-release@v3
         with:
           name: "D&D SRD — RU + EN ${{ github.ref_name }}"
           body: |
