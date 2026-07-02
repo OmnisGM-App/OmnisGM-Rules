@@ -3,6 +3,9 @@ import Reader from '../layouts/Reader.astro';
 import NavTree from './NavTree.astro';
 import I18n from './I18n.astro';
 import Search from 'astro-pagefind/components/Search';
+import markRaw from '@omnisgm-app/brand/assets/mark.svg?raw';
+// Фирменный знак — ЕДИНЫЙ источник из бренд-пакета. Снимаем фикс. размер, масштабируем под контейнер.
+const BRAND_MARK = markRaw.replace(/\s(width|height)="[^"]*"/g, '').replace('<svg ', '<svg style="display:block;width:100%;height:100%" ');
 import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, nodeById, isGroup, flattenPages,
   label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup, type NavNode,
@@ -113,12 +116,7 @@ const searchUi = {
     <header class="rd-topbar">
       <div class="rd-brand">
         <a href={MAIN} class="rd-brand-link" aria-label="OmnisGM">
-          <svg width="20" height="20" viewBox="0 0 24 24" fill="none" style="flex-shrink:0">
-            <circle cx="12" cy="12" r="9.5" stroke="var(--og-accent)" stroke-width="1.2" fill="none" />
-            <circle cx="12" cy="12" r="6" stroke="var(--og-accent)" stroke-width="0.8" fill="none" opacity="0.5" />
-            <circle cx="12" cy="12" r="2" fill="var(--og-accent)" />
-            <path d="M12 2.5v3M12 18.5v3M2.5 12h3M18.5 12h3" stroke="var(--og-accent)" stroke-width="1" stroke-linecap="round" />
-          </svg>
+          <span class="rd-brand-mark" set:html={BRAND_MARK} />
           <span class="rd-brand-name">OmnisGM</span>
         </a>
         <span class="rd-brand-sub">/ rules</span>
