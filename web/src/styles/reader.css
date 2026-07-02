@@ -34,7 +34,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-brand-sub { font-family: var(--font-mono); font-size: 11px; color: var(--og-text-muted); letter-spacing: 1px; }
 
 .rd-search-wrap { position: relative; flex: 1 1 auto; max-width: 460px; }
-.rd-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--og-text-4); pointer-events: none; display: flex; }
+.rd-search-icon { position: absolute; left: 12px; top: 50%; transform: translateY(-50%); color: var(--og-decor); pointer-events: none; display: flex; }
 .rd-search {
   width: 100%; appearance: none; background: var(--og-bg-2); color: var(--og-text);
   border: 1px solid var(--og-border); border-radius: 8px;
@@ -136,7 +136,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* Сворачивание через <details>: прячем нативный маркер, своя каретка вращается на [open] */
 .rd-nav-det > summary { list-style: none; cursor: pointer; }
 .rd-nav-det > summary::-webkit-details-marker { display: none; }
-.rd-nav-caret { display: inline-flex; color: var(--og-text-3); transition: transform .15s ease; flex-shrink: 0; }
+.rd-nav-caret { display: inline-flex; color: var(--og-icon); transition: transform .15s ease; flex-shrink: 0; }
 .rd-nav-det[open] > summary .rd-nav-caret { transform: rotate(90deg); }
 .rd-nav-page {
   width: 100%; display: block; text-align: left; background: none; border: none; text-decoration: none;
@@ -209,7 +209,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;
   font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-muted); letter-spacing: 0.3px;
 }
-.rd-source a { display: inline-flex; align-items: center; min-height: 44px; color: var(--og-text-2); border-bottom: 1px dotted var(--og-text-4); }
+.rd-source a { display: inline-flex; align-items: center; min-height: 44px; color: var(--og-text-2); border-bottom: 1px dotted var(--og-decor); }
 .rd-source a:hover { color: var(--og-warm); }
 
 .rd-prevnext { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
@@ -235,7 +235,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-toc-grp.has-subs > .rd-toc-h2 { position: relative; padding-left: 20px; }
 .rd-toc-grp.has-subs > .rd-toc-h2::before {
   content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
-  border-right: 1.4px solid var(--og-text-3); border-bottom: 1.4px solid var(--og-text-3);
+  border-right: 1.4px solid var(--og-icon); border-bottom: 1.4px solid var(--og-icon);
   transform: rotate(-45deg); transition: transform .15s ease;
 }
 .rd-toc-grp.open.has-subs > .rd-toc-h2::before { transform: rotate(45deg); }
@@ -317,7 +317,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* десктопная каретка-псевдоэлемент не нужна (h2 не прямой потомок группы) — рисуем кнопку-каретку */
 .rd-toc-caret {
   flex: 0 0 auto; width: 44px; height: 44px; background: none; border: none; cursor: pointer; padding: 0;
-  display: inline-flex; align-items: center; justify-content: center; color: var(--og-text-3);
+  display: inline-flex; align-items: center; justify-content: center; color: var(--og-icon);
 }
 .rd-toc-caret::before {
   content: ''; width: 7px; height: 7px;
