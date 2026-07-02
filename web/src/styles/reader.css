@@ -29,6 +29,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 }
 .rd-brand { display: inline-flex; align-items: center; gap: 9px; white-space: nowrap; flex: none; }
 .rd-brand-link { display: inline-flex; align-items: center; gap: 9px; min-height: 44px; }
+.rd-brand-mark { display: inline-flex; width: 20px; height: 20px; flex-shrink: 0; }
 .rd-brand-link:hover .rd-brand-name { color: var(--og-accent); }
 .rd-brand-name { font-family: var(--font-display); font-weight: 700; font-size: 16px; letter-spacing: -0.4px; color: var(--og-text); }
 .rd-brand-sub { font-family: var(--font-mono); font-size: 11px; color: var(--og-text-muted); letter-spacing: 1px; }
