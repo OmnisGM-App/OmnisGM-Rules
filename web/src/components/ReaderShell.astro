@@ -21,6 +21,7 @@ export interface Props {
 }
 const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
+const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
 
@@ -211,7 +212,7 @@ const searchUi = {
           {sourceId && (
             <div class="rd-source">
               <span>{t('Источник', 'Source')}</span>
-              <a href={`${REPO}/blob/master/src/${sourceId}.md`} target="_blank" rel="noopener">src/{sourceId}.md ↗</a>
+              <a href={`${REPO}/blob/${REPO_BRANCH}/src/${sourceId}.md`} target="_blank" rel="noopener">src/{sourceId}.md ↗</a>
             </div>
           )}
 
