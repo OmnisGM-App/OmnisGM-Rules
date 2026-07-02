@@ -88,12 +88,12 @@ const FONTS =
       .nf-brand-link:hover .word { color: var(--og-accent); }
       .nf-brand svg { flex-shrink: 0; }
       .nf-brand .word { font-family: var(--font-display); font-size: 18px; font-weight: 700; letter-spacing: -0.4px; color: var(--og-text); }
-      .nf-brand .sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-4); letter-spacing: 1px; }
+      .nf-brand .sub { font-family: var(--font-mono); font-size: 11.5px; color: var(--og-decor); letter-spacing: 1px; }
       .nf-nav { display: flex; align-items: center; gap: 28px; }
       .nf-lang { display: inline-flex; align-items: center; border: 1px solid var(--og-border); border-radius: 6px; overflow: hidden; }
       .nf-lang button {
         appearance: none; background: transparent; border: 0; cursor: pointer;
-        font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; color: var(--og-text-4);
+        font-family: var(--font-mono); font-size: 11px; letter-spacing: 1px; color: var(--og-decor);
         padding: 5px 9px; transition: color .15s, background .15s;
       }
       .nf-lang button:hover { color: var(--og-text-2); }
@@ -101,7 +101,7 @@ const FONTS =
 
       .nf-stage { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 64px 24px; text-align: center; }
       .nf-inner { max-width: 560px; width: 100%; }
-      .nf-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--og-text-4); margin-bottom: 32px; }
+      .nf-tag { font-family: var(--font-mono); font-size: 11px; letter-spacing: 2px; text-transform: uppercase; color: var(--og-decor); margin-bottom: 32px; }
       .nf-die { width: 132px; height: 132px; margin: 0 auto 32px; position: relative; transform: rotate(-8deg); }
       .nf-die svg { display: block; width: 100%; height: 100%; overflow: visible; }
       .nf-die .face { fill: var(--og-bg-3); stroke: var(--og-border-strong); stroke-width: 1.5; stroke-linejoin: round; }
@@ -111,19 +111,19 @@ const FONTS =
       .nf-code {
         font-family: var(--font-display); font-weight: 800; font-size: clamp(72px, 18vw, 140px);
         line-height: 0.9; letter-spacing: -0.02em; margin: 0 0 8px;
-        background: linear-gradient(180deg, var(--og-text) 0%, var(--og-text-3) 130%);
+        background: linear-gradient(180deg, var(--og-text) 0%, var(--og-icon) 130%);
         -webkit-background-clip: text; background-clip: text; -webkit-text-fill-color: transparent;
       }
       .nf-title { font-family: var(--font-display); font-weight: 600; font-size: clamp(22px, 4vw, 30px); margin: 0 0 16px; color: var(--og-text); }
       .nf-body { font-size: 16px; line-height: 1.65; color: var(--og-text-2); margin: 0 auto 12px; max-width: 440px; }
-      .nf-roll { font-family: var(--font-mono); font-size: 12.5px; color: var(--og-text-3); margin: 0 auto 36px; }
+      .nf-roll { font-family: var(--font-mono); font-size: 12.5px; color: var(--og-icon); margin: 0 auto 36px; }
       .nf-roll b { color: var(--og-danger); font-weight: 500; }
       .nf-actions { display: flex; gap: 12px; justify-content: center; flex-wrap: wrap; }
       .nf-btn { cursor: pointer; font-family: var(--font-body); font-size: 14px; font-weight: 600; padding: 12px 22px; border-radius: 10px; border: 1px solid var(--og-border-strong); background: var(--og-bg-3); color: var(--og-text); transition: border-color .15s ease, color .15s ease, background .15s ease; }
       .nf-btn:hover { border-color: var(--og-accent); color: var(--og-accent); }
       .nf-btn.primary { background: var(--og-accent); border-color: var(--og-accent); color: #0F1016; }
       .nf-btn.primary:hover { background: var(--og-accent-2); border-color: var(--og-accent-2); color: #0F1016; }
-      .nf-footer { padding: 24px clamp(22px, 6vw, 80px); border-top: 1px solid var(--og-border); background: var(--og-bg-2); display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 11.5px; color: var(--og-text-4); letter-spacing: 0.3px; }
+      .nf-footer { padding: 24px clamp(22px, 6vw, 80px); border-top: 1px solid var(--og-border); background: var(--og-bg-2); display: flex; justify-content: space-between; align-items: center; font-family: var(--font-mono); font-size: 11.5px; color: var(--og-decor); letter-spacing: 0.3px; }
 
       @keyframes nf-tumble { 0% { transform: rotate(-8deg) translateY(0); } 50% { transform: rotate(-3deg) translateY(-6px); } 100% { transform: rotate(-8deg) translateY(0); } }
       @media (prefers-reduced-motion: no-preference) { .nf-die { animation: nf-tumble 4.5s ease-in-out infinite; } }
