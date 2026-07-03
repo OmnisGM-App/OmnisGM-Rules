@@ -2,7 +2,10 @@
 // это GA4 под капотом). Намеренно НЕ тащим firebase SDK в бандл: грузим лёгкий gtag с Google CDN
 // отложенно (не влияет на LCP). Без measurementId — тихо пропускаем.
 // Экспортит window.omnisTrack(name, params) для событий (клик CTA-воронки в лист персонажа).
-const ID = import.meta.env.VITE_FIREBASE_MEASUREMENT_ID as string | undefined;
+// Префикс PUBLIC_, а не VITE_: Astro отдаёт клиентским скриптам только PUBLIC_-переменные
+// (переопределяет vite'овский envPrefix). С VITE_ значение на клиенте — undefined, и минификатор
+// вырезал весь gtag-блок из бандла (GA4 не работал на проде вообще). См. #18.
+const ID = import.meta.env.PUBLIC_FIREBASE_MEASUREMENT_ID as string | undefined;
 
 declare global {
   interface Window {

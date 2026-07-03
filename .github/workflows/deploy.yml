@@ -65,6 +65,9 @@ jobs:
           VITE_FIREBASE_MESSAGING_SENDER_ID: ${{ secrets.VITE_FIREBASE_MESSAGING_SENDER_ID }}
           VITE_FIREBASE_APP_ID: ${{ secrets.VITE_FIREBASE_APP_ID }}
           VITE_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
+          # Astro отдаёт клиентским скриптам только PUBLIC_-переменные — gtag читает именно её (#18).
+          # Значение то же (секрет не переименовываем); VITE_-строку оставляем для firebaseConfig.
+          PUBLIC_FIREBASE_MEASUREMENT_ID: ${{ secrets.VITE_FIREBASE_MEASUREMENT_ID }}
 
       # Сброс edge-кэша Cloudflare после деплоя — точечно, фикс-имена на rules.omnisgm.com
       # (иконки/favicon/manifest/sw/og кэшируются на edge; HTML/хэш-ассеты не трогаем).
