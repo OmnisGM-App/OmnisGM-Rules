@@ -213,6 +213,13 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-source a { display: inline-flex; align-items: center; min-height: 44px; color: var(--og-text-2); border-bottom: 1px dotted var(--og-decor); }
 .rd-source a:hover { color: var(--og-warm); }
 
+/* Атрибуция лицензии — компактная строка-кредит под «Источником», на каждой контентной странице */
+.rd-attrib {
+  margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: var(--og-text-muted); letter-spacing: 0.2px;
+}
+.rd-attrib a { color: var(--og-text-2); border-bottom: 1px dotted var(--og-decor); white-space: nowrap; }
+.rd-attrib a:hover { color: var(--og-warm); }
+
 .rd-prevnext { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .rd-pn { display: flex; flex-direction: column; gap: 5px; text-align: left; text-decoration: none; background: var(--og-bg-2); border: 1px solid var(--og-border); border-radius: 10px; padding: 14px 16px; transition: border-color .15s ease, background .15s ease; }
 .rd-pn:hover { border-color: var(--og-border-strong); background: var(--og-bg-3); }

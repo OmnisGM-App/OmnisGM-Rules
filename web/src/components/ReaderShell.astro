@@ -32,6 +32,25 @@ const activeSys = systemOf(currentId);
 const activeSysTab = SYSTEMS.find((s) => s.id === activeSys);
 const navRoots = activeSys === 'home' ? NAV : ((NAV.find((n) => n.id === activeSys) as NavGroup)?.kids ?? NAV);
 
+// Атрибуция лицензии в футере — по системе, на каждой контентной странице (требование лицензий:
+// CC BY 4.0 для D&D, DPCGL + non-affiliation для Daggerheart, BRP OGL для BRP). На home не показываем.
+const ATTRIB: Record<string, { ru: string; en: string }> = {
+  dnd: {
+    en: 'Includes material from the System Reference Document (SRD 5.2.1 / 5.1) by Wizards of the Coast, licensed under CC BY 4.0.',
+    ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия CC BY 4.0.',
+  },
+  daggerheart: {
+    en: 'Daggerheart content used under the Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Not affiliated with or endorsed by Darrington Press.',
+    ru: 'Материалы Daggerheart используются по Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Не аффилировано с Darrington Press и не одобрено ей.',
+  },
+  brp: {
+    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the BRP Open Game License v1.0.',
+    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по BRP Open Game License v1.0.',
+  },
+};
+const attribution = activeSys !== 'home' ? ATTRIB[activeSys] : undefined;
+const legalHref = activeSys !== 'home' ? systemRoute(activeSys, lang) : undefined;
+
 // Открытые группы: предки текущей + на Home по умолчанию раскрываем D&D → SRD 5.2.1
 const trail = findPath(currentId) ?? [];
 const openIds = new Set(trail.map((n) => n.id));
@@ -228,6 +247,13 @@ const searchUi = {
             <div class="rd-source">
               <span>{t('Источник', 'Source')}</span>
               <a href={`${REPO}/blob/${REPO_BRANCH}/src/${sourceId}.md`} target="_blank" rel="noopener">src/{sourceId}.md ↗</a>
+            </div>
+          )}
+
+          {attribution && (
+            <div class="rd-attrib" data-pagefind-ignore>
+              <span>{t(attribution.ru, attribution.en)}</span>{' '}
+              <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>
             </div>
           )}
 
