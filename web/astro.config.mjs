@@ -14,7 +14,11 @@ export default defineConfig({
   // работают с относительными ссылками; Firebase trailingSlash:true их не ломает редиректом.
   trailingSlash: 'always',
   integrations: [
-    sitemap(),
+    // Глоссарные страницы noindex (см. Reader.astro) — исключаем их и из sitemap,
+    // чтобы не тратить краул-бюджет и не слать противоречивый сигнал (issue #37).
+    // Ожидаемо ~223 → ~167 URL. IndexNow берёт URL из dist-sitemap → glossary
+    // перестанут пинговаться автоматически.
+    sitemap({ filter: (page) => !page.includes('/glossary/') }),
     pagefind(),
     AstroPWA({
       registerType: 'autoUpdate',
