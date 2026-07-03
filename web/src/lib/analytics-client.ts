@@ -23,8 +23,12 @@ export function initAnalytics(): void {
   document.head.appendChild(s);
 
   window.dataLayer = window.dataLayer || [];
-  function gtag(...args: unknown[]) {
-    window.dataLayer!.push(args);
+  // gtag.js принимает ТОЛЬКО объект arguments — массив от rest-параметров он молча
+  // игнорирует (команды не применяются, хиты не шлются). Поэтому push(arguments),
+  // функция обязана быть не-стрелочной. Проверено вживую в #18.
+  function gtag(..._args: unknown[]) {
+    // eslint-disable-next-line prefer-rest-params
+    window.dataLayer!.push(arguments);
   }
   gtag('js', new Date());
   gtag('config', ID); // авто page_view (трафик)
