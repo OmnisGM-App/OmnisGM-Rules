@@ -51,3 +51,26 @@ test('hreflang: хаб /en/ и корень / дают согласованну�
   const root = await hreflangMap(page);
   expect(root).toEqual(hub); // корень и хабы — один кластер, тройка совпадает
 });
+
+// Страница ВНЕ nav-дерева (обзор группы «Классы»): пара должна строиться от URL,
+// а не от nav — иначе такие страницы выводили корневую тройку («no return tag»)
+// и переключатель языка вёл на хаб вместо зеркала.
+const EN_OFFNAV = '/en/dnd/srd-5.2/classes/classes/';
+const RU_OFFNAV = '/ru/dnd/srd-5.2/classes/classes/';
+
+test('hreflang: вне-nav страница связывает собственную EN↔RU-пару', async ({ page }) => {
+  await page.goto(EN_OFFNAV);
+  const m = await hreflangMap(page);
+  expect(new URL(m.en!).pathname).toBe(EN_OFFNAV);
+  expect(new URL(m.ru!).pathname).toBe(RU_OFFNAV);
+  expect(m['x-default']).toBe(m.en);
+
+  await page.goto(RU_OFFNAV);
+  expect(await hreflangMap(page)).toEqual(m); // взаимность
+});
+
+test('тумблер языка на вне-nav странице ведёт на зеркало, а не на хаб', async ({ page }) => {
+  await page.goto(EN_OFFNAV);
+  await page.locator('.rd-lang-btn', { hasText: 'RU' }).click();
+  await expect(page).toHaveURL(new RegExp(RU_OFFNAV.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+});
