@@ -1,37 +1,73 @@
-// Аналитика GA4 через gtag.js (тот же measurementId, что в Firebase Analytics — Firebase Analytics
-// это GA4 под капотом). Намеренно НЕ тащим firebase SDK в бандл: грузим лёгкий gtag с Google CDN
-// отложенно (не влияет на LCP). Без measurementId — тихо пропускаем.
-// Экспортит window.omnisTrack(name, params) для событий (клик CTA-воронки в лист персонажа).
+// Аналитика: GA4 (gtag.js) + Яндекс.Метрика. Оба грузятся отложенно с CDN (не тащим
+// SDK в бандл, не влияем на LCP). Каждый gated на свой ID — без ID тихо пропускаем.
+// Экспортит window.omnisTrack(name, params): одна CTA-точка шлёт событие в GA4 И
+// reachGoal в Метрику (воронка Rules→лист персонажа видна в обеих системах).
 // Префикс PUBLIC_, а не VITE_: Astro отдаёт клиентским скриптам только PUBLIC_-переменные
-// (переопределяет vite'овский envPrefix). С VITE_ значение на клиенте — undefined, и минификатор
-// вырезал весь gtag-блок из бандла (GA4 не работал на проде вообще). См. #18.
-const ID = import.meta.env.PUBLIC_FIREBASE_MEASUREMENT_ID as string | undefined;
+// (иначе значение на клиенте undefined и минификатор вырезает блок). См. #18 (GA4), #27 (Метрика).
+const GA_ID = import.meta.env.PUBLIC_FIREBASE_MEASUREMENT_ID as string | undefined;
+const YM_ID = import.meta.env.PUBLIC_METRIKA_ID as string | undefined;
+
+type YmFn = { (...args: unknown[]): void; a?: unknown[]; l?: number };
 
 declare global {
   interface Window {
     dataLayer?: unknown[];
+    ym?: YmFn;
     omnisTrack?: (name: string, params?: Record<string, unknown>) => void;
   }
 }
 
-export function initAnalytics(): void {
-  if (!ID || typeof document === 'undefined') return;
-
+// GA4 через gtag.js. Возвращает gtag-функцию для событий (или undefined без ID).
+function initGA4(id: string): ((...args: unknown[]) => void) | undefined {
   const s = document.createElement('script');
   s.async = true;
-  s.src = `https://www.googletagmanager.com/gtag/js?id=${ID}`;
+  s.src = `https://www.googletagmanager.com/gtag/js?id=${id}`;
   document.head.appendChild(s);
 
   window.dataLayer = window.dataLayer || [];
   // gtag.js принимает ТОЛЬКО объект arguments — массив от rest-параметров он молча
-  // игнорирует (команды не применяются, хиты не шлются). Поэтому push(arguments),
-  // функция обязана быть не-стрелочной. Проверено вживую в #18.
+  // игнорирует. Поэтому push(arguments), функция обязана быть не-стрелочной. См. #18.
   function gtag(..._args: unknown[]) {
     // eslint-disable-next-line prefer-rest-params
     window.dataLayer!.push(arguments);
   }
   gtag('js', new Date());
-  gtag('config', ID); // авто page_view (трафик)
+  gtag('config', id); // авто page_view (трафик)
+  return gtag;
+}
 
-  window.omnisTrack = (name, params) => gtag('event', name, params);
+// Яндекс.Метрика (tag.js). Вебвизор ВКЛ — контент Rules публичный (#27).
+function initMetrika(id: number): void {
+  window.ym =
+    window.ym ||
+    function (...args: unknown[]) {
+      (window.ym!.a = window.ym!.a || []).push(args);
+    };
+  window.ym.l = 1 * (new Date() as unknown as number);
+  const s = document.createElement('script');
+  s.async = true;
+  s.src = 'https://mc.yandex.ru/metrika/tag.js';
+  document.head.appendChild(s);
+  window.ym(id, 'init', {
+    clickmap: true,
+    trackLinks: true,
+    accurateTrackBounce: true,
+    webvisor: true,
+  });
+}
+
+export function initAnalytics(): void {
+  if (typeof document === 'undefined') return;
+
+  const gtag = GA_ID ? initGA4(GA_ID) : undefined;
+  const ymId = YM_ID ? Number(YM_ID) : NaN;
+  const hasYm = Number.isFinite(ymId);
+  if (hasYm) initMetrika(ymId);
+
+  if (!gtag && !hasYm) return;
+
+  window.omnisTrack = (name, params) => {
+    gtag?.('event', name, params);
+    if (hasYm) window.ym?.(ymId, 'reachGoal', name, params);
+  };
 }
