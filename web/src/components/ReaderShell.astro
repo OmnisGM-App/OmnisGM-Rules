@@ -129,7 +129,7 @@ const searchUi = {
 
     <header class="rd-topbar">
       <div class="rd-brand">
-        <a href={MAIN} class="rd-brand-link" aria-label="OmnisGM">
+        <a href={`${MAIN}/?utm_source=rules&utm_medium=topbar&utm_campaign=funnel`} class="rd-brand-link" aria-label="OmnisGM">
           <span class="rd-brand-mark" set:html={BRAND_MARK} />
           <span class="rd-brand-name">OmnisGM</span>
         </a>
@@ -207,12 +207,15 @@ const searchUi = {
             <slot />
           </article>
 
-          {/* CTA-воронка в основной продукт (лист персонажа). Событие Analytics на клик. */}
+          {/* CTA-воронка в основной продукт (лист персонажа). Событие Analytics на клик.
+              UTM — атрибуция конверсии в аналитике Table (#14): utm_content = currentId
+              (компактный nav-id страницы, языконезависимый; sourceId с путём/языком —
+              избыточен для отчётов, страница «какая конвертит» важнее языка). */}
           <a
             class="rd-cta"
-            href="https://omnisgm.com"
+            href={`${MAIN}/?utm_source=rules&utm_medium=cta&utm_campaign=funnel&utm_content=${encodeURIComponent(currentId)}`}
             data-pagefind-ignore
-            onclick="window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader'})"
+            onclick={`window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader',page:'${currentId}'})`}
           >
             <span class="rd-cta-body">
               <span class="rd-cta-title"><I18n en="Build your character in OmnisGM" ru="Соберите персонажа в OmnisGM" bilingual={bilingual} lang={lang} /></span>
