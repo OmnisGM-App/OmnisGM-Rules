@@ -1,0 +1,83 @@
+# OmnisGM Rules
+
+> A fast, static, bilingual (English + Russian) reader for tabletop RPG System Reference Documents (SRDs): Dungeons & Dragons 5.2.1 and 5.1, Daggerheart 1.0, and Basic Roleplaying 1.0. Every rules page is rendered to plain semantic HTML from Markdown sources — no client-side app shell — which makes the content clean and reliable to cite.
+
+OmnisGM Rules (rules.omnisgm.com) is part of the OmnisGM ecosystem, built around an interactive character sheet at https://omnisgm.com. The rules site exists so players can look up a rule and then build a character for those very rules.
+
+Content notes for machine consumers:
+- Each page exists in two languages under `/en/…` and `/ru/…` with reciprocal `hreflang` pairs. The Russian text is a careful, glossary-driven translation, not machine output.
+- URLs use trailing slashes and mirror the source tree: `/{lang}/{game}/{version}/{section}/`.
+- The canonical Markdown source for every page is public on GitHub (linked below) — prefer it when you need the raw text.
+- All content is official SRD material reproduced under its respective open license; attribution and license terms are on each system's Legal page.
+
+## D&D — SRD 5.2.1
+
+- [Playing the Game](https://rules.omnisgm.com/en/dnd/srd-5.2/playing-the-game/): core rules — the d20 test, advantage, conditions
+- [Character Creation](https://rules.omnisgm.com/en/dnd/srd-5.2/character-creation/)
+- Classes — all twelve, from [Barbarian](https://rules.omnisgm.com/en/dnd/srd-5.2/classes/barbarian/) to [Wizard](https://rules.omnisgm.com/en/dnd/srd-5.2/classes/wizard/)
+- [Character Origins](https://rules.omnisgm.com/en/dnd/srd-5.2/character-origins/): species and backgrounds
+- [Feats](https://rules.omnisgm.com/en/dnd/srd-5.2/feats/)
+- [Equipment](https://rules.omnisgm.com/en/dnd/srd-5.2/equipment/)
+- [Spells](https://rules.omnisgm.com/en/dnd/srd-5.2/spells/)
+- [Magic Items](https://rules.omnisgm.com/en/dnd/srd-5.2/magic-items/)
+- [Monsters](https://rules.omnisgm.com/en/dnd/srd-5.2/monsters/) and [Monsters A–Z](https://rules.omnisgm.com/en/dnd/srd-5.2/monsters-a-z/)
+- [Rules Glossary](https://rules.omnisgm.com/en/dnd/srd-5.2/rules-glossary/)
+- [Gameplay Toolbox](https://rules.omnisgm.com/en/dnd/srd-5.2/gameplay-toolbox/)
+- [Legal & license](https://rules.omnisgm.com/en/dnd/srd-5.2/legal/)
+
+## D&D — SRD 5.1
+
+- [Abilities](https://rules.omnisgm.com/en/dnd/srd-5.1/abilities/), [Adventuring](https://rules.omnisgm.com/en/dnd/srd-5.1/adventuring/), [Combat](https://rules.omnisgm.com/en/dnd/srd-5.1/combat/)
+- [Races](https://rules.omnisgm.com/en/dnd/srd-5.1/races/); classes from [Barbarian](https://rules.omnisgm.com/en/dnd/srd-5.1/classes/barbarian/) to [Wizard](https://rules.omnisgm.com/en/dnd/srd-5.1/classes/wizard/)
+- [Spells](https://rules.omnisgm.com/en/dnd/srd-5.1/spells/), [Equipment](https://rules.omnisgm.com/en/dnd/srd-5.1/equipment/), [Magic Items](https://rules.omnisgm.com/en/dnd/srd-5.1/magic-items/)
+- [Monsters](https://rules.omnisgm.com/en/dnd/srd-5.1/monsters/) and [Monsters A–Z](https://rules.omnisgm.com/en/dnd/srd-5.1/monsters-a-z/)
+- [Converting 5.1 → 5.2.1](https://rules.omnisgm.com/en/dnd/converting-srd-5.2/converting-to-srd-5.2.1/)
+- [Legal & license](https://rules.omnisgm.com/en/dnd/srd-5.1/legal/)
+
+## Daggerheart — SRD 1.0
+
+- [Introduction](https://rules.omnisgm.com/en/daggerheart/srd-1.0/introduction/) and [Core Mechanics](https://rules.omnisgm.com/en/daggerheart/srd-1.0/core-mechanics/)
+- [Character Creation](https://rules.omnisgm.com/en/daggerheart/srd-1.0/character-creation/), [Domains](https://rules.omnisgm.com/en/daggerheart/srd-1.0/domains/), [Domain Card Reference](https://rules.omnisgm.com/en/daggerheart/srd-1.0/domain-card-reference/)
+- [Ancestries](https://rules.omnisgm.com/en/daggerheart/srd-1.0/ancestries/) and [Communities](https://rules.omnisgm.com/en/daggerheart/srd-1.0/communities/)
+- [Adversaries](https://rules.omnisgm.com/en/daggerheart/srd-1.0/adversaries/) and [Environments](https://rules.omnisgm.com/en/daggerheart/srd-1.0/environments/)
+- [GM Guide](https://rules.omnisgm.com/en/daggerheart/srd-1.0/gmguide/)
+- [Legal & license](https://rules.omnisgm.com/en/daggerheart/srd-1.0/legal/)
+
+## Basic Roleplaying — SRD 1.0
+
+- [Introduction](https://rules.omnisgm.com/en/brp/srd-1.0/introduction/) and [System](https://rules.omnisgm.com/en/brp/srd-1.0/system/)
+- [Character Creation](https://rules.omnisgm.com/en/brp/srd-1.0/character-creation/) and [Combat](https://rules.omnisgm.com/en/brp/srd-1.0/combat/)
+- [Spot Rules](https://rules.omnisgm.com/en/brp/srd-1.0/spot-rules/) and [Glossary](https://rules.omnisgm.com/en/brp/srd-1.0/glossary/glossary/)
+- [Legal & license](https://rules.omnisgm.com/en/brp/srd-1.0/legal/)
+
+## Russian translations
+
+Every section above has a Russian counterpart — swap `/en/` for `/ru/` in any URL. Entry points:
+
+- [D&D · SRD 5.2.1 (RU)](https://rules.omnisgm.com/ru/dnd/srd-5.2/playing-the-game/)
+- [D&D · SRD 5.1 (RU)](https://rules.omnisgm.com/ru/dnd/srd-5.1/combat/)
+- [Daggerheart · SRD 1.0 (RU)](https://rules.omnisgm.com/ru/daggerheart/srd-1.0/core-mechanics/)
+- [Basic Roleplaying · SRD 1.0 (RU)](https://rules.omnisgm.com/ru/brp/srd-1.0/system/)
+
+## Markdown sources
+
+The raw Markdown behind every page lives in the public repository, mirrored per game/version/language:
+
+- [OmnisGM-Rules repository](https://github.com/OmnisGM-App/OmnisGM-Rules)
+- [D&D SRD 5.2.1 — EN](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/dnd/srd-5.2/en) · [RU](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/dnd/srd-5.2/ru)
+- [D&D SRD 5.1 — EN](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/dnd/srd-5.1/en) · [RU](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/dnd/srd-5.1/ru)
+- [Daggerheart SRD 1.0 — EN](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/daggerheart/srd-1.0/en) · [RU](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/daggerheart/srd-1.0/ru)
+- [Basic Roleplaying SRD 1.0 — EN](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/brp/srd-1.0/en) · [RU](https://github.com/OmnisGM-App/OmnisGM-Rules/tree/main/src/brp/srd-1.0/ru)
+
+## Licenses
+
+Each system reproduces official SRD content under its own open license — see the per-system Legal pages linked above for full terms and attribution:
+
+- **D&D SRD 5.2.1 and 5.1** — SRD content © Wizards of the Coast, licensed under Creative Commons Attribution 4.0 (CC BY 4.0).
+- **Daggerheart SRD 1.0** — Daggerheart content used under the Darrington Press Community Gaming License (DPCGL). © Critical Role LLC. Not affiliated with or endorsed by Darrington Press.
+- **Basic Roleplaying SRD 1.0** — © Chaosium Inc., used under the Basic Roleplaying Open Game License v1.0.
+
+## About
+
+- [OmnisGM — interactive character sheet](https://omnisgm.com): the companion app these rules link out to
+- [The Guild Herald — TTRPG news](https://news.omnisgm.com)

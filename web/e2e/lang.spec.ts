@@ -52,25 +52,13 @@ test('hreflang: хаб /en/ и корень / дают согласованну�
   expect(root).toEqual(hub); // корень и хабы — один кластер, тройка совпадает
 });
 
-// Страница ВНЕ nav-дерева (обзор группы «Классы»): пара должна строиться от URL,
-// а не от nav — иначе такие страницы выводили корневую тройку («no return tag»)
-// и переключатель языка вёл на хаб вместо зеркала.
-const EN_OFFNAV = '/en/dnd/srd-5.2/classes/classes/';
-const RU_OFFNAV = '/ru/dnd/srd-5.2/classes/classes/';
-
-test('hreflang: вне-nav страница связывает собственную EN↔RU-пару', async ({ page }) => {
-  await page.goto(EN_OFFNAV);
-  const m = await hreflangMap(page);
-  expect(new URL(m.en!).pathname).toBe(EN_OFFNAV);
-  expect(new URL(m.ru!).pathname).toBe(RU_OFFNAV);
-  expect(m['x-default']).toBe(m.en);
-
-  await page.goto(RU_OFFNAV);
-  expect(await hreflangMap(page)).toEqual(m); // взаимность
-});
-
-test('тумблер языка на вне-nav странице ведёт на зеркало, а не на хаб', async ({ page }) => {
-  await page.goto(EN_OFFNAV);
-  await page.locator('.rd-lang-btn', { hasText: 'RU' }).click();
-  await expect(page).toHaveURL(new RegExp(RU_OFFNAV.replace(/[.*+?^${}()|[\]\\]/g, '\\$&') + '$'));
+// Заглушки обзора глав (напр. 06_Classes/00_Classes.md = только «# Classes») нужны контентному
+// пайплайну для PDF, но на сайте это пустой тонкий контент — роут не генерируем (см. #17). Это были
+// единственные страницы вне nav-дерева; после удаления вне-nav контентных страниц не осталось.
+// Тест страхует от регресса — что заглушка не вернётся в билд как индексируемая страница.
+test('пустая заглушка обзора классов не отдаётся (404)', async ({ page }) => {
+  for (const url of ['/en/dnd/srd-5.2/classes/classes/', '/ru/dnd/srd-5.1/classes/classes/']) {
+    const resp = await page.goto(url);
+    expect(resp?.status(), url).toBe(404);
+  }
 });
