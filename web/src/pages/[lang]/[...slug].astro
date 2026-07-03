@@ -6,7 +6,11 @@ import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
 
 export async function getStaticPaths() {
   const all = await getCollection('srd');
-  return all.map((entry) => {
+  return all
+    // Заглушки обзора глав (напр. 06_Classes/00_Classes.md = только «# Classes») нужны контентному
+    // пайплайну для PDF, но на сайте это пустая тонкая страница — роут не генерим (см. #17).
+    .filter((entry) => !/\/\d+_Classes\/00_Classes$/.test(entry.id))
+    .map((entry) => {
     const ref = parseId(entry.id);
     return {
       params: { lang: ref.lang, slug: `${ref.game}/${ref.version}/${ref.slug}` },

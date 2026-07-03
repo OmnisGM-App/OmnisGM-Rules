@@ -97,3 +97,30 @@ jobs:
           echo "$resp"
           echo "$resp" | grep -q '"success":true' || { echo "❌ Cloudflare purge не удался"; exit 1; }
           echo "✔ Cloudflare: edge-кэш фикс-файлов rules.omnisgm.com сброшен"
+
+      # IndexNow — мгновенный пинг Bing + Яндекс о задеплоенных страницах (#17).
+      # URL берём из свежесобранного web/dist/sitemap-0.xml (predeploy собрал его тем же билдом,
+      # что ушёл на хостинг) — только реально существующие URL, битых не шлём. Для нового сайта
+      # на первичной индексации шлём весь набор (~226 URL, лимит IndexNow — 10 000/запрос).
+      # KEY — публичный по дизайну, лежит в web/public/${KEY}.txt и совпадает с этой строкой.
+      - name: IndexNow ping
+        if: success()
+        env:
+          KEY: 94c855220fc93a1e6ccdc3f67fdfbb92
+        run: |
+          host="rules.omnisgm.com"
+          urls=$(grep -ohE '<loc>[^<]+</loc>' web/dist/sitemap-[0-9]*.xml 2>/dev/null | sed -E 's#</?loc>##g')
+          n=$(printf '%s\n' "$urls" | grep -c . || true)
+          if [ "$n" -eq 0 ]; then echo "sitemap пуст — IndexNow пропущен."; exit 0; fi
+          payload=$(printf '%s\n' "$urls" | grep . | jq -R . \
+            | jq -sc --arg h "$host" --arg k "$KEY" --arg kl "https://$host/$KEY.txt" \
+                '{host:$h,key:$k,keyLocation:$kl,urlList:.}')
+          resp=$(curl -s -w '\n%{http_code}' -X POST 'https://api.indexnow.org/indexnow' \
+            -H 'Content-Type: application/json; charset=utf-8' --data "$payload")
+          code=$(printf '%s' "$resp" | tail -n1)
+          echo "IndexNow: $n URL, HTTP $code"
+          printf '%s\n' "$resp" | sed '$d'
+          case "$code" in
+            200|202) echo "✔ IndexNow принял пинг ($code)";;
+            *) echo "❌ IndexNow вернул $code"; exit 1;;
+          esac
