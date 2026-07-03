@@ -26,6 +26,10 @@ const { lang, currentId, title, description, headings = [], sourceId, searchTitl
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
+// Воронка в лист персонажа: с RU-страниц ведём на русский лендинг omnisgm.com/ru (Table#74),
+// чтобы русский посетитель попадал сразу на русский. Билингвальный корень — на «/» (x-default/EN,
+// язык там определяется автоматически на стороне лендинга). Table hosting trailingSlash:false → без слэша.
+const funnelBase = lang === 'ru' && !bilingual ? `${MAIN}/ru` : `${MAIN}/`;
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
 
 const activeSys = systemOf(currentId);
@@ -148,7 +152,7 @@ const searchUi = {
 
     <header class="rd-topbar">
       <div class="rd-brand">
-        <a href={`${MAIN}/?utm_source=rules&utm_medium=topbar&utm_campaign=funnel`} class="rd-brand-link" aria-label="OmnisGM">
+        <a href={`${funnelBase}?utm_source=rules&utm_medium=topbar&utm_campaign=funnel`} class="rd-brand-link" aria-label="OmnisGM">
           <span class="rd-brand-mark" set:html={BRAND_MARK} />
           <span class="rd-brand-name">OmnisGM</span>
         </a>
@@ -232,7 +236,7 @@ const searchUi = {
               избыточен для отчётов, страница «какая конвертит» важнее языка). */}
           <a
             class="rd-cta"
-            href={`${MAIN}/?utm_source=rules&utm_medium=cta&utm_campaign=funnel&utm_content=${encodeURIComponent(currentId)}`}
+            href={`${funnelBase}?utm_source=rules&utm_medium=cta&utm_campaign=funnel&utm_content=${encodeURIComponent(currentId)}`}
             data-pagefind-ignore
             onclick={`window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader',page:'${currentId}'})`}
           >
