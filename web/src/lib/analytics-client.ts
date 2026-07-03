@@ -38,10 +38,14 @@ function initGA4(id: string): ((...args: unknown[]) => void) | undefined {
 
 // Яндекс.Метрика (tag.js). Вебвизор ВКЛ — контент Rules публичный (#27).
 function initMetrika(id: number): void {
+  // Официальный сниппет Метрики кладёт в очередь ОБЪЕКТ arguments (tag.js читает её
+  // индексным доступом) — не массив. Не-стрелочная функция + push(arguments), как у gtag
+  // (шрам #18): формат очереди побайтово совпадает с эталоном.
   window.ym =
     window.ym ||
-    function (...args: unknown[]) {
-      (window.ym!.a = window.ym!.a || []).push(args);
+    function () {
+      // eslint-disable-next-line prefer-rest-params
+      (window.ym!.a = window.ym!.a || []).push(arguments);
     };
   window.ym.l = 1 * (new Date() as unknown as number);
   const s = document.createElement('script');
