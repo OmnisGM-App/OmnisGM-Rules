@@ -48,6 +48,16 @@ const currentPath = Astro.url.pathname;
 const enUrl = lang === 'en' ? currentPath : counterpart;
 const ruUrl = lang === 'ru' ? currentPath : counterpart;
 
+// hreflang-пары (пути от корня) — та же парность slug'ов, что и у переключателя языка.
+// Корень (bilingual) выводит тройку сам; здесь — контентные страницы и хабы систем.
+//  • контентная (curSlug != null): en/ru — маршруты пары, x-default → EN.
+//  • хаб/вкладка (curSlug == null, не корень): /en/ ↔ /ru/, x-default → «/» (зеркало корня-кластера).
+const alternates = bilingual
+  ? undefined
+  : curSlug != null
+    ? { en: routeOf(curSlug, 'en'), ru: routeOf(curSlug, 'ru'), xDefault: routeOf(curSlug, 'en') }
+    : { en: '/en/', ru: '/ru/', xDefault: '/' };
+
 const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
 const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;
 const next = idx >= 0 && idx < FLAT_PAGES.length - 1 ? FLAT_PAGES[idx + 1] : null;
@@ -103,7 +113,7 @@ const searchUi = {
   },
 };
 ---
-<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd}>
+<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd} alternates={alternates}>
   <div class="rd-root">
     {/* Мобильные тогглы на CSS-радио (без JS): якоря первыми в .rd-root. Общий name="rd-panel"
         делает панели взаимоисключающими; rd-panel-none — закрытое состояние (по умолчанию).
