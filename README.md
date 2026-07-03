@@ -33,7 +33,7 @@ fast, static reader at **rules.omnisgm.com**. Part of the **OmnisGM** ecosystem.
 | :white_check_mark: | D&D SRD 5.2.1 | Wizards of the Coast | CC BY 4.0 | [PDF](https://www.dndbeyond.com/srd) |
 | :white_check_mark: | D&D SRD 5.1 | Wizards of the Coast | CC BY 4.0 | [PDF](https://www.dndbeyond.com/srd) |
 | :white_check_mark: | Daggerheart SRD 1.0 | Darrington Press | [DPCGL](https://darringtonpress.com/license/) | [PDF](https://www.daggerheart.com/srd/), [Markdown](https://github.com/seansbox/daggerheart-srd) |
-| :white_check_mark: | Basic Roleplaying (BRP) | Chaosium | [ORC](https://www.chaosium.com/orclicense/) | [PDF](https://www.chaosium.com/brp-system-reference-document/) |
+| :white_check_mark: | Basic Roleplaying (BRP) | Chaosium | [BRP OGL v1.0](https://www.chaosium.com/brp-system-reference-document/) | [PDF](https://www.chaosium.com/brp-system-reference-document/) |
 | :calendar: | Pathfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonprd.com/) |
 | :calendar: | Starfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonsrd.com/) |
 | :calendar: | Year Zero Engine | Free League | [FTL](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | [PDF](https://freeleaguepublishing.com/wp-content/uploads/2023/11/YZE-Standard-Reference-Document.pdf) |
@@ -60,6 +60,9 @@ fast, static reader at **rules.omnisgm.com**. Part of the **OmnisGM** ecosystem.
 Each SRD is distributed under its own license. See `LICENSE.md` in the corresponding folder.
 
 - D&D SRD 5.2 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.2/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.2/LICENSE-RU.md)
+- D&D SRD 5.1 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.1/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.1/LICENSE-RU.md)
+- Daggerheart SRD 1.0 — DPCGL © Critical Role, LLC (not affiliated with or endorsed by Darrington Press); see the in-app [Legal page](src/daggerheart/srd-1.0/en/00_Legal.md)
+- Basic Roleplaying SRD 1.0 — BRP OGL v1.0 © Chaosium Inc.: [LICENSE.md](src/brp/srd-1.0/LICENSE.md)
 
 ## Repository layout
 
