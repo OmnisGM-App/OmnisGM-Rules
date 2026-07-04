@@ -219,6 +219,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 }
 .rd-attrib a { color: var(--og-text-2); border-bottom: 1px dotted var(--og-decor); white-space: nowrap; }
 .rd-attrib a:hover { color: var(--og-warm); }
+/* Логотип «Powered by BRP» (§15 BRP OGL, только BRP-раздел): слева от строки-кредита */
+.rd-attrib-logo { float: left; margin: 2px 12px 4px 0; border-bottom: none !important; }
+.rd-attrib-logo img { display: block; width: 56px; height: 56px; border-radius: 6px; }
 
 .rd-prevnext { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .rd-pn { display: flex; flex-direction: column; gap: 5px; text-align: left; text-decoration: none; background: var(--og-bg-2); border: 1px solid var(--og-border); border-radius: 10px; padding: 14px 16px; transition: border-color .15s ease, background .15s ease; }

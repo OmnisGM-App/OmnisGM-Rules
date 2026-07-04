@@ -44,8 +44,10 @@ const ATTRIB: Record<string, { ru: string; en: string }> = {
     ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия CC BY 4.0.',
   },
   daggerheart: {
-    en: 'Daggerheart content used under the Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Not affiliated with or endorsed by Darrington Press.',
-    ru: 'Материалы Daggerheart используются по Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Не аффилировано с Darrington Press и не одобрено ей.',
+    // §4.1(e) DPCGL требует пометку о модификациях: EN — оригинал без изменений,
+    // RU — перевод (см. LICENSING-NOTES.md в корне папки OmnisGM).
+    en: 'Daggerheart content used under the Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Not affiliated with or endorsed by Darrington Press. There are no previous modifications by others.',
+    ru: 'Материалы Daggerheart используются по Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Не аффилировано с Darrington Press и не одобрено ей. Текст переведён на русский; иных модификаций нет.',
   },
   brp: {
     en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the BRP Open Game License v1.0.',
@@ -256,6 +258,13 @@ const searchUi = {
 
           {attribution && (
             <div class="rd-attrib" data-pagefind-ignore>
+              {/* §15 BRP OGL: «prominently display … BRP logo … on the title page or its equivalent» —
+                  для веба показываем официальный логотип на каждой странице BRP-раздела рядом с атрибуцией. */}
+              {activeSys === 'brp' && (
+                <a class="rd-attrib-logo" href="https://www.chaosium.com/orclicense/" target="_blank" rel="noopener">
+                  <img src="/powered-by-brp.png" alt="Powered by BRP — Basic Roleplaying, Chaosium Inc." width="80" height="80" loading="lazy" />
+                </a>
+              )}
               <span>{t(attribution.ru, attribution.en)}</span>{' '}
               <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>
             </div>
