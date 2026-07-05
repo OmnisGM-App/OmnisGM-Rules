@@ -1,5 +1,7 @@
 # OmnisGM Rules — TTRPG SRD Markdown
 
+**English** · [Русский](README.ru.md)
+
 [Live site](https://rules.omnisgm.com)
 
 A curated collection of tabletop RPG **System Reference Documents (SRDs)** in Markdown, published as a
