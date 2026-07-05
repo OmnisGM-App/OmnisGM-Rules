@@ -9,6 +9,19 @@ fast, static reader at **rules.omnisgm.com**. Part of the **OmnisGM** ecosystem.
 > **Issues & contributions are welcome — please file them in English.** This keeps the project
 > accessible to the broadest audience. Russian is fine too if English is hard for you, but English is preferred.
 
+## The OmnisGM ecosystem
+
+This SRD reader is one of three products under **OmnisGM** — tools for running tabletop RPGs at a
+physical table:
+
+- **[OmnisGM](https://omnisgm.com)** — the flagship app: free realtime **D&D 2024 character sheets** for
+  in-person play. Each player keeps their sheet on their own phone; the Game Master sees every change live.
+  Installable PWA, works offline. The rules in this repo are the ones those sheets are built around.
+- **[OmnisGM Rules](https://rules.omnisgm.com)** — this project: a fast, static, bilingual (EN/RU) reader
+  for open SRDs, with clean citable HTML and public Markdown sources.
+- **[The Guild Herald](https://news.omnisgm.com)** — OmnisGM News: a bilingual (EN/RU) tabletop RPG news
+  digest (releases, crowdfunding, rules updates, industry and events).
+
 ## Sources
 
 ### D&D
