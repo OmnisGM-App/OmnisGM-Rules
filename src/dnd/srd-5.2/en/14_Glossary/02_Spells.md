@@ -266,6 +266,7 @@
 | Find the Path | 6 | Divination | Bard, Cleric, Druid |
 | Flesh to Stone | 6 | Transmutation | Druid, Sorcerer, Wizard |
 | Forbiddance | 6 | Abjuration | Cleric |
+| Freezing Sphere | 6 | Evocation | Sorcerer, Wizard |
 | Globe of Invulnerability | 6 | Abjuration | Sorcerer, Wizard |
 | Guards and Wards | 6 | Abjuration | Bard, Wizard |
 | Harm | 6 | Necromancy | Cleric |
