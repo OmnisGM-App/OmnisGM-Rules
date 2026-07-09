@@ -55,7 +55,7 @@ docling:     ~N% (основной / верификация)
 python3 .claude/skills/cleanup-artifacts/layout_recovery.py /tmp/{game}_merged.md /tmp/{game}_recovered.md
 ```
 
-Скрипт исправляет: bold в заголовках, дефисные переносы, split components, trailing пустые колонки таблиц.
+Скрипт исправляет: bold в заголовках, артефакты `<br>`, дефисные переносы, split components, склеенные поля stat-блока (`**Casting Time:** … **Range:** …` → по строкам), trailing пустые колонки таблиц.
 
 #### Шаг 2: Ручные исправления (агент)
 
@@ -126,7 +126,8 @@ python3 .claude/skills/cleanup-artifacts/normalize_markdown.py src/{game}/{versi
 
 | Скрипт | Что делает |
 |--------|------------|
-| `layout_recovery.py` | Автоматический layout recovery (bold, переносы, components, columns) |
+| `layout_recovery.py` | Автоматический layout recovery (bold, `<br>`, переносы, components, склейка полей, columns) |
+| `test_layout_recovery.py` | Регресс-тесты layout recovery на реальных дефектах (`python3 test_layout_recovery.py`) |
 | `normalize_markdown.py` | Нормализация markdown (лигатуры, пробелы, тире, пустые строки) |
 
 ## Технические требования
