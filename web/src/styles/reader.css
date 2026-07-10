@@ -191,6 +191,10 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc a:hover { border-bottom-color: var(--og-accent); }
 .rd-doc a[href^="http"] { color: var(--og-warm); border-bottom: 1px solid color-mix(in oklab, var(--og-warm) 40%, transparent); }
 .rd-doc a[href^="http"]:hover { border-bottom-color: var(--og-warm); }
+/* Автоссылки-термины (rehype-entity-autolink): цвет текста как у прозы + пунктир акцентом —
+   читаются как «глоссарный термин», отличимы от обычных внутренних/внешних ссылок. */
+.rd-doc a.ent-link { color: inherit; border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent); }
+.rd-doc a.ent-link:hover { color: var(--og-accent); border-bottom-style: solid; border-bottom-color: var(--og-accent); }
 
 /* Таблицы: Astro рендерит <table>; оборачиваем в .rd-doc для скролла на узких экранах */
 /* широкая таблица скроллится внутри обёртки (rehype-wrap-tables), а не растягивает страницу */
