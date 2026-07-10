@@ -35,7 +35,7 @@
 | NE | NE | НЗ | srd-5.2 | srd-5.1 | Neutral Evil — Нейтрально-злой |
 | NG | NG | НД | srd-5.2 | srd-5.1 | Neutral Good — Нейтрально-добрый |
 | NPC | NPC | НИП | srd-5.2 | srd-5.1 | Nonplayer Character — Неигровой персонаж |
-| PB | - | БМ | srd-5.2 | — | Proficiency Bonus — Бонус Мастерства |
+| PB | - | БМ | srd-5.2 | — | Proficiency Bonus — Бонус мастерства |
 | PP | PP | пм | srd-5.2 | srd-5.1 | Platinum Piece(s) — платиновая монета |
 | R | R | Р | srd-5.2 | srd-5.1 | Ritual — Ритуал |
 | S | S | С | srd-5.2 | srd-5.1 | Somatic component — Соматический компонент |

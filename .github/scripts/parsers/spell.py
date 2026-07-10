@@ -308,20 +308,6 @@ def _parse_duration(value: str, lang: str) -> dict:
     }
 
 
-def _detect_version(body: str, lang: str) -> str:
-    """Detect SRD version from property labels."""
-    if lang == "ru":
-        if "Время сотворения:" in body:
-            return "5.2"
-        if "Время накладывания:" in body:
-            return "5.1"
-    else:
-        # Both versions use "Casting Time:" in EN, so check other markers
-        if "Cantrip Upgrade" in body or "Using a Higher-Level Spell Slot" in body:
-            return "5.2"
-    return "5.2"
-
-
 def parse_spells(text: str, heading_level: int, lang: str,
                  after: str | None = None, skip_headings: set | None = None) -> list[dict]:
     """Parse all spell blocks from markdown text.
