@@ -84,7 +84,7 @@ function loadMap(game, version, lang) {
   return result;
 }
 
-function linkifyText(value, map, linked, ctx) {
+function linkifyText(value, map, skip, ctx) {
   const re = new RegExp(map.regexSource, 'gu');
   const nodes = [];
   let last = 0;
@@ -93,8 +93,7 @@ function linkifyText(value, map, linked, ctx) {
   while ((match = re.exec(value))) {
     const name = match[1];
     const entry = map.byName.get(name);
-    if (!entry || linked.has(entry.slug)) continue; // уже слинковано на странице — оставляем текстом
-    linked.add(entry.slug);
+    if (!entry || skip.has(entry.slug)) continue; // самоссылка (selfSlug) — оставляем текстом
     changed = true;
     if (match.index > last) nodes.push({ type: 'text', value: value.slice(last, match.index) });
     const href = `/${ctx.lang}/${ctx.game}/${ctx.verSlug}/${entry.urlParent}/${entry.slug}/`;
@@ -117,13 +116,14 @@ function linkifyText(value, map, linked, ctx) {
 }
 
 // Ядро: линкует имена сущностей прямо в hast-дереве. Используется и rehype-обёрткой (главы Astro),
-// и страницами сущностей (marked → hast → toHtml), поэтому логика одна.
-//  game/version/lang — контекст страницы; selfSlug — не линковать саму сущность на её же странице.
+// и страницами сущностей (marked → hast → toHtml), поэтому логика одна. Линкуем ВСЕ вхождения
+// каждого имени (не только первое). game/version/lang — контекст; selfSlug — не линковать саму
+// сущность на её же странице.
 export function autolinkTree(tree, { game, version, lang, selfSlug }) {
   const map = loadMap(game, version, lang);
   if (!map) return tree;
-  const linked = new Set();
-  if (selfSlug) linked.add(selfSlug); // самоссылку не ставим
+  const skip = new Set();
+  if (selfSlug) skip.add(selfSlug); // самоссылку не ставим
   const ctx = { game, lang, verSlug: version };
 
   const walk = (node, insideSkip) => {
@@ -133,7 +133,7 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
       if (child.type === 'element') {
         walk(child, insideSkip || SKIP_TAGS.has(child.tagName));
       } else if (child.type === 'text' && !insideSkip) {
-        const replaced = linkifyText(child.value, map, linked, ctx);
+        const replaced = linkifyText(child.value, map, skip, ctx);
         if (replaced) {
           node.children.splice(i, 1, ...replaced);
           i += replaced.length - 1;
