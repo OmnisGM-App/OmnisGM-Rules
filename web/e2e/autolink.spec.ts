@@ -53,21 +53,24 @@ test('автоссылка несёт data-hc для будущего hovercard'
 // должен совпадать. Линкуем все вхождения, поэтому количество ссылок EN/RU может отличаться
 // (инфлексия, частота), а множество — нет: набор не зависит от дедупа.
 //
-// Реальные расхождения вынесены в EXCEPTIONS с причиной — их два вида:
+// Реальные расхождения вынесены в EXCEPTIONS с причиной — три вида:
 //  • RU-перевод не использует термин состояния (EN капитализирует ключевое слово, RU дал прозу);
-//  • RU капитализирует «Невидимый» как термин, а EN тут про заклинание Invisibility, не состояние.
+//  • RU капитализирует «Невидимый» как термин, а EN тут про заклинание Invisibility, не состояние;
+//  • RU использует ДРУГОЙ термин, чем глоссарий (оглушённый вместо Ошеломлённый, обездвиженный
+//    вместо Опутанный) → капитализация регистра не помогает, слово всё равно не матчится (это
+//    terminology-propagation, не регистр).
+// Часть прежних расхождений закрыта капитализацией RU-регистра под EN (issue #20).
 // Тест падает и при НОВОМ расхождении (регрессия матчинга/перевода), и при ПРОТУХШЕЙ записи
 // allowlist (расхождение исчезло → запись надо убрать).
 const EXCEPTIONS: Record<string, string[]> = {
-  '/en/dnd/srd-5.2/animals/': ['charmed', 'paralyzed', 'petrified', 'stunned'], // RU не использует термины
+  '/en/dnd/srd-5.2/animals/': ['stunned'], // RU: «оглушённый», глоссарий — Ошеломлённый (терминология)
   '/en/dnd/srd-5.2/classes/bard/': ['invisible'], // RU «Невидимый»; EN — заклинание Invisibility
   '/en/dnd/srd-5.2/classes/monk/': ['exhaustion'], // RU не использует «Истощение»
   '/en/dnd/srd-5.2/classes/ranger/': ['exhaustion'],
   '/en/dnd/srd-5.2/classes/warlock/': ['invisible'],
   '/en/dnd/srd-5.2/classes/wizard/': ['invisible'],
-  '/en/dnd/srd-5.2/equipment/': ['unconscious'], // RU не использует «Без сознания»
   '/en/dnd/srd-5.2/feats/': ['grappled'], // RU не использует «Схваченный»
-  '/en/dnd/srd-5.2/magic-items/': ['prone', 'restrained', 'unconscious'],
+  '/en/dnd/srd-5.2/magic-items/': ['prone', 'restrained', 'unconscious'], // RU: обездвиженный/иные формы
 };
 
 async function linkedConditions(page: import('@playwright/test').Page, path: string): Promise<Set<string>> {
