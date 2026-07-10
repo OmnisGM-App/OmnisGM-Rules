@@ -145,9 +145,8 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
   <h1>
     {entity.name}
     {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+    <span class="spell-lvl">{levelLine}</span>
   </h1>
-
-  <p class="spell-lvl">{levelLine}</p>
 
   <dl class="spell-meta">
     {castVal && (
@@ -227,9 +226,11 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
     font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
     color: var(--og-text-muted);
   }
-  /* Подзаголовок «3-й уровень, Воплощения» — курсив, приглушённо, как флейвор под именем. */
+  /* Подзаголовок «3-й уровень, Воплощения» — ВНУТРИ h1 (над чертой), рядом с EN-именем. */
   .spell-lvl {
-    margin: -6px 0 18px; font-style: italic; color: var(--og-text-muted); font-size: 15px;
+    display: block; margin-top: 6px;
+    font-family: var(--font-body); font-weight: 400; font-style: italic; font-size: 15px;
+    letter-spacing: 0; color: var(--og-text-muted);
   }
   /* Стат-блок: карточка с рядами «поле — значение». */
   .spell-meta {
@@ -250,8 +251,12 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
   .spell-mat { color: var(--og-text-muted); }
   /* Классы/подклассы — ссылки в едином стиле с «Ещё из школы» (<a><strong>): белый текст
      от .rd-doc strong + акцентное подчёркивание от .rd-doc a. Свой цвет НЕ навязываем. */
+  /* Мобилка: метка и значение в одну строку («Время накладывания: Действие»), а не столбиком. */
   @media (max-width: 560px) {
-    .spell-meta-row { grid-template-columns: 1fr; gap: 2px; }
+    .spell-meta-row { display: block; }
+    .spell-meta dt { display: inline; }
+    .spell-meta dt::after { content: ':\00a0'; }
+    .spell-meta dd { display: inline; }
   }
   .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
   .ent-related-h {
