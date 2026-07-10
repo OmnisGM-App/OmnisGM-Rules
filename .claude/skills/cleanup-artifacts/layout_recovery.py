@@ -8,10 +8,11 @@ Usage:
 
 Fixes applied:
     1. Remove **bold** markers from # headings
-    2. Join hyphenated word breaks across lines (word-\\nrest → word-rest)
-    3. Join split spell components/craft/utilize lines
-    4. Clean trailing empty table columns
-    5. Fix parenthetical splits
+    2. Convert <br> line-break artifacts from PDF (join broken words / spaces)
+    3. Join hyphenated word breaks across lines (word-\\nrest → word-rest)
+    4. Join split spell components/craft/utilize lines
+    5. Split glued stat-block fields (**Casting Time:** X **Range:** Y → one per line)
+    6. Clean trailing empty table columns
 """
 
 import re
@@ -77,6 +78,71 @@ def fix_split_components(text):
     return '\n'.join(result)
 
 
+def fix_br_artifacts(text):
+    """Convert <br> line-break artifacts left by PDF extraction.
+
+    Canon markdown must contain no raw <br>. PDF column/line wrapping leaks them:
+      - inside prose a break usually splits one word (charac<br>ter → character)
+      - inside table cells it wraps a multi-word value (Slot<br>Level → Slot Level,
+        7<br>Wis → 7 Wis, Finesse<br>or Light → Finesse or Light)
+
+    Heuristic by context:
+      - table lines (start with `|`): every <br> → single space (wrapped value)
+      - prose lines: letter directly followed by a lowercase letter → join without
+        space (broken word); otherwise → single space (e.g. Save<br>DC → Save DC)
+    """
+    # Case-sensitive letter classes (tag itself matched case-insensitively via [bB][rR]):
+    # only a lowercase letter after the break signals a split word — Save<br>DC stays "Save DC".
+    word_join = re.compile(r'([A-Za-zА-Яа-яЁё])<[bB][rR]\s*/?>([a-zа-яё])')
+    any_br = re.compile(r'\s*<br\s*/?>\s*', re.IGNORECASE)
+    count_br = re.compile(r'<br\s*/?>', re.IGNORECASE)
+
+    result = []
+    for line in text.split('\n'):
+        n = len(count_br.findall(line))
+        if n == 0:
+            result.append(line)
+            continue
+        if line.lstrip().startswith('|'):
+            line = any_br.sub(' ', line)
+            stats['br_table'] += n
+        else:
+            line, joined = word_join.subn(r'\1\2', line)
+            line = any_br.sub(' ', line)
+            stats['br_wordjoin'] += joined
+            stats['br_space'] += n - joined
+        result.append(line)
+    return '\n'.join(result)
+
+
+def fix_glued_fields(text):
+    """Split stat-block lines that glue several **Label:** fields onto one line.
+
+    A two-column PDF layout produces lines like
+        **Casting Time:** Action **Range:** 90 feet
+        **Components:** V, S **Duration:** Instantaneous
+    Canon style keeps one field per line (blank-separated). Only lines that BEGIN
+    with a bold label and hold 2+ such labels (and are not table rows) are split, so
+    ordinary prose with a single inline **word:** is untouched.
+    """
+    lead = re.compile(r'^\*\*[^*\n]+?:\*\*')
+    label = re.compile(r'\*\*[^*\n]+?:\*\*')
+    result = []
+    for line in text.split('\n'):
+        if '|' not in line and lead.match(line):
+            starts = [m.start() for m in label.finditer(line)]
+            if len(starts) >= 2:
+                parts = [
+                    line[starts[k]:(starts[k + 1] if k + 1 < len(starts) else len(line))].strip()
+                    for k in range(len(starts))
+                ]
+                result.append('\n\n'.join(parts))
+                stats['glued_fields'] += len(parts) - 1
+                continue
+        result.append(line)
+    return '\n'.join(result)
+
+
 def fix_trailing_empty_columns(text):
     """Remove trailing empty columns from table rows (|  |  | at end)."""
     def clean_row(m):
@@ -102,8 +168,10 @@ def main():
     original_lines = text.count('\n')
 
     text = fix_bold_headers(text)
+    text = fix_br_artifacts(text)
     text = fix_hyphen_breaks(text)
     text = fix_split_components(text)
+    text = fix_glued_fields(text)
     text = fix_trailing_empty_columns(text)
 
     result_lines = text.count('\n')
