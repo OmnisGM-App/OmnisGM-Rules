@@ -7,6 +7,7 @@ Usage:
 
 import argparse
 import json
+import re
 import sys
 from pathlib import Path
 
@@ -108,6 +109,92 @@ def resolve_cross_refs(all_data: dict) -> None:
                     if slug:
                         resolved.append(slug)
                 entity["spells"] = resolved
+
+
+# Подклассы SRD 5.2, которые дают доступ к заклинаниям (спелл-гранты в 03_Classes/*.md).
+# Заголовок таблицы в EN — `Table: <Name> Spells`; RU-название берём из этого мапа.
+# ver-каталог для класс-файлов (ver → префикс пути в src).
+VER_DIR = {"srd52": "srd-5.2", "srd51": "srd-5.1"}
+SUBCLASS_LABELS = {
+    "Life Domain":      {"en": "Life Domain",      "ru": "Домен жизни"},
+    "Oath of Devotion": {"en": "Oath of Devotion", "ru": "Клятва преданности"},
+    "Fiend":            {"en": "Fiend",            "ru": "Исчадие"},
+    "Draconic":         {"en": "Draconic",         "ru": "Драконье чародейство"},
+}
+
+
+def _parse_subclass_spell_tables(text: str) -> dict[str, set[str]]:
+    """Из EN-разметки класса извлечь {подкласс: {имена заклинаний}} по таблицам спелл-грантов.
+
+    Таблица подкласса: строка `Table: <Name> Spells`, где <Name> — не базовый список
+    (`Level N <Class>` / `Cantrips`). Имена заклинаний — в последнем столбце (через запятую).
+    """
+    out: dict[str, set[str]] = {}
+    lines = text.split("\n")
+    i = 0
+    while i < len(lines):
+        m = re.match(r"^Table:\s+(.+?)\s+Spells\s*$", lines[i].strip())
+        if m and not re.search(r"Level \d|Cantrips", m.group(1)):
+            name = m.group(1).strip()
+            spells: set[str] = set()
+            j = i + 1
+            while j < len(lines) and not lines[j].lstrip().startswith("|"):
+                j += 1
+            seen_sep = False
+            while j < len(lines) and lines[j].lstrip().startswith("|"):
+                cells = [c.strip() for c in lines[j].strip().strip("|").split("|")]
+                joined = "".join(cells)
+                if joined and set(joined) <= set("-: "):
+                    seen_sep = True
+                elif seen_sep and len(cells) >= 2:
+                    for sp in cells[-1].split(","):
+                        sp = sp.strip()
+                        if sp:
+                            spells.add(sp)
+                j += 1
+            if spells:
+                out[name] = spells
+        i += 1
+    return out
+
+
+def inject_spell_subclasses(all_data: dict, src_root: Path) -> None:
+    """Добавить полю заклинания `subclasses` — подклассы, дающие к нему доступ (по слагу)."""
+    versions = {ver for (ver, lang, res) in all_data if res == "spells"}
+    for ver in versions:
+        vdir = VER_DIR.get(ver)
+        if not vdir:
+            continue
+        classes_dir = src_root / vdir / "en" / "03_Classes"
+        if not classes_dir.is_dir():
+            continue
+        # подкласс(EN) → {EN-имена заклинаний}
+        sub_spells: dict[str, set[str]] = {}
+        for f in sorted(classes_dir.glob("*.md")):
+            for name, spells in _parse_subclass_spell_tables(f.read_text(encoding="utf-8")).items():
+                if name in SUBCLASS_LABELS:
+                    sub_spells.setdefault(name, set()).update(spells)
+        if not sub_spells:
+            continue
+        # EN-имя заклинания → slug
+        en_lookup = {sp["name"].lower(): sp["slug"] for sp in all_data.get((ver, "en", "spells"), [])}
+        # slug → [подкласс(EN)]
+        slug_subs: dict[str, list[str]] = {}
+        for name, spells in sub_spells.items():
+            for sp in spells:
+                slug = en_lookup.get(sp.lower())
+                if slug:
+                    slug_subs.setdefault(slug, []).append(name)
+        # инжект в заклинания всех языков этой версии (локализованное имя подкласса)
+        for (k_ver, k_lang, k_res), entities in all_data.items():
+            if k_ver != ver or k_res != "spells":
+                continue
+            for e in entities:
+                subs = slug_subs.get(e["slug"])
+                if subs:
+                    e["subclasses"] = [
+                        SUBCLASS_LABELS[n].get(k_lang, n) for n in sorted(set(subs))
+                    ]
 
 
 def write_json(path: Path, data) -> None:
@@ -286,6 +373,7 @@ def main():
 
     # Resolve cross-references
     resolve_cross_refs(all_data)
+    inject_spell_subclasses(all_data, src_root)
 
     # Write files and collect hierarchy info
     file_count = 0

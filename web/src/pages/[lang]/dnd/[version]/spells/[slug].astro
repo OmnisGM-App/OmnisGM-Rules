@@ -1,0 +1,251 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы заклинаний (issue #20, волна 2) в общем шелле ридера.
+// URL: /{lang}/dnd/{version}/spells/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
+// Родитель для nav/breadcrumb/CTA — глава «Заклинания».
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells' };
+
+// Школа: в RU JSON поле переведено наполовину (Evocation vs Воплощения) — нормализуем
+// двусторонним мапом независимо от того, что пришло в данных.
+const SCHOOLS: [string, string][] = [
+  ['Abjuration', 'Ограждения'], ['Conjuration', 'Вызова'], ['Divination', 'Прорицания'],
+  ['Enchantment', 'Очарования'], ['Evocation', 'Воплощения'], ['Illusion', 'Иллюзии'],
+  ['Necromancy', 'Некромантии'], ['Transmutation', 'Преобразования'],
+];
+const schoolLabel = (raw: string, lang: string) => {
+  const p = SCHOOLS.find(([en, ru]) => en === raw || ru === raw);
+  return p ? (lang === 'ru' ? p[1] : p[0]) : raw;
+};
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const spells = loadEntities(ver, lang, 'spells');
+    const siblings = spells.map((s) => ({ slug: s.slug, name: s.name, school: s.school as string, level: s.level as string }));
+    for (const entity of spells) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+// Тело + «на высоких уровнях» с автоссылками на состояния (issue #20): marked → hast → autolink → html.
+const render = (md: string | undefined | null) => {
+  if (!md || md === 'None') return '';
+  const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
+  autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  return toHtml(tree);
+};
+const bodyHtml = render(entity.description_md as string);
+const higherHtml = render(entity.higher_levels_md as string);
+const cantripHtml = render(entity.cantrip_upgrade_md as string);
+const description = excerpt(entity.description_md as string);
+
+// Стат-блок
+const lvl = String(entity.level ?? '');
+const isCantrip = lvl === '0';
+const school = schoolLabel(entity.school as string, lang);
+const levelLine = isCantrip
+  ? t(`Заговор, ${school}`, `${school} cantrip`)
+  : t(`${lvl}-й уровень, ${school}`, `${ordinalEn(lvl)}-level ${school}`);
+function ordinalEn(n: string) {
+  const s = ['th', 'st', 'nd', 'rd'], v = Number(n) % 100;
+  return n + (s[(v - 20) % 10] || s[v] || s[0]);
+}
+// Классы/подклассы → ссылки на страницы классов (/{lang}/dnd/{ver}/classes/{slug}/).
+const CLASS_SLUG: Record<string, string> = {
+  Bard: 'bard', Cleric: 'cleric', Druid: 'druid', Paladin: 'paladin', Ranger: 'ranger',
+  Sorcerer: 'sorcerer', Warlock: 'warlock', Wizard: 'wizard',
+  Бард: 'bard', Жрец: 'cleric', Друид: 'druid', Паладин: 'paladin', Следопыт: 'ranger',
+  Чародей: 'sorcerer', Колдун: 'warlock', Волшебник: 'wizard',
+};
+// Подкласс → родительский класс (slug + локализованное имя): показываем «Класс: Подкласс».
+const SUBCLASS_INFO: Record<string, { slug: string; cls_ru: string; cls_en: string }> = {
+  'Life Domain':        { slug: 'cleric',   cls_ru: 'Жрец',    cls_en: 'Cleric' },
+  'Домен жизни':        { slug: 'cleric',   cls_ru: 'Жрец',    cls_en: 'Cleric' },
+  'Oath of Devotion':   { slug: 'paladin',  cls_ru: 'Паладин', cls_en: 'Paladin' },
+  'Клятва преданности': { slug: 'paladin',  cls_ru: 'Паладин', cls_en: 'Paladin' },
+  Fiend:                { slug: 'warlock',  cls_ru: 'Колдун',  cls_en: 'Warlock' },
+  Исчадие:              { slug: 'warlock',  cls_ru: 'Колдун',  cls_en: 'Warlock' },
+  Draconic:             { slug: 'sorcerer', cls_ru: 'Чародей', cls_en: 'Sorcerer' },
+  'Драконье чародейство': { slug: 'sorcerer', cls_ru: 'Чародей', cls_en: 'Sorcerer' },
+};
+const subClass = (s: string) => SUBCLASS_INFO[s];
+const subClsName = (s: string) => (lang === 'ru' ? SUBCLASS_INFO[s]?.cls_ru : SUBCLASS_INFO[s]?.cls_en) ?? '';
+const classUrl = (slug: string) => `/${lang}/dnd/${verSlug}/classes/${slug}/`;
+const classList = (Array.isArray(entity.classes) ? entity.classes : []) as string[];
+// Подклассы показываем ТОЛЬКО когда их родительский класс НЕ имеет заклинание в полном списке
+// (иначе грант подкласса избыточен — сам класс уже даёт доступ). Напр. Aid на списке Жреца →
+// «Жрец: Домен жизни» не показываем; Fireball не на списке Колдуна → «Колдун: Исчадие» остаётся.
+const subList = ((Array.isArray(entity.subclasses) ? entity.subclasses : []) as string[])
+  .filter((s) => !classList.includes(subClsName(s)));
+
+// Компоненты: аббревиатуры В/С/М с нативным тултипом (полное слово при наведении на ПК).
+const comp = (entity.components ?? {}) as Record<string, unknown>;
+const compItems: { a: string; full: string }[] = [];
+if (comp.verbal) compItems.push({ a: t('В', 'V'), full: t('Вербальный', 'Verbal') });
+if (comp.somatic) compItems.push({ a: t('С', 'S'), full: t('Соматический', 'Somatic') });
+if (comp.material) compItems.push({ a: t('М', 'M'), full: t('Материальный', 'Material') });
+const materialDesc = comp.material && comp.material_desc ? (comp.material_desc as string) : '';
+
+const castVal = (entity.casting_time as Record<string, unknown>)?.value as string;
+const rangeVal = (entity.range as Record<string, unknown>)?.value as string;
+const durVal = (entity.duration as Record<string, unknown>)?.value as string;
+
+const base = `/${lang}/dnd/${verSlug}/spells`;
+// «Та же школа» — до 8 других заклинаний той же школы (внутренняя перелинковка/SEO).
+const sameSchool = (siblings as { slug: string; name: string; school: string }[])
+  .filter((s) => s.slug !== entity.slug && schoolLabel(s.school, lang) === school)
+  .slice(0, 8);
+
+const upLink = { href: `${base}/`, ru: 'Заклинания', en: 'Spells' };
+const kind = t('Заклинание', 'Spell');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+  </h1>
+
+  <p class="spell-lvl">{levelLine}</p>
+
+  <dl class="spell-meta">
+    {castVal && (
+      <div class="spell-meta-row"><dt>{t('Время накладывания', 'Casting Time')}</dt><dd>{castVal}</dd></div>
+    )}
+    {rangeVal && (
+      <div class="spell-meta-row"><dt>{t('Дистанция', 'Range')}</dt><dd>{rangeVal}</dd></div>
+    )}
+    {compItems.length > 0 && (
+      <div class="spell-meta-row">
+        <dt>{t('Компоненты', 'Components')}</dt>
+        <dd>
+          {compItems.map((c, i) => (
+            <Fragment>{i > 0 ? ', ' : ''}<abbr title={c.full}>{c.a}</abbr></Fragment>
+          ))}
+          {materialDesc && <span class="spell-mat"> ({materialDesc})</span>}
+        </dd>
+      </div>
+    )}
+    {durVal && (
+      <div class="spell-meta-row"><dt>{t('Длительность', 'Duration')}</dt><dd>{durVal}</dd></div>
+    )}
+    {classList.length > 0 && (
+      <div class="spell-meta-row">
+        <dt>{t('Классы', 'Classes')}</dt>
+        <dd>
+          {classList.map((c, i) => (
+            <Fragment>{i > 0 ? ', ' : ''}{CLASS_SLUG[c] ? <a href={classUrl(CLASS_SLUG[c])}>{c}</a> : c}</Fragment>
+          ))}
+        </dd>
+      </div>
+    )}
+    {subList.length > 0 && (
+      <div class="spell-meta-row">
+        <dt>{t('Подклассы', 'Subclasses')}</dt>
+        <dd>
+          {subList.map((s, i) => (
+            <Fragment>{i > 0 ? ', ' : ''}{subClass(s)
+              ? <a href={classUrl(subClass(s)!.slug)}>{subClsName(s)}: {s}</a>
+              : s}</Fragment>
+          ))}
+        </dd>
+      </div>
+    )}
+  </dl>
+
+  <Fragment set:html={bodyHtml} />
+
+  {higherHtml && (
+    <>
+      <h2>{t('На более высоких уровнях', 'Using a Higher-Level Spell Slot')}</h2>
+      <Fragment set:html={higherHtml} />
+    </>
+  )}
+  {cantripHtml && (
+    <>
+      <h2>{t('Улучшение заговора', 'Cantrip Upgrade')}</h2>
+      <Fragment set:html={cantripHtml} />
+    </>
+  )}
+
+  {sameSchool.length > 0 && (
+    <nav class="ent-related" aria-label={t('Та же школа', 'Same school')}>
+      <span class="ent-related-h">{t(`Ещё из школы ${school}`, `More ${school} spells`)}</span>
+      <span class="ent-related-list">
+        {sameSchool.map((r) => (
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  .ent-en {
+    display: block; margin-top: 8px;
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  /* Подзаголовок «3-й уровень, Воплощения» — курсив, приглушённо, как флейвор под именем. */
+  .spell-lvl {
+    margin: -6px 0 18px; font-style: italic; color: var(--og-text-muted); font-size: 15px;
+  }
+  /* Стат-блок: карточка с рядами «поле — значение». */
+  .spell-meta {
+    margin: 0 0 24px; padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2); display: grid; gap: 8px;
+  }
+  .spell-meta-row { display: grid; grid-template-columns: 180px 1fr; gap: 12px; align-items: baseline; }
+  .spell-meta dt {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
+  .spell-meta dd { margin: 0; color: var(--og-text-2); }
+  /* Компоненты В/С/М: подсказка (полное слово) по наведению — нативный title. */
+  .spell-meta abbr {
+    text-decoration: none; border-bottom: 1px dotted var(--og-text-muted); cursor: help;
+    font-weight: 600; color: var(--og-text);
+  }
+  .spell-mat { color: var(--og-text-muted); }
+  /* Классы/подклассы — ссылки: как ent-related, цвет прозы + акцентное подчёркивание. */
+  .spell-meta a { color: var(--og-accent); border-bottom: 1px solid color-mix(in oklab, var(--og-accent) 45%, transparent); text-decoration: none; }
+  .spell-meta a:hover { border-bottom-color: var(--og-accent); }
+  @media (max-width: 560px) {
+    .spell-meta-row { grid-template-columns: 1fr; gap: 2px; }
+  }
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+</style>

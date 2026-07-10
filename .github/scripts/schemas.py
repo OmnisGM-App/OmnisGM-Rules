@@ -52,6 +52,10 @@ SPELL_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        "subclasses": {
+            "type": "array",
+            "items": {"type": "string"},
+        },
         "casting_time": {
             "type": "object",
             "properties": {
