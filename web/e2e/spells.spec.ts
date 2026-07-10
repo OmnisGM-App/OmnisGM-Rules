@@ -31,7 +31,8 @@ test('классы и подклассы — ссылки; подкласс ск
   const meta = page.locator('.spell-meta');
   await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/sorcerer/"]', { hasText: /^Чародей$/ })).toBeVisible();
   await expect(meta).toContainText('Подклассы');
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/warlock/"]', { hasText: 'Колдун: Исчадие' })).toBeVisible();
+  // подкласс ведёт на секцию подкласса на странице класса (#anchor)
+  await expect(meta.locator('a[href^="/ru/dnd/srd-5.2/classes/warlock/#"]', { hasText: 'Колдун: Исчадие' })).toBeVisible();
 
   // Aid: даётся Домом жизни (Жрец) и Клятвой преданности (Паладин), но оба класса уже в полном
   // списке Aid → строка подклассов избыточна и НЕ показывается.
