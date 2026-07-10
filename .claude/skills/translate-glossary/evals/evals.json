@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "check-glossary-script",
-      "prompt": "Запусти check_glossary.py на переведённом глоссарии dnd-v2 srd-5.2",
+      "prompt": "Запусти check_glossary.py на переведённом глоссарии dnd srd-5.2",
       "expected_output": "Скрипт проверяет файлы, строки, колонку Оригинал, сортировку ё=е",
       "files": [],
       "assertions": [
@@ -40,7 +40,7 @@
     {
       "id": 3,
       "name": "row-count-match",
-      "prompt": "Сравни количество строк данных в EN и RU глоссариях dnd-v2 — должны совпадать",
+      "prompt": "Сравни количество строк данных в EN и RU глоссариях dnd — должны совпадать",
       "expected_output": "EN rows = RU rows для каждого файла",
       "files": [],
       "assertions": [

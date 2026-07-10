@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "automated-checks-first",
-      "prompt": "/verify-import dnd-v2 srd-5.2",
+      "prompt": "/verify-import dnd srd-5.2",
       "expected_output": "Сначала запускается check_markdown.py, затем агент для семантической проверки",
       "files": [],
       "assertions": [
@@ -40,7 +40,7 @@
     {
       "id": 3,
       "name": "min-2-rounds",
-      "prompt": "/verify-import dnd-v2 srd-5.2 — проверь что выполняется минимум 2 раунда",
+      "prompt": "/verify-import dnd srd-5.2 — проверь что выполняется минимум 2 раунда",
       "expected_output": "Минимум 2 раунда проверки даже если ошибок нет",
       "files": [],
       "assertions": [
@@ -55,7 +55,7 @@
     {
       "id": 4,
       "name": "clean-files-pass",
-      "prompt": "Запусти check_markdown.py на src/dnd-v2/srd-5.2/en/ — чистые файлы должны пройти без ошибок",
+      "prompt": "Запусти check_markdown.py на src/dnd/srd-5.2/en/ — чистые файлы должны пройти без ошибок",
       "expected_output": "0 issues, все файлы прошли",
       "files": [],
       "assertions": [

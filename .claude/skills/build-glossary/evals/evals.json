@@ -4,7 +4,7 @@
     {
       "id": 1,
       "name": "extract-entities-script",
-      "prompt": "Запусти extract_entities.py на src/dnd-v2/srd-5.2/en/ и проверь результат",
+      "prompt": "Запусти extract_entities.py на src/dnd/srd-5.2/en/ и проверь результат",
       "expected_output": "Скрипт классифицировал файлы, нашёл spells/monsters/animals/magic_items",
       "files": [],
       "assertions": [
@@ -31,7 +31,7 @@
     {
       "id": 2,
       "name": "extended-categories-in-glossary",
-      "prompt": "/build-glossary dnd-v2 srd-5.2 — проверь что 00_Glossary.md содержит расширенные категории (названия разделов, подклассов, умений)",
+      "prompt": "/build-glossary dnd srd-5.2 — проверь что 00_Glossary.md содержит расширенные категории (названия разделов, подклассов, умений)",
       "expected_output": "00_Glossary.md содержит секции: характеристики, состояния, типы урона, классы, виды, навыки, типы существ, механики + расширенные (разделы, подклассы, умения)",
       "files": [],
       "assertions": [

@@ -31,7 +31,7 @@
     {
       "id": 2,
       "name": "normalize-markdown-script",
-      "prompt": "Запусти normalize_markdown.py на директории src/dnd-v2/srd-5.2/en/ и проверь результат",
+      "prompt": "Запусти normalize_markdown.py на директории src/dnd/srd-5.2/en/ и проверь результат",
       "expected_output": "Скрипт нормализовал файлы, статистика выведена",
       "files": [],
       "assertions": [
