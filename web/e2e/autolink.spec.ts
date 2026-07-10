@@ -63,14 +63,13 @@ test('автоссылка несёт data-hc для будущего hovercard'
 // Тест падает и при НОВОМ расхождении (регрессия матчинга/перевода), и при ПРОТУХШЕЙ записи
 // allowlist (расхождение исчезло → запись надо убрать).
 const EXCEPTIONS: Record<string, string[]> = {
-  '/en/dnd/srd-5.2/animals/': ['stunned'], // RU: «оглушённый», глоссарий — Ошеломлённый (терминология)
   '/en/dnd/srd-5.2/classes/bard/': ['invisible'], // RU «Невидимый»; EN — заклинание Invisibility
   '/en/dnd/srd-5.2/classes/monk/': ['exhaustion'], // RU не использует «Истощение»
   '/en/dnd/srd-5.2/classes/ranger/': ['exhaustion'],
   '/en/dnd/srd-5.2/classes/warlock/': ['invisible'],
   '/en/dnd/srd-5.2/classes/wizard/': ['invisible'],
   '/en/dnd/srd-5.2/feats/': ['grappled'], // RU не использует «Схваченный»
-  '/en/dnd/srd-5.2/magic-items/': ['prone', 'restrained', 'unconscious'], // RU: обездвиженный/иные формы
+  '/en/dnd/srd-5.2/magic-items/': ['prone', 'unconscious'], // RU: иные формы/прозой
 };
 
 async function linkedConditions(page: import('@playwright/test').Page, path: string): Promise<Set<string>> {
