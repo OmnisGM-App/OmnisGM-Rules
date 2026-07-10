@@ -591,3 +591,106 @@ const searchUi = {
     }
   }
 </script>
+
+{/* Hovercard автоссылок (issue #20, вариант B): при наведении/фокусе на a.ent-link[data-hc]
+    показываем карточку сущности. Данные тянутся один раз на бакет game/verKey/lang из
+    /hc/{game}/{ver}/{lang}.json (ключ бакета = префикс data-hc). Карточка — единый элемент в body. */}
+<script>
+  type HCard = { name: string; name_en: string | null; excerpt: string; href: string };
+  const hcBuckets = new Map<string, Promise<Record<string, HCard> | null>>();
+  const hcLoad = (game: string, ver: string, lang: string) => {
+    const key = `${game}/${ver}/${lang}`;
+    let p = hcBuckets.get(key);
+    if (!p) {
+      p = fetch(`/hc/${game}/${ver}/${lang}.json`).then((r) => (r.ok ? r.json() : null)).catch(() => null);
+      hcBuckets.set(key, p);
+    }
+    return p;
+  };
+
+  const card = document.createElement('div');
+  card.className = 'ent-hovercard';
+  card.id = 'ent-hovercard';
+  card.setAttribute('role', 'tooltip');
+  const elName = document.createElement('span'); elName.className = 'ent-hc-name';
+  const elEn = document.createElement('span'); elEn.className = 'ent-hc-en';
+  const elEx = document.createElement('p'); elEx.className = 'ent-hc-excerpt';
+  card.append(elName, elEn, elEx);
+  let mounted = false;
+
+  let current: HTMLElement | null = null;
+  let showTimer = 0;
+  let token = 0;
+
+  const place = (anchor: HTMLElement) => {
+    const r = anchor.getBoundingClientRect();
+    const cw = card.offsetWidth, ch = card.offsetHeight, pad = 8, gap = 6;
+    const vw = document.documentElement.clientWidth, vh = document.documentElement.clientHeight;
+    let left = Math.min(r.left, vw - cw - pad);
+    left = Math.max(pad, left) + window.scrollX;
+    let top = r.bottom + gap;
+    if (r.bottom + gap + ch > vh && r.top - gap - ch > 0) top = r.top - ch - gap;
+    card.style.left = `${left}px`;
+    card.style.top = `${top + window.scrollY}px`;
+  };
+
+  const hide = () => {
+    clearTimeout(showTimer); showTimer = 0; token++;
+    if (!current) return;
+    current.removeAttribute('aria-describedby');
+    current = null;
+    card.classList.remove('is-open');
+  };
+
+  const show = (anchor: HTMLElement) => {
+    const hc = anchor.getAttribute('data-hc');
+    if (!hc) return;
+    const parts = hc.split('/');
+    if (parts.length < 5) return;
+    const [game, ver, lang] = parts;
+    const rkey = parts.slice(3).join('/');
+    const my = ++token;
+    hcLoad(game, ver, lang).then((map) => {
+      if (my !== token) return;
+      const c = map && map[rkey];
+      if (!c) return;
+      elName.textContent = c.name;
+      if (c.name_en && c.name_en !== c.name) { elEn.textContent = c.name_en; elEn.style.display = ''; }
+      else elEn.style.display = 'none';
+      elEx.textContent = c.excerpt;
+      elEx.style.display = c.excerpt ? '' : 'none';
+      if (!mounted) { document.body.appendChild(card); mounted = true; }
+      current = anchor;
+      anchor.setAttribute('aria-describedby', 'ent-hovercard');
+      card.classList.add('is-open');
+      place(anchor);
+    });
+  };
+
+  const onEnter = (e: Event) => {
+    if ('pointerType' in e && (e as PointerEvent).pointerType === 'touch') return; // тач — навигация тапом
+    const a = (e.target as Element)?.closest?.('a.ent-link[data-hc]') as HTMLElement | null;
+    if (!a || a === current) return;
+    clearTimeout(showTimer);
+    showTimer = window.setTimeout(() => show(a), e.type === 'focusin' ? 0 : 130);
+  };
+  const onLeave = (e: Event) => {
+    const a = (e.target as Element)?.closest?.('a.ent-link[data-hc]');
+    if (!a) return;
+    const to = (e as PointerEvent).relatedTarget as Node | null;
+    if (to && (a as Element).contains(to)) return;
+    hide();
+  };
+
+  document.addEventListener('pointerover', onEnter, { passive: true });
+  document.addEventListener('pointerout', onLeave, { passive: true });
+  document.addEventListener('focusin', onEnter);
+  document.addEventListener('focusout', (e) => {
+    if (current && (e.target as Element)?.closest?.('a.ent-link') === current) hide();
+  });
+  document.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape') hide(); });
+  // Карточка позиционируется в координатах документа и «едет» вместе со ссылкой при скролле —
+  // прятать по scroll не нужно (и вредно: авто-скролл перед hover/focus гасил бы показ).
+  // По ресайзу — прячем открытую (геометрия ссылки могла сместиться).
+  window.addEventListener('resize', () => { if (current) hide(); }, { passive: true });
+</script>
