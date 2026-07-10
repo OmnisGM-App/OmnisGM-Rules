@@ -89,7 +89,10 @@ test('EN/RU: набор слинкованных состояний совпад
       (p) =>
         p.startsWith('/en/dnd/srd-5.2/') &&
         !p.includes('/glossary/') && // справочные таблицы вне индекса
-        !p.includes('/rules-glossary/conditions/'), // сами страницы состояний, не главы
+        !p.includes('/rules-glossary/conditions/') && // сами страницы состояний, не главы
+        !/\/spells\/[^/]+\/$/.test(p), // страницы отдельных заклинаний (не глава /spells/):
+        // их описания переведены независимо → паритет линковки состояний тут не гарантирован
+        // (глава /spells/ остаётся в наборе).
     );
   expect(chapters.length).toBeGreaterThan(10);
 
