@@ -28,7 +28,7 @@
 | NE | НЗ | Neutral Evil | Нейтрально-злой |
 | NG | НД | Neutral Good | Нейтрально-добрый |
 | NPC | НИП | Nonplayer Character | Неигровой персонаж |
-| PB | БМ | Proficiency Bonus | Бонус Мастерства |
+| PB | БМ | Proficiency Bonus | Бонус мастерства |
 | PP | пм | Platinum Piece(s) | платиновая монета |
 | R | Р | Ritual | Ритуал |
 | S | С | Somatic component | Соматический компонент |
