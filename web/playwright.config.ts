@@ -21,7 +21,11 @@ export default defineConfig({
   // кросс-ОС расхождений нет (в CI e2e не запускаем). Обновление:
   //   rm -rf node_modules/.vite && npm run test:e2e -- visual --update-snapshots
   expect: {
-    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled' },
+    // maxDiffPixels (абсолют), а НЕ maxDiffPixelRatio: небольшое цветовое изменение
+    // (напр. цвет ссылок ~2000 пикс.) — это <1% полной страницы, и ratio 0.01 такое
+    // «проглатывал» (снапшот не ловил регрессию и не обновлялся). Абсолютный порог
+    // терпит AA-джиттер шрифтов, но ловит реальные правки.
+    toHaveScreenshot: { maxDiffPixels: 80, animations: 'disabled' },
   },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
