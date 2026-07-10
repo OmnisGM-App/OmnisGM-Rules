@@ -77,19 +77,31 @@ const CLASS_SLUG: Record<string, string> = {
   Бард: 'bard', Жрец: 'cleric', Друид: 'druid', Паладин: 'paladin', Следопыт: 'ranger',
   Чародей: 'sorcerer', Колдун: 'warlock', Волшебник: 'wizard',
 };
-// Подкласс → родительский класс (slug + локализованное имя): показываем «Класс: Подкласс».
-const SUBCLASS_INFO: Record<string, { slug: string; cls_ru: string; cls_en: string }> = {
-  'Life Domain':        { slug: 'cleric',   cls_ru: 'Жрец',    cls_en: 'Cleric' },
-  'Домен жизни':        { slug: 'cleric',   cls_ru: 'Жрец',    cls_en: 'Cleric' },
-  'Oath of Devotion':   { slug: 'paladin',  cls_ru: 'Паладин', cls_en: 'Paladin' },
-  'Клятва преданности': { slug: 'paladin',  cls_ru: 'Паладин', cls_en: 'Paladin' },
-  Fiend:                { slug: 'warlock',  cls_ru: 'Колдун',  cls_en: 'Warlock' },
-  Исчадие:              { slug: 'warlock',  cls_ru: 'Колдун',  cls_en: 'Warlock' },
-  Draconic:             { slug: 'sorcerer', cls_ru: 'Чародей', cls_en: 'Sorcerer' },
-  'Драконье чародейство': { slug: 'sorcerer', cls_ru: 'Чародей', cls_en: 'Sorcerer' },
+// Подкласс → родительский класс (slug + имя + якорь секции подкласса на странице класса).
+// Ссылка ведёт прямо на секцию подкласса (#anchor), формат подписи — «Класс: Подкласс».
+type SubInfo = { slug: string; cls_ru: string; cls_en: string; a_ru: string; a_en: string };
+const CL = {
+  cleric:   { cls_ru: 'Жрец',    cls_en: 'Cleric',   a_ru: 'подкласс-жреца-домен-жизни',           a_en: 'cleric-subclass-life-domain' },
+  paladin:  { cls_ru: 'Паладин', cls_en: 'Paladin',  a_ru: 'подкласс-паладина-клятва-преданности',  a_en: 'paladin-subclass-oath-of-devotion' },
+  warlock:  { cls_ru: 'Колдун',  cls_en: 'Warlock',  a_ru: 'подкласс-колдуна-покровитель-исчадие',  a_en: 'warlock-subclass-fiend-patron' },
+  sorcerer: { cls_ru: 'Чародей', cls_en: 'Sorcerer', a_ru: 'подкласс-чародея-драконье-чародейство', a_en: 'sorcerer-subclass-draconic-sorcery' },
+} as const;
+const SUBCLASS_INFO: Record<string, SubInfo> = {
+  'Life Domain':          { slug: 'cleric',   ...CL.cleric },
+  'Домен жизни':          { slug: 'cleric',   ...CL.cleric },
+  'Oath of Devotion':     { slug: 'paladin',  ...CL.paladin },
+  'Клятва преданности':   { slug: 'paladin',  ...CL.paladin },
+  Fiend:                  { slug: 'warlock',  ...CL.warlock },
+  Исчадие:                { slug: 'warlock',  ...CL.warlock },
+  Draconic:               { slug: 'sorcerer', ...CL.sorcerer },
+  'Драконье чародейство': { slug: 'sorcerer', ...CL.sorcerer },
 };
 const subClass = (s: string) => SUBCLASS_INFO[s];
 const subClsName = (s: string) => (lang === 'ru' ? SUBCLASS_INFO[s]?.cls_ru : SUBCLASS_INFO[s]?.cls_en) ?? '';
+const subUrl = (s: string) => {
+  const info = SUBCLASS_INFO[s];
+  return `${classUrl(info.slug)}#${lang === 'ru' ? info.a_ru : info.a_en}`;
+};
 const classUrl = (slug: string) => `/${lang}/dnd/${verSlug}/classes/${slug}/`;
 const classList = (Array.isArray(entity.classes) ? entity.classes : []) as string[];
 // Подклассы показываем ТОЛЬКО когда их родительский класс НЕ имеет заклинание в полном списке
@@ -163,7 +175,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
         <dt>{t('Классы', 'Classes')}</dt>
         <dd>
           {classList.map((c, i) => (
-            <Fragment>{i > 0 ? ', ' : ''}{CLASS_SLUG[c] ? <a href={classUrl(CLASS_SLUG[c])}>{c}</a> : c}</Fragment>
+            <Fragment>{i > 0 ? ', ' : ''}{CLASS_SLUG[c] ? <a href={classUrl(CLASS_SLUG[c])}><strong>{c}</strong></a> : c}</Fragment>
           ))}
         </dd>
       </div>
@@ -174,7 +186,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
         <dd>
           {subList.map((s, i) => (
             <Fragment>{i > 0 ? ', ' : ''}{subClass(s)
-              ? <a href={classUrl(subClass(s)!.slug)}>{subClsName(s)}: {s}</a>
+              ? <a href={subUrl(s)}><strong>{subClsName(s)}: {s}</strong></a>
               : s}</Fragment>
           ))}
         </dd>
@@ -236,9 +248,8 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
     font-weight: 600; color: var(--og-text);
   }
   .spell-mat { color: var(--og-text-muted); }
-  /* Классы/подклассы — ссылки: как ent-related, цвет прозы + акцентное подчёркивание. */
-  .spell-meta a { color: var(--og-accent); border-bottom: 1px solid color-mix(in oklab, var(--og-accent) 45%, transparent); text-decoration: none; }
-  .spell-meta a:hover { border-bottom-color: var(--og-accent); }
+  /* Классы/подклассы — ссылки в едином стиле с «Ещё из школы» (<a><strong>): белый текст
+     от .rd-doc strong + акцентное подчёркивание от .rd-doc a. Свой цвет НЕ навязываем. */
   @media (max-width: 560px) {
     .spell-meta-row { grid-template-columns: 1fr; gap: 2px; }
   }
