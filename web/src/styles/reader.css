@@ -258,7 +258,11 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* ── Layout grid ───────────────────────────────────────────────────────── */
 .rd-root { --rd-bar: 54px; display: flex; flex-direction: column; min-height: 100vh; background: var(--og-bg); color: var(--og-text); }
 .rd-body { display: grid; grid-template-columns: 278px minmax(0,1fr) 236px; flex: 1; min-height: 0; }
-.rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr); }
+/* Пока TOC помещается по ширине (десктоп ≥1100px), правый столбец резервируем ВСЕГДА —
+   даже на страницах без TOC (Legal, страницы сущностей). Иначе контент прыгает на 236px
+   при переходе со страницы с оглавлением на страницу без него. Ниже 1100px столбец и так
+   схлопывается (см. медиазапросы), там резерва нет. */
+.rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr) 236px; }
 /* ① TOC не помещается → скрываем правый столбец, в панель приходит кнопка «На странице» */
 @media (max-width: 1100px) {
   .rd-body, .rd-body.rd-no-toc { grid-template-columns: 258px minmax(0,1fr); }
