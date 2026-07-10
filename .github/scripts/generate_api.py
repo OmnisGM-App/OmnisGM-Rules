@@ -13,19 +13,69 @@ from pathlib import Path
 # Add scripts dir to path so parsers package is importable
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
-import jsonschema
+# jsonschema is only needed for validation. Keep it optional so build-time data
+# generation (Astro prebuild → getStaticPaths) can run with plain python3, without
+# installing pip packages in CI.
+try:
+    import jsonschema
+except ImportError:
+    jsonschema = None
 
 from config import (SOURCES, SKIP_HEADINGS_SPELL, SKIP_HEADINGS_MONSTER,
                     SKIP_HEADINGS_EQUIPMENT, SKIP_HEADINGS_FEAT)
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats)
+from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
 SYSTEM = "dnd"
 SYSTEM_NAME = "Dungeons & Dragons"
 
 VERSION_NAMES = {"srd52": "SRD 5.2.1", "srd51": "SRD 5.1"}
+
+
+_RU_EN_MAP_CACHE: dict[str, dict[str, str]] = {}
+
+
+def load_ru_to_en_map(src_root: Path) -> dict[str, str]:
+    """Build {RU term → EN term} from the authoritative base dictionary.
+
+    Used to backfill name_en (and thus a canonical English slug) for RU entities
+    whose headings lack the "(English)" suffix — notably conditions, which read
+    "#### Ослеплённый [Состояние]" with no inline English. Columns:
+    | Оригинал 5.2 | Оригинал 5.1 | Перевод | ... |  → map[Перевод] = Оригинал 5.2.
+    """
+    key = str(src_root)
+    if key in _RU_EN_MAP_CACHE:
+        return _RU_EN_MAP_CACHE[key]
+
+    mapping: dict[str, str] = {}
+    dict_path = src_root / "translate" / "01_dictionary_base.md"
+    if dict_path.is_file():
+        for line in dict_path.read_text(encoding="utf-8").splitlines():
+            if not line.startswith("|") or "---" in line:
+                continue
+            cells = [c.strip() for c in line.strip().strip("|").split("|")]
+            if len(cells) >= 3 and cells[0] not in ("Оригинал 5.2", "Оригинал"):
+                en, ru = cells[0], cells[2]
+                if en and ru and en != "—" and ru not in mapping:
+                    mapping[ru] = en
+    _RU_EN_MAP_CACHE[key] = mapping
+    return mapping
+
+
+def backfill_name_en(entities: list[dict], src_root: Path) -> None:
+    """For RU entities missing name_en, fill it from the base dictionary and
+    re-slug on the canonical English name (so /ru and /en share one slug)."""
+    mapping = load_ru_to_en_map(src_root)
+    for entity in entities:
+        if entity.get("name_en"):
+            continue
+        en = mapping.get(entity.get("name", ""))
+        if en:
+            entity["name_en"] = en
+            entity["slug"] = slugify(en)
 
 
 def resolve_cross_refs(all_data: dict) -> None:
@@ -162,6 +212,8 @@ def main():
     parser.add_argument("--output-dir", required=True, help="Output directory for JSON API (e.g. site/api)")
     parser.add_argument("--individual", action="store_true",
                         help="Generate individual {slug}.json files (default: only all.json per resource)")
+    parser.add_argument("--no-validate", action="store_true",
+                        help="Skip JSON Schema validation (for build-time data generation without jsonschema)")
     args = parser.parse_args()
 
     src_root = Path(args.src_root)
@@ -213,6 +265,8 @@ def main():
         elif entity_type == "condition":
             entities = parse_conditions(text, heading_level, lang, after)
             resource = "conditions"
+            if lang == "ru":
+                backfill_name_en(entities, src_root)
         elif entity_type == "feat":
             entities = parse_feats(text, heading_level, lang, after, SKIP_HEADINGS_FEAT)
             resource = "feats"
@@ -237,10 +291,15 @@ def main():
     file_count = 0
 
     # Validate all parsed entities against JSON Schemas
-    for (ver, lang, resource), entities in all_data.items():
-        schema = RESOURCE_SCHEMAS.get(resource)
-        if schema:
-            validate_entities(entities, schema, resource, f"{ver}/{lang}")
+    if args.no_validate:
+        print("  (schema validation skipped: --no-validate)", file=sys.stderr)
+    elif jsonschema is None:
+        print("  Warning: jsonschema not installed — skipping validation", file=sys.stderr)
+    else:
+        for (ver, lang, resource), entities in all_data.items():
+            schema = RESOURCE_SCHEMAS.get(resource)
+            if schema:
+                validate_entities(entities, schema, resource, f"{ver}/{lang}")
 
     # Collectors for hierarchical meta files
     # ver → lang → resource → slugs
