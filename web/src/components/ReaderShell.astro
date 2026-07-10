@@ -21,8 +21,9 @@ export interface Props {
   searchTitle?: string;       // чистый заголовок для индекса Pagefind (иначе берёт h1/документный title)
   bilingual?: boolean;        // корень «/»: рендерим обе подписи, язык — по локали (без редиректа)
   titleRu?: string;           // RU-заголовок (своп document.title при bilingual)
+  upLink?: { href: string; ru: string; en: string }; // центр. кнопка «в раздел» в ряду prev/next
 }
-const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
@@ -270,14 +271,20 @@ const searchUi = {
             </div>
           )}
 
-          {(prev || next) && (
-            <div class="rd-prevnext">
+          {(prev || next || upLink) && (
+            <div class={`rd-prevnext${upLink ? ' rd-has-up' : ''}`}>
               {prev ? (
                 <a class="rd-pn" href={routeOf(prev.slug, lang)}>
                   <span class="rd-pn-k">← {t('Назад', 'Previous')}</span>
                   <span class="rd-pn-t">{label(prev, lang)}</span>
                 </a>
               ) : <span />}
+              {upLink && (
+                <a class="rd-pn-up" href={upLink.href}>
+                  <span class="rd-pn-k">↑ {t('В раздел', 'Section')}</span>
+                  <span class="rd-pn-t">{t(upLink.ru, upLink.en)}</span>
+                </a>
+              )}
               {next ? (
                 <a class="rd-pn rd-pn-r" href={routeOf(next.slug, lang)}>
                   <span class="rd-pn-k">{t('Вперёд', 'Next')} →</span>

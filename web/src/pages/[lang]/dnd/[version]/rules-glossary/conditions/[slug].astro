@@ -40,6 +40,13 @@ const description = excerpt(entity.description_md);
 const base = `/${lang}/dnd/${verSlug}/rules-glossary/conditions`;
 const related = siblings.filter((s) => s.slug !== entity.slug);
 
+// Кнопка «в раздел» (центр ряда prev/next) → родительская глава-глоссарий, откуда состояния.
+const upLink = {
+  href: `/${lang}/dnd/${verSlug}/rules-glossary/`,
+  ru: 'Глоссарий правил',
+  en: 'Rules Glossary',
+};
+
 const kind = t('Состояние', 'Condition');
 const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
 ---
@@ -51,6 +58,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
   searchTitle={entity.name}
   description={description}
   headings={[]}
+  upLink={upLink}
 >
   <h1>
     {entity.name}
