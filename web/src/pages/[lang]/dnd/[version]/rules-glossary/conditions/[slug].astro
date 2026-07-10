@@ -1,6 +1,9 @@
 ---
 import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../../lib/rehype-entity-autolink.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 
 // Programmatic-страницы состояний (issue #20, волна 1) в общем шелле ридера.
@@ -34,7 +37,12 @@ const verSlug = VERSION_SLUG[ver];
 const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
-const bodyHtml = marked.parse(entity.description_md ?? '', { async: false });
+// Автоссылки на другие состояния прямо в теле (issue #20): marked → hast → autolink → html.
+// selfSlug исключает самоссылку. version = 'srd-5.2' (сегмент URL совпадает с ключом версии в config).
+const rawHtml = marked.parse(entity.description_md ?? '', { async: false });
+const tree = fromHtml(rawHtml, { fragment: true });
+autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+const bodyHtml = toHtml(tree);
 const description = excerpt(entity.description_md);
 
 const base = `/${lang}/dnd/${verSlug}/rules-glossary/conditions`;
