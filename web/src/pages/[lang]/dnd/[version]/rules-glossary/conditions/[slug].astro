@@ -62,7 +62,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       <span class="ent-related-h">{t('Другие состояния', 'Other conditions')}</span>
       <span class="ent-related-list">
         {related.map((r) => (
-          <a href={`${base}/${r.slug}/`}>{r.name}</a>
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
         ))}
       </span>
     </nav>
@@ -95,6 +95,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
     flex-wrap: wrap;
     gap: 6px 14px;
   }
-  .ent-related-list a { color: var(--og-accent); text-decoration: none; }
-  .ent-related-list a:hover { text-decoration: underline; }
+  /* Ссылки — как на главной: <a><strong>…</strong></a>. Цвет текста даёт .rd-doc strong
+     (белый), подчёркивание — .rd-doc a (фиолетовый border-bottom). Через разметку, а не
+     scoped-CSS: Astro скоупит через :where() (нулевая специфичность) и проигрывает .rd-doc a. */
 </style>
