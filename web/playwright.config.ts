@@ -16,6 +16,13 @@ export default defineConfig({
     baseURL: BASE,
     trace: 'on-first-retry',
   },
+  // Визуальные снапшоты (e2e/visual.spec.ts): небольшой допуск под сглаживание.
+  // Baseline привязаны к платформе (…-darwin.png) — гоняем локально на одной машине,
+  // кросс-ОС расхождений нет (в CI e2e не запускаем). Обновление:
+  //   rm -rf node_modules/.vite && npm run test:e2e -- visual --update-snapshots
+  expect: {
+    toHaveScreenshot: { maxDiffPixelRatio: 0.01, animations: 'disabled' },
+  },
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: `npm run build && npm run preview -- --port ${PORT}`,
