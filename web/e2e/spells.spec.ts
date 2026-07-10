@@ -24,16 +24,19 @@ test('компоненты В/С/М — abbr с подсказкой (полно
   await expect(abbrs.nth(2)).toHaveAttribute('title', 'Материальный');
 });
 
-test('классы и подклассы — ссылки на страницы классов', async ({ page }) => {
-  // Aid даётся Домом жизни (Жрец) и Клятвой преданности (Паладин).
-  await page.goto('/ru/dnd/srd-5.2/spells/aid/');
+test('классы и подклассы — ссылки; подкласс скрыт, если класс уже в списке', async ({ page }) => {
+  // Fireball: классы Чародей/Волшебник; даётся подклассом Исчадие (Колдун) — Колдуна нет в
+  // списке классов, поэтому «Колдун: Исчадие» показывается.
+  await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
   const meta = page.locator('.spell-meta');
-  // класс-ссылка «Жрец» (точное совпадение — подкласс тоже ведёт на cleric, но текст «Жрец: …»)
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/cleric/"]', { hasText: /^Жрец$/ })).toBeVisible();
-  // строка подклассов: формат «Класс: Подкласс», ссылка на страницу класса
+  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/sorcerer/"]', { hasText: /^Чародей$/ })).toBeVisible();
   await expect(meta).toContainText('Подклассы');
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/cleric/"]', { hasText: 'Жрец: Домен жизни' })).toBeVisible();
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/paladin/"]', { hasText: 'Паладин: Клятва преданности' })).toBeVisible();
+  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/warlock/"]', { hasText: 'Колдун: Исчадие' })).toBeVisible();
+
+  // Aid: даётся Домом жизни (Жрец) и Клятвой преданности (Паладин), но оба класса уже в полном
+  // списке Aid → строка подклассов избыточна и НЕ показывается.
+  await page.goto('/ru/dnd/srd-5.2/spells/aid/');
+  await expect(page.locator('.spell-meta')).not.toContainText('Подклассы');
 });
 
 test('в теле заклинания — автоссылки состояний и hovercard', async ({ page }) => {

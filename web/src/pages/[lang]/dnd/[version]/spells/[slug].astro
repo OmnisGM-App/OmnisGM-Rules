@@ -92,7 +92,11 @@ const subClass = (s: string) => SUBCLASS_INFO[s];
 const subClsName = (s: string) => (lang === 'ru' ? SUBCLASS_INFO[s]?.cls_ru : SUBCLASS_INFO[s]?.cls_en) ?? '';
 const classUrl = (slug: string) => `/${lang}/dnd/${verSlug}/classes/${slug}/`;
 const classList = (Array.isArray(entity.classes) ? entity.classes : []) as string[];
-const subList = (Array.isArray(entity.subclasses) ? entity.subclasses : []) as string[];
+// Подклассы показываем ТОЛЬКО когда их родительский класс НЕ имеет заклинание в полном списке
+// (иначе грант подкласса избыточен — сам класс уже даёт доступ). Напр. Aid на списке Жреца →
+// «Жрец: Домен жизни» не показываем; Fireball не на списке Колдуна → «Колдун: Исчадие» остаётся.
+const subList = ((Array.isArray(entity.subclasses) ? entity.subclasses : []) as string[])
+  .filter((s) => !classList.includes(subClsName(s)));
 
 // Компоненты: аббревиатуры В/С/М с нативным тултипом (полное слово при наведении на ПК).
 const comp = (entity.components ?? {}) as Record<string, unknown>;
