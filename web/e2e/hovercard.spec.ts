@@ -14,7 +14,11 @@ test('карточка появляется при наведении на ав�
   await link.hover();
   await expect(card).toBeVisible();
   await expect(card.locator('.ent-hc-name')).not.toBeEmpty();
-  await expect(card.locator('.ent-hc-excerpt')).not.toBeEmpty();
+  // эффект — форматированный блок с подэффектами, без вводной «Пока вы находитесь…»
+  const body = card.locator('.ent-hc-body');
+  await expect(body).not.toBeEmpty();
+  await expect(body).not.toContainText('Пока вы находитесь в состоянии');
+  await expect(body.locator('strong').first()).toBeVisible(); // жирные ярлыки сохранены
 });
 
 test('содержимое карточки соответствует данным сущности из /hc JSON', async ({ page, request }) => {
