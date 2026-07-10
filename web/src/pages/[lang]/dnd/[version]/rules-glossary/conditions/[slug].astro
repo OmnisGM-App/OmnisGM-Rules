@@ -1,0 +1,100 @@
+---
+import { marked } from 'marked';
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+
+// Programmatic-страницы состояний (issue #20, волна 1) в общем шелле ридера.
+// URL вложен под главу-родителя: /{lang}/dnd/{version}/rules-glossary/conditions/{slug}/.
+// EN и RU делят канонический (английский) слаг → корректный hreflang (ReaderShell считает его из URL).
+
+// Nav-узел главы-родителя по версии (для подсветки дерева, breadcrumb, prev/next, CTA-атрибуции).
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesglossary' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const conditions = loadEntities(ver, lang, 'conditions');
+    const siblings = conditions.map((c) => ({ slug: c.slug, name: c.name }));
+    for (const entity of conditions) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+const bodyHtml = marked.parse(entity.description_md ?? '', { async: false });
+const description = excerpt(entity.description_md);
+
+const base = `/${lang}/dnd/${verSlug}/rules-glossary/conditions`;
+const related = siblings.filter((s) => s.slug !== entity.slug);
+
+const kind = t('Состояние', 'Condition');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+>
+  <h1>{entity.name}</h1>
+  {lang === 'ru' && entity.name_en && <p class="ent-en">{entity.name_en}</p>}
+
+  <Fragment set:html={bodyHtml} />
+
+  {related.length > 0 && (
+    <nav class="ent-related" aria-label={t('Другие состояния', 'Other conditions')}>
+      <span class="ent-related-h">{t('Другие состояния', 'Other conditions')}</span>
+      <span class="ent-related-list">
+        {related.map((r) => (
+          <a href={`${base}/${r.slug}/`}>{r.name}</a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  .ent-en {
+    margin: -14px 0 0;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    color: var(--og-text-muted);
+  }
+  .ent-related {
+    display: block;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--og-border);
+  }
+  .ent-related-h {
+    display: block;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--og-text-muted);
+    margin-bottom: 10px;
+  }
+  .ent-related-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+  .ent-related-list a { color: var(--og-accent); text-decoration: none; }
+  .ent-related-list a:hover { text-decoration: underline; }
+</style>
