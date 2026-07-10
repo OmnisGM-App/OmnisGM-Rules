@@ -13,7 +13,10 @@ test('карточка появляется при наведении на ав�
   await expect(card).toHaveCount(0); // до первого показа элемента нет в DOM
   await link.hover();
   await expect(card).toBeVisible();
-  await expect(card.locator('.ent-hc-name')).not.toBeEmpty();
+  // шапка: источник + EN-имя (RU-карточка); RU-имя не дублируем (навели на само слово)
+  await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
+  await expect(card.locator('.ent-hc-en')).not.toBeEmpty();
+  await expect(card.locator('.ent-hc-name')).toHaveCount(0);
   // эффект — форматированный блок с подэффектами, без вводной «Пока вы находитесь…»
   const body = card.locator('.ent-hc-body');
   await expect(body).not.toBeEmpty();
@@ -33,8 +36,7 @@ test('содержимое карточки соответствует данн�
   await link.hover();
   const card = page.locator('#ent-hovercard');
   await expect(card).toBeVisible();
-  await expect(card.locator('.ent-hc-name')).toHaveText(c.name);
-  // RU: показываем EN-подпись (name_en), если она есть и отличается от имени.
+  // RU-карточка показывает оригинальное EN-имя (не RU-имя, на которое навели).
   if (c.name_en && c.name_en !== c.name) await expect(card.locator('.ent-hc-en')).toHaveText(c.name_en);
 });
 
