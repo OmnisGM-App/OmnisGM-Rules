@@ -1,6 +1,8 @@
 import { defineConfig, devices } from '@playwright/test';
 
-// E2E гоняются ЛОКАЛЬНО (npm run test:e2e), в CI не тащим — там только astro check + build.
+// Поведенческие e2e гоняются и локально (npm run test:e2e), и в CI (job e2e,
+// с --ignore-snapshots). Визуальные снапшоты (visual.spec.ts) — ТОЛЬКО локально:
+// baseline привязан к платформе (…-darwin.png), на ubuntu-раннере не совпадёт.
 // Тестируем прод-вывод: собираем бандл и поднимаем `astro preview` (ровно то, что уедет
 // на хостинг), а не dev-сервер.
 const PORT = 4321;
