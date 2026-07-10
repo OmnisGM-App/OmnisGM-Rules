@@ -191,9 +191,10 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc a:hover { border-bottom-color: var(--og-accent); }
 .rd-doc a[href^="http"] { color: var(--og-warm); border-bottom: 1px solid color-mix(in oklab, var(--og-warm) 40%, transparent); }
 .rd-doc a[href^="http"]:hover { border-bottom-color: var(--og-warm); }
-/* Автоссылки-термины (rehype-entity-autolink) оформляются как ОБЫЧНЫЕ ссылки в тексте
-   (наследуют .rd-doc a: акцентный цвет + сплошное подчёркивание) — единый стиль ссылок
-   и в главах, и на страницах сущностей. Класс .ent-link оставлен для JS (hovercard). */
+/* Автоссылки-термины (rehype-entity-autolink): цвет текста как у прозы + пунктир акцентом —
+   читаются как «глоссарный термин», отличимы от обычных внутренних/внешних ссылок. */
+.rd-doc a.ent-link { color: inherit; border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent); }
+.rd-doc a.ent-link:hover { color: var(--og-accent); border-bottom-style: solid; border-bottom-color: var(--og-accent); }
 
 /* Hovercard автоссылок (issue #20, вариант B): карточка сущности при наведении/фокусе.
    Единый переиспользуемый элемент в <body>; позицию задаёт клиентский скрипт (top/left). */
