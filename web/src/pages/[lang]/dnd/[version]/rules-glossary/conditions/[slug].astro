@@ -40,6 +40,13 @@ const description = excerpt(entity.description_md);
 const base = `/${lang}/dnd/${verSlug}/rules-glossary/conditions`;
 const related = siblings.filter((s) => s.slug !== entity.slug);
 
+// Кнопка «в раздел» (центр ряда prev/next) → родительская глава-глоссарий, откуда состояния.
+const upLink = {
+  href: `/${lang}/dnd/${verSlug}/rules-glossary/`,
+  ru: 'Глоссарий правил',
+  en: 'Rules Glossary',
+};
+
 const kind = t('Состояние', 'Condition');
 const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
 ---
@@ -51,9 +58,12 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
   searchTitle={entity.name}
   description={description}
   headings={[]}
+  upLink={upLink}
 >
-  <h1>{entity.name}</h1>
-  {lang === 'ru' && entity.name_en && <p class="ent-en">{entity.name_en}</p>}
+  <h1>
+    {entity.name}
+    {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+  </h1>
 
   <Fragment set:html={bodyHtml} />
 
@@ -70,10 +80,16 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
 </ReaderShell>
 
 <style>
+  /* Оригинальное (англ.) название — ВНУТРИ h1, над её нижней границей (чертой).
+     Прямые правила на .ent-en бьют наследование от h1 при любой стратегии скоупинга,
+     поэтому specificity-война с `.rd-doc h1` не нужна. */
   .ent-en {
-    margin: -14px 0 0;
+    display: block;
+    margin-top: 8px;
     font-family: var(--font-mono);
     font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0;
     color: var(--og-text-muted);
   }
   .ent-related {
