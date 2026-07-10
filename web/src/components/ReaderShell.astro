@@ -612,10 +612,15 @@ const searchUi = {
   card.className = 'ent-hovercard';
   card.id = 'ent-hovercard';
   card.setAttribute('role', 'tooltip');
-  const elName = document.createElement('span'); elName.className = 'ent-hc-name';
+  // Шапка: слева EN-имя (только в RU-карточке — имя, на которое навели, уже перед глазами;
+  // в EN оно избыточно), справа источник. Ниже — эффект.
+  const SRC: Record<string, string> = { srd52: 'SRD 5.2.1', srd51: 'SRD 5.1' };
+  const head = document.createElement('div'); head.className = 'ent-hc-head';
   const elEn = document.createElement('span'); elEn.className = 'ent-hc-en';
+  const elSrc = document.createElement('span'); elSrc.className = 'ent-hc-src';
+  head.append(elEn, elSrc);
   const elBody = document.createElement('div'); elBody.className = 'ent-hc-body';
-  card.append(elName, elEn, elBody);
+  card.append(head, elBody);
   let mounted = false;
 
   let current: HTMLElement | null = null;
@@ -654,9 +659,10 @@ const searchUi = {
       if (my !== token) return;
       const c = map && map[rkey];
       if (!c) return;
-      elName.textContent = c.name;
+      // EN-имя — только когда отличается от имени ссылки (RU-карточка); в EN c.name_en = null → скрыто.
       if (c.name_en && c.name_en !== c.name) { elEn.textContent = c.name_en; elEn.style.display = ''; }
-      else elEn.style.display = 'none';
+      else { elEn.textContent = ''; elEn.style.display = 'none'; }
+      elSrc.textContent = SRC[ver] || '';
       elBody.innerHTML = c.effect || ''; // доверенный контент (наши SRD-данные, экранированы на билде)
       elBody.style.display = c.effect ? '' : 'none';
       if (!mounted) { document.body.appendChild(card); mounted = true; }
