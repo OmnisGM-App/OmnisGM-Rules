@@ -28,12 +28,12 @@ test('классы и подклассы — ссылки на страницы 
   // Aid даётся Домом жизни (Жрец) и Клятвой преданности (Паладин).
   await page.goto('/ru/dnd/srd-5.2/spells/aid/');
   const meta = page.locator('.spell-meta');
-  // класс-ссылка (та же cleric-страница используется и подклассом → уточняем текстом)
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/cleric/"]', { hasText: 'Жрец' })).toBeVisible();
-  // строка подклассов + ссылки
+  // класс-ссылка «Жрец» (точное совпадение — подкласс тоже ведёт на cleric, но текст «Жрец: …»)
+  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/cleric/"]', { hasText: /^Жрец$/ })).toBeVisible();
+  // строка подклассов: формат «Класс: Подкласс», ссылка на страницу класса
   await expect(meta).toContainText('Подклассы');
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/cleric/"]', { hasText: 'Домен жизни' })).toBeVisible();
-  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/paladin/"]', { hasText: 'Клятва преданности' })).toBeVisible();
+  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/cleric/"]', { hasText: 'Жрец: Домен жизни' })).toBeVisible();
+  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/paladin/"]', { hasText: 'Паладин: Клятва преданности' })).toBeVisible();
 });
 
 test('в теле заклинания — автоссылки состояний и hovercard', async ({ page }) => {

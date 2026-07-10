@@ -77,12 +77,19 @@ const CLASS_SLUG: Record<string, string> = {
   Бард: 'bard', Жрец: 'cleric', Друид: 'druid', Паладин: 'paladin', Следопыт: 'ranger',
   Чародей: 'sorcerer', Колдун: 'warlock', Волшебник: 'wizard',
 };
-const SUBCLASS_CLASS: Record<string, string> = {
-  'Life Domain': 'cleric', 'Домен жизни': 'cleric',
-  'Oath of Devotion': 'paladin', 'Клятва преданности': 'paladin',
-  Fiend: 'warlock', Исчадие: 'warlock',
-  Draconic: 'sorcerer', 'Драконье чародейство': 'sorcerer',
+// Подкласс → родительский класс (slug + локализованное имя): показываем «Класс: Подкласс».
+const SUBCLASS_INFO: Record<string, { slug: string; cls_ru: string; cls_en: string }> = {
+  'Life Domain':        { slug: 'cleric',   cls_ru: 'Жрец',    cls_en: 'Cleric' },
+  'Домен жизни':        { slug: 'cleric',   cls_ru: 'Жрец',    cls_en: 'Cleric' },
+  'Oath of Devotion':   { slug: 'paladin',  cls_ru: 'Паладин', cls_en: 'Paladin' },
+  'Клятва преданности': { slug: 'paladin',  cls_ru: 'Паладин', cls_en: 'Paladin' },
+  Fiend:                { slug: 'warlock',  cls_ru: 'Колдун',  cls_en: 'Warlock' },
+  Исчадие:              { slug: 'warlock',  cls_ru: 'Колдун',  cls_en: 'Warlock' },
+  Draconic:             { slug: 'sorcerer', cls_ru: 'Чародей', cls_en: 'Sorcerer' },
+  'Драконье чародейство': { slug: 'sorcerer', cls_ru: 'Чародей', cls_en: 'Sorcerer' },
 };
+const subClass = (s: string) => SUBCLASS_INFO[s];
+const subClsName = (s: string) => (lang === 'ru' ? SUBCLASS_INFO[s]?.cls_ru : SUBCLASS_INFO[s]?.cls_en) ?? '';
 const classUrl = (slug: string) => `/${lang}/dnd/${verSlug}/classes/${slug}/`;
 const classList = (Array.isArray(entity.classes) ? entity.classes : []) as string[];
 const subList = (Array.isArray(entity.subclasses) ? entity.subclasses : []) as string[];
@@ -162,7 +169,9 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
         <dt>{t('Подклассы', 'Subclasses')}</dt>
         <dd>
           {subList.map((s, i) => (
-            <Fragment>{i > 0 ? ', ' : ''}{SUBCLASS_CLASS[s] ? <a href={classUrl(SUBCLASS_CLASS[s])}>{s}</a> : s}</Fragment>
+            <Fragment>{i > 0 ? ', ' : ''}{subClass(s)
+              ? <a href={classUrl(subClass(s)!.slug)}>{subClsName(s)}: {s}</a>
+              : s}</Fragment>
           ))}
         </dd>
       </div>
