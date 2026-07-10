@@ -19,6 +19,28 @@ const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 // Ресурсы с программными страницами → сегмент URL-родителя под главой.
 const RESOURCES = [{ key: 'conditions', urlParent: 'rules-glossary/conditions' }];
 
+// Доп. имена-синонимы: `${game}/${lang}` → { [slug]: [alias, …] }.
+// RU-состояния — прилагательные; SRD-перевод часто использует КРАТКУЮ форму как ключевое слово
+// («получаете состояние Недееспособен», «состояние «Ослеплён»»). Номинатив («…ный») там не
+// встречается, поэтому базовый матчинг их не ловит → страдает паритет EN/RU. Литералы защищены
+// границами слова (ловят ровно краткую муж. форму, не длинную и не «Невидимость»). Каждое слово
+// проверено в корпусе src/dnd/srd-5.2/ru. Женский/средний/мн. краткие формы намеренно не добавляем
+// (реже, риск ложных срабатываний) — остаток покрывает allowlist в e2e-тесте паритета.
+const ALIASES = {
+  'dnd/ru': {
+    blinded: ['Ослеплён'],
+    charmed: ['Очарован'],
+    frightened: ['Испуган'],
+    grappled: ['Схвачен'],
+    incapacitated: ['Недееспособен'],
+    invisible: ['Невидим'],
+    paralyzed: ['Парализован'],
+    poisoned: ['Отравлен'],
+    restrained: ['Опутан'],
+    stunned: ['Ошеломлён'],
+  },
+};
+
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -40,8 +62,12 @@ function loadMap(game, version, lang) {
     } catch {
       continue; // ресурса нет для этой игры/версии/языка — просто пропускаем
     }
+    const aliases = ALIASES[`${game}/${lang}`] || {};
     for (const e of data) {
-      if (e && e.name && e.slug) entries.push({ name: e.name, slug: e.slug, resource: key, urlParent });
+      if (!e || !e.name || !e.slug) continue;
+      entries.push({ name: e.name, slug: e.slug, resource: key, urlParent });
+      for (const alias of aliases[e.slug] || [])
+        entries.push({ name: alias, slug: e.slug, resource: key, urlParent });
     }
   }
   if (!entries.length) {

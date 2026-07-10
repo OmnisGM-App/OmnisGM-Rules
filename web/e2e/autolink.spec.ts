@@ -45,3 +45,66 @@ test('автоссылка несёт data-hc для будущего hovercard'
   const first = page.locator('.rd-doc a.ent-link').first();
   await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/conditions\//);
 });
+
+// Паритет EN/RU: страницы одной главы — зеркальный перевод, значит набор слинкованных состояний
+// должен совпадать. Дедуп «первое упоминание» → на странице ≤1 ссылки на каждое состояние, поэтому
+// равенство МНОЖЕСТВ здесь эквивалентно равенству КОЛИЧЕСТВ.
+//
+// Реальные расхождения вынесены в EXCEPTIONS с причиной — их два вида:
+//  • RU-перевод не использует термин состояния (EN капитализирует ключевое слово, RU дал прозу);
+//  • RU капитализирует «Невидимый» как термин, а EN тут про заклинание Invisibility, не состояние.
+// Тест падает и при НОВОМ расхождении (регрессия матчинга/перевода), и при ПРОТУХШЕЙ записи
+// allowlist (расхождение исчезло → запись надо убрать).
+const EXCEPTIONS: Record<string, string[]> = {
+  '/en/dnd/srd-5.2/animals/': ['charmed', 'paralyzed', 'petrified', 'stunned'], // RU не использует термины
+  '/en/dnd/srd-5.2/classes/bard/': ['invisible'], // RU «Невидимый»; EN — заклинание Invisibility
+  '/en/dnd/srd-5.2/classes/monk/': ['exhaustion'], // RU не использует «Истощение»
+  '/en/dnd/srd-5.2/classes/ranger/': ['exhaustion'],
+  '/en/dnd/srd-5.2/classes/warlock/': ['invisible'],
+  '/en/dnd/srd-5.2/classes/wizard/': ['invisible'],
+  '/en/dnd/srd-5.2/equipment/': ['unconscious'], // RU не использует «Без сознания»
+  '/en/dnd/srd-5.2/feats/': ['grappled'], // RU не использует «Схваченный»
+  '/en/dnd/srd-5.2/magic-items/': ['prone', 'restrained', 'unconscious'],
+};
+
+async function linkedConditions(page: import('@playwright/test').Page, path: string): Promise<Set<string>> {
+  await page.goto(path);
+  const hrefs = await page
+    .locator('.rd-doc a.ent-link')
+    .evaluateAll((els) => els.map((e) => e.getAttribute('href') || ''));
+  const slugs = hrefs.map((h) => h.match(/\/conditions\/([a-z-]+)\//)?.[1]).filter(Boolean) as string[];
+  return new Set(slugs);
+}
+
+test('EN/RU: набор слинкованных состояний совпадает по всем главам (кроме allowlist)', async ({ page, request }) => {
+  const sitemap = await (await request.get('/sitemap-0.xml')).text();
+  const chapters = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)]
+    .map((m) => new URL(m[1]).pathname)
+    .filter(
+      (p) =>
+        p.startsWith('/en/dnd/srd-5.2/') &&
+        !p.includes('/glossary/') && // справочные таблицы вне индекса
+        !p.includes('/rules-glossary/conditions/'), // сами страницы состояний, не главы
+    );
+  expect(chapters.length).toBeGreaterThan(10);
+
+  const usedExceptions = new Set<string>();
+  const failures: string[] = [];
+  for (const en of chapters) {
+    const ru = en.replace('/en/', '/ru/');
+    const enSet = await linkedConditions(page, en);
+    const ruSet = await linkedConditions(page, ru);
+    const diff = [...new Set([...enSet, ...ruSet])].filter((s) => enSet.has(s) !== ruSet.has(s));
+    const allow = new Set(EXCEPTIONS[en] || []);
+    for (const s of diff) {
+      if (allow.has(s)) usedExceptions.add(`${en}:${s}`);
+      else failures.push(`${en}: '${s}' (EN=${enSet.has(s)} RU=${ruSet.has(s)}) — вне allowlist`);
+    }
+  }
+  expect(failures, `новые EN/RU-расхождения:\n${failures.join('\n')}`).toEqual([]);
+
+  // Протухшие исключения: каждая запись allowlist должна реально срабатывать (иначе — убрать).
+  const declared = Object.entries(EXCEPTIONS).flatMap(([u, arr]) => arr.map((s) => `${u}:${s}`));
+  const stale = declared.filter((k) => !usedExceptions.has(k));
+  expect(stale, `протухшие записи allowlist (расхождение исчезло — уберите):\n${stale.join('\n')}`).toEqual([]);
+});
