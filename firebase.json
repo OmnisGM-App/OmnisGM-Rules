@@ -8,6 +8,13 @@
     ],
     "ignore": ["firebase.json", "**/node_modules/**"],
     "trailingSlash": true,
+    "redirects": [
+      {
+        "source": "/sitemap.xml",
+        "destination": "/sitemap-index.xml",
+        "type": 301
+      }
+    ],
     "headers": [
       {
         "source": "/.well-known/web-app-origin-association",
