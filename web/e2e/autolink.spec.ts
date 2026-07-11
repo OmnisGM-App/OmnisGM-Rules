@@ -5,14 +5,26 @@ import { test, expect } from '@playwright/test';
 const CHAPTER = '/en/dnd/srd-5.2/spells/'; // глава с множеством упоминаний состояний
 const ENTITY = '/en/dnd/srd-5.2/rules-glossary/conditions/paralyzed/'; // тело ссылается на Incapacitated
 
-test('глава: имена состояний автолинкуются на страницы состояний', async ({ page }) => {
+test('глава: автоссылки ведут на страницы сущностей (состояния/заклинания)', async ({ page }) => {
   await page.goto(CHAPTER);
   const links = page.locator('.rd-doc a.ent-link');
   expect(await links.count()).toBeGreaterThan(0);
-  // Все ent-link ведут на страницы состояний.
+  // Все ent-link ведут на программную страницу сущности: состояние или заклинание.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toContain('/rules-glossary/conditions/');
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells)\/[a-z-]+\/$/);
   }
+});
+
+test('заклинания: имена в спелл-таблицах классов и в курсиве линкуются на страницы заклинаний', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/classes/cleric/');
+  const spellLinks = page.locator('.rd-doc a.ent-link[href*="/dnd/srd-5.2/spells/"]');
+  expect(await spellLinks.count()).toBeGreaterThan(20); // таблицы спелл-листов + курсивные упоминания
+  // табличная ссылка (первая колонка спелл-листа)
+  await expect(page.locator('.rd-doc td a.ent-link[href*="/spells/"]').first()).toBeVisible();
+  // курсивная ссылка в прозе (<em><a>)
+  await expect(page.locator('.rd-doc em a.ent-link[href*="/spells/"]').first()).toBeVisible();
+  // обычное слово (не курсив, не в спелл-таблице) НЕ линкуется: «свет» строчным в прозе
+  await expect(page.locator('.rd-doc a.ent-link', { hasText: /^свет$/ })).toHaveCount(0);
 });
 
 test('автолинк не попадает в заголовки и не вкладывается в другие ссылки', async ({ page }) => {
@@ -46,7 +58,7 @@ test('страница состояния: тело линкует другие 
 test('автоссылка несёт data-hc для будущего hovercard', async ({ page }) => {
   await page.goto(CHAPTER);
   const first = page.locator('.rd-doc a.ent-link').first();
-  await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/conditions\//);
+  await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/(conditions|spells)\//);
 });
 
 // Паритет EN/RU: страницы одной главы — зеркальный перевод, значит НАБОР слинкованных состояний
@@ -63,11 +75,10 @@ test('автоссылка несёт data-hc для будущего hovercard'
 // Тест падает и при НОВОМ расхождении (регрессия матчинга/перевода), и при ПРОТУХШЕЙ записи
 // allowlist (расхождение исчезло → запись надо убрать).
 const EXCEPTIONS: Record<string, string[]> = {
-  '/en/dnd/srd-5.2/classes/bard/': ['invisible'], // RU «Невидимый»; EN — заклинание Invisibility
+  // (bard/warlock/wizard : invisible — сняты: «Невидимость» теперь линкуется как ЗАКЛИНАНИЕ
+  //  в спелл-листах, не как состояние, → расхождение состояния исчезло на обоих языках.)
   '/en/dnd/srd-5.2/classes/monk/': ['exhaustion'], // RU не использует «Истощение»
   '/en/dnd/srd-5.2/classes/ranger/': ['exhaustion'],
-  '/en/dnd/srd-5.2/classes/warlock/': ['invisible'],
-  '/en/dnd/srd-5.2/classes/wizard/': ['invisible'],
   '/en/dnd/srd-5.2/feats/': ['grappled'], // RU не использует «Схваченный»
   '/en/dnd/srd-5.2/magic-items/': ['prone', 'unconscious'], // RU: иные формы/прозой
 };

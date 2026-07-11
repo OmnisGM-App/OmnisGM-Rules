@@ -7,7 +7,7 @@ const CHAPTER = '/ru/dnd/srd-5.2/spells/';
 
 test('карточка появляется при наведении на автоссылку', async ({ page }) => {
   await page.goto(CHAPTER);
-  const link = page.locator('.rd-doc a.ent-link[data-hc]').first();
+  const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
   await expect(link).toBeVisible();
   const card = page.locator('#ent-hovercard');
   await expect(card).toHaveCount(0); // до первого показа элемента нет в DOM
@@ -26,7 +26,7 @@ test('карточка появляется при наведении на ав�
 
 test('содержимое карточки соответствует данным сущности из /hc JSON', async ({ page, request }) => {
   await page.goto(CHAPTER);
-  const link = page.locator('.rd-doc a.ent-link[data-hc]').first();
+  const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
   const hc = (await link.getAttribute('data-hc'))!; // dnd/srd52/ru/conditions/<slug>
   const [game, ver, lang, ...rest] = hc.split('/');
   const bucket = await (await request.get(`/hc/${game}/${ver}/${lang}.json`)).json();
@@ -42,7 +42,7 @@ test('содержимое карточки соответствует данн�
 
 test('клавиатурный фокус открывает карточку и связывает aria-describedby', async ({ page }) => {
   await page.goto(CHAPTER);
-  const link = page.locator('.rd-doc a.ent-link[data-hc]').first();
+  const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
   await link.focus();
   const card = page.locator('#ent-hovercard');
   await expect(card).toBeVisible();
@@ -54,7 +54,7 @@ test('клавиатурный фокус открывает карточку и
 
 test('карточка скрывается, когда курсор уходит со ссылки', async ({ page }) => {
   await page.goto(CHAPTER);
-  const link = page.locator('.rd-doc a.ent-link[data-hc]').first();
+  const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
   await link.hover();
   await expect(page.locator('#ent-hovercard')).toBeVisible();
   await page.mouse.move(0, 0);
