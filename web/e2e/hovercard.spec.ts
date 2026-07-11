@@ -61,6 +61,18 @@ test('карточка скрывается, когда курсор уходи�
   await expect(page.locator('#ent-hovercard')).toBeHidden();
 });
 
+test('карточка монстра: источник, строка типа + мета (КД · хиты · ПО)', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/spells/animate-dead/');
+  const mon = page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/skeleton/"]').first();
+  await mon.scrollIntoViewIfNeeded();
+  await mon.hover();
+  const card = page.locator('#ent-hovercard');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
+  await expect(card.locator('.ent-hc-body .hc-sub')).toContainText('Undead'); // строка типа
+  await expect(card.locator('.ent-hc-body .hc-meta')).toContainText('CR'); // КД · хиты · ПО
+});
+
 test('карточка заклинания: EN-имя, источник, «уровень, школа» + мета', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/classes/cleric/');
   const spell = page.locator('.rd-doc td a.ent-link[href*="/spells/"]', { hasText: 'Лечение ран' }).first();

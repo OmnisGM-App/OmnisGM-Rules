@@ -9,9 +9,9 @@ test('глава: автоссылки ведут на страницы сущн
   await page.goto(CHAPTER);
   const links = page.locator('.rd-doc a.ent-link');
   expect(await links.count()).toBeGreaterThan(0);
-  // Все ent-link ведут на программную страницу сущности: состояние или заклинание.
+  // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toMatch(/\/(rules-glossary\/conditions|spells)\/[a-z-]+\/$/);
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z)\/[a-z-]+\/$/);
   }
 });
 
@@ -25,6 +25,20 @@ test('заклинания: имена в спелл-таблицах класс
   await expect(page.locator('.rd-doc em a.ent-link[href*="/spells/"]').first()).toBeVisible();
   // обычное слово (не курсив, не в спелл-таблице) НЕ линкуется: «свет» строчным в прозе
   await expect(page.locator('.rd-doc a.ent-link', { hasText: /^свет$/ })).toHaveCount(0);
+});
+
+test('монстры: имя в жирном линкуется на страницу монстра; генеричное слово в прозе — нет', async ({ page }) => {
+  // Animate Dead: «becomes an Undead creature: a **Skeleton** … or a **Zombie**» — жирный = ссылка
+  // на статблок (сигнал SRD «see Monsters»).
+  await page.goto('/en/dnd/srd-5.2/spells/animate-dead/');
+  await expect(
+    page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/skeleton/"]'),
+  ).toBeVisible();
+  await expect(
+    page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/zombie/"]'),
+  ).toBeVisible();
+  // «Undead», «creature», «Humanoid» в прозе (не жирные имена монстров) НЕ линкуются на монстров.
+  await expect(page.locator('.rd-doc a.ent-link[href*="/monsters-a-z/humanoid/"]')).toHaveCount(0);
 });
 
 test('автолинк не попадает в заголовки и не вкладывается в другие ссылки', async ({ page }) => {
@@ -58,7 +72,7 @@ test('страница состояния: тело линкует другие 
 test('автоссылка несёт data-hc для будущего hovercard', async ({ page }) => {
   await page.goto(CHAPTER);
   const first = page.locator('.rd-doc a.ent-link').first();
-  await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/(conditions|spells)\//);
+  await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/(conditions|spells|monsters)\//);
 });
 
 // Паритет EN/RU: страницы одной главы — зеркальный перевод, значит НАБОР слинкованных состояний
