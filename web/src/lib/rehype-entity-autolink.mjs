@@ -49,6 +49,7 @@ const EXACT_ALIASES = {
       ghoul: ['Упырём', 'Упырями'], griffon: ['Грифоном'], nightmare: ['Кошмаром'],
       berserker: ['Берсерка'], djinni: ['Джинна'], wight: ['Умертвиями'],
       mummy: ['Мумиями', 'Мумией'], knight: ['Рыцаря'], skeleton: ['Скелетов'],
+      ghast: ['Гастами'], 'shrieker-fungus': ['Визгуна'],
       'air-elemental': ['Воздушного элементаля'], 'earth-elemental': ['Земляного элементаля'],
       'fire-elemental': ['Огненного элементаля'], 'water-elemental': ['Водного элементаля'],
       'awakened-shrub': ['Пробуждённого куста'], 'awakened-tree': ['Пробуждённого дерева'],

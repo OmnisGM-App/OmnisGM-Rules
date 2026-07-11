@@ -48,6 +48,17 @@ test('монстры RU: склонённые жирные формы линку
   await expect(
     page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/ghoul/"]').first(),
   ).toBeVisible();
+  // Терминология выровнена по бестиарию: «Гастами» (не «Вурдалаками») → ghast.
+  await expect(
+    page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/ghast/"]', { hasText: 'Гастами' }).first(),
+  ).toBeVisible();
+});
+
+test('монстры RU: термин выровнен по бестиарию (Бюлетт, не Буллет) → bulette', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/magic-items/');
+  await expect(page.locator('.rd-doc a.ent-link[href$="/monsters-a-z/bulette/"]', { hasText: 'Бюлетт' })).toBeVisible();
+  // старый неканоничный термин не встречается в тексте
+  await expect(page.locator('.rd-doc', { hasText: 'Буллет' })).toHaveCount(0);
 });
 
 test('автолинк не попадает в заголовки и не вкладывается в другие ссылки', async ({ page }) => {
