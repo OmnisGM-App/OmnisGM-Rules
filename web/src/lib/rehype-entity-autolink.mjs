@@ -4,9 +4,11 @@
 // Два режима матчинга (по ресурсу):
 //  • text  — состояния: plain-текст, case-sensitive keyword с границами слова (SRD капитализирует
 //    имена состояний; строчное «prone» не ловим). Синонимы-краткие формы — в ALIASES.
-//  • exact — заклинания: линкуем ТОЛЬКО там, где SRD сам разметил ссылку — курсив `<em>Свет</em>`
-//    (полный текст = имя) ИЛИ первая колонка таблиц спелл-листов классов. Слово «свет» в прозе
-//    не трогаем — только явные курсивные упоминания. Так снимается переусердствование.
+//  • exact — заклинания/монстры: линкуем ТОЛЬКО там, где SRD сам разметил ссылку. Контейнер
+//    задаётся ресурсом: заклинания — курсив `<em>Свет</em>` (полный текст = имя) ИЛИ первая
+//    колонка спелл-таблиц классов; монстры — жирный `<strong>Скелет</strong>` (сигнал SRD
+//    «см. Монстры»). Строчное «свет» / генеричное «Стражник» в прозе не трогаем — только
+//    явную разметку. Так снимается переусердствование.
 //
 // Не трогаем текст внутри <a>/<code>/<pre>/<kbd> и заголовков <h1>…<h6>.
 import fs from 'node:fs';
@@ -16,11 +18,13 @@ import path from 'node:path';
 // (страницы сущностей). import.meta.url под Vite указывает не туда.
 const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 
-// Ресурсы с программными страницами. mode: 'text' | 'exact'. versions — ограничение по версиям
-// (где реально есть страницы); без него — все версии.
+// Ресурсы с программными страницами. mode: 'text' | 'exact'. container (для exact) — тег-обёртка
+// разметки-сигнала SRD: 'em' (курсив, заклинания) или 'strong' (жирный, монстры). versions —
+// ограничение по версиям (где реально есть страницы); без него — все версии.
 const RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
-  { key: 'spells', urlParent: 'spells', mode: 'exact', versions: ['srd-5.2'] },
+  { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
+  { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
 ];
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.
@@ -49,8 +53,10 @@ function loadMap(game, version, lang) {
   const verKey = verKeyOf(version);
   const aliases = ALIASES[`${game}/${lang}`] || {};
   const textEntries = [];
-  const exact = new Map();
-  for (const { key, urlParent, mode, versions } of RESOURCES) {
+  // exact-карты по контейнеру: em (заклинания) и strong (монстры) — держим раздельно, чтобы
+  // имя монстра в курсиве / имя заклинания в жирном не матчились не в своём контексте.
+  const exact = { em: new Map(), strong: new Map() };
+  for (const { key, urlParent, mode, container, versions } of RESOURCES) {
     if (versions && !versions.includes(version)) continue;
     const file = path.join(DATA_ROOT, game, verKey, lang, key, 'all.json');
     let data;
@@ -63,11 +69,12 @@ function loadMap(game, version, lang) {
       if (!e || !e.name || !e.slug) continue;
       const entry = { name: e.name, slug: e.slug, resource: key, urlParent };
       if (mode === 'exact') {
-        // Ключ в lowercase: SRD размечает курсивом ссылки на заклинания и СТРОЧНЫМИ
-        // («*лечение ран*»), и с заглавной («*Благословение*») — ловим оба. Внутри <em>/ячейки
-        // спелл-таблицы полное совпадение фразы с именем безопасно и без учёта регистра.
+        // Ключ в lowercase: SRD размечает ссылки и СТРОЧНЫМИ («*лечение ран*»), и с заглавной
+        // («*Благословение*», «**Скелет**») — ловим оба. Внутри разметки-контейнера полное
+        // совпадение фразы с именем безопасно и без учёта регистра.
+        const m = exact[container];
         const k = e.name.toLowerCase();
-        if (!exact.has(k)) exact.set(k, entry);
+        if (m && !m.has(k)) m.set(k, entry);
       } else {
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
@@ -82,7 +89,7 @@ function loadMap(game, version, lang) {
     const alt = textEntries.map((e) => escapeRegExp(e.name)).join('|');
     text = { regexSource: `(?<![\\p{L}\\p{N}_])(${alt})(?![\\p{L}\\p{N}_])`, byName };
   }
-  const result = text || exact.size ? { text, exact, verKey } : null;
+  const result = text || exact.em.size || exact.strong.size ? { text, exact, verKey } : null;
   mapCache.set(cacheKey, result);
   return result;
 }
@@ -146,10 +153,10 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
   if (selfSlug) skip.add(selfSlug);
   const ctx = { game, lang, verSlug: version, verKey: map.verKey };
 
-  const exactEntry = (rawText) => {
+  const exactEntry = (rawText, container) => {
     if (rawText == null) return null;
     const t = rawText.trim();
-    const entry = map.exact.get(t.toLowerCase()); // регистро-независимо (текст ссылки — как в оригинале)
+    const entry = map.exact[container].get(t.toLowerCase()); // регистро-независимо (текст ссылки — как в оригинале)
     return entry && !skip.has(entry.slug) ? { entry, text: t } : null;
   };
 
@@ -168,7 +175,7 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
     for (const tr of rows) {
       const cell = tr.children.find((c) => c.type === 'element' && c.tagName === 'td'); // только данные (не th)
       if (!cell) continue;
-      const hit = exactEntry(directText(cell));
+      const hit = exactEntry(directText(cell), 'em');
       if (hit) cell.children = [linkNode(hit.entry, hit.text, ctx)];
     }
   };
@@ -180,13 +187,17 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
       if (child.type === 'element') {
         const tag = child.tagName;
         // Спелл-таблица класса: линкуем первую колонку (данные), затем обычный обход остального.
-        if (tag === 'table' && map.exact.size && isSpellTable(child)) linkSpellTable(child);
-        // Курсивная ссылка на заклинание: <em>Имя</em> целиком.
-        if (tag === 'em' && !insideSkip && map.exact.size) {
-          const hit = exactEntry(directText(child));
-          if (hit) {
-            child.children = [linkNode(hit.entry, hit.text, ctx)];
-            continue; // уже ссылка — внутрь не идём
+        if (tag === 'table' && map.exact.em.size && isSpellTable(child)) linkSpellTable(child);
+        // Курсивная ссылка на заклинание <em>Имя</em> / жирная на монстра <strong>Имя</strong> —
+        // полный текст элемента = имя. Внутрь уже-ссылки не идём.
+        if (!insideSkip && (tag === 'em' || tag === 'strong')) {
+          const container = tag === 'em' ? 'em' : 'strong';
+          if (map.exact[container].size) {
+            const hit = exactEntry(directText(child), container);
+            if (hit) {
+              child.children = [linkNode(hit.entry, hit.text, ctx)];
+              continue;
+            }
           }
         }
         walk(child, insideSkip || SKIP_TAGS.has(tag));

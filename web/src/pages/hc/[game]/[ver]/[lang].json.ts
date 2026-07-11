@@ -59,10 +59,35 @@ function spellHtml(e: Record<string, unknown>, lang: string): string {
   );
 }
 
+// Карточка монстра: строка типа (размер тип, мировоззрение) + компактная мета (КД · хиты · ПО).
+function monsterHtml(e: Record<string, unknown>, lang: string): string {
+  const size = (e.size as string) ?? '';
+  const type = (e.type as string) ?? '';
+  const subtype = e.subtype as string | null;
+  const alignment = e.alignment as string | null;
+  const typeLine = [
+    [size, type].filter(Boolean).join(' ') + (subtype ? ` (${subtype})` : ''),
+    alignment,
+  ].filter(Boolean).join(', ');
+  const ac = (e.ac as { value?: number })?.value;
+  const hp = (e.hp as { average?: number })?.average;
+  const cr = (e.cr as { value?: string })?.value;
+  const meta = [
+    ac != null ? `${lang === 'ru' ? 'КД' : 'AC'} ${ac}` : '',
+    hp != null ? (lang === 'ru' ? `${hp} хитов` : `${hp} HP`) : '',
+    cr ? `${lang === 'ru' ? 'ПО' : 'CR'} ${cr}` : '',
+  ].filter(Boolean).join(' · ');
+  return (
+    (typeLine ? `<p class="hc-sub">${escapeHtml(typeLine)}</p>` : '') +
+    (meta ? `<p class="hc-meta">${escapeHtml(meta)}</p>` : '')
+  );
+}
+
 // resource → { urlParent, build(entity) → HTML тела карточки }.
 const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unknown>, lang: string) => string }[] = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', body: (e) => conditionHtml(e.description_md as string) },
   { key: 'spells', urlParent: 'spells', body: (e, lang) => spellHtml(e, lang) },
+  { key: 'monsters', urlParent: 'monsters-a-z', body: (e, lang) => monsterHtml(e, lang) },
 ];
 
 // Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).
