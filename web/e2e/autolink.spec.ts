@@ -41,6 +41,15 @@ test('монстры: имя в жирном линкуется на стран�
   await expect(page.locator('.rd-doc a.ent-link[href*="/monsters-a-z/humanoid/"]')).toHaveCount(0);
 });
 
+test('монстры RU: склонённые жирные формы линкуются (Упырём → ghoul)', async ({ page }) => {
+  // RU-текст склоняет имя монстра («становится **Упырём**»), а страница монстра — «Упырь».
+  // Курируемый alias падежных форм линкует их на ту же сущность.
+  await page.goto('/ru/dnd/srd-5.2/spells/create-undead/');
+  await expect(
+    page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/ghoul/"]').first(),
+  ).toBeVisible();
+});
+
 test('автолинк не попадает в заголовки и не вкладывается в другие ссылки', async ({ page }) => {
   await page.goto(CHAPTER);
   await expect(page.locator('.rd-doc :is(h1,h2,h3,h4,h5,h6) a.ent-link')).toHaveCount(0);
