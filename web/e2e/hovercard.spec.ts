@@ -62,7 +62,8 @@ test('карточка скрывается, когда курсор уходи�
 });
 
 test('карточка предмета: источник, тип·редкость + выдержка', async ({ page }) => {
-  await page.goto('/en/dnd/srd-5.2/magic-items/');
+  // Страница предмета (небольшая, стабильная) с перекрёстной ссылкой на другой предмет.
+  await page.goto('/en/dnd/srd-5.2/magic-items/bag-of-holding/');
   const item = page.locator('.rd-doc em a.ent-link[href*="/magic-items/"][data-hc]').first();
   await item.scrollIntoViewIfNeeded();
   await item.hover();
