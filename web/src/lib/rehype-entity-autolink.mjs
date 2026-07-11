@@ -39,6 +39,30 @@ const ALIASES = {
   },
 };
 
+// Синонимы для exact-ресурсов (в разметке-контейнере): `${game}/${lang}` → { [resource]: { slug: [form…] } }.
+// Имя сущности в тексте склоняется (RU-падежи) / стоит во мн. числе (EN), а exact-матч — по
+// именительному. Здесь — реальные жирные формы монстров из данных, чтобы они тоже линковались.
+// Строго курируемый список (не морфология-эвристика) → 0 ложных срабатываний.
+const EXACT_ALIASES = {
+  'dnd/ru': {
+    monsters: {
+      ghoul: ['Упырём', 'Упырями'], griffon: ['Грифоном'], nightmare: ['Кошмаром'],
+      berserker: ['Берсерка'], djinni: ['Джинна'], wight: ['Умертвиями'],
+      mummy: ['Мумиями', 'Мумией'], knight: ['Рыцаря'], skeleton: ['Скелетов'],
+      ghast: ['Гастами'], 'shrieker-fungus': ['Визгуна'],
+      'air-elemental': ['Воздушного элементаля'], 'earth-elemental': ['Земляного элементаля'],
+      'fire-elemental': ['Огненного элементаля'], 'water-elemental': ['Водного элементаля'],
+      'awakened-shrub': ['Пробуждённого куста'], 'awakened-tree': ['Пробуждённого дерева'],
+    },
+  },
+  'dnd/en': {
+    monsters: {
+      ghoul: ['Ghouls'], ghast: ['Ghasts'], wight: ['Wights'], mummy: ['Mummies'],
+      'shrieker-fungus': ['Shrieker Fungi'],
+    },
+  },
+};
+
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -52,6 +76,7 @@ function loadMap(game, version, lang) {
   if (mapCache.has(cacheKey)) return mapCache.get(cacheKey);
   const verKey = verKeyOf(version);
   const aliases = ALIASES[`${game}/${lang}`] || {};
+  const exactAliases = EXACT_ALIASES[`${game}/${lang}`] || {};
   const textEntries = [];
   // exact-карты по контейнеру: em (заклинания) и strong (монстры) — держим раздельно, чтобы
   // имя монстра в курсиве / имя заклинания в жирном не матчились не в своём контексте.
@@ -75,6 +100,11 @@ function loadMap(game, version, lang) {
         const m = exact[container];
         const k = e.name.toLowerCase();
         if (m && !m.has(k)) m.set(k, entry);
+        // Склонённые/мн.-числа формы того же имени → на ту же сущность.
+        for (const form of exactAliases[key]?.[e.slug] || []) {
+          const fk = form.toLowerCase();
+          if (m && !m.has(fk)) m.set(fk, entry);
+        }
       } else {
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
