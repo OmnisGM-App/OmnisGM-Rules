@@ -28,12 +28,16 @@ def extract_names(heading: str, lang: str) -> tuple[str, str | None, str]:
     EN headings: "Magic Missile" → name, None, slug
     """
     if lang != "en":
-        # RU headings: extract EN name from parentheses (Latin characters)
-        m = re.match(r"^(.+?)\s*\(([A-Za-z][\w\s,'+\-:]*)\)\s*$", heading)
+        # RU headings: extract EN name from parentheses (Latin characters). EN-имя может само
+        # содержать вложенную скобку — «Камень удачи (Камень везения) (Stone of Good Luck
+        # (Luckstone))»: жадный первый захват + один уровень вложенности во внутренней группе.
+        m = re.match(r"^(.+)\s*\(([A-Za-z][^()]*(?:\([^()]*\)[^()]*)*)\)\s*$", heading)
         if m:
             name_local = m.group(1).strip()
             name_en = m.group(2).strip()
-            return name_local, name_en, slugify(name_en)
+            # Слаг — как в EN-ветке: без хвостовой «(...)», чтобы EN/RU слаги совпали (hreflang).
+            slug_base = re.sub(r"\s*\([^)]*\)\s*$", "", name_en).strip()
+            return name_local, name_en, slugify(slug_base)
     # EN headings or RU without parentheses: use full heading as name
     # Strip parenthetical suffixes for slug (e.g., "Young Red Dragon (Chromatic)")
     full_name = heading.strip()

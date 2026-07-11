@@ -1,0 +1,162 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы магических предметов (issue #20, волна 3) в общем шелле ридера.
+// URL: /{lang}/dnd/{version}/magic-items/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-magicitems' };
+
+// Редкость: в данных ключ по-английски (обе локали) — нормализуем двусторонним мапом.
+const RARITY: Record<string, [string, string]> = {
+  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
+  'very rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'],
+  artifact: ['артефакт', 'artifact'],
+};
+
+interface Sib { slug: string; name: string; type: string; rarity: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const items = loadEntities(ver, lang, 'magic-items');
+    const siblings: Sib[] = items.map((m) => ({
+      slug: m.slug, name: m.name,
+      type: (m.type as string) ?? '', rarity: (m.rarity as string) ?? '',
+    }));
+    for (const entity of items) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+// Тело с автоссылками на состояния/заклинания/монстров (issue #20): marked → hast → autolink → html.
+const render = (md: string | undefined | null) => {
+  if (!md || md === 'None') return '';
+  const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
+  autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  return toHtml(tree);
+};
+const bodyHtml = render(entity.description_md as string);
+const description = excerpt(entity.description_md as string);
+
+const itemType = (entity.type as string) ?? '';
+const rawRarity = (entity.rarity as string) ?? '';
+const rarityPair = RARITY[rawRarity];
+const rarityLabel = rarityPair ? (lang === 'ru' ? rarityPair[0] : rarityPair[1]) : rawRarity;
+const attune = (entity.attunement ?? {}) as { required?: boolean; condition?: string | null };
+const attuneLabel = attune.required
+  ? t('требует настройки', 'requires attunement') + (attune.condition ? ` (${attune.condition})` : '')
+  : '';
+// Подстрока в шапке: тип · редкость.
+const subParts = [itemType, rarityLabel].filter(Boolean);
+
+const base = `/${lang}/dnd/${verSlug}/magic-items`;
+// «Похожие предметы» — до 8 того же типа (внутренняя перелинковка/SEO).
+const sameType = (siblings as Sib[])
+  .filter((s) => s.slug !== entity.slug && s.type === itemType)
+  .slice(0, 8);
+
+const upLink = { href: `${base}/`, ru: 'Магические предметы', en: 'Magic Items' };
+const kind = t('Магический предмет', 'Magic Item');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    <span class="ent-head-sub">
+      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+      {subParts.length > 0 && <span class="item-meta-line">{subParts.join(', ')}</span>}
+    </span>
+  </h1>
+
+  <dl class="item-stat">
+    {itemType && (
+      <div class="item-row"><dt>{t('Тип', 'Type')}</dt><dd>{itemType}</dd></div>
+    )}
+    {rarityLabel && (
+      <div class="item-row"><dt>{t('Редкость', 'Rarity')}</dt><dd>{rarityLabel}</dd></div>
+    )}
+    {attune.required && (
+      <div class="item-row"><dt>{t('Настройка', 'Attunement')}</dt>
+        <dd>{t('требуется', 'required')}{attune.condition ? ` (${attune.condition})` : ''}</dd></div>
+    )}
+  </dl>
+
+  <Fragment set:html={bodyHtml} />
+
+  {sameType.length > 0 && (
+    <nav class="ent-related" aria-label={t('Похожие предметы', 'Similar items')}>
+      <span class="ent-related-h">{t(`Ещё: ${itemType}`, `More ${itemType}`)}</span>
+      <span class="ent-related-list">
+        {sameType.map((r) => (
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  /* Подстрока в шапке: EN-имя + тип/редкость. */
+  .ent-head-sub {
+    display: block; margin-top: 8px;
+    font-family: var(--font-body); font-weight: 400; letter-spacing: 0;
+  }
+  .ent-en {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .item-meta-line { font-style: italic; font-size: 14px; color: var(--og-text-muted); }
+  .ent-en + .item-meta-line::before { content: ' · '; font-style: normal; }
+
+  .item-stat {
+    margin: 0 0 24px; padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2); display: grid; gap: 8px;
+  }
+  .item-row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: baseline; }
+  .item-row dt {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
+  .item-row dd { margin: 0; color: var(--og-text-2); }
+
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
+  @media (max-width: 560px) {
+    .item-row { display: block; }
+    .item-row dt { display: inline; }
+    .item-row dt::after { content: ':\00a0'; }
+    .item-row dd { display: inline; }
+  }
+</style>
