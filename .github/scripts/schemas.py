@@ -212,6 +212,7 @@ MONSTER_SCHEMA = {
         "skills": {"type": "array", "items": {"type": "string"}},
         "damage_resistances": {"type": "array", "items": {"type": "string"}},
         "damage_immunities": {"type": "array", "items": {"type": "string"}},
+        "damage_vulnerabilities": {"type": "array", "items": {"type": "string"}},
         "condition_immunities": {"type": "array", "items": {"type": "string"}},
         "senses": {
             "type": "object",

@@ -1,0 +1,310 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы монстров (issue #20, волна 3) в общем шелле ридера.
+// URL вложен под главу-бестиарий: /{lang}/dnd/{version}/monsters-a-z/{slug}/.
+// EN и RU делят канонический (англ.) слаг → корректный hreflang.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz' };
+
+interface Sib { slug: string; name: string; type: string; cr: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const monsters = loadEntities(ver, lang, 'monsters');
+    const siblings: Sib[] = monsters.map((m) => ({
+      slug: m.slug, name: m.name,
+      type: (m.type as string) ?? '', cr: (m.cr as { value?: string })?.value ?? '',
+    }));
+    // Карта имя-состояния → slug для линковки иммунитетов к состояниям в стат-блоке.
+    const condMap: Record<string, string> = {};
+    for (const c of loadEntities(ver, lang, 'conditions')) {
+      condMap[c.name.toLowerCase()] = c.slug;
+    }
+    for (const entity of monsters) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings, condMap },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings, condMap } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const verKey = ver; // srd52
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+// Рендер текста трейта/действия: реконструируем исходную SRD-строку «**_Имя._** текст»
+// и прогоняем через marked → hast → autolink (состояния + заклинания) → html.
+const render = (md: string | undefined | null) => {
+  if (!md) return '';
+  const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
+  autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  return toHtml(tree);
+};
+const renderEntry = (e: { name?: string; text_md: string }) =>
+  render(e.name ? `**_${e.name}._** ${e.text_md}` : e.text_md);
+
+// ── Стат-блок
+const size = (entity.size as string) ?? '';
+const creatureType = (entity.type as string) ?? '';
+const subtype = entity.subtype as string | null;
+const alignment = entity.alignment as string | null;
+const typeLine = [
+  [size, creatureType].filter(Boolean).join(' ') + (subtype ? ` (${subtype})` : ''),
+  alignment,
+].filter(Boolean).join(', ');
+
+const ac = entity.ac as { value?: number; source?: string | null };
+const hp = entity.hp as { average?: number; formula?: string };
+const speed = entity.speed as { raw?: string };
+const initiative = entity.initiative as { mod?: number; score?: number } | null;
+const abilities = (entity.abilities ?? {}) as Record<string, { score: number; mod: number; save: number }>;
+const senses = entity.senses as { raw?: string };
+const cr = entity.cr as { value?: string; xp?: number };
+const languages = entity.languages as string | null;
+
+const ABIL: { key: string; ru: string; en: string }[] = [
+  { key: 'str', ru: 'СИЛ', en: 'STR' }, { key: 'dex', ru: 'ЛОВ', en: 'DEX' },
+  { key: 'con', ru: 'ТЕЛ', en: 'CON' }, { key: 'int', ru: 'ИНТ', en: 'INT' },
+  { key: 'wis', ru: 'МДР', en: 'WIS' }, { key: 'cha', ru: 'ХАР', en: 'CHA' },
+];
+const hasAbilities = ABIL.some((a) => abilities[a.key]);
+const sign = (n: number | undefined) => (n == null ? '' : n >= 0 ? `+${n}` : `${n}`);
+const fmtXp = (n: number | undefined) =>
+  n ? n.toLocaleString(lang === 'ru' ? 'ru-RU' : 'en-US') : '';
+
+const arr = (v: unknown) => (Array.isArray(v) ? (v as string[]) : []);
+const resistances = arr(entity.damage_resistances);
+const dmgImmunities = arr(entity.damage_immunities);
+const condImmunities = arr(entity.condition_immunities);
+const vulnerabilities = arr(entity.damage_vulnerabilities);
+const savingThrows = arr(entity.saving_throws);
+const skills = arr(entity.skills);
+
+// Иммунитет к состоянию → ссылка на страницу состояния (+ data-hc для hovercard), если slug найден.
+const condLink = (token: string) => {
+  const base = token.trim().toLowerCase().split(/[(*]/)[0].trim();
+  const slug = condMap[base];
+  return slug ? { slug } : null;
+};
+const condHref = (slug: string) => `/${lang}/dnd/${verSlug}/rules-glossary/conditions/${slug}/`;
+const condHc = (slug: string) => `dnd/${verKey}/${lang}/conditions/${slug}`;
+
+// Секции
+const traits = arr(entity.traits_md) as unknown as { name?: string; text_md: string }[];
+const actions = arr(entity.actions_md) as unknown as { name?: string; text_md: string }[];
+const bonusActions = arr(entity.bonus_actions_md) as unknown as { name?: string; text_md: string }[];
+const reactions = arr(entity.reactions_md) as unknown as { name?: string; text_md: string }[];
+const legendary = arr(entity.legendary_actions_md) as unknown as { name?: string; text_md: string }[];
+const lairActions = entity.lair_actions_md as string | null;
+
+const SECTIONS: { title: string; entries: { name?: string; text_md: string }[] }[] = [
+  { title: t('Особенности', 'Traits'), entries: traits },
+  { title: t('Действия', 'Actions'), entries: actions },
+  { title: t('Бонусные действия', 'Bonus Actions'), entries: bonusActions },
+  { title: t('Реакции', 'Reactions'), entries: reactions },
+  { title: t('Легендарные действия', 'Legendary Actions'), entries: legendary },
+].filter((s) => s.entries.length > 0);
+
+const description = excerpt(
+  (traits[0]?.text_md || actions[0]?.text_md || '') as string,
+);
+
+const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
+// «Тот же тип существа» — до 8 других монстров того же типа (внутренняя перелинковка/SEO).
+const sameType = (siblings as Sib[])
+  .filter((s) => s.slug !== entity.slug && s.type === creatureType)
+  .slice(0, 8);
+
+const upLink = { href: `${base}/`, ru: 'Монстры от А до Я', en: 'Monsters A–Z' };
+const kind = t('Монстр', 'Monster');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    <span class="mon-sub">
+      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+      <span class="mon-type">{typeLine}</span>
+    </span>
+  </h1>
+
+  <div class="mon-stat">
+    <dl class="mon-lines">
+      {ac?.value != null && (
+        <div class="mon-row"><dt>{t('Класс доспеха', 'Armor Class')}</dt>
+          <dd>{ac.value}{ac.source ? ` (${ac.source})` : ''}</dd></div>
+      )}
+      {hp?.average != null && (
+        <div class="mon-row"><dt>{t('Хиты', 'Hit Points')}</dt>
+          <dd>{hp.average}{hp.formula ? ` (${hp.formula})` : ''}</dd></div>
+      )}
+      {speed?.raw && (
+        <div class="mon-row"><dt>{t('Скорость', 'Speed')}</dt><dd>{speed.raw}</dd></div>
+      )}
+      {initiative && (
+        <div class="mon-row"><dt>{t('Инициатива', 'Initiative')}</dt>
+          <dd>{sign(initiative.mod)}{initiative.score != null ? ` (${initiative.score})` : ''}</dd></div>
+      )}
+    </dl>
+
+    {hasAbilities && (
+      <table class="mon-abil">
+        <thead>
+          <tr><th></th>{ABIL.map((a) => <th>{t(a.ru, a.en)}</th>)}</tr>
+        </thead>
+        <tbody>
+          <tr><th>{t('ЗНАЧ', 'SCORE')}</th>{ABIL.map((a) => <td>{abilities[a.key]?.score ?? '—'}</td>)}</tr>
+          <tr><th>{t('МОД', 'MOD')}</th>{ABIL.map((a) => <td>{sign(abilities[a.key]?.mod)}</td>)}</tr>
+          <tr><th>{t('СПАС', 'SAVE')}</th>{ABIL.map((a) => <td>{sign(abilities[a.key]?.save)}</td>)}</tr>
+        </tbody>
+      </table>
+    )}
+
+    <dl class="mon-lines">
+      {savingThrows.length > 0 && (
+        <div class="mon-row"><dt>{t('Спасброски', 'Saving Throws')}</dt><dd>{savingThrows.join(', ')}</dd></div>
+      )}
+      {skills.length > 0 && (
+        <div class="mon-row"><dt>{t('Навыки', 'Skills')}</dt><dd>{skills.join(', ')}</dd></div>
+      )}
+      {vulnerabilities.length > 0 && (
+        <div class="mon-row"><dt>{t('Уязвимости', 'Vulnerabilities')}</dt><dd>{vulnerabilities.join(', ')}</dd></div>
+      )}
+      {resistances.length > 0 && (
+        <div class="mon-row"><dt>{t('Сопротивления', 'Resistances')}</dt><dd>{resistances.join(', ')}</dd></div>
+      )}
+      {(dmgImmunities.length > 0 || condImmunities.length > 0) && (
+        <div class="mon-row"><dt>{t('Иммунитеты', 'Immunities')}</dt>
+          <dd>
+            {dmgImmunities.join(', ') + (dmgImmunities.length > 0 && condImmunities.length > 0 ? '; ' : '')}{condImmunities.map((c, i) => {
+              const link = condLink(c);
+              return (
+                <Fragment>{i > 0 ? ', ' : ''}{link
+                  ? <a class="ent-link" href={condHref(link.slug)} data-hc={condHc(link.slug)}>{c}</a>
+                  : c}</Fragment>
+              );
+            })}
+          </dd></div>
+      )}
+      {senses?.raw && (
+        <div class="mon-row"><dt>{t('Чувства', 'Senses')}</dt><dd>{senses.raw}</dd></div>
+      )}
+      {languages && (
+        <div class="mon-row"><dt>{t('Языки', 'Languages')}</dt><dd>{languages}</dd></div>
+      )}
+      {cr?.value && (
+        <div class="mon-row"><dt>{t('Показатель опасности', 'CR')}</dt>
+          <dd>{cr.value}{cr.xp ? ` (${t('ОО', 'XP')} ${fmtXp(cr.xp)})` : ''}</dd></div>
+      )}
+    </dl>
+  </div>
+
+  {SECTIONS.map((s) => (
+    <section class="mon-section">
+      <h2>{s.title}</h2>
+      {s.entries.map((e) => <div class="mon-entry" set:html={renderEntry(e)} />)}
+    </section>
+  ))}
+
+  {lairActions && (
+    <section class="mon-section">
+      <h2>{t('Действия логова', 'Lair Actions')}</h2>
+      <div class="mon-entry" set:html={render(lairActions)} />
+    </section>
+  )}
+
+  {sameType.length > 0 && (
+    <nav class="ent-related" aria-label={t('Тот же тип', 'Same type')}>
+      <span class="ent-related-h">{t(`Ещё существа: ${creatureType}`, `More ${creatureType} creatures`)}</span>
+      <span class="ent-related-list">
+        {sameType.map((r) => (
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  /* Подстрока в шапке (над чертой): EN-имя + тип/мировоззрение. */
+  .mon-sub {
+    display: block; margin-top: 8px;
+    font-family: var(--font-body); font-weight: 400; letter-spacing: 0;
+  }
+  .ent-en {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .mon-type { font-style: italic; font-size: 14px; color: var(--og-text-muted); }
+  .ent-en + .mon-type::before { content: ' · '; font-style: normal; }
+
+  /* Стат-блок: карточка. */
+  .mon-stat {
+    margin: 0 0 28px; padding: 16px 18px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2);
+  }
+  .mon-lines { margin: 0; display: grid; gap: 7px; }
+  .mon-lines + .mon-abil, .mon-abil + .mon-lines { margin-top: 14px; }
+  .mon-row { display: grid; grid-template-columns: 190px 1fr; gap: 12px; align-items: baseline; }
+  .mon-row dt {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.5px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
+  .mon-row dd { margin: 0; color: var(--og-text-2); }
+
+  /* Таблица характеристик. */
+  .mon-abil {
+    width: 100%; border-collapse: collapse; text-align: center;
+    font-family: var(--font-mono); font-size: 13px;
+  }
+  .mon-abil th, .mon-abil td { padding: 5px 4px; border: 1px solid var(--og-border); }
+  .mon-abil thead th { color: var(--og-text-muted); font-size: 11px; letter-spacing: 0.5px; }
+  .mon-abil tbody th {
+    color: var(--og-text-muted); font-size: 11px; letter-spacing: 0.5px; text-align: left;
+    padding-left: 8px; font-weight: 600;
+  }
+  .mon-abil tbody td { color: var(--og-text-2); }
+
+  .mon-section { margin-top: 28px; }
+  .mon-entry { margin: 0 0 4px; }
+
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
+  /* Мобилка: метка и значение в строку. */
+  @media (max-width: 560px) {
+    .mon-row { display: block; }
+    .mon-row dt { display: inline; }
+    .mon-row dt::after { content: ':\00a0'; }
+    .mon-row dd { display: inline; }
+    .mon-abil { font-size: 12px; }
+    .mon-abil th, .mon-abil td { padding: 4px 2px; }
+  }
+</style>
