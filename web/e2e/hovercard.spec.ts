@@ -61,6 +61,17 @@ test('карточка скрывается, когда курсор уходи�
   await expect(page.locator('#ent-hovercard')).toBeHidden();
 });
 
+test('карточка предмета: источник, тип·редкость + выдержка', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/magic-items/');
+  const item = page.locator('.rd-doc em a.ent-link[href*="/magic-items/"][data-hc]').first();
+  await item.scrollIntoViewIfNeeded();
+  await item.hover();
+  const card = page.locator('#ent-hovercard');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
+  await expect(card.locator('.ent-hc-body .hc-sub')).not.toBeEmpty(); // «тип, редкость»
+});
+
 test('карточка монстра: источник, строка типа + мета (КД · хиты · ПО)', async ({ page }) => {
   await page.goto('/en/dnd/srd-5.2/spells/animate-dead/');
   const mon = page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/skeleton/"]').first();

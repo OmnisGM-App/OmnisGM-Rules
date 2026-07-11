@@ -25,6 +25,9 @@ const RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
   { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
   { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
+  // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
+  // Имена предметов и заклинаний не пересекаются → общий em-матч безопасен.
+  { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
 ];
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.
@@ -54,11 +57,25 @@ const EXACT_ALIASES = {
       'fire-elemental': ['Огненного элементаля'], 'water-elemental': ['Водного элементаля'],
       'awakened-shrub': ['Пробуждённого куста'], 'awakened-tree': ['Пробуждённого дерева'],
     },
+    'magic-items': {
+      'bag-of-holding': ['Сумкой вместимости'], 'bead-of-force': ['Бусин силы'],
+      'dragon-orb': ['Сфера драконов'], 'gloves-of-missile-snaring': ['Перчатку похищения снарядов'],
+      'horn-of-valhalla': ['Рога Валгаллы'], 'oil-of-etherealness': ['Масла эфирности'],
+      'oil-of-slipperiness': ['Маслом скольжения'],
+      'potions-of-healing': ['Зелье лечения'], 'ring-of-djinni-summoning': ['Кольца призыва джинна'],
+      'spell-scroll': ['Свитке заклинания', 'Свитки заклинаний', 'Свитков заклинаний'],
+      'sphere-of-annihilation': ['Сферу уничтожения', 'Сферы уничтожения'],
+      'sun-blade': ['Солнечным клинком'], 'universal-solvent': ['Универсального растворителя'],
+    },
   },
   'dnd/en': {
     monsters: {
       ghoul: ['Ghouls'], ghast: ['Ghasts'], wight: ['Wights'], mummy: ['Mummies'],
       'shrieker-fungus': ['Shrieker Fungi'],
+    },
+    'magic-items': {
+      'bead-of-force': ['Beads of Force'], 'gloves-of-missile-snaring': ['Glove of Missile Snaring'],
+      'ring-of-djinni-summoning': ['Rings of Djinni Summoning'],
     },
   },
 };

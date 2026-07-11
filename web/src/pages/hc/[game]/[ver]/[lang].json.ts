@@ -83,11 +83,31 @@ function monsterHtml(e: Record<string, unknown>, lang: string): string {
   );
 }
 
+// Карточка предмета: «тип · редкость» + короткая выдержка описания.
+const RARITY: Record<string, [string, string]> = {
+  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
+  'very rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'],
+  artifact: ['артефакт', 'artifact'],
+};
+function itemHtml(e: Record<string, unknown>, lang: string): string {
+  const type = (e.type as string) ?? '';
+  const rawR = (e.rarity as string) ?? '';
+  const rp = RARITY[rawR];
+  const rarity = rp ? (lang === 'ru' ? rp[0] : rp[1]) : rawR;
+  const sub = [type, rarity].filter(Boolean).join(', ');
+  const ex = excerpt(e.description_md as string | undefined, 190);
+  return (
+    (sub ? `<p class="hc-sub">${escapeHtml(sub)}</p>` : '') +
+    (ex ? `<p>${escapeHtml(ex)}</p>` : '')
+  );
+}
+
 // resource → { urlParent, build(entity) → HTML тела карточки }.
 const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unknown>, lang: string) => string }[] = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', body: (e) => conditionHtml(e.description_md as string) },
   { key: 'spells', urlParent: 'spells', body: (e, lang) => spellHtml(e, lang) },
   { key: 'monsters', urlParent: 'monsters-a-z', body: (e, lang) => monsterHtml(e, lang) },
+  { key: 'magic-items', urlParent: 'magic-items', body: (e, lang) => itemHtml(e, lang) },
 ];
 
 // Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).

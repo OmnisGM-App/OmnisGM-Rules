@@ -11,7 +11,7 @@ test('глава: автоссылки ведут на страницы сущн
   expect(await links.count()).toBeGreaterThan(0);
   // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z)\/[a-z-]+\/$/);
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|magic-items)\/[a-z0-9-]+\/$/);
   }
 });
 
@@ -61,6 +61,14 @@ test('монстры RU: термин выровнен по бестиарию (
   await expect(page.locator('.rd-doc', { hasText: 'Буллет' })).toHaveCount(0);
 });
 
+test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
+  // Глава маг. предметов: предмет↔предмет ссылки — «*Portable Hole*» и т.п. в курсиве.
+  await page.goto('/en/dnd/srd-5.2/magic-items/');
+  const link = page.locator('.rd-doc em a.ent-link[href*="/dnd/srd-5.2/magic-items/"]').first();
+  await expect(link).toBeVisible();
+  await expect(link).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/magic-items\//);
+});
+
 test('автолинк не попадает в заголовки и не вкладывается в другие ссылки', async ({ page }) => {
   await page.goto(CHAPTER);
   await expect(page.locator('.rd-doc :is(h1,h2,h3,h4,h5,h6) a.ent-link')).toHaveCount(0);
@@ -92,7 +100,7 @@ test('страница состояния: тело линкует другие 
 test('автоссылка несёт data-hc для будущего hovercard', async ({ page }) => {
   await page.goto(CHAPTER);
   const first = page.locator('.rd-doc a.ent-link').first();
-  await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/(conditions|spells|monsters)\//);
+  await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/(conditions|spells|monsters|magic-items)\//);
 });
 
 // Паритет EN/RU: страницы одной главы — зеркальный перевод, значит НАБОР слинкованных состояний
