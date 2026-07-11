@@ -60,3 +60,16 @@ test('карточка скрывается, когда курсор уходи�
   await page.mouse.move(0, 0);
   await expect(page.locator('#ent-hovercard')).toBeHidden();
 });
+
+test('карточка заклинания: EN-имя, источник, «уровень, школа» + мета', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/classes/cleric/');
+  const spell = page.locator('.rd-doc td a.ent-link[href*="/spells/"]', { hasText: 'Лечение ран' }).first();
+  await spell.scrollIntoViewIfNeeded();
+  await spell.hover();
+  const card = page.locator('#ent-hovercard');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
+  await expect(card.locator('.ent-hc-en')).toHaveText('Cure Wounds'); // оригинальное имя
+  await expect(card.locator('.ent-hc-body .hc-sub')).toContainText('уровень'); // «1-й уровень, …»
+  await expect(card.locator('.ent-hc-body .hc-meta')).toContainText('·'); // время · дистанция · длительность
+});
