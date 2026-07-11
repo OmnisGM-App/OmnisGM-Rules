@@ -59,6 +59,7 @@ const EXACT_ALIASES = {
     },
     'magic-items': {
       'bag-of-holding': ['Сумкой вместимости', 'Сумку вместимости'], 'bead-of-force': ['Бусин силы'],
+      'belt-of-giant-strength': ['Поясом силы великана'], 'gauntlets-of-ogre-power': ['Перчатками силы огра'],
       'portable-hole': ['Переносной дырой', 'Переносной дыры'],
       'dragon-orb': ['Сфера драконов'], 'gloves-of-missile-snaring': ['Перчатку похищения снарядов'],
       'handy-haversack': ['Практичным рюкзаком'],
