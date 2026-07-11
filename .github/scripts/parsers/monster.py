@@ -374,6 +374,47 @@ def _parse_damage_field(value: str) -> list[str]:
     return [s.strip() for s in value.split(",") if s.strip()]
 
 
+# Закрытый список из 15 состояний SRD (всё, что не состояние в строке иммунитетов — урон).
+# Классификатор нужен для combined-формата 5.2: «Immunities: Fire, Poison; Charmed, …» —
+# `;` разделяет урон и состояния, но при одном виде разделителя нет («Acid» либо «Charmed»).
+_CONDITIONS_EN = {
+    "blinded", "charmed", "deafened", "exhaustion", "frightened", "grappled",
+    "incapacitated", "invisible", "paralyzed", "petrified", "poisoned", "prone",
+    "restrained", "stunned", "unconscious",
+}
+# RU включает варианты терминов, встречающиеся в бестиарии (Оглохший/Оглушённый,
+# Опутан/Опутанный, Без сознания/Бессознательный).
+_CONDITIONS_RU = {
+    "ослеплённый", "ослепленный", "очарованный", "оглохший", "оглушённый", "оглушенный",
+    "истощение", "испуганный", "схваченный", "недееспособный", "невидимый",
+    "парализованный", "окаменевший", "отравленный", "лежащий", "опутанный", "опутан",
+    "ошеломлённый", "ошеломленный", "бессознательный", "без сознания", "обездвиженный",
+}
+
+
+def _is_condition(token: str, lang: str) -> bool:
+    """Является ли токен именем состояния (по первому слову, до скобки-уточнения)."""
+    base = re.split(r"[(*]", token.strip().lower(), 1)[0].strip()
+    conds = _CONDITIONS_RU if lang == "ru" else _CONDITIONS_EN
+    if base in conds:
+        return True
+    # RU-состояния из двух слов («без сознания»)
+    return any(base == c or base.startswith(c + " ") for c in conds)
+
+
+def _split_immunities(value: str, lang: str) -> tuple[list[str], list[str]]:
+    """Combined-строка иммунитетов 5.2 → (урон, состояния). Токены по `;` и `,`,
+    классификация каждого по закрытому списку состояний."""
+    dmg: list[str] = []
+    cond: list[str] = []
+    for token in re.split(r"[;,]", value):
+        t = token.strip()
+        if not t:
+            continue
+        (cond if _is_condition(t, lang) else dmg).append(t)
+    return dmg, cond
+
+
 def parse_monsters(text: str, heading_level: int, lang: str,
                    after: str | None = None, skip_headings: set | None = None) -> list[dict]:
     """Parse all monster/animal blocks from markdown text."""
@@ -435,9 +476,18 @@ def parse_monsters(text: str, heading_level: int, lang: str,
         # Parse additional properties
         saves_raw = get_list_prop(body, ["Saving Throws", "Спасброски"]) or ""
         skills_raw = get_list_prop(body, ["Skills", "Навыки"]) or ""
-        dmg_resist_raw = get_list_prop(body, ["Damage Resistances", "Сопротивления", "Сопротивления к урону"]) or ""
-        dmg_immune_raw = get_list_prop(body, ["Damage Immunities", "Иммунитеты", "Иммунитеты к урону"]) or ""
-        cond_immune_raw = get_list_prop(body, ["Condition Immunities", "Иммунитеты к состояниям"]) or ""
+        dmg_resist_raw = get_list_prop(body, ["Damage Resistances", "Resistances", "Сопротивления к урону", "Сопротивления"]) or ""
+        dmg_vuln_raw = get_list_prop(body, ["Damage Vulnerabilities", "Vulnerabilities", "Уязвимости к урону", "Уязвимости"]) or ""
+        # Иммунитеты: 5.1 — раздельные строки Damage/Condition; 5.2 — одна строка «Immunities»
+        # (урон; состояния), которую разбираем классификатором.
+        sep_dmg = get_list_prop(body, ["Damage Immunities", "Иммунитеты к урону"])
+        sep_cond = get_list_prop(body, ["Condition Immunities", "Иммунитеты к состояниям"])
+        if sep_dmg is not None or sep_cond is not None:
+            dmg_immune_list = _parse_damage_field(sep_dmg or "")
+            cond_immune_list = _parse_damage_field(sep_cond or "")
+        else:
+            combined = get_list_prop(body, ["Immunities", "Иммунитеты"]) or ""
+            dmg_immune_list, cond_immune_list = _split_immunities(combined, lang)
         senses_raw = get_list_prop(body, ["Senses", "Чувства"]) or ""
         languages_raw = get_list_prop(body, ["Languages", "Языки"]) or ""
 
@@ -479,8 +529,9 @@ def parse_monsters(text: str, heading_level: int, lang: str,
             "saving_throws": _parse_saving_throws(saves_raw),
             "skills": _parse_skills(skills_raw),
             "damage_resistances": _parse_damage_field(dmg_resist_raw),
-            "damage_immunities": _parse_damage_field(dmg_immune_raw),
-            "condition_immunities": _parse_damage_field(cond_immune_raw),
+            "damage_immunities": dmg_immune_list,
+            "damage_vulnerabilities": _parse_damage_field(dmg_vuln_raw),
+            "condition_immunities": cond_immune_list,
             "senses": senses,
             "languages": languages_raw or None,
             "cr": cr,
