@@ -58,8 +58,10 @@ const EXACT_ALIASES = {
       'awakened-shrub': ['Пробуждённого куста'], 'awakened-tree': ['Пробуждённого дерева'],
     },
     'magic-items': {
-      'bag-of-holding': ['Сумкой вместимости'], 'bead-of-force': ['Бусин силы'],
+      'bag-of-holding': ['Сумкой вместимости', 'Сумку вместимости'], 'bead-of-force': ['Бусин силы'],
+      'portable-hole': ['Переносной дырой', 'Переносной дыры'],
       'dragon-orb': ['Сфера драконов'], 'gloves-of-missile-snaring': ['Перчатку похищения снарядов'],
+      'handy-haversack': ['Практичным рюкзаком'],
       'horn-of-valhalla': ['Рога Валгаллы'], 'oil-of-etherealness': ['Масла эфирности'],
       'oil-of-slipperiness': ['Маслом скольжения'],
       'potions-of-healing': ['Зелье лечения'], 'ring-of-djinni-summoning': ['Кольца призыва джинна'],
