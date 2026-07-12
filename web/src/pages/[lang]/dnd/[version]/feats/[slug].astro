@@ -1,0 +1,160 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы черт (issue #20, Дорожка A) в общем шелле ридера.
+// URL: /{lang}/dnd/{version}/feats/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
+// Автолинк ИМЁН черт в чужом тексте не делаем (по решению), но в ТЕЛЕ черты линкуем
+// состояния/заклинания и подсвечиваем ключевые слова, как на прочих страницах.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-feats' };
+
+// Категория черты: ключ в данных общий для обеих локалей — нормализуем двусторонним мапом.
+const CATEGORY: Record<string, [string, string]> = {
+  general: ['Общая черта', 'General Feat'],
+  origin: ['Черта происхождения', 'Origin Feat'],
+  fighting_style: ['Черта боевого стиля', 'Fighting Style Feat'],
+  epic_boon: ['Эпический дар', 'Epic Boon'],
+};
+
+interface Sib { slug: string; name: string; category: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const feats = loadEntities(ver, lang, 'feats');
+    const siblings: Sib[] = feats.map((f) => ({
+      slug: f.slug, name: f.name, category: (f.category as string) ?? '',
+    }));
+    for (const entity of feats) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+// Тело с автоссылками (состояния/заклинания) + подсветкой ключевых слов (issue #20).
+const render = (md: string | undefined | null) => {
+  if (!md || md === 'None') return '';
+  const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
+  autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  highlightKeywords(tree, { lang });
+  return toHtml(tree);
+};
+const bodyHtml = render(entity.description_md as string);
+const description = excerpt(entity.description_md as string);
+
+const rawCat = (entity.category as string) ?? '';
+const catPair = CATEGORY[rawCat];
+const catLabel = catPair ? (lang === 'ru' ? catPair[0] : catPair[1]) : rawCat;
+const prerequisite = (entity.prerequisite as string | null) ?? '';
+const repeatable = entity.repeatable === true;
+
+const base = `/${lang}/dnd/${verSlug}/feats`;
+// «Ещё черты» — до 8 той же категории (внутренняя перелинковка/SEO).
+const sameCat = (siblings as Sib[])
+  .filter((s) => s.slug !== entity.slug && s.category === rawCat)
+  .slice(0, 8);
+
+const upLink = { href: `${base}/`, ru: 'Черты', en: 'Feats' };
+const kind = t('Черта', 'Feat');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    <span class="ent-head-sub">
+      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+      {catLabel && <span class="item-meta-line">{catLabel}</span>}
+    </span>
+  </h1>
+
+  <dl class="item-stat">
+    {catLabel && (
+      <div class="item-row"><dt>{t('Категория', 'Category')}</dt><dd>{catLabel}</dd></div>
+    )}
+    {prerequisite && (
+      <div class="item-row"><dt>{t('Требование', 'Prerequisite')}</dt><dd>{prerequisite}</dd></div>
+    )}
+    {repeatable && (
+      <div class="item-row"><dt>{t('Повторяемость', 'Repeatable')}</dt><dd>{t('да', 'yes')}</dd></div>
+    )}
+  </dl>
+
+  <Fragment set:html={bodyHtml} />
+
+  {sameCat.length > 0 && (
+    <nav class="ent-related" aria-label={t('Ещё черты', 'More feats')}>
+      <span class="ent-related-h">{t(`Ещё: ${catLabel}`, `More: ${catLabel}`)}</span>
+      <span class="ent-related-list">
+        {sameCat.map((r) => (
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  /* Подстрока в шапке: EN-имя + категория. */
+  .ent-head-sub {
+    display: block; margin-top: 8px;
+    font-family: var(--font-body); font-weight: 400; letter-spacing: 0;
+  }
+  .ent-en {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .item-meta-line { font-style: italic; font-size: 14px; color: var(--og-text-muted); }
+  .ent-en + .item-meta-line::before { content: ' · '; font-style: normal; }
+
+  .item-stat {
+    margin: 0 0 24px; padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2); display: grid; gap: 8px;
+  }
+  .item-row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: baseline; }
+  .item-row dt {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
+  .item-row dd { margin: 0; color: var(--og-text-2); }
+
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
+  @media (max-width: 560px) {
+    .item-row { display: block; }
+    .item-row dt { display: inline; }
+    .item-row dt::after { content: ':\00a0'; }
+    .item-row dd { display: inline; }
+  }
+</style>
