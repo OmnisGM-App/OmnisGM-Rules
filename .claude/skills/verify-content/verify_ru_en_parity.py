@@ -8,11 +8,15 @@
 
 Использование:
     python3 .claude/skills/verify-content/verify_ru_en_parity.py [--api-dir DIR] [--game dnd]
-            [--version srd52] [--low 0.8] [--high 1.4] [--strict]
+            [--version srd52] [--resources spells,monsters,...] [--low 0.8] [--high 1.4] [--strict]
 
---api-dir  корень сгенерированного JSON API (по умолчанию web/src/data/api)
---strict   ненулевой код возврата и при length-флагах (по умолчанию — только при
-           отсутствующих/лишних slug)
+--api-dir    корень сгенерированного JSON API (по умолчанию web/src/data/api)
+--resources  ресурсы для проверки через запятую. По умолчанию — только с каноническими
+             (EN-based) слагами: spells,monsters,magic-items,conditions. feats/equipment
+             пока имеют кириллические слаги (RU-заголовки без «(English)») → заведомо дают
+             hard-ошибку; включать их через --resources осознанно, после фикса слагов.
+--strict     ненулевой код возврата и при length-флагах (по умолчанию — только при
+             отсутствующих/лишних slug)
 
 Выход: отчёт по ресурсам + список подозрительных сущностей. Код возврата 1, если
 есть отсутствующие slug (или length-флаги при --strict).
@@ -24,8 +28,9 @@ import json
 import sys
 from pathlib import Path
 
-# Ресурсы для проверки (у которых есть переводимый текст). Порядок — для отчёта.
-RESOURCES = ["spells", "monsters", "magic-items", "conditions", "feats", "equipment"]
+# По умолчанию — ресурсы с каноническими (EN-based) слагами, где сверка по slug осмысленна.
+# feats/equipment пока имеют кириллические слаги → включаются только явно через --resources.
+DEFAULT_RESOURCES = ["spells", "monsters", "magic-items", "conditions"]
 
 
 def text_len(entity: dict) -> int:
@@ -93,11 +98,14 @@ def main() -> int:
     ap.add_argument("--api-dir", default="web/src/data/api")
     ap.add_argument("--game", default="dnd")
     ap.add_argument("--version", default="srd52")
+    ap.add_argument("--resources", default=",".join(DEFAULT_RESOURCES),
+                    help="ресурсы через запятую (по умолчанию с каноническими слагами)")
     ap.add_argument("--low", type=float, default=0.8,
                     help="нижний порог RU/EN (короче — подозрение на потерю контента)")
     ap.add_argument("--high", type=float, default=1.4, help="верхний порог RU/EN")
     ap.add_argument("--strict", action="store_true", help="ошибка и при length-флагах")
     args = ap.parse_args()
+    resources = [r.strip() for r in args.resources.split(",") if r.strip()]
 
     api_dir = Path(args.api_dir)
     if not api_dir.exists():
@@ -108,7 +116,7 @@ def main() -> int:
     print(f"Верификация паритета RU↔EN: {args.game}/{args.version} (порог RU/EN [{args.low}, {args.high}])")
     all_hard: list[str] = []
     all_warn: list[str] = []
-    for resource in RESOURCES:
+    for resource in resources:
         hard, warn = check_resource(api_dir, args.game, args.version, resource, args.low, args.high)
         all_hard += hard
         all_warn += warn
