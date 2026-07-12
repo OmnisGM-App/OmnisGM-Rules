@@ -11,10 +11,13 @@
             [--version srd52] [--resources spells,monsters,...] [--low 0.8] [--high 1.4] [--strict]
 
 --api-dir    корень сгенерированного JSON API (по умолчанию web/src/data/api)
---resources  ресурсы для проверки через запятую. По умолчанию — только с каноническими
-             (EN-based) слагами: spells,monsters,magic-items,conditions. feats/equipment
-             пока имеют кириллические слаги (RU-заголовки без «(English)») → заведомо дают
-             hard-ошибку; включать их через --resources осознанно, после фикса слагов.
+--resources  ресурсы для проверки через запятую. По умолчанию — ресурсы 5.2 с каноническими
+             (EN-based) слагами: spells,monsters,magic-items,conditions,feats,equipment.
+             ВНИМАНИЕ: слаги feats/equipment каноничны только в srd-5.2 (RU-заголовки
+             получили «(English)»); в srd-5.1 они всё ещё кириллические → при --version srd51
+             дадут hard-ошибку, исключайте их из --resources. Length-флаг у таблично-плотных
+             предметов (напр. equipment/ammunition RU/EN≈0.65) — ложный: русский компактнее
+             по СИМВОЛАМ (зм/см vs GP/SP, «фнт.» vs «lb.»), контент полон — это warn, не hard.
 --strict     ненулевой код возврата и при length-флагах (по умолчанию — только при
              отсутствующих/лишних slug)
 
@@ -29,8 +32,9 @@ import sys
 from pathlib import Path
 
 # По умолчанию — ресурсы с каноническими (EN-based) слагами, где сверка по slug осмысленна.
-# feats/equipment пока имеют кириллические слаги → включаются только явно через --resources.
-DEFAULT_RESOURCES = ["spells", "monsters", "magic-items", "conditions"]
+# feats/equipment получили канонические слаги в srd-5.2 (см. docstring); в srd-5.1 они пока
+# кириллические — при --version srd51 исключайте их из --resources.
+DEFAULT_RESOURCES = ["spells", "monsters", "magic-items", "conditions", "feats", "equipment"]
 
 
 def text_len(entity: dict) -> int:
