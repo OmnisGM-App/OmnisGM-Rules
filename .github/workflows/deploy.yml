@@ -87,7 +87,7 @@ jobs:
           fi
           base="https://rules.omnisgm.com"
           files=$(printf '"%s",' \
-            "$base/favicon.svg" "$base/icon.svg" "$base/maskable.svg" \
+            "$base/favicon.svg" "$base/favicon.ico" "$base/icon.svg" "$base/maskable.svg" \
             "$base/icon-192.png" "$base/icon-512.png" \
             "$base/maskable-192.png" "$base/maskable-512.png" \
             "$base/apple-touch-icon.png" "$base/og.png" \
