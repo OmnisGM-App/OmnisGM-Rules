@@ -33,6 +33,15 @@ user-invocable: true
    bash .claude/skills/verify-content/compare_structure.sh src/{game}/{version}/en src/{game}/{version}/ru
    ```
    Если есть расхождения — они будут перечислены. Это экономит время агентов.
+3b. **Проверка паритета по длинам сущностей** (ловит рассинхрон контента —
+   пропущенные/урезанные описания, остатки старой версии правил — по slug,
+   независимо от порядка сущностей в главе). Требует сгенерированного JSON API:
+   ```bash
+   node web/scripts/gen-entity-data.mjs   # если API ещё не собран
+   python3 .claude/skills/verify-content/verify_ru_en_parity.py --game {game} --version {verKey}
+   ```
+   Флаги: отсутствующие/лишние slug (hard), RU/EN длина вне [0.8, 1.4] (warn →
+   сверить контент этих сущностей вручную). Так был найден 5.1-дрейф маг. предметов.
 4. Построй словарь терминов из `src/{game}/translate/` и `src/translate/` (см. `.claude/rules/translate-dictionaries.md`)
 5. Если RU контент не найден — предложи сначала `/translate-content`
 5. Определи режим:
