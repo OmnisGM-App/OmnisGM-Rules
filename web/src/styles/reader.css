@@ -196,6 +196,11 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc a.ent-link { color: inherit; border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent); }
 .rd-doc a.ent-link:hover { color: var(--og-accent); border-bottom-style: solid; border-bottom-color: var(--og-accent); }
 
+/* Подсветка ключевых игромеханических слов (issue #20): характеристики / навыки /
+   спасброски — только бренд-цвет, без ссылки и hovercard. Наследует курсив/жирность
+   окружения (напр. курсив описания спелла), добавляя лишь цвет и вес. */
+.rd-doc .kw { color: var(--og-danger-text); font-weight: 600; }
+
 /* Hovercard автоссылок (issue #20, вариант B): карточка сущности при наведении/фокусе.
    Единый переиспользуемый элемент в <body>; позицию задаёт клиентский скрипт (top/left). */
 .ent-hovercard {

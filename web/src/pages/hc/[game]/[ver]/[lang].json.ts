@@ -128,7 +128,9 @@ export const GET: APIRoute = ({ params }) => {
     for (const e of loadEntities(ver, lang, key)) {
       map[`${key}/${e.slug}`] = {
         name: e.name,
-        name_en: (e.name_en as string) ?? null,
+        // EN-оригинал показываем в шапке ВСЕГДА (и в EN-карточке тоже). Для EN-сущностей
+        // name_en отсутствует → оригинал = само name (оно и есть английское).
+        name_en: (e.name_en as string) ?? (e.name as string),
         effect: body(e as unknown as Record<string, unknown>, lang),
         href: `/${lang}/${game}/${verSlug}/${urlParent}/${e.slug}/`,
       };
