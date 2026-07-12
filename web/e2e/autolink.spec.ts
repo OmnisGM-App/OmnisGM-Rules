@@ -11,7 +11,7 @@ test('глава: автоссылки ведут на страницы сущн
   expect(await links.count()).toBeGreaterThan(0);
   // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|magic-items)\/[a-z0-9-]+\/$/);
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|magic-items|feats)\/[a-z0-9-]+\/$/);
   }
 });
 
@@ -67,6 +67,31 @@ test('предметы: имя в курсиве линкуется на стр�
   const link = page.locator('.rd-doc em a.ent-link[href*="/dnd/srd-5.2/magic-items/"]').first();
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/magic-items\//);
+});
+
+test('черты: ячейка таблицы класса (Увеличение характеристики) линкуется на страницу черты', async ({ page }) => {
+  // Таблица прогрессии воина: «Увеличение характеристики» на уровнях 4/6/… → ссылка на ASI-черту.
+  // Источник выровнен к каноническому имени черты (формы «…характеристик» приведены к ед.ч.),
+  // поэтому матч идёт по имени напрямую, без алиасов.
+  await page.goto('/ru/dnd/srd-5.2/classes/fighter/');
+  const cell = page.locator('.rd-doc td a.ent-link[href$="/feats/ability-score-improvement/"]');
+  expect(await cell.count()).toBeGreaterThan(1); // несколько уровней
+  await expect(cell.first()).toHaveAttribute('data-hc', /feats\/ability-score-improvement/);
+});
+
+test('черты: эпический дар (много-словное имя) линкуется в прозе; фичи класса — нет', async ({ page }) => {
+  // «Boon of Combat Prowess is recommended» — много-словное имя черты в прозе → ссылка.
+  await page.goto('/en/dnd/srd-5.2/classes/fighter/');
+  await expect(
+    page.locator('.rd-doc a.ent-link[href$="/feats/boon-of-combat-prowess/"]').first(),
+  ).toBeVisible();
+});
+
+test('черты: одно-словное имя (Defense) в прозе класса НЕ линкуется ложно', async ({ page }) => {
+  // «Unarmored Defense»/«Superior Defense» в Монахе — фичи класса, не черта «Оборона/Defense».
+  // Одно-словные имена черт в прозе не трогаем → ложной ссылки на feats/defense быть не должно.
+  await page.goto('/en/dnd/srd-5.2/classes/monk/');
+  await expect(page.locator('.rd-doc a.ent-link[href*="/feats/defense/"]')).toHaveCount(0);
 });
 
 test('автолинк не попадает в заголовки и не вкладывается в другие ссылки', async ({ page }) => {
