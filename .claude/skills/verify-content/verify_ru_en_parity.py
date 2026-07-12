@@ -7,7 +7,7 @@
 (description_md + все *_md/list text_md) EN vs RU.
 
 Использование:
-    python3 .github/scripts/verify_ru_en_parity.py [--api-dir DIR] [--game dnd]
+    python3 .claude/skills/verify-content/verify_ru_en_parity.py [--api-dir DIR] [--game dnd]
             [--version srd52] [--low 0.8] [--high 1.4] [--strict]
 
 --api-dir  корень сгенерированного JSON API (по умолчанию web/src/data/api)
