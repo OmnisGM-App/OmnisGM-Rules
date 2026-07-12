@@ -4,6 +4,7 @@ import { fromHtml } from 'hast-util-from-html';
 import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Programmatic-страницы монстров (issue #20, волна 3) в общем шелле ридера.
@@ -52,6 +53,7 @@ const render = (md: string | undefined | null) => {
   if (!md) return '';
   const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
   autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  highlightKeywords(tree, { lang });
   return toHtml(tree);
 };
 const renderEntry = (e: { name?: string; text_md: string }) =>
