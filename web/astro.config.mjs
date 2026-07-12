@@ -120,7 +120,9 @@ export default defineConfig({
   },
   markdown: {
     // Нормализуем уровни заголовков ДО сбора TOC (headings) Astro — чтобы titled h1 не попадал в TOC.
-    // rehypeEntityAutolink — последним: линкует имена сущностей в готовом дереве (issue #20).
+    // Порядок важен (issue #20): rehypeEntityAutolink оборачивает имена сущностей в <a>, затем
+    // rehypeKeywordHighlight красит ключевые слова — последним, чтобы не лезть внутрь ссылок
+    // (<a> в его SKIP_TAGS) и работать по уже готовому дереву.
     rehypePlugins: [rehypePromoteHeadings, rehypeWrapTables, rehypeEntityAutolink, rehypeKeywordHighlight],
   },
 });
