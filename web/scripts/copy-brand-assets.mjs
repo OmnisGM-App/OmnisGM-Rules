@@ -10,7 +10,7 @@ const pub = join(root, 'public');
 mkdirSync(pub, { recursive: true });
 
 const FILES = [
-  'favicon.svg', 'icon.svg', 'maskable.svg',
+  'favicon.svg', 'favicon.ico', 'icon.svg', 'maskable.svg',
   'icon-192.png', 'icon-512.png', 'maskable-192.png', 'maskable-512.png', 'apple-touch-icon.png',
 ];
 for (const f of FILES) copyFileSync(join(src, f), join(pub, f));

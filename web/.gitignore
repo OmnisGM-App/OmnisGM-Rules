@@ -11,6 +11,7 @@ playwright/.cache/
 
 # Бренд-иконки — копируются из @omnisgm-app/brand на pre(dev|build)
 public/favicon.svg
+public/favicon.ico
 public/icon.svg
 public/maskable.svg
 public/icon-192.png
