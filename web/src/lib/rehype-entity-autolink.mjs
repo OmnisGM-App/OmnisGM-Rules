@@ -28,6 +28,13 @@ const RESOURCES = [
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
   // Имена предметов и заклинаний не пересекаются → общий em-матч безопасен.
   { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
+  // Черты: имена НЕ размечены курсивом/жирным и часто омонимичны обычным словам
+  // (Defense/Archery/Skilled). Поэтому режим 'feats': (1) ячейка таблицы, точно равная имени
+  // черты (колонка «Черты/Features» таблиц классов — ASI на всех уровнях, боевые стили) →
+  // безопасно и всегда корректно; (2) в прозе линкуем ТОЛЬКО много-словные имена (ASI,
+  // эпические дары «Дар …», «Посвящённый в магию»…) — они дистинктивны; одно-словные в прозе
+  // не трогаем.
+  { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2'] },
 ];
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.
@@ -83,6 +90,15 @@ const EXACT_ALIASES = {
   },
 };
 
+// Алиасы имён черт для матча ячеек таблиц: `${game}/${lang}` → { slug: [вариант…] }.
+// Таблицы прогрессии классов иногда используют форму, отличную от канонического заголовка черты
+// (напр. RU-таблицы: «Увеличение характеристик» мн.ч. vs заголовок «Увеличение характеристики»).
+const FEAT_ALIASES = {
+  'dnd/ru': {
+    'ability-score-improvement': ['Увеличение характеристик'],
+  },
+};
+
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -97,10 +113,13 @@ function loadMap(game, version, lang) {
   const verKey = verKeyOf(version);
   const aliases = ALIASES[`${game}/${lang}`] || {};
   const exactAliases = EXACT_ALIASES[`${game}/${lang}`] || {};
+  const featAliases = FEAT_ALIASES[`${game}/${lang}`] || {};
   const textEntries = [];
   // exact-карты по контейнеру: em (заклинания) и strong (монстры) — держим раздельно, чтобы
   // имя монстра в курсиве / имя заклинания в жирном не матчились не в своём контексте.
   const exact = { em: new Map(), strong: new Map() };
+  // Черты: exact-карта «имя → сущность» (lowercase) для точечного матча ячеек таблиц.
+  const feats = new Map();
   for (const { key, urlParent, mode, container, versions } of RESOURCES) {
     if (versions && !versions.includes(version)) continue;
     const file = path.join(DATA_ROOT, game, verKey, lang, key, 'all.json');
@@ -125,6 +144,17 @@ function loadMap(game, version, lang) {
           const fk = form.toLowerCase();
           if (m && !m.has(fk)) m.set(fk, entry);
         }
+      } else if (mode === 'feats') {
+        // Ячейки таблиц — любое имя черты (точное совпадение текста ячейки).
+        const k = e.name.toLowerCase();
+        if (!feats.has(k)) feats.set(k, entry);
+        // Курируемые варианты формы имени (таблицы классов) → на ту же черту.
+        for (const form of featAliases[e.slug] || []) {
+          const fk = form.toLowerCase();
+          if (!feats.has(fk)) feats.set(fk, entry);
+        }
+        // Проза — только много-словные (дистинктивные) имена; одно-словные омонимичны.
+        if (e.name.trim().split(/\s+/).length >= 2) textEntries.push(entry);
       } else {
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
@@ -139,7 +169,7 @@ function loadMap(game, version, lang) {
     const alt = textEntries.map((e) => escapeRegExp(e.name)).join('|');
     text = { regexSource: `(?<![\\p{L}\\p{N}_])(${alt})(?![\\p{L}\\p{N}_])`, byName };
   }
-  const result = text || exact.em.size || exact.strong.size ? { text, exact, verKey } : null;
+  const result = text || exact.em.size || exact.strong.size || feats.size ? { text, exact, feats, verKey } : null;
   mapCache.set(cacheKey, result);
   return result;
 }
@@ -230,6 +260,22 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
     }
   };
 
+  // Черты: любая ячейка <td>, точно равная имени черты (колонка «Черты/Features» таблиц классов
+  // — ASI на всех уровнях, боевые стили в таблицах). Точное совпадение → 0 ложных срабатываний.
+  const linkFeatCells = (table) => {
+    const rows = [];
+    collectRows(table, rows);
+    for (const tr of rows) {
+      for (const cell of tr.children) {
+        if (cell.type !== 'element' || cell.tagName !== 'td') continue;
+        const txt = directText(cell);
+        if (txt == null) continue;
+        const entry = map.feats.get(txt.trim().toLowerCase());
+        if (entry && !skip.has(entry.slug)) cell.children = [linkNode(entry, txt.trim(), ctx)];
+      }
+    }
+  };
+
   const walk = (node, insideSkip) => {
     if (!node.children) return;
     for (let i = 0; i < node.children.length; i++) {
@@ -238,6 +284,8 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
         const tag = child.tagName;
         // Спелл-таблица класса: линкуем первую колонку (данные), затем обычный обход остального.
         if (tag === 'table' && map.exact.em.size && isSpellTable(child)) linkSpellTable(child);
+        // Черты в ячейках любых таблиц (таблицы прогрессии классов и т.п.).
+        if (tag === 'table' && map.feats && map.feats.size) linkFeatCells(child);
         // Курсивная ссылка на заклинание <em>Имя</em> / жирная на монстра <strong>Имя</strong> —
         // полный текст элемента = имя. Внутрь уже-ссылки не идём.
         if (!insideSkip && (tag === 'em' || tag === 'strong')) {
