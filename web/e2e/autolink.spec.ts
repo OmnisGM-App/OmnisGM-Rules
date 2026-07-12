@@ -122,7 +122,8 @@ const EXCEPTIONS: Record<string, string[]> = {
   '/en/dnd/srd-5.2/classes/monk/': ['exhaustion'], // RU не использует «Истощение»
   '/en/dnd/srd-5.2/classes/ranger/': ['exhaustion'],
   '/en/dnd/srd-5.2/feats/': ['grappled'], // RU не использует «Схваченный»
-  '/en/dnd/srd-5.2/magic-items/': ['prone', 'unconscious'], // RU: иные формы/прозой
+  // (magic-items: prone/unconscious — сняты после переперевода главы по EN 5.2: RU теперь
+  //  использует канонические состояния, расхождение исчезло.)
 };
 
 async function linkedConditions(page: import('@playwright/test').Page, path: string): Promise<Set<string>> {

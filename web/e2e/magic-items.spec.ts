@@ -14,7 +14,7 @@ test('страница предмета: заголовок, EN-имя, тип·
   await expect(stat).toContainText('Редкость');
   // настройка с условием
   await expect(stat.locator('.item-row', { hasText: 'Настройка' })).toContainText('требуется');
-  await expect(stat.locator('.item-row', { hasText: 'Настройка' })).toContainText('Пояс силы великанов');
+  await expect(stat.locator('.item-row', { hasText: 'Настройка' })).toContainText('дварф'); // Belt of Dwarvenkind (5.2)
 });
 
 test('related: другие предметы того же типа', async ({ page }) => {
