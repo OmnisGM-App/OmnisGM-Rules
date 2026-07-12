@@ -90,15 +90,6 @@ const EXACT_ALIASES = {
   },
 };
 
-// Алиасы имён черт для матча ячеек таблиц: `${game}/${lang}` → { slug: [вариант…] }.
-// Таблицы прогрессии классов иногда используют форму, отличную от канонического заголовка черты
-// (напр. RU-таблицы: «Увеличение характеристик» мн.ч. vs заголовок «Увеличение характеристики»).
-const FEAT_ALIASES = {
-  'dnd/ru': {
-    'ability-score-improvement': ['Увеличение характеристик'],
-  },
-};
-
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
@@ -113,7 +104,6 @@ function loadMap(game, version, lang) {
   const verKey = verKeyOf(version);
   const aliases = ALIASES[`${game}/${lang}`] || {};
   const exactAliases = EXACT_ALIASES[`${game}/${lang}`] || {};
-  const featAliases = FEAT_ALIASES[`${game}/${lang}`] || {};
   const textEntries = [];
   // exact-карты по контейнеру: em (заклинания) и strong (монстры) — держим раздельно, чтобы
   // имя монстра в курсиве / имя заклинания в жирном не матчились не в своём контексте.
@@ -148,11 +138,6 @@ function loadMap(game, version, lang) {
         // Ячейки таблиц — любое имя черты (точное совпадение текста ячейки).
         const k = e.name.toLowerCase();
         if (!feats.has(k)) feats.set(k, entry);
-        // Курируемые варианты формы имени (таблицы классов) → на ту же черту.
-        for (const form of featAliases[e.slug] || []) {
-          const fk = form.toLowerCase();
-          if (!feats.has(fk)) feats.set(fk, entry);
-        }
         // Проза — только много-словные (дистинктивные) имена; одно-словные омонимичны.
         if (e.name.trim().split(/\s+/).length >= 2) textEntries.push(entry);
       } else {
