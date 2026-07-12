@@ -26,7 +26,7 @@ export default defineConfig({
       // Интеграция генерит manifest.webmanifest + sw.js, но НЕ инъектирует их в HTML Astro-страниц
       // (особенность @vite-pwa/astro). Поэтому линкуем манифест и регистрируем SW вручную в Reader.astro.
       injectRegister: false,
-      includeAssets: ['favicon.svg', 'apple-touch-icon.png', 'icon.svg'],
+      includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
       manifest: {
         id: '/',
         name: 'OmnisGM Rules — tabletop RPG reference',
