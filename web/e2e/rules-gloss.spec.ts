@@ -73,6 +73,38 @@ test('hovercard-эндпоинт: есть карточки терминов я�
   expect(ru['rules-terms/passive-perception']?.effect).toContain('Пассивная Внимательность');
 });
 
+test('термин ядра (батч 2): многословный (Продолжительный отдых) глоссится симметрично EN/RU', async ({ page }) => {
+  // Глава класса «Воин» — «Long Rest» / «Продолжительный отдых» получают глосс на обеих локалях.
+  await page.goto('/en/dnd/srd-5.2/classes/fighter/');
+  await expect(page.locator('.rd-doc .gloss[data-hc*="/rules-terms/long-rest"]').first()).toBeVisible();
+  await page.goto('/ru/dnd/srd-5.2/classes/fighter/');
+  const g = page.locator('.rd-doc .gloss[data-hc*="/rules-terms/long-rest"]').first();
+  await expect(g).toBeVisible();
+  await g.hover();
+  const card = page.locator('#ent-hovercard.is-open');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-en')).toHaveText('Long Rest');
+});
+
+test('термин ядра (батч 2): дистинктивный однословный (Класс доспеха) без ложных на «класс»', async ({ page }) => {
+  // «Класс доспеха» глоссится, а «класс» персонажа рядом — нет (стем требует «доспех»).
+  await page.goto('/ru/dnd/srd-5.2/classes/monk/');
+  await expect(page.locator('.rd-doc .gloss[data-hc*="/rules-terms/armor-class"]').first()).toBeVisible();
+  // Ни один глосс armor-class не должен обойтись без слова «доспех» в тексте.
+  const texts = await page.locator('.rd-doc .gloss[data-hc*="/rules-terms/armor-class"]').allTextContents();
+  for (const t of texts) expect(t.toLowerCase()).toContain('доспех');
+});
+
+test('hovercard-эндпоинт: есть карточки терминов ядра батча 2', async ({ request }) => {
+  const ru = await (await request.get('/hc/dnd/srd52/ru.json')).json();
+  expect(ru['rules-terms/armor-class']?.name_en).toBe('Armor Class');
+  expect(ru['rules-terms/long-rest']?.name_en).toBe('Long Rest');
+  expect(ru['rules-terms/initiative']?.name_en).toBe('Initiative');
+  expect(ru['rules-terms/challenge-rating']?.name_en).toBe('Challenge Rating');
+  expect(ru['rules-terms/unarmed-strike']?.name_en).toBe('Unarmed Strike');
+  expect((ru['rules-terms/unarmed-strike']?.effect || '').toLowerCase()).toContain('безоружный удар');
+});
+
 test('область эффекта: стат-блок заклинания — строка «Область» с глоссом формы', async ({ page }) => {
   // Конус холода: форма извлечена структурно из описания → строка «Область: Конус, 60 футов».
   await page.goto('/ru/dnd/srd-5.2/spells/cone-of-cold/');
