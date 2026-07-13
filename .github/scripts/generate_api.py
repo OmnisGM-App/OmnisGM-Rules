@@ -26,7 +26,7 @@ from config import (SOURCES, SKIP_HEADINGS_SPELL, SKIP_HEADINGS_MONSTER,
                     SKIP_HEADINGS_EQUIPMENT, SKIP_HEADINGS_FEAT)
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
-                     parse_conditions, parse_feats, parse_defs, parse_tagged_defs)
+                     parse_conditions, parse_feats, parse_defs, parse_tagged_defs, parse_untagged_defs)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
@@ -459,6 +459,9 @@ def main():
         elif entity_type == "tagged_defs":
             entities = parse_tagged_defs(text, source["tags"])
             resource = out_resource
+        elif entity_type == "untagged_defs":
+            entities = parse_untagged_defs(text)
+            resource = out_resource
         else:
             print(f"  Warning: unknown type '{entity_type}', skipping", file=sys.stderr)
             continue
@@ -476,7 +479,7 @@ def main():
     # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
     align_stat_table_name_en(all_data)
     # RU-свойствам/мастерствам оружия и действиям — name_en по позиции (порядок определений = EN).
-    align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions"))
+    align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms"))
 
     # Resolve cross-references
     resolve_cross_refs(all_data)

@@ -42,3 +42,33 @@ test('hovercard-эндпоинт: есть карточки действий', a
   expect(ru['actions/dash']?.effect).toContain('Рывок');
   expect(ru['actions/dodge']?.name_en).toBe('Dodge');
 });
+
+test('термин ядра: Концентрация глоссится + наведение показывает определение', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/spells/bestow-curse/');
+  const g = page.locator('.rd-doc .gloss[data-hc*="/rules-terms/concentration"]').first();
+  await expect(g).toBeVisible();
+  await g.hover();
+  const card = page.locator('#ent-hovercard.is-open');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-en')).toHaveText('Concentration');
+});
+
+test('термин ядра: многословный дистинктивный (Труднопроходимая местность) — EN и RU', async ({ page }) => {
+  // Стем-матч ловит склонения RU; EN — точная фраза.
+  await page.goto('/ru/dnd/srd-5.2/spells/arcane-hand/');
+  await expect(page.locator('.rd-doc .gloss[data-hc*="/rules-terms/difficult-terrain"]').first()).toBeVisible();
+  await page.goto('/en/dnd/srd-5.2/spells/arcane-hand/');
+  await expect(page.locator('.rd-doc .gloss[data-hc*="/rules-terms/difficult-terrain"]').first()).toBeVisible();
+});
+
+test('безопасность: обычное слово (Cover/Укрытие) НЕ в наборе — не глоссится', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/rules-glossary/');
+  await expect(page.locator('.gloss[data-hc*="/rules-terms/cover"]')).toHaveCount(0);
+});
+
+test('hovercard-эндпоинт: есть карточки терминов ядра', async ({ request }) => {
+  const ru = await (await request.get('/hc/dnd/srd52/ru.json')).json();
+  expect(ru['rules-terms/concentration']?.name_en).toBe('Concentration');
+  expect(ru['rules-terms/difficult-terrain']?.name_en).toBe('Difficult Terrain');
+  expect(ru['rules-terms/passive-perception']?.effect).toContain('Пассивная Внимательность');
+});
