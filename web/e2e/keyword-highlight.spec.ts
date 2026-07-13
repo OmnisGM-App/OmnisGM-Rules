@@ -23,6 +23,25 @@ test('монстр: хар-ки в тексте действий подсвеч�
   await expect(kw.filter({ hasText: /^Харизму$/ }).first()).toBeVisible();
 });
 
+test('список навыков класса: подсвечены ВСЕ, включая первый и последний', async ({ page }) => {
+  // Таблица черт Варвара: «Выберите 2: Уход за животными, Атлетика, …, Внимательность или
+  // Выживание». Раньше первый (после «2:») и последний (после «или») выпадали — навык
+  // подсвечивался только после запятой. Список — единая группа: подсвечены все 6.
+  await page.goto('/ru/dnd/srd-5.2/classes/barbarian/');
+  const kw = page.locator('.rd-doc .kw');
+  for (const skill of ['Уход за животными', 'Атлетика', 'Запугивание', 'Природа', 'Внимательность', 'Выживание']) {
+    await expect(kw.filter({ hasText: new RegExp(`^${skill}$`) }).first()).toBeVisible();
+  }
+});
+
+test('список навыков EN: первый и последний тоже подсвечены (Animal Handling … or Survival)', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/classes/barbarian/');
+  const kw = page.locator('.rd-doc .kw');
+  for (const skill of ['Animal Handling', 'Survival']) {
+    await expect(kw.filter({ hasText: new RegExp(`^${skill}$`) }).first()).toBeVisible();
+  }
+});
+
 test('подсветка НЕ трогает главы-определения (Как играть)', async ({ page }) => {
   // Глава «Как играть» определяет термины — там подсветки быть не должно (был бы ковёр).
   await page.goto('/ru/dnd/srd-5.2/playing-the-game/');

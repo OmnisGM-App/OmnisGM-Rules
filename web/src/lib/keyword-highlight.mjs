@@ -52,6 +52,11 @@ const SKILL_CTX = {
   en: /(?:proficiency|proficient|check|save|saving throw|skill|Skills|\bin)\s*$/iu,
 };
 
+// Разделитель списка навыков: запятая и/или союз («A, B, or C», «A, B … или F»). Если два
+// соседних навыка разделены только им — они члены одного перечисления. Пустой зазор (только
+// пробел) НЕ считается разделителем — иначе слиплись бы случайные соседние слова.
+const SKILL_LIST_SEP = /^\s*(?:,\s*(?:или|и|or|and)?|(?:или|и|or|and))\s*$/iu;
+
 const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 const cache = new Map(); // lang → { re, abil:Set, skill:Set, ctx }
 
@@ -75,23 +80,44 @@ function spanNode(text) {
 
 function highlightText(value, m) {
   m.re.lastIndex = 0;
+  const matches = [];
+  let match;
+  while ((match = m.re.exec(value))) {
+    matches.push({
+      term: match[1], idx: match.index, end: match.index + match[1].length,
+      skill: m.skill.has(match[1]),
+    });
+  }
+  if (!matches.length) return null;
+
+  // Индивидуальная легитимность навыка: «(Навык)» / после запятой или контекст-слова.
+  // Характеристики подсвечиваем всегда (заглавная форма уже отсеяла обычные слова).
+  const decide = matches.map((mt) => {
+    if (!mt.skill) return true;
+    const before = value.slice(0, mt.idx);
+    return /[(,]\s*$/.test(before) || m.ctx.test(before);
+  });
+
+  // Список навыков — единая группа: соседние навыки, разделённые только запятой/союзом,
+  // связаны. Если хоть один член легитимен, подсвечиваем весь список (иначе первый после
+  // «Выберите N:» и последний после «или» выпадали — issue #20). Прямой проход тянет «ок»
+  // вперёд по цепочке, обратный — назад; для непрерывного списка этого достаточно.
+  const linked = (a, b) => a.skill && b.skill && SKILL_LIST_SEP.test(value.slice(a.end, b.idx));
+  for (let i = 1; i < matches.length; i++)
+    if (decide[i - 1] && linked(matches[i - 1], matches[i])) decide[i] = true;
+  for (let i = matches.length - 2; i >= 0; i--)
+    if (decide[i + 1] && linked(matches[i], matches[i + 1])) decide[i] = true;
+
   const nodes = [];
   let last = 0;
   let changed = false;
-  let match;
-  while ((match = m.re.exec(value))) {
-    const term = match[1];
-    const idx = match.index;
-    if (m.skill.has(term)) {
-      // Навык — только в игромеханическом контексте: «(Навык)» или после контекст-слова.
-      const before = value.slice(0, idx);
-      const inParen = /[(,]\s*$/.test(before);
-      if (!inParen && !m.ctx.test(before)) continue;
-    }
+  for (let i = 0; i < matches.length; i++) {
+    if (!decide[i]) continue;
+    const mt = matches[i];
     changed = true;
-    if (idx > last) nodes.push({ type: 'text', value: value.slice(last, idx) });
-    nodes.push(spanNode(term));
-    last = idx + term.length;
+    if (mt.idx > last) nodes.push({ type: 'text', value: value.slice(last, mt.idx) });
+    nodes.push(spanNode(mt.term));
+    last = mt.end;
   }
   if (!changed) return null;
   if (last < value.length) nodes.push({ type: 'text', value: value.slice(last) });
