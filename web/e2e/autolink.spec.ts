@@ -61,6 +61,24 @@ test('монстры RU: термин выровнен по бестиарию (
   await expect(page.locator('.rd-doc', { hasText: 'Буллет' })).toHaveCount(0);
 });
 
+test('животные RU: склонённые жирные формы линкуются (Слоном/Мастифом/Вороном → animals)', async ({ page }) => {
+  // Фигурка чудесной силы: RU склоняет имена животных в жирном («стать **Слоном**»),
+  // а страница животного — в именительном. Курируемый alias падежных форм линкует их.
+  await page.goto('/ru/dnd/srd-5.2/magic-items/figurine-of-wondrous-power/');
+  for (const slug of ['elephant', 'mastiff', 'raven']) {
+    await expect(
+      page.locator(`.rd-doc strong a.ent-link[href$="/animals/${slug}/"]`).first(),
+    ).toBeVisible();
+  }
+});
+
+test('животные EN: множественная жирная форма линкуется (Giant Wasps → giant-wasp)', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/gameplay-toolbox/');
+  await expect(
+    page.locator('.rd-doc strong a.ent-link[href$="/animals/giant-wasp/"]', { hasText: 'Giant Wasps' }).first(),
+  ).toBeVisible();
+});
+
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
   // Глава маг. предметов: предмет↔предмет ссылки — «*Portable Hole*» и т.п. в курсиве.
   await page.goto('/en/dnd/srd-5.2/magic-items/');
