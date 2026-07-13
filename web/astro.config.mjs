@@ -6,6 +6,7 @@ import rehypePromoteHeadings from './src/lib/rehype-promote-headings.mjs';
 import rehypeWrapTables from './src/lib/rehype-wrap-tables.mjs';
 import rehypeEntityAutolink from './src/lib/rehype-entity-autolink.mjs';
 import rehypeKeywordHighlight from './src/lib/keyword-highlight.mjs';
+import rehypeRulesGloss from './src/lib/rules-gloss.mjs';
 
 // rules.omnisgm.com — статический (SSG) ридер SRD экосистемы OmnisGM.
 // Контент — Markdown из ../src/{game}/{version}/{en,ru}/**.md (вход контентного пайплайна),
@@ -123,6 +124,6 @@ export default defineConfig({
     // Порядок важен (issue #20): rehypeEntityAutolink оборачивает имена сущностей в <a>, затем
     // rehypeKeywordHighlight красит ключевые слова — последним, чтобы не лезть внутрь ссылок
     // (<a> в его SKIP_TAGS) и работать по уже готовому дереву.
-    rehypePlugins: [rehypePromoteHeadings, rehypeWrapTables, rehypeEntityAutolink, rehypeKeywordHighlight],
+    rehypePlugins: [rehypePromoteHeadings, rehypeWrapTables, rehypeEntityAutolink, rehypeKeywordHighlight, rehypeRulesGloss],
   },
 });

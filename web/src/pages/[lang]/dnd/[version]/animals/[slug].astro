@@ -5,6 +5,7 @@ import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
+import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Programmatic-страницы животных (issue #20, Дорожка A) в общем шелле ридера.
@@ -58,6 +59,7 @@ const render = (md: string | undefined | null) => {
   const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
   autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
   highlightKeywords(tree, { lang });
+  glossRules(tree, { game: 'dnd', version: verSlug, lang });
   return toHtml(tree);
 };
 const renderEntry = (e: { name?: string; text_md: string }) =>

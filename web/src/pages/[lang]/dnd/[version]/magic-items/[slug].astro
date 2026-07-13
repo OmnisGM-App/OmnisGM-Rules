@@ -4,6 +4,7 @@ import { fromHtml } from 'hast-util-from-html';
 import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Programmatic-страницы магических предметов (issue #20, волна 3) в общем шелле ридера.
@@ -51,6 +52,7 @@ const render = (md: string | undefined | null) => {
   if (!md || md === 'None') return '';
   const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
   autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  glossRules(tree, { game: 'dnd', version: verSlug, lang });
   return toHtml(tree);
 };
 const bodyHtml = render(entity.description_md as string);
