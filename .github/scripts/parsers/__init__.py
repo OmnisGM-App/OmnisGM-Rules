@@ -6,3 +6,4 @@ from .armor import parse_armor
 from .equipment import parse_equipment
 from .condition import parse_conditions
 from .feat import parse_feats
+from .glossary_defs import parse_defs

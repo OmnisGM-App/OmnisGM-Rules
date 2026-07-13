@@ -35,18 +35,24 @@ export function getStaticPaths() {
       slug: w.slug, name: w.name,
       category: (w.category as string) ?? '', type: (w.type as string) ?? '',
     }));
+    // Карты «имя свойства/мастерства (lowercase) → slug» для hovercard-подсказок.
+    const propMap: Record<string, string> = {};
+    for (const p of loadEntities(ver, lang, 'weapon-properties')) propMap[p.name.toLowerCase()] = p.slug;
+    const masteryMap: Record<string, string> = {};
+    for (const m of loadEntities(ver, lang, 'masteries')) masteryMap[m.name.toLowerCase()] = m.slug;
     for (const entity of weapons) {
       paths.push({
         params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
-        props: { entity, ver, lang, siblings },
+        props: { entity, ver, lang, siblings, propMap, masteryMap },
       });
     }
   }
   return paths;
 }
 
-const { entity, ver, lang, siblings } = Astro.props;
+const { entity, ver, lang, siblings, propMap, masteryMap } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
+const verKey = ver; // srd52
 const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const loc = (map: Record<string, [string, string]>, key: string) => {
@@ -64,6 +70,21 @@ const rangeN = entity.range_normal as number | null;
 const rangeL = entity.range_long as number | null;
 const weight = (entity.weight as string | null) ?? '';
 const cost = (entity.cost as string) ?? '';
+
+// Свойство «Универсальное (1d10)» → база «Универсальное» (на неё вешаем hovercard) + хвост
+// « (1d10)». Мастерство — целиком. data-hc = префикс бакета game/verKey/lang/resource/slug.
+const propHc = (base: string) => {
+  const slug = propMap[base.trim().toLowerCase()];
+  return slug ? `dnd/${verKey}/${lang}/weapon-properties/${slug}` : null;
+};
+const splitProp = (p: string) => {
+  const m = p.match(/^(.*?)(\s*\(.*\))?$/);
+  return { base: (m?.[1] ?? p).trim(), suffix: m?.[2] ?? '' };
+};
+const masteryHc = (() => {
+  const slug = mastery ? masteryMap[mastery.trim().toLowerCase()] : undefined;
+  return slug ? `dnd/${verKey}/${lang}/masteries/${slug}` : null;
+})();
 
 const catLabel = loc(CATEGORY, category);
 const typeLabel = loc(WTYPE, wtype);
@@ -114,10 +135,22 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       <div class="item-row"><dt>{t('Урон', 'Damage')}</dt><dd>{damageLine}</dd></div>
     )}
     {properties.length > 0 && (
-      <div class="item-row"><dt>{t('Свойства', 'Properties')}</dt><dd>{properties.join(', ')}</dd></div>
+      <div class="item-row"><dt>{t('Свойства', 'Properties')}</dt>
+        <dd>{properties.map((p, i) => {
+          const { base, suffix } = splitProp(p);
+          const hc = propHc(base);
+          return (
+            <Fragment>{i > 0 ? ', ' : ''}{hc
+              ? <span class="gloss" tabindex="0" data-hc={hc}>{base}</span>
+              : base}{suffix}</Fragment>
+          );
+        })}</dd></div>
     )}
     {mastery && (
-      <div class="item-row"><dt>{t('Мастерство', 'Mastery')}</dt><dd>{mastery}</dd></div>
+      <div class="item-row"><dt>{t('Мастерство', 'Mastery')}</dt>
+        <dd>{masteryHc
+          ? <span class="gloss" tabindex="0" data-hc={masteryHc}>{mastery}</span>
+          : mastery}</dd></div>
     )}
     {rangeLine && (
       <div class="item-row"><dt>{t('Дистанция', 'Range')}</dt><dd>{rangeLine}</dd></div>
