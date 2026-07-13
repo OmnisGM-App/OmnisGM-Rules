@@ -252,14 +252,19 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc .hub-links { margin: 28px 0 0; padding: 16px 0 0; border-top: 1px solid var(--og-border-soft); font-size: 14px; }
 .rd-doc .hub-links p { margin: 0 0 8px; color: var(--og-text-2); }
 .rd-doc .hub-links p:last-child { margin-bottom: 0; }
-/* Ссылки в хаб-таблицах/футере — как контентные чипы: БЕЛЫЙ текст (а не заливка акцентом) +
-   акцентное подчёркивание, темнеет по наведению. Базовый .rd-doc a красит текст акцентом
-   («всё фиолетовое») — переопределяем цвет на текстовый, оставляя фиолетовую линию. */
-.rd-doc .hub-table a, .rd-doc .hub-links a {
-  color: var(--og-text);
-  border-bottom: 1px solid color-mix(in oklab, var(--og-accent) 45%, transparent);
+/* Ссылки в хаб-таблицах/футере — как автоссылки .ent-link в глоссарии (эталон владельца):
+   цвет НАСЛЕДУЕТСЯ от ячейки (имя-столбец белый, классы — приглушённые), подчёркивание
+   ПУНКТИРНОЕ акцентом; по наведению — сплошное + акцентный цвет. Базовый .rd-doc a красил
+   текст акцентом сплошной линией («всё фиолетовое») — переопределяем на эталон. */
+.rd-doc .hub-table a, .rd-doc .hub-links a, .rd-doc .ent-related-list a {
+  color: inherit;
+  border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent);
 }
-.rd-doc .hub-table a:hover, .rd-doc .hub-links a:hover { border-bottom-color: var(--og-accent); }
+.rd-doc .hub-table a:hover, .rd-doc .hub-links a:hover, .rd-doc .ent-related-list a:hover {
+  color: var(--og-accent);
+  border-bottom-style: solid;
+  border-bottom-color: var(--og-accent);
+}
 
 .rd-source {
   margin: 36px 0 0; padding-top: 16px; border-top: 1px solid var(--og-border);
