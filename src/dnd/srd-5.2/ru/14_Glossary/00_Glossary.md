@@ -281,7 +281,7 @@
 
 | English | Русский |
 |---|---|
-| Species | Вид | (ранее Race — Раса) |
+| Species | Вид (ранее Race — Раса) |
 | Background | Предыстория |
 | Origin | Происхождение |
 | Feat | Черта |

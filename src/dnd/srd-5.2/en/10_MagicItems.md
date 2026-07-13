@@ -3142,6 +3142,7 @@ This wand has 7 charges. While holding it, you can take a Magic action to expend
 **_Regaining Charges._** The wand regains 1d6 + 1 expended charges daily at dawn. If you expend the wand's last charge, roll 1d20. On a 1, the wand crumbles into dust and is destroyed.
 
 Table: Wand of Wonder Effects
+
 | 1d100 | Effect |
 |---|---|
 | 01–20 | You cast a spell originating from the chosen point. Roll 1d10 to determine the spell: on a **1–2,** *Darkness*; on a **3–4,** *Faerie Fire*; on a **5–6,** *Fireball*; on a **7–8,** *Slow*; on a **9–10,** *Stinking Cloud*. |

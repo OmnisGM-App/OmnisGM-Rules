@@ -1,9 +1,10 @@
 name: Content validation
 
-# Скриптовая (без LLM) валидация контента на PR — issue #22. Этап 1: парность EN↔RU.
-#   • Структурная: файлы/заголовки/строки/таблицы по всем парам game/version (compare_structure.sh).
-#   • Slug-парность сущностей: dnd/srd-5.2 (verify_ru_en_parity.py) — отсутствующий/лишний slug = hard fail.
-# Этапы 2 (валидность таблиц) и 3 (SEO-мета по dist) — отдельными PR.
+# Скриптовая (без LLM) валидация контента на PR — issue #22.
+#   • Этап 1 (job parity): парность EN↔RU — структурная (compare_structure.sh) + slug-парность
+#     сущностей dnd/srd-5.2 (verify_ru_en_parity.py, отсутствующий/лишний slug = hard fail).
+#   • Этап 2 (job tables): валидность таблиц — markdownlint-cli2 (MD055/056/058, стиль off).
+# Этап 3 (SEO-мета по dist) — отдельным PR.
 #
 # Гейтится paths-фильтром: PR, не трогающие контент/скрипты валидации, сюда не заходят.
 on:
@@ -13,6 +14,7 @@ on:
       - 'src/**'
       - '.github/scripts/**'                  # generate_api.py + parsers/schemas — питают slug-парность
       - '.claude/skills/verify-content/**'    # сами скрипты проверок
+      - '.github/markdownlint-cli2.jsonc'     # конфиг проверки таблиц
       - '.github/workflows/content.yml'
 
 permissions:
@@ -104,3 +106,19 @@ jobs:
       - name: Length-флаги → аннотации
         if: always()
         run: grep -F '⚠' "$RUNNER_TEMP/parity.txt" 2>/dev/null | sed 's/^ *//; s/^/::warning::/' || true
+
+  tables:
+    name: Table validity
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: '20'
+
+      # Валидность таблиц по всему src (все игры/версии, en+ru, вкл. глоссарии — их compare_structure
+      # пропускает). Конфиг подключаем явно (--config), версия линтера запинена для воспроизводимости.
+      # Битая таблица (неровные колонки / приклеенная подпись) = красный CI.
+      - name: Валидность таблиц (markdownlint-cli2)
+        run: npx --yes markdownlint-cli2@0.23.0 --config .github/markdownlint-cli2.jsonc
