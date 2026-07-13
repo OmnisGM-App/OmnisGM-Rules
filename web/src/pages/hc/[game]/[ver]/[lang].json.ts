@@ -203,6 +203,8 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   { key: 'actions', urlParent: 'actions', body: (e) => defHtml(e.description_md as string) },
   // Термины ядра Rules Glossary — карточка-определение (глоссится курируемое подмножество).
   { key: 'rules-terms', urlParent: 'rules-terms', body: (e) => defHtml(e.description_md as string) },
+  // Области эффекта — карточка-определение (глосс формы в стат-блоке заклинания).
+  { key: 'areas-of-effect', urlParent: 'areas-of-effect', body: (e) => defHtml(e.description_md as string) },
 ];
 
 // Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).

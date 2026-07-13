@@ -203,6 +203,27 @@ def _ru_shape(shape_type: str) -> str:
             "sphere": "сфер", "hemisphere": "полусфер"}.get(shape_type, "")
 
 
+# Область эффекта из ОПИСАНИЯ (5.2 пишет форму там: «in a 60-foot Cone»), а не в строке
+# Дистанции. Извлекаем из EN (надёжно); RU получает area по слагу (бэкфилл в generate_api),
+# т.к. RU-проза выражает форму разнородно.
+_AREA_RE = re.compile(
+    r"(\d+)-foot(-radius)?\s+(Cone|Cube|Cylinder|Emanation|Line|Sphere)\b")
+
+
+def parse_area_from_desc(desc_md: str) -> dict | None:
+    """→ {shape, size_ft, radius} по первому измеренному упоминанию формы (EN-описание)."""
+    if not desc_md:
+        return None
+    m = _AREA_RE.search(desc_md)
+    if not m:
+        return None
+    return {
+        "shape": m.group(3).lower(),
+        "size_ft": int(m.group(1)),
+        "radius": m.group(2) is not None,
+    }
+
+
 def _parse_components(value: str, lang: str) -> dict:
     """Parse spell components."""
     v_upper = value.upper()
@@ -377,6 +398,8 @@ def parse_spells(text: str, heading_level: int, lang: str,
             "range": spell_range,
             "components": components,
             "duration": duration,
+            # area из EN-описания; для RU останется None и заполнится по слагу (backfill).
+            "area": parse_area_from_desc(desc_md) if lang == "en" else None,
             "description_md": desc_md,
             "higher_levels_md": higher_md,
             "cantrip_upgrade_md": cantrip_md,

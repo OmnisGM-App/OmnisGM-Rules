@@ -72,3 +72,30 @@ test('hovercard-эндпоинт: есть карточки терминов я�
   expect(ru['rules-terms/difficult-terrain']?.name_en).toBe('Difficult Terrain');
   expect(ru['rules-terms/passive-perception']?.effect).toContain('Пассивная Внимательность');
 });
+
+test('область эффекта: стат-блок заклинания — строка «Область» с глоссом формы', async ({ page }) => {
+  // Конус холода: форма извлечена структурно из описания → строка «Область: Конус, 60 футов».
+  await page.goto('/ru/dnd/srd-5.2/spells/cone-of-cold/');
+  const row = page.locator('.spell-meta-row', { hasText: 'Область' });
+  await expect(row).toContainText('Конус');
+  await expect(row).toContainText('60 футов');
+  const g = row.locator('.gloss[data-hc*="/areas-of-effect/cone"]');
+  await expect(g).toBeVisible();
+  await g.hover();
+  const card = page.locator('#ent-hovercard.is-open');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-en')).toHaveText('Cone');
+});
+
+test('область эффекта: EN — «N-foot Shape», форма глоссится (симметрия)', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/spells/fireball/');
+  const row = page.locator('.spell-meta-row', { hasText: 'Area' });
+  await expect(row).toContainText('20-foot-radius');
+  await expect(row.locator('.gloss[data-hc*="/areas-of-effect/sphere"]')).toBeVisible();
+});
+
+test('hovercard-эндпоинт: есть карточки областей эффекта', async ({ request }) => {
+  const ru = await (await request.get('/hc/dnd/srd52/ru.json')).json();
+  expect(ru['areas-of-effect/cone']?.name_en).toBe('Cone');
+  expect(ru['areas-of-effect/sphere']?.name_en).toBe('Sphere');
+});

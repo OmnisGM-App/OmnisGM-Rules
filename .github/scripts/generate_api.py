@@ -175,6 +175,20 @@ def align_positional_name_en(all_data: dict, resources: tuple[str, ...]) -> None
             r["slug"] = e["slug"]
 
 
+def backfill_spell_area(all_data: dict) -> None:
+    """RU-заклинаниям — area по слагу из EN (форма извлекается только из EN-описания)."""
+    for (ver, lang, resource), spells in all_data.items():
+        if lang != "en" or resource != "spells":
+            continue
+        en_area = {s["slug"]: s.get("area") for s in spells}
+        ru = all_data.get((ver, "ru", "spells"))
+        if not ru:
+            continue
+        for s in ru:
+            if s.get("area") is None and en_area.get(s["slug"]):
+                s["area"] = en_area[s["slug"]]
+
+
 def resolve_cross_refs(all_data: dict) -> None:
     """Resolve spell name → slug cross-references for monsters and magic items."""
     spell_lookup: dict[tuple[str, str], dict[str, str]] = {}
@@ -479,7 +493,9 @@ def main():
     # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
     align_stat_table_name_en(all_data)
     # RU-свойствам/мастерствам оружия и действиям — name_en по позиции (порядок определений = EN).
-    align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms"))
+    align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms", "areas-of-effect"))
+    # RU-заклинаниям — area (форма) по слагу из EN.
+    backfill_spell_area(all_data)
 
     # Resolve cross-references
     resolve_cross_refs(all_data)
