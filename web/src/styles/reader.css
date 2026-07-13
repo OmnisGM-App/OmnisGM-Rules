@@ -247,6 +247,12 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc tbody td { color: var(--og-text-2); line-height: 1.5; }
 .rd-doc tbody td:first-child { color: var(--og-text); font-weight: 500; }
 
+/* Хабы заклинаний (issue #20): счётчик у заголовка уровня + блок перелинковки на соседние хабы. */
+.rd-doc .hub-count { color: var(--og-text-muted); font-weight: 400; font-size: 0.85em; }
+.rd-doc .hub-links { margin: 28px 0 0; padding: 16px 0 0; border-top: 1px solid var(--og-border-soft); font-size: 14px; }
+.rd-doc .hub-links p { margin: 0 0 8px; color: var(--og-text-2); }
+.rd-doc .hub-links p:last-child { margin-bottom: 0; }
+
 .rd-source {
   margin: 36px 0 0; padding-top: 16px; border-top: 1px solid var(--og-border);
   display: flex; gap: 10px; align-items: baseline; flex-wrap: wrap;

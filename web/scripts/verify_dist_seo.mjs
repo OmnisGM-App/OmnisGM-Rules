@@ -30,6 +30,8 @@ const SAMPLE = [
   { type: 'animal', tail: 'dnd/srd-5.2/animals/hippopotamus/' },
   { type: 'feat', tail: 'dnd/srd-5.2/feats/boon-of-fate/' },
   { type: 'glossary', tail: 'dnd/srd-5.2/rules-glossary/' },
+  { type: 'spell-hub-class', tail: 'dnd/srd-5.2/spells/class/wizard/' },
+  { type: 'spell-hub-level', tail: 'dnd/srd-5.2/spells/level/3/' },
 ];
 const LANGS = ['en', 'ru'];
 // Страницы, где noindex ЛЕГИТИМЕН (сейчас пусто — глоссарии переоткрыты в #106).
