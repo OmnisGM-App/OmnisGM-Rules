@@ -21,6 +21,21 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Валидация JSON API по схеме — тем же generate_api.py, что гоняет firebase predeploy
+      # при деплое (schemas.py, additionalProperties:False). Локальный prebuild зовёт генератор
+      # с --no-validate (без jsonschema, чтобы dev-сборка была бездефолтной), поэтому дрейф схемы
+      # (новое поле парсера не заведено в schemas.py) на PR не всплывал и ронял уже ДЕПЛОЙ (#20,
+      # spell.area). Ставим python+jsonschema и валидируем здесь — раньше мёржа, а не после.
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      - name: Validate JSON API schema
+        run: |
+          pip install jsonschema
+          python3 .github/scripts/generate_api.py \
+            --src-root src/dnd --output-dir "$RUNNER_TEMP/api-validate"
+
       - uses: actions/setup-node@v6
         with:
           node-version: '20'
