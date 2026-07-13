@@ -199,6 +199,8 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   // клиентом для gloss-подсказок).
   { key: 'weapon-properties', urlParent: 'weapon-properties', body: (e) => defHtml(e.description_md as string) },
   { key: 'masteries', urlParent: 'masteries', body: (e) => defHtml(e.description_md as string) },
+  // Действия Rules Glossary — карточка-определение (страниц нет; глоссинг в тексте → span.gloss).
+  { key: 'actions', urlParent: 'actions', body: (e) => defHtml(e.description_md as string) },
 ];
 
 // Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).

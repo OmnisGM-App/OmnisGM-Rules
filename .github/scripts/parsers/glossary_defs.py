@@ -47,3 +47,29 @@ def parse_defs(text: str, section: str) -> list[dict]:
             "description_md": desc,
         })
     return defs
+
+
+def parse_tagged_defs(text: str, tags: list[str]) -> list[dict]:
+    """Собрать определения #### «Имя [Тег]» по всему файлу, где Тег ∈ tags.
+
+    Rules Glossary размечает термины тегами: «Dash [Action]» / «Рывок [Действие]».
+    Имя = без тега. name_en=None — RU-выравнивание по позиции (порядок в глоссарии
+    одинаков: EN-алфавит) делается в generate_api.
+    """
+    parts = re.split(r"^#### (.+)$", text, flags=re.M)
+    tagset = set(tags)
+    defs = []
+    for j in range(1, len(parts), 2):
+        heading = parts[j].strip()
+        m = re.search(r"\[([^\]]+)\]\s*$", heading)
+        if not m or m.group(1) not in tagset:
+            continue
+        name = heading[:m.start()].strip()
+        desc = parts[j + 1].strip() if j + 1 < len(parts) else ""
+        defs.append({
+            "slug": slugify(name),
+            "name": name,
+            "name_en": None,
+            "description_md": desc,
+        })
+    return defs
