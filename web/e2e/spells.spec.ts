@@ -15,13 +15,19 @@ test('страница заклинания: заголовок, EN-имя, ст
   await expect(meta).toContainText('Длительность');
 });
 
-test('компоненты В/С/М — abbr с подсказкой (полное слово в title)', async ({ page }) => {
+test('компоненты В/С/М — стилизованная подсказка (полное слово), не нативный title', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
   const abbrs = page.locator('.spell-meta abbr');
   await expect(abbrs).toHaveCount(3);
-  await expect(abbrs.nth(0)).toHaveAttribute('title', 'Вербальный');
-  await expect(abbrs.nth(1)).toHaveAttribute('title', 'Соматический');
-  await expect(abbrs.nth(2)).toHaveAttribute('title', 'Материальный');
+  // Полное слово в data-tip (для CSS-подсказки) + aria-label (для скринридеров); нативный title убран.
+  await expect(abbrs.nth(0)).toHaveAttribute('data-tip', 'Вербальный');
+  await expect(abbrs.nth(0)).toHaveAttribute('aria-label', 'Вербальный');
+  await expect(abbrs.nth(1)).toHaveAttribute('data-tip', 'Соматический');
+  await expect(abbrs.nth(2)).toHaveAttribute('data-tip', 'Материальный');
+  // Подсказка реально всплывает по наведению (::after берёт текст из data-tip).
+  await abbrs.nth(0).hover();
+  const tip = await abbrs.nth(0).evaluate((el) => getComputedStyle(el, '::after').content);
+  expect(tip).toContain('Вербальный');
 });
 
 test('классы и подклассы — ссылки; подкласс скрыт, если класс уже в списке', async ({ page }) => {

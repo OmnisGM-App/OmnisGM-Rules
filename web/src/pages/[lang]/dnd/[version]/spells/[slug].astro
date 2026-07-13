@@ -187,7 +187,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
         <dt>{t('Компоненты', 'Components')}</dt>
         <dd>
           {compItems.map((c, i) => (
-            <Fragment>{i > 0 ? ', ' : ''}<abbr title={c.full}>{c.a}</abbr></Fragment>
+            <Fragment>{i > 0 ? ', ' : ''}<abbr tabindex="0" aria-label={c.full} data-tip={c.full}>{c.a}</abbr></Fragment>
           ))}
           {materialDesc && <span class="spell-mat"> ({materialDesc})</span>}
         </dd>
@@ -284,10 +284,18 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
     color: var(--og-text-muted); font-weight: 600;
   }
   .spell-meta dd { margin: 0; color: var(--og-text-2); }
-  /* Компоненты В/С/М: подсказка (полное слово) по наведению — нативный title. */
+  /* Компоненты В/С/М: полное слово — СТИЛИЗОВАННАЯ подсказка (нативный title капризен/не
+     всплывал), одинаково в RU/EN. Текст в data-tip + aria-label (для скринридеров). */
   .spell-meta abbr {
-    text-decoration: none; border-bottom: 1px dotted var(--og-text-muted); cursor: help;
-    font-weight: 600; color: var(--og-text);
+    position: relative; text-decoration: none; border-bottom: 1px dotted var(--og-text-muted);
+    cursor: help; font-weight: 600; color: var(--og-text);
+  }
+  .spell-meta abbr:hover::after, .spell-meta abbr:focus-visible::after {
+    content: attr(data-tip);
+    position: absolute; left: 50%; bottom: calc(100% + 8px); transform: translateX(-50%);
+    background: var(--og-bg-3); color: var(--og-text); border: 1px solid var(--og-border);
+    border-radius: 8px; padding: 5px 10px; font-size: 12.5px; font-weight: 400; line-height: 1.2;
+    white-space: nowrap; z-index: 20; pointer-events: none; box-shadow: 0 4px 14px rgba(0,0,0,.35);
   }
   .spell-mat { color: var(--og-text-muted); }
   /* Классы/подклассы — ссылки в едином стиле с «Ещё из школы» (<a><strong>): белый текст
