@@ -102,6 +102,69 @@ function itemHtml(e: Record<string, unknown>, lang: string): string {
   );
 }
 
+// ── Оружие: «категория оружие тип» + урон (тип переведён) · мастерство · цена.
+const W_CAT: Record<string, [string, string]> = { simple: ['простое', 'simple'], martial: ['воинское', 'martial'] };
+const W_TYPE: Record<string, [string, string]> = { melee: ['ближнего боя', 'melee'], ranged: ['дальнобойное', 'ranged'] };
+const W_DMG: Record<string, [string, string]> = {
+  Bludgeoning: ['дробящий', 'bludgeoning'], Piercing: ['колющий', 'piercing'], Slashing: ['рубящий', 'slashing'],
+};
+const pick = (map: Record<string, [string, string]>, k: string, lang: string) => {
+  const p = map[k];
+  return p ? (lang === 'ru' ? p[0] : p[1]) : k;
+};
+function weaponHtml(e: Record<string, unknown>, lang: string): string {
+  const cat = pick(W_CAT, (e.category as string) ?? '', lang);
+  const typ = pick(W_TYPE, (e.type as string) ?? '', lang);
+  const sub = lang === 'ru' ? `${cat} оружие ${typ}` : `${cat} ${typ} weapon`;
+  const dt = e.damage_type ? pick(W_DMG, e.damage_type as string, lang) : '';
+  const dmg = [e.damage_dice as string, dt].filter(Boolean).join(' ');
+  const meta = [dmg, e.mastery as string, e.cost as string].filter(Boolean).join(' · ');
+  return (
+    `<p class="hc-sub">${escapeHtml(sub)}</p>` +
+    (meta ? `<p class="hc-meta">${escapeHtml(meta)}</p>` : '')
+  );
+}
+
+// ── Доспехи: категория + КД (у щита бонус) · требование Силы · цена.
+const A_CAT: Record<string, [string, string]> = {
+  light: ['лёгкий доспех', 'light armor'], medium: ['средний доспех', 'medium armor'],
+  heavy: ['тяжёлый доспех', 'heavy armor'], shield: ['щит', 'shield'],
+};
+function armorHtml(e: Record<string, unknown>, lang: string): string {
+  const cat = pick(A_CAT, (e.category as string) ?? '', lang);
+  const acBase = e.ac_base as number;
+  let ac: string;
+  if (e.category === 'shield') {
+    ac = lang === 'ru' ? `+${acBase} к КД` : `+${acBase} AC`;
+  } else {
+    ac = `${lang === 'ru' ? 'КД' : 'AC'} ${acBase}`;
+    if (e.ac_dex_bonus === true) {
+      ac += lang === 'ru' ? ' + Лов' : ' + Dex';
+      if (e.ac_max_dex != null) ac += ` (${lang === 'ru' ? 'макс' : 'max'} ${e.ac_max_dex})`;
+    }
+  }
+  const str = e.strength_req != null ? (lang === 'ru' ? `Сила ${e.strength_req}` : `Str ${e.strength_req}`) : '';
+  const meta = [ac, str, e.cost as string].filter(Boolean).join(' · ');
+  return (
+    `<p class="hc-sub">${escapeHtml(cat)}</p>` +
+    (meta ? `<p class="hc-meta">${escapeHtml(meta)}</p>` : '')
+  );
+}
+
+// ── Снаряжение: категория · стоимость + короткая выдержка описания.
+const E_SECTION: Record<string, [string, string]> = {
+  adventuring_gear: ['снаряжение', 'adventuring gear'], tools: ['инструменты', 'tools'],
+};
+function equipHtml(e: Record<string, unknown>, lang: string): string {
+  const sec = pick(E_SECTION, (e.section as string) ?? '', lang);
+  const sub = [sec, e.cost as string].filter(Boolean).join(' · ');
+  const ex = excerpt(e.description_md as string | undefined, 190);
+  return (
+    (sub ? `<p class="hc-sub">${escapeHtml(sub)}</p>` : '') +
+    (ex ? `<p>${escapeHtml(ex)}</p>` : '')
+  );
+}
+
 // resource → { urlParent, build(entity) → HTML тела карточки }.
 const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unknown>, lang: string) => string }[] = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', body: (e) => conditionHtml(e.description_md as string) },
@@ -110,6 +173,9 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   // Животные — тот же стат-блок, что и монстры → та же карточка (тип/мировоззрение + КД·хиты·ПО).
   { key: 'animals', urlParent: 'animals', body: (e, lang) => monsterHtml(e, lang) },
   { key: 'magic-items', urlParent: 'magic-items', body: (e, lang) => itemHtml(e, lang) },
+  { key: 'weapons', urlParent: 'weapons', body: (e, lang) => weaponHtml(e, lang) },
+  { key: 'armor', urlParent: 'armor', body: (e, lang) => armorHtml(e, lang) },
+  { key: 'equipment', urlParent: 'equipment', body: (e, lang) => equipHtml(e, lang) },
 ];
 
 // Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).
