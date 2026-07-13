@@ -11,7 +11,7 @@ test('глава: автоссылки ведут на страницы сущн
   expect(await links.count()).toBeGreaterThan(0);
   // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|magic-items|feats)\/[a-z0-9-]+\/$/);
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|animals|magic-items|feats)\/[a-z0-9-]+\/$/);
   }
 });
 
@@ -59,6 +59,24 @@ test('монстры RU: термин выровнен по бестиарию (
   await expect(page.locator('.rd-doc a.ent-link[href$="/monsters-a-z/bulette/"]', { hasText: 'Бюлетт' })).toBeVisible();
   // старый неканоничный термин не встречается в тексте
   await expect(page.locator('.rd-doc', { hasText: 'Буллет' })).toHaveCount(0);
+});
+
+test('животные RU: склонённые жирные формы линкуются (Слоном/Мастифом/Вороном → animals)', async ({ page }) => {
+  // Фигурка чудесной силы: RU склоняет имена животных в жирном («стать **Слоном**»),
+  // а страница животного — в именительном. Курируемый alias падежных форм линкует их.
+  await page.goto('/ru/dnd/srd-5.2/magic-items/figurine-of-wondrous-power/');
+  for (const slug of ['elephant', 'mastiff', 'raven']) {
+    await expect(
+      page.locator(`.rd-doc strong a.ent-link[href$="/animals/${slug}/"]`).first(),
+    ).toBeVisible();
+  }
+});
+
+test('животные EN: множественная жирная форма линкуется (Giant Wasps → giant-wasp)', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/gameplay-toolbox/');
+  await expect(
+    page.locator('.rd-doc strong a.ent-link[href$="/animals/giant-wasp/"]', { hasText: 'Giant Wasps' }).first(),
+  ).toBeVisible();
 });
 
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
@@ -171,6 +189,7 @@ test('EN/RU: набор слинкованных состояний совпад
         !p.includes('/rules-glossary/conditions/') && // сами страницы состояний, не главы
         !/\/spells\/[^/]+\/$/.test(p) && // страницы отдельных заклинаний (не глава /spells/):
         !/\/monsters-a-z\/[^/]+\/$/.test(p) && // отдельных монстров (не глава /monsters-a-z/):
+        !/\/animals\/[^/]+\/$/.test(p) && // отдельных животных (не глава /animals/):
         !/\/magic-items\/[^/]+\/$/.test(p) && // отдельных предметов (не глава /magic-items/):
         !/\/feats\/[^/]+\/$/.test(p), // и отдельных черт (не глава /feats/):
         // их описания переведены независимо → паритет линковки состояний тут не гарантирован

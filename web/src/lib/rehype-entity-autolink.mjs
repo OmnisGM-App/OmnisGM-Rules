@@ -25,6 +25,9 @@ const RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
   { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
   { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
+  // Животные — тот же жирный сигнал SRD, что и монстры («**Волк**» → см. Животные). Слаги и имена
+  // животных не пересекаются с монстрами (проверено) → общий strong-матч безопасен.
+  { key: 'animals', urlParent: 'animals', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
   // Имена предметов и заклинаний не пересекаются → общий em-матч безопасен.
   { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
@@ -64,6 +67,15 @@ const EXACT_ALIASES = {
       'fire-elemental': ['Огненного элементаля'], 'water-elemental': ['Водного элементаля'],
       'awakened-shrub': ['Пробуждённого куста'], 'awakened-tree': ['Пробуждённого дерева'],
     },
+    // Животные: жирные упоминания в RU-корпусе склоняются (Фигурка чудесной силы, спелл-листы).
+    // Курируемый список реальных форм → на статблок животного. Именительный уже ловится сам.
+    animals: {
+      elephant: ['Слоном'], mastiff: ['Мастифом'], raven: ['Вороном'],
+      bat: ['Летучую мышь'], 'riding-horse': ['Верховой лошади'],
+      'giant-constrictor-snake': ['Гигантского удава'], 'giant-owl': ['Гигантской совой'],
+      'giant-goat': ['Гигантским козлом'], 'giant-rat': ['Гигантских крыс'],
+      'giant-wasp': ['Гигантские осы'],
+    },
     'magic-items': {
       'bag-of-holding': ['Сумкой вместимости', 'Сумку вместимости'], 'bead-of-force': ['Бусины силы'],
       'belt-of-giant-strength': ['Поясом силы великана'], 'gauntlets-of-ogre-power': ['Перчатками силы огра'],
@@ -82,6 +94,10 @@ const EXACT_ALIASES = {
     monsters: {
       ghoul: ['Ghouls'], ghast: ['Ghasts'], wight: ['Wights'], mummy: ['Mummies'],
       'shrieker-fungus': ['Shrieker Fungi'],
+    },
+    // Животные: множественные жирные формы EN (тулбокс/спелл-листы) → на статблок.
+    animals: {
+      'giant-wasp': ['Giant Wasps'], 'giant-rat': ['Giant Rats'],
     },
     'magic-items': {
       'bead-of-force': ['Beads of Force'], 'gloves-of-missile-snaring': ['Glove of Missile Snaring'],

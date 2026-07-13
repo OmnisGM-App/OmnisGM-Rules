@@ -34,7 +34,7 @@ from pathlib import Path
 # По умолчанию — ресурсы с каноническими (EN-based) слагами, где сверка по slug осмысленна.
 # feats/equipment получили канонические слаги в srd-5.2 (см. docstring); в srd-5.1 они пока
 # кириллические — при --version srd51 исключайте их из --resources.
-DEFAULT_RESOURCES = ["spells", "monsters", "magic-items", "conditions", "feats", "equipment"]
+DEFAULT_RESOURCES = ["spells", "monsters", "magic-items", "conditions", "feats", "equipment", "animals"]
 
 
 def text_len(entity: dict) -> int:
