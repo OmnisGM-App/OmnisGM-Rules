@@ -1,0 +1,106 @@
+name: Content validation
+
+# Скриптовая (без LLM) валидация контента на PR — issue #22. Этап 1: парность EN↔RU.
+#   • Структурная: файлы/заголовки/строки/таблицы по всем парам game/version (compare_structure.sh).
+#   • Slug-парность сущностей: dnd/srd-5.2 (verify_ru_en_parity.py) — отсутствующий/лишний slug = hard fail.
+# Этапы 2 (валидность таблиц) и 3 (SEO-мета по dist) — отдельными PR.
+#
+# Гейтится paths-фильтром: PR, не трогающие контент/скрипты валидации, сюда не заходят.
+on:
+  pull_request:
+    branches: [main]
+    paths:
+      - 'src/**'
+      - '.github/scripts/**'                  # generate_api.py + parsers/schemas — питают slug-парность
+      - '.claude/skills/verify-content/**'    # сами скрипты проверок
+      - '.github/workflows/content.yml'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: content-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  parity:
+    name: EN↔RU parity
+    runs-on: ubuntu-latest
+    env:
+      # ЕДИНЫЙ ИСТОЧНИК исключений структурной сверки — «pair|file|resource».
+      # Строгая построчная парность легитимно нарушена → файл исключается из сверки строк/
+      # заголовков/таблиц (наличие RU-пары всё равно проверяется — skip стоит после missing-check).
+      # ИНВАРИАНТ (проверяется шагом «Инвариант…» ниже): если у исключённой главы ЕСТЬ сущности,
+      # поле resource обязано указывать ресурс из DEFAULT_RESOURCES verify_ru_en_parity — иначе
+      # исключив главу, мы молча потеряем и структурный, и slug-гейт полноты. resource пусто →
+      # у файла нет сущностей (legal), покрытие не требуется.
+      #   • 00_Legal.md (brp): RU добавляет приложение «неофициальный перевод OGL» (сам OGL обязан
+      #     идти на английском → RU-файл длиннее). Сущностей нет → resource пуст.
+      #   • 07_Spells / 12_MonstersA-Z / 13_Animals (dnd 5.2): индексы пересортированы по алфавиту
+      #     ЯЗЫКА (RU-порядок ≠ EN, число буквенных секций разное). Полноту ловит slug-парность.
+      EXCLUSIONS: |
+        brp/srd-1.0|00_Legal.md|
+        dnd/srd-5.2|07_Spells.md|spells
+        dnd/srd-5.2|12_MonstersA-Z.md|monsters
+        dnd/srd-5.2|13_Animals.md|animals
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: '3.12'
+
+      # Инвариант полноты: каждое entity-исключение (resource непустой) обязано покрываться
+      # slug-парностью → ресурс присутствует в DEFAULT_RESOURCES. Ловит люк «исключили главу с
+      # сущностями, но её ресурс убрали/не завели в parity» — тогда gate полноты пропал бы молча.
+      - name: Инвариант — entity-исключения покрыты slug-парностью
+        run: |
+          resources=$(python3 -c "import importlib.util as u; s=u.spec_from_file_location('v','.claude/skills/verify-content/verify_ru_en_parity.py'); m=u.module_from_spec(s); s.loader.exec_module(m); print(','.join(m.DEFAULT_RESOURCES))")
+          echo "DEFAULT_RESOURCES: $resources"
+          fail=0
+          while IFS='|' read -r p f res; do
+            [ -z "${res// /}" ] && continue
+            case ",$resources," in
+              *",$res,"*) echo "✔ $f исключён → сущности покрыты ресурсом '$res'";;
+              *) echo "::error::$f исключён из структурной сверки, но ресурс '$res' отсутствует в DEFAULT_RESOURCES — gate полноты потерян"; fail=1;;
+            esac
+          done <<< "$EXCLUSIONS"
+          exit $fail
+
+      # Структурная парность для всех пар. EXCLUDE_STRUCT собирается из EXCLUSIONS (единый источник).
+      - name: Структурная парность EN↔RU
+        run: |
+          fail=0
+          excl_for() { printf '%s\n' "$EXCLUSIONS" | awk -F'|' -v p="$1" '$1==p{printf "%s ", $2}'; }
+          pair() {
+            echo "::group::compare_structure $1"
+            EXCLUDE_STRUCT="$(excl_for "$1")" bash .claude/skills/verify-content/compare_structure.sh "src/$1/en" "src/$1/ru" || fail=1
+            echo "::endgroup::"
+          }
+          pair brp/srd-1.0
+          pair daggerheart/srd-1.0
+          pair dnd/srd-5.1
+          pair dnd/srd-5.2
+          exit $fail
+
+      # Генерация JSON API для slug-парности. --no-validate: без jsonschema (схему валидирует
+      # отдельный шаг в CI check-build, #123), тут нужны только данные.
+      - name: Генерация API (для slug-парности)
+        if: always()
+        run: python3 .github/scripts/generate_api.py --src-root src/dnd --output-dir "$RUNNER_TEMP/api" --no-validate
+
+      # Slug-парность — только dnd/srd-5.2: у srd-5.1 слаги ещё кириллические (страниц нет,
+      # «5.1 отдельной волной»), daggerheart/brp JSON API не генерируют. Отсутствующий/лишний
+      # slug = hard fail (exit 1); length-флаги вне [0.8, 1.4] — не блокер (см. следующий шаг).
+      - name: Slug-парность RU↔EN (dnd/srd-5.2)
+        if: always()
+        run: |
+          set -o pipefail
+          python3 .claude/skills/verify-content/verify_ru_en_parity.py \
+            --api-dir "$RUNNER_TEMP/api" --game dnd --version srd52 | tee "$RUNNER_TEMP/parity.txt"
+
+      # Length-флаги RU/EN → жёлтые аннотации (не роняют ран): легитимные расхождения по символам
+      # (зм/см vs GP/SP, таблично-плотные ресурсы) бывают. Ужесточение — открытый вопрос #22.
+      - name: Length-флаги → аннотации
+        if: always()
+        run: grep -F '⚠' "$RUNNER_TEMP/parity.txt" 2>/dev/null | sed 's/^ *//; s/^/::warning::/' || true
