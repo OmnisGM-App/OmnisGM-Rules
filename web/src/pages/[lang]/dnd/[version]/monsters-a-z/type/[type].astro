@@ -1,0 +1,101 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import {
+  MONSTER_TYPES, CR_HUBS, typeLabel, crHubTitle, byCrThenName, monstersWithFacets,
+  type Lang, type MonsterLite,
+} from '../../../../../../lib/monster-hubs';
+
+// Хаб монстров по типу (issue #20, SEO §2.3): /{lang}/dnd/{version}/monsters-a-z/type/{type}/.
+// Все монстры типа, отсортированы по CR. EN/RU делят англ. слаг типа → каноникал + hreflang.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const all = monstersWithFacets(ver, lang);
+    for (const tp of MONSTER_TYPES) {
+      const mine = all.filter((m) => m.typeSlug === tp.slug).sort(byCrThenName);
+      if (!mine.length) continue;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], type: tp.slug },
+        props: { ver, lang, typeSlug: tp.slug, monsters: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, typeSlug, monsters } = Astro.props as {
+  ver: string; lang: Lang; typeSlug: string; monsters: MonsterLite[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
+const monHref = (slug: string) => `${base}/${slug}/`;
+const tp = typeLabel(typeSlug, lang);
+
+const heading = t(`Монстры типа «${tp}»`, `${tp} Monsters`);
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${monsters.length} монстров типа «${tp}» в D&D ${verLabel}: показатель опасности, размер, хиты и КД, со ссылками на страницы монстров.`,
+  `All ${monsters.length} ${tp} monsters in D&D ${verLabel}: challenge rating, size, HP and AC, with links to each monster.`,
+);
+const otherTypes = MONSTER_TYPES.filter((x) => x.slug !== typeSlug);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/`, ru: 'Монстры от А до Я', en: 'Monsters A–Z' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${monsters.length} монстров типа «${tp}» в D&D ${verLabel}, по возрастанию показателя опасности. Нажмите на имя, чтобы открыть страницу монстра.`,
+      `${monsters.length} ${tp} monsters in D&D ${verLabel}, ordered by challenge rating. Select a name to open the monster page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr>
+          <th>{t('Монстр', 'Monster')}</th><th>{t('ПО', 'CR')}</th>
+          <th>{t('Размер', 'Size')}</th><th>{t('Хиты', 'HP')}</th><th>{t('КД', 'AC')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {monsters.map((m) => (
+          <tr>
+            <td><a href={monHref(m.slug)}>{m.name}</a></td>
+            <td>{m.cr}</td><td>{m.size}</td>
+            <td>{m.hp ?? '—'}</td><td>{m.ac ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие хабы монстров', 'Other monster hubs')}>
+    <p><strong>{t('Другие типы:', 'Other types:')}</strong>{' '}
+      {otherTypes.map((x, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/type/${x.slug}/`}>{typeLabel(x.slug, lang)}</a></>
+      ))}
+    </p>
+    <p><strong>{t('По CR:', 'By CR:')}</strong>{' '}
+      {CR_HUBS.map((h, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/cr/${h.slug}/`}>{crHubTitle(h, lang)}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>
