@@ -13,6 +13,15 @@ test('страница черты: заголовок, EN-имя, категор
   await expect(stat.locator('.item-row', { hasText: 'Категория' })).toContainText('происхождения');
 });
 
+test('стат-блок черты: хар-ки в «Требовании» подсвечены span.kw (как в теле)', async ({ page }) => {
+  // Борец (grappler): «Требование: Уровень 4+, Сила или Ловкость 13+» — Сила/Ловкость должны
+  // быть красными, как в описании ниже (консистентность стат-блок ↔ тело).
+  await page.goto('/ru/dnd/srd-5.2/feats/grappler/');
+  const req = page.locator('.item-stat .item-row', { hasText: 'Требование' });
+  await expect(req.locator('.kw', { hasText: 'Сила' }).first()).toBeVisible();
+  await expect(req.locator('.kw', { hasText: 'Ловкость' }).first()).toBeVisible();
+});
+
 test('в теле черты — автоссылка на состояние (Недееспособный) + hovercard-таргет', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/feats/alert/');
   const link = page.locator('.rd-doc a.ent-link[href*="/rules-glossary/conditions/incapacitated/"]').first();

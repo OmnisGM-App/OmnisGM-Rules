@@ -60,6 +60,15 @@ const render = (md: string | undefined | null) => {
 const bodyHtml = render(entity.description_md as string);
 const description = excerpt(entity.description_md as string);
 
+// Подсветка хар-к в стат-блоке (чтобы «Сила»/«Ловкость» в «Требовании» были красными, как в
+// теле): прогоняем plain-строку через тот же highlightKeywords по текстовому узлу.
+const hl = (text: string) => {
+  if (!text) return '';
+  const tree = { type: 'root', children: [{ type: 'text', value: text }] } as Parameters<typeof toHtml>[0];
+  highlightKeywords(tree, { lang });
+  return toHtml(tree);
+};
+
 const rawCat = (entity.category as string) ?? '';
 const catPair = CATEGORY[rawCat];
 const catLabel = catPair ? (lang === 'ru' ? catPair[0] : catPair[1]) : rawCat;
@@ -99,7 +108,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       <div class="item-row"><dt>{t('Категория', 'Category')}</dt><dd>{catLabel}</dd></div>
     )}
     {prerequisite && (
-      <div class="item-row"><dt>{t('Требование', 'Prerequisite')}</dt><dd>{prerequisite}</dd></div>
+      <div class="item-row"><dt>{t('Требование', 'Prerequisite')}</dt><dd set:html={hl(prerequisite)} /></div>
     )}
     {repeatable && (
       <div class="item-row"><dt>{t('Повторяемость', 'Repeatable')}</dt><dd>{t('да', 'yes')}</dd></div>
