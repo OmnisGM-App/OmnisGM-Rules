@@ -11,7 +11,7 @@ test('глава: автоссылки ведут на страницы сущн
   expect(await links.count()).toBeGreaterThan(0);
   // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|animals|magic-items|equipment|feats)\/[a-z0-9-]+\/$/);
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|animals|magic-items|equipment|weapons|armor|feats)\/[a-z0-9-]+\/$/);
   }
 });
 
@@ -77,6 +77,33 @@ test('животные EN: множественная жирная форма л
   await expect(
     page.locator('.rd-doc strong a.ent-link[href$="/animals/giant-wasp/"]', { hasText: 'Giant Wasps' }).first(),
   ).toBeVisible();
+});
+
+test('снаряжение: ячейки таблиц главы линкуются на страницы оружия/доспехов/снаряжения + data-hc', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/equipment/');
+  // Оружие: ячейка «Секира» в таблице → /weapons/greataxe/.
+  const w = page.locator('.rd-doc td a.ent-link[href$="/weapons/greataxe/"]').first();
+  await expect(w).toBeVisible();
+  await expect(w).toHaveAttribute('data-hc', /weapons\/greataxe/);
+  // Доспех: «Латы» → /armor/plate-armor/.
+  await expect(page.locator('.rd-doc td a.ent-link[href$="/armor/plate-armor/"]').first()).toBeVisible();
+  // Снаряжение: «Кислота» → /equipment/acid/.
+  await expect(page.locator('.rd-doc td a.ent-link[href$="/equipment/acid/"]').first()).toBeVisible();
+});
+
+test('снаряжение: имя-омоним в чужой таблице НЕ линкуется (вариант «Кнут» у Жетона пера)', async ({ page }) => {
+  // Таблица вариантов Жетона пера не размечена как перечень снаряжения (нет колонки «Цена») →
+  // ячейка «Кнут» не должна вести на страницу оружия whip.
+  await page.goto('/ru/dnd/srd-5.2/magic-items/feather-token/');
+  await expect(page.locator('.rd-doc a.ent-link[href*="/weapons/whip/"]')).toHaveCount(0);
+});
+
+test('hovercard-эндпоинт: есть карточки оружия/доспехов/снаряжения (name_en + мета)', async ({ request }) => {
+  const ru = await (await request.get('/hc/dnd/srd52/ru.json')).json();
+  expect(ru['weapons/greataxe']?.name_en).toBe('Greataxe');
+  expect(ru['weapons/greataxe']?.effect).toContain('рубящий');
+  expect(ru['armor/plate-armor']?.name_en).toBe('Plate Armor');
+  expect(ru['equipment/acid']?.name_en).toBe('Acid');
 });
 
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {

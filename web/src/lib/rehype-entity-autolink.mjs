@@ -38,6 +38,13 @@ const RESOURCES = [
   // эпические дары «Дар …», «Посвящённый в магию»…) — они дистинктивны; одно-словные в прозе
   // не трогаем.
   { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2'] },
+  // Оружие/доспехи/снаряжение: имена не размечены (ни курсив, ни жирный) и часто омонимичны
+  // обычным словам («Молот», «Щит», «Верёвка»). Поэтому режим 'cells' — линкуем ТОЛЬКО ячейку
+  // таблицы, точно равную имени (таблицы главы «Снаряжение» → детальные страницы). Прозу не
+  // трогаем вовсе. Точное совпадение ячейки → 0 ложных срабатываний.
+  { key: 'weapons', urlParent: 'weapons', mode: 'cells', versions: ['srd-5.2'] },
+  { key: 'armor', urlParent: 'armor', mode: 'cells', versions: ['srd-5.2'] },
+  { key: 'equipment', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2'] },
 ];
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.
@@ -126,6 +133,12 @@ function loadMap(game, version, lang) {
   const exact = { em: new Map(), strong: new Map() };
   // Черты: exact-карта «имя → сущность» (lowercase) для точечного матча ячеек таблиц.
   const feats = new Map();
+  // Оружие/доспехи/снаряжение: карта «имя → сущность» для матча точных ячеек таблиц.
+  const cells = new Map();
+  // Имена magic-items/monsters — зарезервированы: их не линкуем как cells (редкие кросс-ресурс
+  // коллизии: «Свиток заклинания» = equipment+magic-item, «Страж-щит» = magic-item+monster).
+  // magic-items/monsters идут в RESOURCES раньше оружия → к моменту cells набор полон.
+  const reserved = new Set();
   for (const { key, urlParent, mode, container, versions } of RESOURCES) {
     if (versions && !versions.includes(version)) continue;
     const file = path.join(DATA_ROOT, game, verKey, lang, key, 'all.json');
@@ -156,10 +169,14 @@ function loadMap(game, version, lang) {
         if (!feats.has(k)) feats.set(k, entry);
         // Проза — только много-словные (дистинктивные) имена; одно-словные омонимичны.
         if (e.name.trim().split(/\s+/).length >= 2) textEntries.push(entry);
+      } else if (mode === 'cells') {
+        const k = e.name.toLowerCase();
+        if (!reserved.has(k) && !cells.has(k)) cells.set(k, entry);
       } else {
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
       }
+      if (key === 'magic-items' || key === 'monsters') reserved.add(e.name.toLowerCase());
     }
   }
   let text = null;
@@ -170,7 +187,8 @@ function loadMap(game, version, lang) {
     const alt = textEntries.map((e) => escapeRegExp(e.name)).join('|');
     text = { regexSource: `(?<![\\p{L}\\p{N}_])(${alt})(?![\\p{L}\\p{N}_])`, byName };
   }
-  const result = text || exact.em.size || exact.strong.size || feats.size ? { text, exact, feats, verKey } : null;
+  const result = text || exact.em.size || exact.strong.size || feats.size || cells.size
+    ? { text, exact, feats, cells, verKey } : null;
   mapCache.set(cacheKey, result);
   return result;
 }
@@ -277,6 +295,34 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
     }
   };
 
+  // Таблица-перечень снаряжения: последняя колонка — Цена/Cost/Стоимость (так размечены
+  // таблицы оружия/доспехов/снаряжения в главе). Гейт нужен, чтобы не линковать ячейки в чужих
+  // таблицах, где имя совпадает случайно (напр. вариант «Кнут» у Жетона пера — там нет колонки
+  // цены), — как isSpellTable для спелл-листов.
+  const isEquipmentListing = (table) => {
+    const rows = [];
+    collectRows(table, rows);
+    if (!rows.length) return false;
+    const hcells = rows[0].children.filter((c) => c.type === 'element' && (c.tagName === 'th' || c.tagName === 'td'));
+    const last = hcells.length ? directText(hcells[hcells.length - 1]) : null;
+    return last != null && /^(Цена|Cost|Стоимость)/.test(last.trim());
+  };
+
+  // Оружие/доспехи/снаряжение: ПЕРВАЯ колонка (имя) каждой строки-данных, точно равная имени
+  // сущности → детальная страница. Точное совпадение ячейки → безопасно даже для «Молот»/«Щит».
+  const linkNameCells = (table) => {
+    const rows = [];
+    collectRows(table, rows);
+    for (const tr of rows) {
+      const cell = tr.children.find((c) => c.type === 'element' && c.tagName === 'td'); // только данные (не th)
+      if (!cell) continue;
+      const txt = directText(cell);
+      if (txt == null) continue;
+      const entry = map.cells.get(txt.trim().toLowerCase());
+      if (entry && !skip.has(entry.slug)) cell.children = [linkNode(entry, txt.trim(), ctx)];
+    }
+  };
+
   const walk = (node, insideSkip) => {
     if (!node.children) return;
     for (let i = 0; i < node.children.length; i++) {
@@ -287,6 +333,8 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
         if (tag === 'table' && map.exact.em.size && isSpellTable(child)) linkSpellTable(child);
         // Черты в ячейках любых таблиц (таблицы прогрессии классов и т.п.).
         if (tag === 'table' && map.feats && map.feats.size) linkFeatCells(child);
+        // Оружие/доспехи/снаряжение — первая колонка таблиц-перечней (глава «Снаряжение»).
+        if (tag === 'table' && map.cells && map.cells.size && isEquipmentListing(child)) linkNameCells(child);
         // Курсивная ссылка на заклинание <em>Имя</em> / жирная на монстра <strong>Имя</strong> —
         // полный текст элемента = имя. Внутрь уже-ссылки не идём.
         if (!insideSkip && (tag === 'em' || tag === 'strong')) {
