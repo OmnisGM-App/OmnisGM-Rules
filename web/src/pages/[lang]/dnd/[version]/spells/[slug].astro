@@ -240,7 +240,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       <span class="ent-related-h">{t(`Ещё из школы ${school}`, `More ${school} spells`)}</span>
       <span class="ent-related-list">
         {sameSchool.map((r) => (
-          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+          <a href={`${base}/${r.slug}/`}>{r.name}</a>
         ))}
       </span>
     </nav>
@@ -250,9 +250,9 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
     <span class="ent-related-h">{t('Ещё заклинания', 'More spells')}</span>
     <span class="ent-related-list">
       {hubClassSlugs.map((cs) => (
-        <a href={`${base}/class/${cs}/`}><strong>{classLabel(cs, lang)}</strong></a>
+        <a href={`${base}/class/${cs}/`}>{classLabel(cs, lang)}</a>
       ))}
-      <a href={`${base}/level/${spellLevel}/`}><strong>{levelLabel(spellLevel, lang)}</strong></a>
+      <a href={`${base}/level/${spellLevel}/`}>{levelLabel(spellLevel, lang)}</a>
     </span>
   </nav>
 </ReaderShell>
