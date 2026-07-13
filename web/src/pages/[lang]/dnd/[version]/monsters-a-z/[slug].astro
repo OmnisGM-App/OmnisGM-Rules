@@ -256,9 +256,9 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
   <nav class="ent-hubs" aria-label={t('Списки монстров', 'Monster lists')}>
     <span class="ent-related-h">{t('Ещё монстры', 'More monsters')}</span>
     <span class="ent-related-list">
-      <a href={`${base}/type/${typeSlug}/`}>{typeLabel(typeSlug, lang)}</a>
+      <a href={`${base}/type/${typeSlug}/`}><strong>{typeLabel(typeSlug, lang)}</strong></a>
       {crHubForValue(cr.value ?? '0') && (
-        <a href={`${base}/cr/${crHubForValue(cr.value ?? '0')!.slug}/`}>{crHubTitle(crHubForValue(cr.value ?? '0')!, lang)}</a>
+        <a href={`${base}/cr/${crHubForValue(cr.value ?? '0')!.slug}/`}><strong>{crHubTitle(crHubForValue(cr.value ?? '0')!, lang)}</strong></a>
       )}
     </span>
   </nav>

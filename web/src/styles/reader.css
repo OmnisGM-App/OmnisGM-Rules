@@ -252,6 +252,12 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc .hub-links { margin: 28px 0 0; padding: 16px 0 0; border-top: 1px solid var(--og-border-soft); font-size: 14px; }
 .rd-doc .hub-links p { margin: 0 0 8px; color: var(--og-text-2); }
 .rd-doc .hub-links p:last-child { margin-bottom: 0; }
+/* В плотных списках-хабах ссылка в каждой строке → сплошное подчёркивание базового .rd-doc a
+   даёт «частокол». Убираем постоянную линию, показываем по наведению; цвет-акцент сохраняем. */
+.rd-doc .hub-table a, .rd-doc .hub-links a { border-bottom: none; }
+.rd-doc .hub-table a:hover, .rd-doc .hub-links a:hover {
+  border-bottom: 1px solid color-mix(in oklab, var(--og-accent) 55%, transparent);
+}
 
 .rd-source {
   margin: 36px 0 0; padding-top: 16px; border-top: 1px solid var(--og-border);
