@@ -56,3 +56,11 @@ jobs:
       - name: Build
         working-directory: web
         run: npm run build
+
+      # SEO-мета по собранному dist — issue #22, этап 3. Здесь (в check-build), а не в content.yml:
+      # SEO-мета генерят Astro-шаблоны (web/src), а не markdown-контент, и dist уже собран выше —
+      # без второго билда. Сэмпл по одному slug на тип страницы (EN+RU): canonical/hreflang/
+      # JSON-LD/title/noindex. Битая мета = красный CI.
+      - name: SEO-мета по dist
+        working-directory: web
+        run: node scripts/verify_dist_seo.mjs
