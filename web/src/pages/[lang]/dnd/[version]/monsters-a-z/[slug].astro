@@ -7,6 +7,7 @@ import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { enTypeMap, typeLabel, crHubForValue, crHubTitle } from '../../../../../lib/monster-hubs';
 
 // Programmatic-страницы монстров (issue #20, волна 3) в общем шелле ридера.
 // URL вложен под главу-бестиарий: /{lang}/dnd/{version}/monsters-a-z/{slug}/.
@@ -23,6 +24,7 @@ export function getStaticPaths() {
   const paths = [];
   for (const { ver, lang } of BUILDS) {
     const monsters = loadEntities(ver, lang, 'monsters');
+    const typeMap = enTypeMap(ver); // slug → канонический typeSlug (из EN), для ссылки в type-хаб
     const siblings: Sib[] = monsters.map((m) => ({
       slug: m.slug, name: m.name,
       type: (m.type as string) ?? '', cr: (m.cr as { value?: string })?.value ?? '',
@@ -35,14 +37,14 @@ export function getStaticPaths() {
     for (const entity of monsters) {
       paths.push({
         params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
-        props: { entity, ver, lang, siblings, condMap },
+        props: { entity, ver, lang, siblings, condMap, typeSlug: typeMap.get(entity.slug) ?? 'monstrosity' },
       });
     }
   }
   return paths;
 }
 
-const { entity, ver, lang, siblings, condMap } = Astro.props;
+const { entity, ver, lang, siblings, condMap, typeSlug } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
 const verLabel = VERSION_LABEL[ver];
 const verKey = ver; // srd52
@@ -250,6 +252,16 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       </span>
     </nav>
   )}
+
+  <nav class="ent-hubs" aria-label={t('Списки монстров', 'Monster lists')}>
+    <span class="ent-related-h">{t('Ещё монстры', 'More monsters')}</span>
+    <span class="ent-related-list">
+      <a href={`${base}/type/${typeSlug}/`}>{typeLabel(typeSlug, lang)}</a>
+      {crHubForValue(cr.value ?? '0') && (
+        <a href={`${base}/cr/${crHubForValue(cr.value ?? '0')!.slug}/`}>{crHubTitle(crHubForValue(cr.value ?? '0')!, lang)}</a>
+      )}
+    </span>
+  </nav>
 </ReaderShell>
 
 <style>
@@ -296,6 +308,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
   .mon-entry { margin: 0 0 4px; }
 
   .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-hubs { display: block; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--og-border-soft); }
   .ent-related-h {
     display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
     color: var(--og-text-muted); margin-bottom: 10px;

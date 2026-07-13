@@ -51,7 +51,17 @@ export const CR_HUBS: CrHub[] = [
   { slug: '17-30', label: '17–30', values: RANGE(17, 30) },
 ];
 export const crHubBySlug = (slug: string) => CR_HUBS.find((h) => h.slug === slug);
+// Хаб, покрывающий конкретное значение CR (одиночный или диапазон) — для ссылки со страницы монстра.
+export const crHubForValue = (v: string) => CR_HUBS.find((h) => h.values.includes(v));
 export const crHubTitle = (h: CrHub, lang: Lang) => (lang === 'ru' ? `ПО ${h.label}` : `CR ${h.label}`);
+
+// Карта slug → канонический слаг типа (из EN-данных) — чтобы страница монстра любого языка
+// сослалась на верный type-хаб, не завися от непоследовательного RU-поля type.
+export function enTypeMap(ver: string): Map<string, string> {
+  return new Map(
+    (loadEntities(ver, 'en', 'monsters') as any[]).map((m) => [m.slug, String(m.type || '').toLowerCase()]),
+  );
+}
 
 // Порядок CR для сортировки: «1/8»→0.125, «10»→10.
 export const crOrder = (v: string): number => {

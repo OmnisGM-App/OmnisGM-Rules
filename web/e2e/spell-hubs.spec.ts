@@ -46,6 +46,14 @@ test('уровень-хаб: заговоры (level 0) — заголовок �
   await expect(page.locator('h1')).toHaveText('Cantrips');
 });
 
+test('обратная перелинковка (PR C): страница заклинания ведёт в хабы классов и уровня', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
+  const hubs = page.locator('.ent-hubs');
+  await expect(hubs.locator('a[href$="/spells/class/wizard/"]')).toBeVisible();
+  await expect(hubs.locator('a[href$="/spells/class/sorcerer/"]')).toBeVisible();
+  await expect(hubs.locator('a[href$="/spells/level/3/"]')).toBeVisible();
+});
+
 test('SEO: класс-хаб самоканоничен + hreflang-тройка', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/class/wizard/');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(
