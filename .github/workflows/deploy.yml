@@ -122,11 +122,14 @@ jobs:
           urls=$(grep -ohE '<loc>[^<]+</loc>' web/dist/sitemap-[0-9]*.xml 2>/dev/null | sed -E 's#</?loc>##g')
           n=$(printf '%s\n' "$urls" | grep -c . || true)
           if [ "$n" -eq 0 ]; then echo "::warning::IndexNow: sitemap пуст — пинг пропущен."; exit 0; fi
-          payload=$(printf '%s\n' "$urls" | grep . | jq -R . \
+          # Payload в файл (не в аргумент curl): при >~1500 URL строка --data "$payload"
+          # перешагивает ARG_MAX → «curl: Argument list too long» (грабли #20, sitemap вырос
+          # на страницы животных). --data-binary @file снимает лимит.
+          printf '%s\n' "$urls" | grep . | jq -R . \
             | jq -sc --arg h "$host" --arg k "$KEY" --arg kl "https://$host/$KEY.txt" \
-                '{host:$h,key:$k,keyLocation:$kl,urlList:.}')
+                '{host:$h,key:$k,keyLocation:$kl,urlList:.}' > /tmp/indexnow.json
           resp=$(curl -s -w '\n%{http_code}' -X POST 'https://api.indexnow.org/indexnow' \
-            -H 'Content-Type: application/json; charset=utf-8' --data "$payload")
+            -H 'Content-Type: application/json; charset=utf-8' --data-binary @/tmp/indexnow.json)
           code=$(printf '%s' "$resp" | tail -n1)
           body=$(printf '%s\n' "$resp" | sed '$d')
           echo "IndexNow: $n URL, HTTP $code"
