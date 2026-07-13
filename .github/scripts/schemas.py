@@ -127,6 +127,20 @@ SPELL_SCHEMA = {
             "required": ["value", "type", "concentration"],
             "additionalProperties": False,
         },
+        # Область эффекта (форма из EN-описания; null — у заклинания нет измеренной AoE).
+        "area": {
+            "type": ["object", "null"],
+            "properties": {
+                "shape": {
+                    "type": "string",
+                    "enum": ["cone", "cube", "cylinder", "emanation", "line", "sphere"],
+                },
+                "size_ft": {"type": "integer"},
+                "radius": {"type": "boolean"},
+            },
+            "required": ["shape", "size_ft", "radius"],
+            "additionalProperties": False,
+        },
         "description_md": {"type": ["string", "null"]},
         "higher_levels_md": {"type": ["string", "null"]},
         "cantrip_upgrade_md": {"type": ["string", "null"]},
@@ -134,7 +148,7 @@ SPELL_SCHEMA = {
     },
     "required": [
         "slug", "name", "name_en", "level", "school", "classes",
-        "casting_time", "range", "components", "duration",
+        "casting_time", "range", "components", "duration", "area",
         "description_md", "higher_levels_md", "cantrip_upgrade_md", "has_stat_block",
     ],
     "additionalProperties": False,
