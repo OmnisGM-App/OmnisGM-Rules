@@ -49,6 +49,29 @@ def parse_defs(text: str, section: str) -> list[dict]:
     return defs
 
 
+def parse_untagged_defs(text: str) -> list[dict]:
+    """Собрать определения #### БЕЗ тега [..] (термины ядра Rules Glossary).
+
+    Состояния/действия/AoE/… помечены тегом и парсятся отдельно; здесь — прочие термины
+    (Преимущество, Укрытие, Концентрация…). name_en=None — RU-выравнивание по позиции
+    (глоссарий в EN-алфавите) в generate_api.
+    """
+    parts = re.split(r"^#### (.+)$", text, flags=re.M)
+    defs = []
+    for j in range(1, len(parts), 2):
+        heading = parts[j].strip()
+        if re.search(r"\[[^\]]+\]\s*$", heading):
+            continue  # тегированный термин — не сюда
+        desc = parts[j + 1].strip() if j + 1 < len(parts) else ""
+        defs.append({
+            "slug": slugify(heading),
+            "name": heading,
+            "name_en": None,
+            "description_md": desc,
+        })
+    return defs
+
+
 def parse_tagged_defs(text: str, tags: list[str]) -> list[dict]:
     """Собрать определения #### «Имя [Тег]» по всему файлу, где Тег ∈ tags.
 
