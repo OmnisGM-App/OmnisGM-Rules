@@ -44,6 +44,23 @@ const CORE_TERMS = [
   { slug: 'critical-hit', en: 'Critical Hits?', ru: 'Критическ[а-яё]+\\s+попадани[а-яё]+' },
   { slug: 'death-saving-throw', en: 'Death Saving Throws?', ru: 'Спасброс[а-яё]+\\s+от\\s+смерти' },
   { slug: 'concentration', en: 'Concentration', ru: 'Концентрац[а-яё]+' },
+  // Батч 2 (#20): ещё 14 дистинктивных. Симметрия RU/EN подтверждена замером в семантике кода
+  // (EN регистрозависимо, RU регистронезависимо-стем). Аббревиатуры (AC/КД, CR/ПО) не глоссим
+  // ни на одной стороне. Все многословны либо однозначны в этом корпусе (ложных срабатываний нет).
+  { slug: 'armor-class', en: 'Armor Class', ru: 'Класс[а-яё]*\\s+доспех[а-яё]+' },
+  { slug: 'bonus-action', en: 'Bonus Actions?', ru: 'Бонусн[а-яё]+\\s+действи[а-яё]+' },
+  { slug: 'attack-roll', en: 'Attack Rolls?', ru: 'Брос[а-яё]+\\s+атак[а-яё]+' },
+  { slug: 'initiative', en: 'Initiative', ru: 'Инициатив[а-яё]+' },
+  { slug: 'challenge-rating', en: 'Challenge Rating', ru: 'Показател[а-яё]+\\s+опасност[а-яё]+' },
+  { slug: 'unarmed-strike', en: 'Unarmed Strikes?', ru: 'Безоружн[а-яё]+\\s+удар[а-яё]*' },
+  { slug: 'short-rest', en: 'Short Rest', ru: 'Коротк[а-яё]+\\s+отдых[а-яё]*' },
+  { slug: 'long-rest', en: 'Long Rest', ru: 'Продолжительн[а-яё]+\\s+отдых[а-яё]*' },
+  { slug: 'bright-light', en: 'Bright Light', ru: 'Ярк[а-яё]+\\s+свет[а-яё]*' },
+  { slug: 'dim-light', en: 'Dim Light', ru: 'Тускл[а-яё]+\\s+свет[а-яё]*' },
+  { slug: 'experience-points', en: 'Experience Points', ru: 'Очк[а-яё]+\\s+опыт[а-яё]+' },
+  { slug: 'spellcasting-focus', en: 'Spellcasting Focus', ru: 'Заклинательн[а-яё]+\\s+фокус[а-яё]*' },
+  { slug: 'carrying-capacity', en: 'Carrying Capacity', ru: 'Грузоподъ[её]мност[а-яё]+' },
+  { slug: 'damage-threshold', en: 'Damage Threshold', ru: 'Порог[а-яё]*\\s+урон[а-яё]*' },
   // Сенсорные термины (Тёмное/Слепое зрение, Truesight, Tremorsense) намеренно НЕ включены:
   // ковром идут по строкам «Чувства» в бестиарии, а RU-проза для truesight использует другой
   // термин («истинное зрение» ≠ глоссарное «Видение истины»). Отдельно, с гейтом «не в статблоке».
