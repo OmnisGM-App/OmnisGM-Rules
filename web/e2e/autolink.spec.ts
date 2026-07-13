@@ -11,7 +11,7 @@ test('глава: автоссылки ведут на страницы сущн
   expect(await links.count()).toBeGreaterThan(0);
   // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
-    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|magic-items|feats)\/[a-z0-9-]+\/$/);
+    expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|animals|magic-items|feats)\/[a-z0-9-]+\/$/);
   }
 });
 
@@ -171,6 +171,7 @@ test('EN/RU: набор слинкованных состояний совпад
         !p.includes('/rules-glossary/conditions/') && // сами страницы состояний, не главы
         !/\/spells\/[^/]+\/$/.test(p) && // страницы отдельных заклинаний (не глава /spells/):
         !/\/monsters-a-z\/[^/]+\/$/.test(p) && // отдельных монстров (не глава /monsters-a-z/):
+        !/\/animals\/[^/]+\/$/.test(p) && // отдельных животных (не глава /animals/):
         !/\/magic-items\/[^/]+\/$/.test(p) && // отдельных предметов (не глава /magic-items/):
         !/\/feats\/[^/]+\/$/.test(p), // и отдельных черт (не глава /feats/):
         // их описания переведены независимо → паритет линковки состояний тут не гарантирован

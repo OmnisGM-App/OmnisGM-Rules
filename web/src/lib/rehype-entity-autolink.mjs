@@ -25,6 +25,9 @@ const RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
   { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
   { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
+  // Животные — тот же жирный сигнал SRD, что и монстры («**Волк**» → см. Животные). Слаги и имена
+  // животных не пересекаются с монстрами (проверено) → общий strong-матч безопасен.
+  { key: 'animals', urlParent: 'animals', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
   // Имена предметов и заклинаний не пересекаются → общий em-матч безопасен.
   { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },

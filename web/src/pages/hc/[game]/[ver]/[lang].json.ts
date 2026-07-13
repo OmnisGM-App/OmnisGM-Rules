@@ -107,6 +107,8 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   { key: 'conditions', urlParent: 'rules-glossary/conditions', body: (e) => conditionHtml(e.description_md as string) },
   { key: 'spells', urlParent: 'spells', body: (e, lang) => spellHtml(e, lang) },
   { key: 'monsters', urlParent: 'monsters-a-z', body: (e, lang) => monsterHtml(e, lang) },
+  // Животные — тот же стат-блок, что и монстры → та же карточка (тип/мировоззрение + КД·хиты·ПО).
+  { key: 'animals', urlParent: 'animals', body: (e, lang) => monsterHtml(e, lang) },
   { key: 'magic-items', urlParent: 'magic-items', body: (e, lang) => itemHtml(e, lang) },
 ];
 
