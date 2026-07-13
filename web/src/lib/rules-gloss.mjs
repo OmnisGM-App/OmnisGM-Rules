@@ -49,7 +49,10 @@ const CORE_TERMS = [
   // ни на одной стороне. Все многословны либо однозначны в этом корпусе (ложных срабатываний нет).
   { slug: 'armor-class', en: 'Armor Class', ru: 'Класс[а-яё]*\\s+доспех[а-яё]+' },
   { slug: 'bonus-action', en: 'Bonus Actions?', ru: 'Бонусн[а-яё]+\\s+действи[а-яё]+' },
-  { slug: 'attack-roll', en: 'Attack Rolls?', ru: 'Брос[а-яё]+\\s+атак[а-яё]+' },
+  // attack-roll намеренно НЕ глоссим (батч 2 включал, откатили): EN 5.2 формализовал
+  // «Melee/Ranged Attack Roll» как капитал-компаунд (429×), матч ловил «Attack Roll» внутри,
+  // а RU пишет «рукопашная/дальнобойная атака» БЕЗ «бросок атаки» → структурная асимметрия
+  // (dist 864/427), стемом не лечится. Карточка HC у attack-roll остаётся (это сущность).
   { slug: 'initiative', en: 'Initiative', ru: 'Инициатив[а-яё]+' },
   { slug: 'challenge-rating', en: 'Challenge Rating', ru: 'Показател[а-яё]+\\s+опасност[а-яё]+' },
   { slug: 'unarmed-strike', en: 'Unarmed Strikes?', ru: 'Безоружн[а-яё]+\\s+удар[а-яё]*' },
