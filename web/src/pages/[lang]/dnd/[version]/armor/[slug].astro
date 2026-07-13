@@ -1,0 +1,170 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы доспехов (issue #20, Дорожка A) — тонкий стат-блок (данные табличные).
+// URL: /{lang}/dnd/{version}/armor/{slug}/. Своей главы нет — доспехи в «Снаряжении», туда и
+// ведёт навигация/upLink. RU получает канонический слаг + name_en (сверка стат-блоков) → hreflang.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment' };
+
+const CATEGORY: Record<string, [string, string]> = {
+  light: ['Лёгкий', 'Light'], medium: ['Средний', 'Medium'],
+  heavy: ['Тяжёлый', 'Heavy'], shield: ['Щит', 'Shield'],
+};
+
+interface Sib { slug: string; name: string; category: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const armor = loadEntities(ver, lang, 'armor');
+    const siblings: Sib[] = armor.map((a) => ({
+      slug: a.slug, name: a.name, category: (a.category as string) ?? '',
+    }));
+    for (const entity of armor) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+const category = (entity.category as string) ?? '';
+const isShield = category === 'shield';
+const acBase = entity.ac_base as number;
+const acDexBonus = entity.ac_dex_bonus === true;
+const acMaxDex = entity.ac_max_dex as number | null;
+const strengthReq = entity.strength_req as number | null;
+const stealthDis = entity.stealth_disadvantage === true;
+const weight = (entity.weight as string | null) ?? '';
+const cost = (entity.cost as string) ?? '';
+
+const catPair = CATEGORY[category];
+const catLabel = catPair ? (lang === 'ru' ? catPair[0] : catPair[1]) : category;
+
+// Строка КД: щит — бонус «+2 к КД»; доспех — база (+ мод. Ловкости, макс. для среднего).
+let acLine: string;
+if (isShield) {
+  acLine = t(`+${acBase} к КД`, `+${acBase} AC`);
+} else {
+  acLine = String(acBase);
+  if (acDexBonus) {
+    acLine += t(' + мод. Ловкости', ' + Dex modifier');
+    if (acMaxDex != null) acLine += t(` (макс. ${acMaxDex})`, ` (max ${acMaxDex})`);
+  }
+}
+
+// Подстрока в шапке: «Средний доспех» / «Medium armor»; для щита — просто «Щит»/«Shield».
+const subLine = isShield ? catLabel : t(`${catLabel} доспех`, `${catLabel} armor`);
+const description = isShield
+  ? t(`${entity.name} — щит, +${acBase} к КД. D&D ${verLabel}.`,
+      `${entity.name} — shield, +${acBase} AC. D&D ${verLabel}.`)
+  : t(`${entity.name} — ${catLabel.toLowerCase()} доспех, КД ${acLine}. D&D ${verLabel}.`,
+      `${entity.name} — ${catLabel.toLowerCase()} armor, AC ${acLine}. D&D ${verLabel}.`);
+
+const base = `/${lang}/dnd/${verSlug}/armor`;
+// «Похожие доспехи» — до 8 той же категории (внутренняя перелинковка/SEO).
+const similar = (siblings as Sib[])
+  .filter((s) => s.slug !== entity.slug && s.category === category)
+  .slice(0, 8);
+
+const upLink = { href: `/${lang}/dnd/${verSlug}/equipment/`, ru: 'Снаряжение', en: 'Equipment' };
+const kind = isShield ? t('Щит', 'Shield') : t('Доспех', 'Armor');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    <span class="ent-head-sub">
+      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+      <span class="item-meta-line">{subLine}</span>
+    </span>
+  </h1>
+
+  <dl class="item-stat">
+    <div class="item-row"><dt>{t('Класс доспеха', 'Armor Class')}</dt><dd>{acLine}</dd></div>
+    <div class="item-row"><dt>{t('Категория', 'Category')}</dt>
+      <dd>{isShield ? catLabel : t(`${catLabel} доспех`, `${catLabel} armor`)}</dd></div>
+    {strengthReq != null && (
+      <div class="item-row"><dt>{t('Требование Силы', 'Strength')}</dt><dd>{t(`Сила ${strengthReq}`, `Str ${strengthReq}`)}</dd></div>
+    )}
+    {stealthDis && (
+      <div class="item-row"><dt>{t('Скрытность', 'Stealth')}</dt><dd>{t('помеха', 'Disadvantage')}</dd></div>
+    )}
+    {weight && (
+      <div class="item-row"><dt>{t('Вес', 'Weight')}</dt><dd>{weight}</dd></div>
+    )}
+    {cost && (
+      <div class="item-row"><dt>{t('Цена', 'Cost')}</dt><dd>{cost}</dd></div>
+    )}
+  </dl>
+
+  {similar.length > 0 && (
+    <nav class="ent-related" aria-label={t('Похожие доспехи', 'Similar armor')}>
+      <span class="ent-related-h">{isShield ? t('Ещё доспехи', 'More armor') : t(`Ещё: ${catLabel} доспех`, `More ${catLabel} armor`)}</span>
+      <span class="ent-related-list">
+        {similar.map((r) => (
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  .ent-head-sub {
+    display: block; margin-top: 8px;
+    font-family: var(--font-body); font-weight: 400; letter-spacing: 0;
+  }
+  .ent-en {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .item-meta-line { font-style: italic; font-size: 14px; color: var(--og-text-muted); }
+  .ent-en + .item-meta-line::before { content: ' · '; font-style: normal; }
+
+  .item-stat {
+    margin: 0 0 24px; padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2); display: grid; gap: 8px;
+  }
+  .item-row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: baseline; }
+  .item-row dt {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
+  .item-row dd { margin: 0; color: var(--og-text-2); }
+
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
+  @media (max-width: 560px) {
+    .item-row { display: block; }
+    .item-row dt { display: inline; }
+    .item-row dt::after { content: ':\00a0'; }
+    .item-row dd { display: inline; }
+  }
+</style>

@@ -79,6 +79,82 @@ def backfill_name_en(entities: list[dict], src_root: Path) -> None:
             entity["slug"] = slugify(en)
 
 
+def _num_key(s: str | None) -> str | None:
+    """Языко-инвариантный числовой ключ: только цифры («10 GP»/«10 зм» → «10»,
+    «1,500 GP»/«1500 зм» → «1500», «4 lb.»/«4 фнт.» → «4»)."""
+    if not s:
+        return None
+    digits = re.sub(r"[^\d]", "", str(s))
+    return digits or None
+
+
+def _weapon_fp(e: dict) -> tuple:
+    return (e["category"], e["type"], e["damage_dice"], e["damage_type"],
+            _num_key(e.get("weight")), _num_key(e.get("cost")),
+            e.get("range_normal"), e.get("range_long"))
+
+
+def _armor_fp(e: dict) -> tuple:
+    return (e["category"], e["ac_base"], e.get("ac_dex_bonus"), e.get("ac_max_dex"),
+            e.get("strength_req"), e.get("stealth_disadvantage"),
+            _num_key(e.get("weight")), _num_key(e.get("cost")))
+
+
+_STAT_TABLE_FP = {"weapons": _weapon_fp, "armor": _armor_fp}
+
+
+def align_stat_table_name_en(all_data: dict) -> None:
+    """Проставить RU-оружию/доспехам name_en + канонический (англ.) слаг.
+
+    Их имена — в ячейках таблиц (не в заголовках со скобкой «(English)»), а таблицы
+    отсортированы по алфавиту КАЖДОГО языка отдельно → позиционная сверка EN↔RU неверна,
+    в словаре имён нет. Зато стат-блок языко-инвариантен: сверяем RU→EN по «отпечатку»
+    (категория/урон/вес/цена-число/…). Механически-идентичные пары (Glaive/Halberd — один
+    отпечаток) разводим по мастерству: 1-й проход учит карту «RU-мастерство → EN» на
+    однозначных строках (Greatsword→Graze, Greataxe→Cleave), 2-й — разрешает коллизии.
+    """
+    for (ver, lang, resource), ru_entities in all_data.items():
+        if lang != "ru" or resource not in _STAT_TABLE_FP:
+            continue
+        en_entities = all_data.get((ver, "en", resource))
+        if not en_entities:
+            continue
+        fp = _STAT_TABLE_FP[resource]
+        en_by_fp: dict[tuple, list[dict]] = {}
+        for e in en_entities:
+            en_by_fp.setdefault(fp(e), []).append(e)
+
+        mastery_ru_en: dict[str, str] = {}
+        pending: list[dict] = []
+        for r in ru_entities:
+            bucket = en_by_fp.get(fp(r), [])
+            if len(bucket) == 1:
+                e = bucket[0]
+                r["name_en"] = e["name"]
+                r["slug"] = e["slug"]
+                if resource == "weapons" and r.get("mastery") and e.get("mastery"):
+                    mastery_ru_en[r["mastery"]] = e["mastery"]
+            else:
+                pending.append(r)
+
+        for r in pending:
+            bucket = en_by_fp.get(fp(r), [])
+            target = None
+            if resource == "weapons":
+                want = mastery_ru_en.get(r.get("mastery"))
+                target = next((e for e in bucket if e.get("mastery") == want), None)
+            if target is None:
+                target = bucket[0] if bucket else None
+                print(f"  Warning: неоднозначный name_en для RU {resource} "
+                      f"{r.get('name')!r} — взят первый кандидат", file=sys.stderr)
+            if target:
+                r["name_en"] = target["name"]
+                r["slug"] = target["slug"]
+            else:
+                print(f"  Warning: не найден EN-аналог для RU {resource} "
+                      f"{r.get('name')!r}", file=sys.stderr)
+
+
 def resolve_cross_refs(all_data: dict) -> None:
     """Resolve spell name → slug cross-references for monsters and magic items."""
     spell_lookup: dict[tuple[str, str], dict[str, str]] = {}
@@ -370,6 +446,9 @@ def main():
         count = len(entities)
         total_entities += count
         print(f"  {ver}/{lang}/{resource}: {count} entities from {source['file']}")
+
+    # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
+    align_stat_table_name_en(all_data)
 
     # Resolve cross-references
     resolve_cross_refs(all_data)
