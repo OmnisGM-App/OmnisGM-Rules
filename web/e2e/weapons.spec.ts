@@ -23,6 +23,29 @@ test('канонический слаг: RU-страница на англ. сл
   expect(cyr?.status()).toBe(404);
 });
 
+test('свойства/мастерство — gloss-подсказки; при наведении всплывает определение', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/weapons/longsword/');
+  // Свойство «Универсальное» — gloss-спан с data-hc на weapon-properties (хвост «(1d10)» вне спана).
+  const prop = page.locator('.item-stat .gloss[data-hc*="weapon-properties/versatile"]', { hasText: 'Универсальное' });
+  await expect(prop).toBeVisible();
+  // Мастерство «Оглушение» → masteries.
+  const mastery = page.locator('.item-stat .gloss[data-hc*="masteries/sap"]', { hasText: 'Оглушение' });
+  await expect(mastery).toBeVisible();
+  // Наведение → hovercard с EN-именем и определением.
+  await prop.hover();
+  const card = page.locator('#ent-hovercard.is-open');
+  await expect(card).toBeVisible();
+  await expect(card.locator('.ent-hc-en')).toHaveText('Versatile');
+  await expect(card.locator('.ent-hc-body')).toContainText('одной или двумя руками');
+});
+
+test('hovercard-эндпоинт: есть карточки свойств и мастерств оружия', async ({ request }) => {
+  const ru = await (await request.get('/hc/dnd/srd52/ru.json')).json();
+  expect(ru['weapon-properties/finesse']?.name_en).toBe('Finesse');
+  expect(ru['weapon-properties/finesse']?.effect).toContain('Силы или Ловкости');
+  expect(ru['masteries/cleave']?.name_en).toBe('Cleave');
+});
+
 test('related: другое оружие той же категории и типа', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/weapons/longsword/');
   const rel = page.locator('.ent-related');

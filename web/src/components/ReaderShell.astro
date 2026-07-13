@@ -673,15 +673,17 @@ const searchUi = {
     });
   };
 
+  // Цели hovercard: автоссылки (a.ent-link) и глоссарные термины без страницы (span.gloss).
+  const HC_SEL = 'a.ent-link[data-hc], .gloss[data-hc]';
   const onEnter = (e: Event) => {
     if ('pointerType' in e && (e as PointerEvent).pointerType === 'touch') return; // тач — навигация тапом
-    const a = (e.target as Element)?.closest?.('a.ent-link[data-hc]') as HTMLElement | null;
+    const a = (e.target as Element)?.closest?.(HC_SEL) as HTMLElement | null;
     if (!a || a === current) return;
     clearTimeout(showTimer);
     showTimer = window.setTimeout(() => show(a), e.type === 'focusin' ? 0 : 130);
   };
   const onLeave = (e: Event) => {
-    const a = (e.target as Element)?.closest?.('a.ent-link[data-hc]');
+    const a = (e.target as Element)?.closest?.(HC_SEL);
     if (!a) return;
     const to = (e as PointerEvent).relatedTarget as Node | null;
     if (to && (a as Element).contains(to)) return;
@@ -692,7 +694,7 @@ const searchUi = {
   document.addEventListener('pointerout', onLeave, { passive: true });
   document.addEventListener('focusin', onEnter);
   document.addEventListener('focusout', (e) => {
-    if (current && (e.target as Element)?.closest?.('a.ent-link') === current) hide();
+    if (current && (e.target as Element)?.closest?.(HC_SEL) === current) hide();
   });
   document.addEventListener('keydown', (e) => { if ((e as KeyboardEvent).key === 'Escape') hide(); });
   // Карточка позиционируется в координатах документа и «едет» вместе со ссылкой при скролле —

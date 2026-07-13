@@ -26,7 +26,7 @@ from config import (SOURCES, SKIP_HEADINGS_SPELL, SKIP_HEADINGS_MONSTER,
                     SKIP_HEADINGS_EQUIPMENT, SKIP_HEADINGS_FEAT)
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
-                     parse_conditions, parse_feats)
+                     parse_conditions, parse_feats, parse_defs)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
@@ -153,6 +153,26 @@ def align_stat_table_name_en(all_data: dict) -> None:
             else:
                 print(f"  Warning: не найден EN-аналог для RU {resource} "
                       f"{r.get('name')!r}", file=sys.stderr)
+
+
+def align_positional_name_en(all_data: dict, resources: tuple[str, ...]) -> None:
+    """RU-определениям (свойства/мастерства оружия) — name_en + канонический слаг по позиции.
+
+    Порядок определений в EN и RU одинаков (построчный паритет главы), поэтому RU[i] ↔ EN[i].
+    """
+    for (ver, lang, resource), ru_entities in list(all_data.items()):
+        if lang != "ru" or resource not in resources:
+            continue
+        en_entities = all_data.get((ver, "en", resource))
+        if not en_entities:
+            continue
+        if len(en_entities) != len(ru_entities):
+            print(f"  Warning: {resource} EN/RU count mismatch "
+                  f"({len(en_entities)}/{len(ru_entities)}) — name_en не выровнен", file=sys.stderr)
+            continue
+        for r, e in zip(ru_entities, en_entities):
+            r["name_en"] = e["name"]
+            r["slug"] = e["slug"]
 
 
 def resolve_cross_refs(all_data: dict) -> None:
@@ -397,7 +417,7 @@ def main():
         lang = source["lang"]
         entity_type = source["type"]
         filepath = src_root / source["file"]
-        heading_level = source["h"]
+        heading_level = source.get("h", 0)
         after = source.get("after")
         out_resource = source.get("out")
 
@@ -433,6 +453,9 @@ def main():
         elif entity_type == "feat":
             entities = parse_feats(text, heading_level, lang, after, SKIP_HEADINGS_FEAT)
             resource = "feats"
+        elif entity_type == "glossary_defs":
+            entities = parse_defs(text, source["section"])
+            resource = out_resource
         else:
             print(f"  Warning: unknown type '{entity_type}', skipping", file=sys.stderr)
             continue
@@ -449,6 +472,8 @@ def main():
 
     # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
     align_stat_table_name_en(all_data)
+    # RU-свойствам/мастерствам оружия — name_en по позиции (порядок определений = EN).
+    align_positional_name_en(all_data, ("weapon-properties", "masteries"))
 
     # Resolve cross-references
     resolve_cross_refs(all_data)

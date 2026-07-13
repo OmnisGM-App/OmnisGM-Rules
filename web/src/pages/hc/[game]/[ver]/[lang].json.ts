@@ -165,6 +165,25 @@ function equipHtml(e: Record<string, unknown>, lang: string): string {
   );
 }
 
+// ── Определения (свойства/мастерства оружия): markdown-абзацы → компактный HTML.
+// Без href (у свойств нет страниц) — карточка чисто справочная.
+function defHtml(md: string | undefined): string {
+  if (!md) return '';
+  return md
+    .split(/\n{2,}/)
+    .map((b) => b.trim())
+    .filter(Boolean)
+    .map((b) => {
+      const html = escapeHtml(b)
+        .replace(/\*\*_([^*]+?)_\*\*/g, '<strong>$1</strong>')
+        .replace(/\*\*([^*]+?)\*\*/g, '<strong>$1</strong>')
+        .replace(/(?<![\w*])_([^_]+?)_(?![\w*])/g, '<em>$1</em>')
+        .replace(/(?<![\w*])\*([^*]+?)\*(?![\w*])/g, '<em>$1</em>');
+      return `<p>${html}</p>`;
+    })
+    .join('');
+}
+
 // resource → { urlParent, build(entity) → HTML тела карточки }.
 const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unknown>, lang: string) => string }[] = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', body: (e) => conditionHtml(e.description_md as string) },
@@ -176,6 +195,10 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   { key: 'weapons', urlParent: 'weapons', body: (e, lang) => weaponHtml(e, lang) },
   { key: 'armor', urlParent: 'armor', body: (e, lang) => armorHtml(e, lang) },
   { key: 'equipment', urlParent: 'equipment', body: (e, lang) => equipHtml(e, lang) },
+  // Свойства/мастерства оружия — только карточка-определение (страниц нет; href не используется
+  // клиентом для gloss-подсказок).
+  { key: 'weapon-properties', urlParent: 'weapon-properties', body: (e) => defHtml(e.description_md as string) },
+  { key: 'masteries', urlParent: 'masteries', body: (e) => defHtml(e.description_md as string) },
 ];
 
 // Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).

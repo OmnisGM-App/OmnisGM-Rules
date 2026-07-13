@@ -201,6 +201,11 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
    окружения (напр. курсив описания спелла), добавляя лишь цвет и вес. */
 .rd-doc .kw { color: var(--og-danger-text); font-weight: 600; }
 
+/* Глоссарный термин с hovercard-определением, но БЕЗ страницы (свойства/мастерства оружия):
+   пунктир как у ent-link, но без цвета-ссылки — это подсказка, а не переход. */
+.rd-doc .gloss { cursor: help; border-bottom: 1px dashed color-mix(in oklab, var(--og-text-muted) 60%, transparent); }
+.rd-doc .gloss:hover { border-bottom-color: var(--og-text-2); }
+
 /* Hovercard автоссылок (issue #20, вариант B): карточка сущности при наведении/фокусе.
    Единый переиспользуемый элемент в <body>; позицию задаёт клиентский скрипт (top/left). */
 .ent-hovercard {
