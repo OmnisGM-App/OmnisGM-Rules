@@ -32,6 +32,8 @@ const SAMPLE = [
   { type: 'glossary', tail: 'dnd/srd-5.2/rules-glossary/' },
   { type: 'spell-hub-class', tail: 'dnd/srd-5.2/spells/class/wizard/' },
   { type: 'spell-hub-level', tail: 'dnd/srd-5.2/spells/level/3/' },
+  { type: 'monster-hub-type', tail: 'dnd/srd-5.2/monsters-a-z/type/dragon/' },
+  { type: 'monster-hub-cr', tail: 'dnd/srd-5.2/monsters-a-z/cr/5/' },
 ];
 const LANGS = ['en', 'ru'];
 // Страницы, где noindex ЛЕГИТИМЕН (сейчас пусто — глоссарии переоткрыты в #106).
