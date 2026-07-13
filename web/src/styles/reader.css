@@ -256,15 +256,18 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
    цвет НАСЛЕДУЕТСЯ от ячейки (имя-столбец белый, классы — приглушённые), подчёркивание
    ПУНКТИРНОЕ акцентом; по наведению — сплошное + акцентный цвет. Базовый .rd-doc a красил
    текст акцентом сплошной линией («всё фиолетовое») — переопределяем на эталон. */
-.rd-doc .hub-table a, .rd-doc .hub-links a, .rd-doc .ent-related-list a {
+.rd-doc .hub-table a, .rd-doc .hub-links a, .rd-doc .ent-related-list a, .rd-doc .spell-meta a {
   color: inherit;
   border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent);
 }
-.rd-doc .hub-table a:hover, .rd-doc .hub-links a:hover, .rd-doc .ent-related-list a:hover {
+.rd-doc .hub-table a:hover, .rd-doc .hub-links a:hover, .rd-doc .ent-related-list a:hover,
+.rd-doc .spell-meta a:hover {
   color: var(--og-accent);
   border-bottom-style: solid;
   border-bottom-color: var(--og-accent);
 }
+/* Related-блоки — это ИМЕНА сущностей → белые, как имя-столбец в глоссарии (не приглушённые). */
+.rd-doc .ent-related-list a { color: var(--og-text); }
 
 .rd-source {
   margin: 36px 0 0; padding-top: 16px; border-top: 1px solid var(--og-border);

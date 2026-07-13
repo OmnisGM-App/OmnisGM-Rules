@@ -117,7 +117,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       <span class="ent-related-h">{t(`Ещё: ${itemType}`, `More ${itemType}`)}</span>
       <span class="ent-related-list">
         {sameType.map((r) => (
-          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+          <a href={`${base}/${r.slug}/`}>{r.name}</a>
         ))}
       </span>
     </nav>

@@ -201,7 +201,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
         <dt>{t('Классы', 'Classes')}</dt>
         <dd>
           {classList.map((c, i) => (
-            <Fragment>{i > 0 ? ', ' : ''}{CLASS_SLUG[c] ? <a href={classUrl(CLASS_SLUG[c])}><strong>{c}</strong></a> : c}</Fragment>
+            <Fragment>{i > 0 ? ', ' : ''}{CLASS_SLUG[c] ? <a href={classUrl(CLASS_SLUG[c])}>{c}</a> : c}</Fragment>
           ))}
         </dd>
       </div>
@@ -212,7 +212,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
         <dd>
           {subList.map((s, i) => (
             <Fragment>{i > 0 ? ', ' : ''}{subClass(s)
-              ? <a href={subUrl(s)}><strong>{subClsName(s)}: {s}</strong></a>
+              ? <a href={subUrl(s)}>{subClsName(s)}: {s}</a>
               : s}</Fragment>
           ))}
         </dd>
