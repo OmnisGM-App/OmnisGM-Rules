@@ -1,0 +1,193 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы снаряжения (issue #20, Дорожка A) — зеркало страницы маг. предмета.
+// URL: /{lang}/dnd/{version}/equipment/{slug}/ (глава 06_Equipment → /equipment/).
+// EN и RU делят канонический (англ.) слаг → корректный hreflang.
+// Две секции: adventuring_gear (обычное снаряжение) и tools (инструменты — богаче стат-блок:
+// связанная характеристика, действие «Использование», список изготавливаемого).
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment' };
+
+// section (ключ по-английски в обеих локалях) → подпись.
+const SECTION: Record<string, [string, string]> = {
+  adventuring_gear: ['Снаряжение', 'Adventuring Gear'],
+  tools: ['Инструменты', 'Tools'],
+};
+
+interface Sib { slug: string; name: string; section: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const items = loadEntities(ver, lang, 'equipment');
+    const siblings: Sib[] = items.map((m) => ({
+      slug: m.slug, name: m.name, section: (m.section as string) ?? '',
+    }));
+    // Карта «имя снаряжения (lowercase) → slug» — для линковки пунктов «Изготовление» на их страницы.
+    const craftMap: Record<string, string> = {};
+    for (const m of items) craftMap[m.name.toLowerCase()] = m.slug;
+    for (const entity of items) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings, craftMap },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings, craftMap } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+// Тело с автоссылками на состояния/заклинания/монстров (issue #20): marked → hast → autolink → html.
+const render = (md: string | undefined | null) => {
+  if (!md || md === 'None') return '';
+  const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
+  autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+  return toHtml(tree);
+};
+const bodyHtml = render(entity.description_md as string);
+const description = excerpt(entity.description_md as string);
+
+const section = (entity.section as string) ?? '';
+const sectionPair = SECTION[section];
+const sectionLabel = sectionPair ? (lang === 'ru' ? sectionPair[0] : sectionPair[1]) : section;
+const cost = (entity.cost as string) ?? '';
+const weight = (entity.weight as string) ?? '';
+const ability = (entity.ability as string) ?? '';
+const utilize = (entity.utilize as string) ?? '';
+const variants = (entity.variants as string) ?? '';
+const craft = Array.isArray(entity.craft) ? (entity.craft as string[]) : [];
+
+const base = `/${lang}/dnd/${verSlug}/equipment`;
+// Пункт «Изготовление» → ссылка на страницу снаряжения, если slug найден.
+const craftLink = (name: string) => {
+  const slug = craftMap[name.trim().toLowerCase()];
+  return slug ? `${base}/${slug}/` : null;
+};
+
+// «Похожие» — до 8 предметов той же секции (внутренняя перелинковка/SEO).
+const sameSection = (siblings as Sib[])
+  .filter((s) => s.slug !== entity.slug && s.section === section)
+  .slice(0, 8);
+
+// Подстрока в шапке: секция · стоимость.
+const subParts = [sectionLabel, cost].filter(Boolean);
+
+const upLink = { href: `${base}/`, ru: 'Снаряжение', en: 'Equipment' };
+const kind = section === 'tools' ? t('Инструмент', 'Tool') : t('Снаряжение', 'Equipment');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    <span class="ent-head-sub">
+      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+      {subParts.length > 0 && <span class="item-meta-line">{subParts.join(', ')}</span>}
+    </span>
+  </h1>
+
+  <dl class="item-stat">
+    {sectionLabel && (
+      <div class="item-row"><dt>{t('Категория', 'Category')}</dt><dd>{sectionLabel}</dd></div>
+    )}
+    {cost && (
+      <div class="item-row"><dt>{t('Стоимость', 'Cost')}</dt><dd>{cost}</dd></div>
+    )}
+    {weight && (
+      <div class="item-row"><dt>{t('Вес', 'Weight')}</dt><dd>{weight}</dd></div>
+    )}
+    {ability && (
+      <div class="item-row"><dt>{t('Характеристика', 'Ability')}</dt><dd>{ability}</dd></div>
+    )}
+    {utilize && (
+      <div class="item-row"><dt>{t('Использование', 'Utilize')}</dt><dd>{utilize}</dd></div>
+    )}
+    {variants && (
+      <div class="item-row"><dt>{t('Варианты', 'Variants')}</dt><dd>{variants}</dd></div>
+    )}
+    {craft.length > 0 && (
+      <div class="item-row"><dt>{t('Изготовление', 'Craft')}</dt>
+        <dd>{craft.map((c, i) => {
+          const href = craftLink(c);
+          return (
+            <Fragment>{i > 0 ? ', ' : ''}{href
+              ? <a class="ent-link" href={href}>{c}</a>
+              : c}</Fragment>
+          );
+        })}</dd></div>
+    )}
+  </dl>
+
+  {bodyHtml && <Fragment set:html={bodyHtml} />}
+
+  {sameSection.length > 0 && (
+    <nav class="ent-related" aria-label={t('Похожее снаряжение', 'Similar equipment')}>
+      <span class="ent-related-h">{t(`Ещё: ${sectionLabel}`, `More ${sectionLabel}`)}</span>
+      <span class="ent-related-list">
+        {sameSection.map((r) => (
+          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  /* Подстрока в шапке: EN-имя + секция/стоимость. */
+  .ent-head-sub {
+    display: block; margin-top: 8px;
+    font-family: var(--font-body); font-weight: 400; letter-spacing: 0;
+  }
+  .ent-en {
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .item-meta-line { font-style: italic; font-size: 14px; color: var(--og-text-muted); }
+  .ent-en + .item-meta-line::before { content: ' · '; font-style: normal; }
+
+  .item-stat {
+    margin: 0 0 24px; padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2); display: grid; gap: 8px;
+  }
+  .item-row { display: grid; grid-template-columns: 160px 1fr; gap: 12px; align-items: baseline; }
+  .item-row dt {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
+  .item-row dd { margin: 0; color: var(--og-text-2); }
+
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+
+  @media (max-width: 560px) {
+    .item-row { display: block; }
+    .item-row dt { display: inline; }
+    .item-row dt::after { content: ':\00a0'; }
+    .item-row dd { display: inline; }
+  }
+</style>
