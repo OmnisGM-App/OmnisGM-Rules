@@ -40,6 +40,17 @@ test('CR-хаб: диапазон 11–16 покрывает несколько 
   await expect(page.locator('h1')).toContainText('CR 1/2');
 });
 
+test('обратная перелинковка (PR C): страница монстра ведёт в хабы типа и CR (вкл. диапазон)', async ({ page }) => {
+  // Аболет — CR 10 (одиночный хаб) + тип аберрация.
+  await page.goto('/ru/dnd/srd-5.2/monsters-a-z/aboleth/');
+  await expect(page.locator('.ent-hubs a[href$="/monsters-a-z/type/aberration/"]')).toBeVisible();
+  await expect(page.locator('.ent-hubs a[href$="/monsters-a-z/cr/10/"]')).toBeVisible();
+  // Взрослый латунный дракон — CR 13 → диапазонный хаб 11-16.
+  await page.goto('/en/dnd/srd-5.2/monsters-a-z/adult-brass-dragon/');
+  await expect(page.locator('.ent-hubs a[href$="/monsters-a-z/cr/11-16/"]')).toBeVisible();
+  await expect(page.locator('.ent-hubs a[href$="/monsters-a-z/type/dragon/"]')).toBeVisible();
+});
+
 test('SEO: тип-хаб самоканоничен + hreflang-тройка', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/type/dragon/');
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute(

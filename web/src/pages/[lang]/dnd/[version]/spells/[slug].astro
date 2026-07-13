@@ -7,6 +7,7 @@ import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { spellClassSlugs, classLabel, levelLabel } from '../../../../../lib/spell-hubs';
 
 // Programmatic-страницы заклинаний (issue #20, волна 2) в общем шелле ридера.
 // URL: /{lang}/dnd/{version}/spells/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
@@ -144,6 +145,9 @@ const sameSchool = (siblings as { slug: string; name: string; school: string }[]
   .slice(0, 8);
 
 const upLink = { href: `${base}/`, ru: 'Заклинания', en: 'Spells' };
+// Обратная перелинковка в хабы (issue #20, PR C): классы заклинания + его уровень.
+const hubClassSlugs = spellClassSlugs(entity as any, lang);
+const spellLevel = entity.level as number;
 const kind = t('Заклинание', 'Spell');
 const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
 ---
@@ -241,6 +245,16 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       </span>
     </nav>
   )}
+
+  <nav class="ent-hubs" aria-label={t('Списки заклинаний', 'Spell lists')}>
+    <span class="ent-related-h">{t('Ещё заклинания', 'More spells')}</span>
+    <span class="ent-related-list">
+      {hubClassSlugs.map((cs) => (
+        <a href={`${base}/class/${cs}/`}>{classLabel(cs, lang)}</a>
+      ))}
+      <a href={`${base}/level/${spellLevel}/`}>{levelLabel(spellLevel, lang)}</a>
+    </span>
+  </nav>
 </ReaderShell>
 
 <style>
@@ -286,6 +300,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
     .spell-meta dd { display: inline; }
   }
   .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-hubs { display: block; margin-top: 24px; padding-top: 16px; border-top: 1px solid var(--og-border-soft); }
   .ent-related-h {
     display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
     color: var(--og-text-muted); margin-bottom: 10px;
