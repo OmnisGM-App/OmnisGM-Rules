@@ -1,0 +1,111 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import {
+  SPELL_CLASSES, LEVELS, classLabel, classHubName, classNameInData, levelLabel, schoolLabel, byName,
+  type Lang, type SpellLite,
+} from '../../../../../../lib/spell-hubs';
+
+// Хаб заклинаний по классу (issue #20, SEO §2.3): /{lang}/dnd/{version}/spells/class/{class}/.
+// Все заклинания класса, сгруппированы H2-секциями по уровню (ловит и «wizard spells 5e», и
+// длинный хвост «заклинания жреца 1 уровня» без 80 тонких страниц). EN/RU делят англ. слаг
+// класса → общий каноникал + hreflang. Родитель nav — глава «Заклинания».
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const spells = loadEntities(ver, lang, 'spells') as unknown as SpellLite[];
+    for (const cls of SPELL_CLASSES) {
+      const dataName = classNameInData(cls.slug, lang);
+      const mine = spells.filter((s) => (s.classes || []).includes(dataName));
+      if (!mine.length) continue; // страхует от пустого хаба
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], class: cls.slug },
+        props: { ver, lang, classSlug: cls.slug, spells: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, classSlug, spells } = Astro.props as {
+  ver: string; lang: Lang; classSlug: string; spells: SpellLite[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/spells`;
+const spellHref = (slug: string) => `${base}/${slug}/`;
+
+const clsName = classLabel(classSlug, lang);
+const clsGen = classHubName(classSlug, lang); // род.п. (RU) / имя (EN) для «Заклинания X»
+// Секции по уровню: только непустые, отсортированы; в каждой — заклинания по алфавиту.
+const sections = LEVELS
+  .map((n) => ({ n, items: spells.filter((s) => s.level === n).sort(byName) }))
+  .filter((sec) => sec.items.length > 0);
+const headings = sections.map((sec) => ({ depth: 2, slug: `lvl-${sec.n}`, text: levelLabel(sec.n, lang) }));
+
+const title = `${t(`Заклинания ${clsGen}`, `${clsGen} Spells`)} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${spells.length} заклинаний класса ${clsName} в D&D ${verLabel}, сгруппированы по уровню, со школой и ссылками на страницы заклинаний.`,
+  `All ${spells.length} ${clsName} spells in D&D ${verLabel}, grouped by level, with school and links to each spell.`,
+);
+const otherClasses = SPELL_CLASSES.filter((c) => c.slug !== classSlug);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={t(`Заклинания ${clsGen}`, `${clsGen} Spells`)}
+  description={description}
+  headings={headings}
+  upLink={{ href: `${base}/`, ru: 'Заклинания', en: 'Spells' }}
+>
+  <h1>{t(`Заклинания ${clsGen}`, `${clsGen} Spells`)}</h1>
+  <p>
+    {t(
+      `${spells.length} заклинаний доступно классу «${clsName}» в D&D ${verLabel}. Сгруппированы по уровню — от заговоров до 9-го. Нажмите на название, чтобы открыть страницу заклинания.`,
+      `${spells.length} spells are available to the ${clsName} in D&D ${verLabel}, grouped by level from cantrips to 9th. Select a name to open the spell page.`,
+    )}
+  </p>
+
+  {sections.map((sec) => (
+    <section>
+      <h2 id={`lvl-${sec.n}`}>{levelLabel(sec.n, lang)} <span class="hub-count">({sec.items.length})</span></h2>
+      <div class="rd-table-wrap">
+        <table class="hub-table">
+          <thead>
+            <tr><th>{t('Заклинание', 'Spell')}</th><th>{t('Школа', 'School')}</th></tr>
+          </thead>
+          <tbody>
+            {sec.items.map((s) => (
+              <tr>
+                <td><a href={spellHref(s.slug)}>{s.name}</a></td>
+                <td>{schoolLabel(s.school, lang)}</td>
+              </tr>
+            ))}
+          </tbody>
+        </table>
+      </div>
+    </section>
+  ))}
+
+  <nav class="hub-links" aria-label={t('Другие хабы заклинаний', 'Other spell hubs')}>
+    <p><strong>{t('Другие классы:', 'Other classes:')}</strong>{' '}
+      {otherClasses.map((c, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/class/${c.slug}/`}>{classLabel(c.slug, lang)}</a></>
+      ))}
+    </p>
+    <p><strong>{t('По уровню:', 'By level:')}</strong>{' '}
+      {LEVELS.map((n, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/level/${n}/`}>{levelLabel(n, lang)}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>

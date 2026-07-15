@@ -10,7 +10,10 @@ on:
       - 'web/**'
       - 'src/**'
       - 'config/**'
-      - '.github/scripts/generate_api.py'
+      # Весь каталог: generate_api.py тянет schemas.py / config.py / parsers/** — правка любого
+      # из них меняет JSON API, но раньше деплой триггерил только сам generate_api.py, поэтому
+      # чинить схему/парсер приходилось ручным workflow_dispatch (грабли #20). Теперь авто-деплой.
+      - '.github/scripts/**'
       - 'firebase.json'
   workflow_dispatch:
 
@@ -28,7 +31,7 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm

@@ -4,14 +4,23 @@
 #
 # Checks for each pair: line count, headings (#/##/###/####), table rows, blockquotes.
 # Exit code: 0 if all match, 1 if any mismatch found.
+#
+# EXCLUDE_STRUCT (env, space-separated relative paths): для перечисленных файлов проверяем
+# только НАЛИЧИЕ RU-пары, но НЕ сверяем строки/заголовки/таблицы. Нужно для файлов, где
+# строгая парность легитимно нарушена: (а) индекс-файлы, пересортированные по алфавиту языка
+# (заклинания/монстры/животные — RU-порядок ≠ EN, число буквенных секций разное); (б) legal с
+# RU-приложением (неофициальный перевод OGL обязан идти сверх EN-текста). Для таких файлов
+# осмысленный гейт — slug-парность (verify_ru_en_parity.py), а не построчная сверка.
 
 set -euo pipefail
 
 EN_DIR="${1:?Usage: compare_structure.sh <en_dir> <ru_dir>}"
 RU_DIR="${2:?Usage: compare_structure.sh <en_dir> <ru_dir>}"
+EXCLUDE_STRUCT="${EXCLUDE_STRUCT:-}"
 
 errors=0
 checked=0
+skipped=0
 
 for en_file in $(find "$EN_DIR" -name "*.md" -not -path "*_Glossary/*" | sort); do
     rel_path="${en_file#$EN_DIR/}"
@@ -22,6 +31,15 @@ for en_file in $(find "$EN_DIR" -name "*.md" -not -path "*_Glossary/*" | sort); 
         errors=$((errors + 1))
         continue
     fi
+
+    # Исключённые из структурной сверки (легитимно расходятся) — проверили наличие, идём дальше.
+    for excl in $EXCLUDE_STRUCT; do
+        if [ "$rel_path" = "$excl" ]; then
+            echo "SKIP (structural)  $rel_path — исключён (алфавит-пересортировка / legal-приложение)"
+            skipped=$((skipped + 1))
+            continue 2
+        fi
+    done
 
     checked=$((checked + 1))
     file_ok=true
@@ -59,7 +77,7 @@ for en_file in $(find "$EN_DIR" -name "*.md" -not -path "*_Glossary/*" | sort); 
 done
 
 echo ""
-echo "Checked: $checked files"
+echo "Checked: $checked files (skipped structural: $skipped)"
 if [ "$errors" -eq 0 ]; then
     echo "Result: ALL OK"
     exit 0

@@ -201,6 +201,11 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
    окружения (напр. курсив описания спелла), добавляя лишь цвет и вес. */
 .rd-doc .kw { color: var(--og-danger-text); font-weight: 600; }
 
+/* Глоссарный термин с hovercard-определением, но БЕЗ страницы (свойства/мастерства оружия):
+   пунктир как у ent-link, но без цвета-ссылки — это подсказка, а не переход. */
+.rd-doc .gloss { cursor: help; border-bottom: 1px dashed color-mix(in oklab, var(--og-text-muted) 60%, transparent); }
+.rd-doc .gloss:hover { border-bottom-color: var(--og-text-2); }
+
 /* Hovercard автоссылок (issue #20, вариант B): карточка сущности при наведении/фокусе.
    Единый переиспользуемый элемент в <body>; позицию задаёт клиентский скрипт (top/left). */
 .ent-hovercard {
@@ -241,6 +246,28 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc tbody tr:last-child td { border-bottom: none; }
 .rd-doc tbody td { color: var(--og-text-2); line-height: 1.5; }
 .rd-doc tbody td:first-child { color: var(--og-text); font-weight: 500; }
+
+/* Хабы заклинаний (issue #20): счётчик у заголовка уровня + блок перелинковки на соседние хабы. */
+.rd-doc .hub-count { color: var(--og-text-muted); font-weight: 400; font-size: 0.85em; }
+.rd-doc .hub-links { margin: 28px 0 0; padding: 16px 0 0; border-top: 1px solid var(--og-border-soft); font-size: 14px; }
+.rd-doc .hub-links p { margin: 0 0 8px; color: var(--og-text-2); }
+.rd-doc .hub-links p:last-child { margin-bottom: 0; }
+/* Ссылки в хаб-таблицах/футере — как автоссылки .ent-link в глоссарии (эталон владельца):
+   цвет НАСЛЕДУЕТСЯ от ячейки (имя-столбец белый, классы — приглушённые), подчёркивание
+   ПУНКТИРНОЕ акцентом; по наведению — сплошное + акцентный цвет. Базовый .rd-doc a красил
+   текст акцентом сплошной линией («всё фиолетовое») — переопределяем на эталон. */
+.rd-doc .hub-table a, .rd-doc .hub-links a, .rd-doc .ent-related-list a, .rd-doc .spell-meta a {
+  color: inherit;
+  border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent);
+}
+.rd-doc .hub-table a:hover, .rd-doc .hub-links a:hover, .rd-doc .ent-related-list a:hover,
+.rd-doc .spell-meta a:hover {
+  color: var(--og-accent);
+  border-bottom-style: solid;
+  border-bottom-color: var(--og-accent);
+}
+/* Related-блоки — это ИМЕНА сущностей → белые, как имя-столбец в глоссарии (не приглушённые). */
+.rd-doc .ent-related-list a { color: var(--og-text); }
 
 .rd-source {
   margin: 36px 0 0; padding-top: 16px; border-top: 1px solid var(--og-border);

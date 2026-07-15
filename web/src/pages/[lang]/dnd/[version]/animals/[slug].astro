@@ -5,6 +5,7 @@ import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
+import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Programmatic-страницы животных (issue #20, Дорожка A) в общем шелле ридера.
@@ -58,6 +59,7 @@ const render = (md: string | undefined | null) => {
   const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
   autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
   highlightKeywords(tree, { lang });
+  glossRules(tree, { game: 'dnd', version: verSlug, lang });
   return toHtml(tree);
 };
 const renderEntry = (e: { name?: string; text_md: string }) =>
@@ -247,7 +249,7 @@ const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel
       <span class="ent-related-h">{t(`Ещё животные: ПО ${cr?.value}`, `More CR ${cr?.value} animals`)}</span>
       <span class="ent-related-list">
         {sameCr.map((r) => (
-          <a href={`${base}/${r.slug}/`}><strong>{r.name}</strong></a>
+          <a href={`${base}/${r.slug}/`}>{r.name}</a>
         ))}
       </span>
     </nav>

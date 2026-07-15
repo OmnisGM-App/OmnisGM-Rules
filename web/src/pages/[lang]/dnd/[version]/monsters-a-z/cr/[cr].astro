@@ -1,0 +1,105 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import {
+  MONSTER_TYPES, CR_HUBS, typeLabel, crHubTitle, crHubBySlug, byCrThenName, monstersWithFacets,
+  type Lang, type MonsterLite,
+} from '../../../../../../lib/monster-hubs';
+
+// Хаб монстров по CR (issue #20, SEO §2.3): /{lang}/dnd/{version}/monsters-a-z/cr/{cr}/.
+// Одиночные CR 0–10 (частые) + диапазоны 11–16 и 17–30 (редкий тяжёлый хвост, чтобы не плодить
+// тонкие страницы). Колонка типа → ссылки на type-хабы. Слаг «1/2»→«1-2».
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const all = monstersWithFacets(ver, lang);
+    for (const hub of CR_HUBS) {
+      const set = new Set(hub.values);
+      const mine = all.filter((m) => set.has(m.cr)).sort(byCrThenName);
+      if (!mine.length) continue;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], cr: hub.slug },
+        props: { ver, lang, crHubSlug: hub.slug, monsters: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, crHubSlug, monsters } = Astro.props as {
+  ver: string; lang: Lang; crHubSlug: string; monsters: MonsterLite[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
+const monHref = (slug: string) => `${base}/${slug}/`;
+const hub = crHubBySlug(crHubSlug)!;
+const crName = crHubTitle(hub, lang);
+
+const heading = t(`Монстры с ${crName}`, `${crName} Monsters`);
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${monsters.length} монстров с ${crName} в D&D ${verLabel}: тип, размер и хиты, со ссылками на страницы монстров.`,
+  `All ${monsters.length} monsters of ${crName} in D&D ${verLabel}: type, size and HP, with links to each monster.`,
+);
+const otherCr = CR_HUBS.filter((h) => h.slug !== crHubSlug);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/`, ru: 'Монстры от А до Я', en: 'Monsters A–Z' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${monsters.length} монстров с ${crName} в D&D ${verLabel}. В таблице — тип (ссылка на список типа), размер и хиты. Нажмите на имя, чтобы открыть страницу монстра.`,
+      `${monsters.length} monsters of ${crName} in D&D ${verLabel}. The table lists type (linked to its list), size and HP. Select a name to open the monster page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr>
+          <th>{t('Монстр', 'Monster')}</th><th>{t('ПО', 'CR')}</th>
+          <th>{t('Тип', 'Type')}</th><th>{t('Размер', 'Size')}</th><th>{t('Хиты', 'HP')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {monsters.map((m) => (
+          <tr>
+            <td><a href={monHref(m.slug)}>{m.name}</a></td>
+            <td>{m.cr}</td>
+            <td><a href={`${base}/type/${m.typeSlug}/`}>{typeLabel(m.typeSlug, lang)}</a></td>
+            <td>{m.size}</td><td>{m.hp ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие хабы монстров', 'Other monster hubs')}>
+    <p><strong>{t('Другие CR:', 'Other CR:')}</strong>{' '}
+      {otherCr.map((h, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/cr/${h.slug}/`}>{crHubTitle(h, lang)}</a></>
+      ))}
+    </p>
+    <p><strong>{t('По типу:', 'By type:')}</strong>{' '}
+      {MONSTER_TYPES.map((x, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/type/${x.slug}/`}>{typeLabel(x.slug, lang)}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>

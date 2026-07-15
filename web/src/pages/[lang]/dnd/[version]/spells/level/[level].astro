@@ -1,0 +1,104 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import {
+  SPELL_CLASSES, LEVELS, classLabel, levelLabel, schoolLabel, spellClassSlugs, byName,
+  type Lang, type SpellLite,
+} from '../../../../../../lib/spell-hubs';
+
+// Хаб заклинаний по уровню (issue #20, SEO §2.3): /{lang}/dnd/{version}/spells/level/{n}/.
+// Все заклинания уровня n (0 = заговоры) с колонкой классов (ссылки на класс-хабы). Ловит
+// «level 3 spells 5e» / «заклинания 3 уровня». EN/RU делят числовой слаг → каноникал + hreflang.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const spells = loadEntities(ver, lang, 'spells') as unknown as SpellLite[];
+    for (const n of LEVELS) {
+      const mine = spells.filter((s) => s.level === n).sort(byName);
+      if (!mine.length) continue;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], level: String(n) },
+        props: { ver, lang, level: n, spells: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, level, spells } = Astro.props as {
+  ver: string; lang: Lang; level: number; spells: SpellLite[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/spells`;
+const spellHref = (slug: string) => `${base}/${slug}/`;
+
+const heading = level === 0
+  ? t('Заговоры', 'Cantrips')
+  : t(`Заклинания ${level} уровня`, `Level ${level} Spells`);
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${spells.length} ${level === 0 ? 'заговоров' : `заклинаний ${level} уровня`} в D&D ${verLabel}: школа, классы и ссылки на страницы заклинаний.`,
+  `All ${spells.length} ${level === 0 ? 'cantrips' : `level ${level} spells`} in D&D ${verLabel}: school, classes and links to each spell.`,
+);
+const otherLevels = LEVELS.filter((n) => n !== level);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/`, ru: 'Заклинания', en: 'Spells' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${spells.length} ${level === 0 ? 'заговоров' : `заклинаний ${level} уровня`} в D&D ${verLabel}. В таблице — школа и классы, которым доступно заклинание. Нажмите на название, чтобы открыть страницу заклинания.`,
+      `${spells.length} ${level === 0 ? 'cantrips' : `level ${level} spells`} in D&D ${verLabel}. The table lists school and the classes that can cast each spell. Select a name to open the spell page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr><th>{t('Заклинание', 'Spell')}</th><th>{t('Школа', 'School')}</th><th>{t('Классы', 'Classes')}</th></tr>
+      </thead>
+      <tbody>
+        {spells.map((s) => (
+          <tr>
+            <td><a href={spellHref(s.slug)}>{s.name}</a></td>
+            <td>{schoolLabel(s.school, lang)}</td>
+            <td>
+              {spellClassSlugs(s, lang).map((cs, i) => (
+                <>{i > 0 ? ', ' : ''}<a href={`${base}/class/${cs}/`}>{classLabel(cs, lang)}</a></>
+              ))}
+            </td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие хабы заклинаний', 'Other spell hubs')}>
+    <p><strong>{t('Другие уровни:', 'Other levels:')}</strong>{' '}
+      {otherLevels.map((n, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/level/${n}/`}>{levelLabel(n, lang)}</a></>
+      ))}
+    </p>
+    <p><strong>{t('По классу:', 'By class:')}</strong>{' '}
+      {SPELL_CLASSES.map((c, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/class/${c.slug}/`}>{classLabel(c.slug, lang)}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>
