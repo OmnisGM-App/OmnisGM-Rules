@@ -20,7 +20,7 @@
     "astro": "^5.7.0",
     "hast-util-from-html": "^2.0.3",
     "hast-util-to-html": "^9.0.5",
-    "marked": "^14.1.4"
+    "marked": "^18.0.6"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.9",

@@ -36,7 +36,7 @@ jobs:
           python3 .github/scripts/generate_api.py \
             --src-root src/dnd --output-dir "$RUNNER_TEMP/api-validate"
 
-      - uses: actions/setup-node@v6
+      - uses: actions/setup-node@v7
         with:
           node-version: '20'
           cache: npm
