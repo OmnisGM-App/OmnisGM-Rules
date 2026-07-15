@@ -1,9 +1,8 @@
 ---
+import '@omnisgm-app/brand/fonts.css'; // self-host @font-face (Spectral/Inter/JetBrains), woff2 в public/fonts/ (#10)
 // Общий 404 экосистемы OmnisGM (дизайн из DS / @omnisgm-app/brand dist/404.html).
-// Самодостаточный: токены/шрифты инлайн, отдаётся и без CSS приложения.
+// Токены инлайн (ниже); шрифты self-host из кита (fonts.css + /fonts/), без внешнего CDN.
 // Rules-специфика: home-ссылка учитывает язык в пути (/en/ · /ru/); favicon/manifest.
-const FONTS =
-  'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,600;0,700;0,800;1,500&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;500&display=swap';
 ---
 <!DOCTYPE html>
 <html lang="en">
@@ -14,9 +13,7 @@ const FONTS =
     <meta name="description" content="Page not found. Looks like the Search check came up a natural 1." />
     <meta name="robots" content="noindex" />
     <meta name="theme-color" content="#0F1117" />
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="stylesheet" href={FONTS} />
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
     <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="manifest" href="/manifest.webmanifest" />
@@ -83,10 +80,10 @@ const FONTS =
       .nf-die .face { fill:var(--og-bg-3); stroke:var(--og-border-strong); stroke-width:1.5; stroke-linejoin:round; }
       .nf-die .front { fill:var(--og-bg-4); stroke:var(--og-border-strong); stroke-width:1.2; stroke-linejoin:round; }
       .nf-die .edge { fill:none; stroke:var(--og-border); stroke-width:1; stroke-linecap:round; }
-      .nf-num { font-family:var(--og-font-display); font-weight:800; font-size:34px; fill:var(--og-danger); text-anchor:middle; dominant-baseline:central; }
+      .nf-num { font-family:var(--og-font-display); font-weight:700; font-size:34px; fill:var(--og-danger); text-anchor:middle; dominant-baseline:central; }
 
       .nf-code {
-        font-family:var(--og-font-display); font-weight:800; font-size:clamp(76px,18vw,150px);
+        font-family:var(--og-font-display); font-weight:700; font-size:clamp(76px,18vw,150px);
         line-height:0.9; letter-spacing:-0.02em; margin:0 0 10px;
         background:linear-gradient(180deg,var(--og-text) 0%,var(--og-text-3) 132%);
         -webkit-background-clip:text; background-clip:text; -webkit-text-fill-color:transparent;
