@@ -1,6 +1,6 @@
 // Копирует бренд-иконки из @omnisgm-app/brand в public/ — единый источник (кит).
 // Запускается на predev/prebuild. og.png остаётся per-app (свой текст), не трогаем.
-import { copyFileSync, mkdirSync } from 'node:fs';
+import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
 
@@ -15,3 +15,11 @@ const FILES = [
 ];
 for (const f of FILES) copyFileSync(join(src, f), join(pub, f));
 console.log(`✓ бренд-иконки скопированы из @omnisgm-app/brand (${FILES.length} файлов)`);
+
+// Шрифты (self-host, #10): assets/fonts/*.woff2 → public/fonts/ (fonts.css ссылается на /fonts/*).
+const fontsSrc = join(src, 'fonts');
+const fontsDest = join(pub, 'fonts');
+mkdirSync(fontsDest, { recursive: true });
+const woff2 = readdirSync(fontsSrc).filter((f) => f.endsWith('.woff2'));
+for (const f of woff2) copyFileSync(join(fontsSrc, f), join(fontsDest, f));
+console.log(`✓ шрифты скопированы из @omnisgm-app/brand (${woff2.length} woff2) → public/fonts/`);

@@ -1,5 +1,6 @@
 ---
 import '@omnisgm-app/brand/tokens.css';
+import '@omnisgm-app/brand/fonts.css'; // self-host @font-face (Spectral/Inter/JetBrains), woff2 в public/fonts/ (#10)
 import '@omnisgm-app/brand/base.css';
 import '../styles/reader.css';
 
@@ -25,12 +26,6 @@ const isGlossary = Astro.url.pathname.includes('/glossary/');
 const imageURL = new URL(image, ORIGIN).toString();
 const ogLocale = lang === 'ru' ? 'ru_RU' : 'en_US';
 const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';
-
-// Шрифты грузим не блокируя рендер (урок из новостей): preconnect + media=print onload swap + noscript.
-// Запрашиваем только используемые веса: Inter без 700 (нигде не используется),
-// JetBrains 600 вместо 700 (моно-элементы в CSS — 600). Spectral 700 нужен бренду «OmnisGM».
-const FONTS =
-  'https://fonts.googleapis.com/css2?family=Spectral:ital,wght@0,400;0,500;0,600;0,700;1,400;1,600&family=Inter:wght@400;500;600&family=JetBrains+Mono:wght@400;600&display=swap';
 ---
 <!DOCTYPE html>
 <html lang={lang} data-title-ru={bilingual ? titleRu : undefined}>
@@ -72,11 +67,9 @@ const FONTS =
       </>
     )}
 
-    <link rel="preconnect" href="https://fonts.googleapis.com" />
-    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
-    <link rel="preload" as="style" href={FONTS} />
-    <link rel="stylesheet" href={FONTS} media="print" onload="this.media='all'" />
-    <noscript><link rel="stylesheet" href={FONTS} /></noscript>
+    {/* Шрифты self-host из бренд-кита (#10): @font-face в @omnisgm-app/brand/fonts.css (импорт выше),
+        woff2 в /fonts/ (copy-brand-assets). Google Fonts CDN убран. Preload критичного Inter latin. */}
+    <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
 
     <meta name="theme-color" content="#0F1016" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />

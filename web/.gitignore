@@ -19,6 +19,7 @@ public/icon-512.png
 public/maskable-192.png
 public/maskable-512.png
 public/apple-touch-icon.png
+public/fonts/
 
 # Сгенерированные данные сущностей для programmatic-страниц (prebuild)
 src/data/api/
