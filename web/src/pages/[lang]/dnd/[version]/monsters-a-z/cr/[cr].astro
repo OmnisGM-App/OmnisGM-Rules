@@ -2,19 +2,21 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import {
-  MONSTER_TYPES, CR_HUBS, typeLabel, crHubTitle, crHubBySlug, byCrThenName, monstersWithFacets,
+  CR_HUBS, typeLabel, crHubTitle, crHubBySlug, byCrThenName, monstersWithFacets, activeMonsterTypes,
   type Lang, type MonsterLite,
 } from '../../../../../../lib/monster-hubs';
 
 // Хаб монстров по CR (issue #20, SEO §2.3): /{lang}/dnd/{version}/monsters-a-z/cr/{cr}/.
 // Одиночные CR 0–10 (частые) + диапазоны 11–16 и 17–30 (редкий тяжёлый хвост, чтобы не плодить
 // тонкие страницы). Колонка типа → ссылки на type-хабы. Слаг «1/2»→«1-2».
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz', srd51: 'd51-monstersaz' };
 
 export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as Lang },
     { ver: 'srd52', lang: 'ru' as Lang },
+    { ver: 'srd51', lang: 'en' as Lang },
+    { ver: 'srd51', lang: 'ru' as Lang },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {
@@ -97,7 +99,7 @@ const otherCr = CR_HUBS.filter((h) => h.slug !== crHubSlug);
       ))}
     </p>
     <p><strong>{t('По типу:', 'By type:')}</strong>{' '}
-      {MONSTER_TYPES.map((x, i) => (
+      {activeMonsterTypes(ver).map((x, i) => (
         <>{i > 0 ? ' · ' : ''}<a href={`${base}/type/${x.slug}/`}>{typeLabel(x.slug, lang)}</a></>
       ))}
     </p>

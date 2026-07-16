@@ -18,9 +18,13 @@ export interface MonsterLite {
   typeSlug: string;   // канонический слаг типа (из EN-данных)
 }
 
-// Канонические типы (13). slug = EN-тип в lowercase. ru — единая подпись (без разнобоя данных).
+// Канонические типы. slug = EN-тип в lowercase. ru — единая подпись (без разнобоя данных).
+// beast/swarm есть только в 5.1 (в 5.2 звери вынесены в отдельный ресурс animals). Набор
+// «активных» типов версии выводится из данных (activeTypeSlugs) — 5.2 не покажет пустые
+// beast/swarm-хабы и не даст на них битых ссылок.
 export const MONSTER_TYPES: { slug: string; en: string; ru: string }[] = [
   { slug: 'aberration', en: 'Aberration', ru: 'Аберрация' },
+  { slug: 'beast', en: 'Beast', ru: 'Зверь' },
   { slug: 'celestial', en: 'Celestial', ru: 'Небожитель' },
   { slug: 'construct', en: 'Construct', ru: 'Конструкт' },
   { slug: 'dragon', en: 'Dragon', ru: 'Дракон' },
@@ -32,12 +36,21 @@ export const MONSTER_TYPES: { slug: string; en: string; ru: string }[] = [
   { slug: 'monstrosity', en: 'Monstrosity', ru: 'Чудовище' },
   { slug: 'ooze', en: 'Ooze', ru: 'Слизь' },
   { slug: 'plant', en: 'Plant', ru: 'Растение' },
+  { slug: 'swarm', en: 'Swarm', ru: 'Рой' },
   { slug: 'undead', en: 'Undead', ru: 'Нежить' },
 ];
 export const typeBySlug = (slug: string) => MONSTER_TYPES.find((t) => t.slug === slug);
 export const typeLabel = (slug: string, lang: Lang) => {
   const t = typeBySlug(slug);
   return t ? t[lang] : slug;
+};
+
+// Сырой EN-тип → канонический слаг. Типы из парсера уже чистые и совпадают со слагами;
+// исключение — «Swarm of Tiny Beasts» (D&D-категория роя) → 'swarm'.
+export const canonTypeSlug = (rawType: string): string => {
+  const t = String(rawType || '').toLowerCase().trim();
+  if (t.startsWith('swarm')) return 'swarm';
+  return t;
 };
 
 // CR-хабы: одиночные для частых 0–10 (все ≥5 монстров), редкий тяжёлый хвост — в диапазоны.
@@ -59,9 +72,19 @@ export const crHubTitle = (h: CrHub, lang: Lang) => (lang === 'ru' ? `ПО ${h.l
 // сослалась на верный type-хаб, не завися от непоследовательного RU-поля type.
 export function enTypeMap(ver: string): Map<string, string> {
   return new Map(
-    (loadEntities(ver, 'en', 'monsters') as any[]).map((m) => [m.slug, String(m.type || '').toLowerCase()]),
+    (loadEntities(ver, 'en', 'monsters') as any[]).map((m) => [m.slug, canonTypeSlug(m.type as string)]),
   );
 }
+
+// Слаги типов, реально присутствующих в версии (из EN-данных) — для фасетной навигации,
+// чтобы не показывать/не линковать пустые хабы (напр. beast/swarm в 5.2 отсутствуют).
+export function activeTypeSlugs(ver: string): Set<string> {
+  return new Set((loadEntities(ver, 'en', 'monsters') as any[]).map((m) => canonTypeSlug(m.type as string)));
+}
+export const activeMonsterTypes = (ver: string) => {
+  const active = activeTypeSlugs(ver);
+  return MONSTER_TYPES.filter((t) => active.has(t.slug));
+};
 
 // Порядок CR для сортировки: «1/8»→0.125, «10»→10.
 export const crOrder = (v: string): number => {
@@ -73,9 +96,7 @@ export const byCrThenName = (a: MonsterLite, b: MonsterLite) =>
 
 // Монстры текущего языка с приклеенными фасетами. typeSlug — из EN-данных (чистый источник).
 export function monstersWithFacets(ver: string, lang: Lang): MonsterLite[] {
-  const enType = new Map(
-    (loadEntities(ver, 'en', 'monsters') as any[]).map((m) => [m.slug, String(m.type || '').toLowerCase()]),
-  );
+  const enType = enTypeMap(ver);
   return (loadEntities(ver, lang, 'monsters') as any[]).map((m) => ({
     slug: m.slug,
     name: m.name,
@@ -83,6 +104,6 @@ export function monstersWithFacets(ver: string, lang: Lang): MonsterLite[] {
     cr: m.cr?.value ?? '0',
     hp: typeof m.hp?.average === 'number' ? m.hp.average : null,
     ac: typeof m.ac?.value === 'number' ? m.ac.value : null,
-    typeSlug: enType.get(m.slug) ?? 'monstrosity',
+    typeSlug: enType.get(m.slug) ?? canonTypeSlug(m.type as string),
   }));
 }
