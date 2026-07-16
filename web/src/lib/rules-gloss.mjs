@@ -96,10 +96,16 @@ function loadGloss(game, version, lang) {
     }
   }
   // Термины ядра: именованные группы; EN — регистро-зависимо, RU — регистро-независимо (стемы).
-  const field = lang === 'en' ? 'en' : 'ru';
-  const parts = CORE_TERMS.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
-  const flags = lang === 'en' ? 'gu' : 'giu';
-  const coreRe = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${parts})(?![\\p{L}\\p{N}_])`, flags);
+  // Глоссим ТОЛЬКО если у версии есть ресурс rules-terms (иначе data-hc указывал бы на пустой
+  // hovercard-бакет — «мёртвая» подсказка). В 5.1 rules-terms нет → gloss ядра выключен, версии
+  // независимы (подсказки не смешиваются). CORE_TERMS выверены на 5.2-корпусе.
+  let coreRe = null;
+  if (read('rules-terms')) {
+    const field = lang === 'en' ? 'en' : 'ru';
+    const parts = CORE_TERMS.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
+    const flags = lang === 'en' ? 'gu' : 'giu';
+    coreRe = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${parts})(?![\\p{L}\\p{N}_])`, flags);
+  }
 
   const res = actionRe || coreRe ? { actionRe, actionByName, coreRe, verKey } : null;
   cache.set(cacheKey, res);

@@ -23,28 +23,29 @@ const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 // ограничение по версиям (где реально есть страницы); без него — все версии.
 const RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
-  { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
-  { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
+  { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
+  { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2', 'srd-5.1'] },
   // Животные — тот же жирный сигнал SRD, что и монстры («**Волк**» → см. Животные). Слаги и имена
-  // животных не пересекаются с монстрами (проверено) → общий strong-матч безопасен.
+  // животных не пересекаются с монстрами (проверено) → общий strong-матч безопасен. Только 5.2:
+  // в 5.1 звери входят в общий бестиарий (ресурс monsters), отдельного animals нет.
   { key: 'animals', urlParent: 'animals', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
   // Имена предметов и заклинаний не пересекаются → общий em-матч безопасен.
-  { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
+  { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
   // Черты: имена НЕ размечены курсивом/жирным и часто омонимичны обычным словам
   // (Defense/Archery/Skilled). Поэтому режим 'feats': (1) ячейка таблицы, точно равная имени
   // черты (колонка «Черты/Features» таблиц классов — ASI на всех уровнях, боевые стили) →
   // безопасно и всегда корректно; (2) в прозе линкуем ТОЛЬКО много-словные имена (ASI,
   // эпические дары «Дар …», «Посвящённый в магию»…) — они дистинктивны; одно-словные в прозе
   // не трогаем.
-  { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2'] },
+  { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2', 'srd-5.1'] },
   // Оружие/доспехи/снаряжение: имена не размечены (ни курсив, ни жирный) и часто омонимичны
   // обычным словам («Молот», «Щит», «Верёвка»). Поэтому режим 'cells' — линкуем ТОЛЬКО ячейку
   // таблицы, точно равную имени (таблицы главы «Снаряжение» → детальные страницы). Прозу не
   // трогаем вовсе. Точное совпадение ячейки → 0 ложных срабатываний.
-  { key: 'weapons', urlParent: 'weapons', mode: 'cells', versions: ['srd-5.2'] },
-  { key: 'armor', urlParent: 'armor', mode: 'cells', versions: ['srd-5.2'] },
-  { key: 'equipment', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2'] },
+  { key: 'weapons', urlParent: 'weapons', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
+  { key: 'armor', urlParent: 'armor', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
+  { key: 'equipment', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
 ];
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.

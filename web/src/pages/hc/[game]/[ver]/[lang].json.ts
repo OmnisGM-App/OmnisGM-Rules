@@ -207,10 +207,13 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   { key: 'areas-of-effect', urlParent: 'areas-of-effect', body: (e) => defHtml(e.description_md as string) },
 ];
 
-// Согласовано со сборкой страниц сущностей: пока только srd52 (en/ru).
+// Согласовано со сборкой страниц сущностей: srd52 + srd51 (en/ru). Бакеты по версиям
+// изолированы (ключ game/ver/lang) → подсказки 5.1 и 5.2 не смешиваются.
 const BUILDS = [
   { game: 'dnd', ver: 'srd52', lang: 'en' },
   { game: 'dnd', ver: 'srd52', lang: 'ru' },
+  { game: 'dnd', ver: 'srd51', lang: 'en' },
+  { game: 'dnd', ver: 'srd51', lang: 'ru' },
 ];
 
 export function getStaticPaths() {
