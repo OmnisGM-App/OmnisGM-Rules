@@ -11,7 +11,7 @@ import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../
 // EN и RU делят канонический (англ.) слаг → корректный hreflang.
 // Две секции: adventuring_gear (обычное снаряжение) и tools (инструменты — богаче стат-блок:
 // связанная характеристика, действие «Использование», список изготавливаемого).
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment', srd51: 'd51-equipment' };
 
 // section (ключ по-английски в обеих локалях) → подпись.
 const SECTION: Record<string, [string, string]> = {
@@ -25,6 +25,8 @@ export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as const },
     { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {
