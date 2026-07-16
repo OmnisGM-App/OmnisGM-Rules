@@ -202,9 +202,11 @@ def _parse_bold_italic_blocks(section_text: str, section: str,
         # Strip trailing period
         raw_header = raw_header.rstrip(".")
 
-        # Check for cost in parentheses (equipment packs)
+        # Check for cost in parentheses (equipment packs: "Burglar's Pack (16 gp)").
+        # Цена ВСЕГДА начинается с цифры («16 gp»/«16 зм») — так отличаем её от английской
+        # скобки-имени («Кислота (Acid)»), которую нужно оставить extract_names для name_en/слага.
         cost = None
-        m_cost = re.match(r"^(.+?)\s*\(([^)]+)\)\s*$", raw_header)
+        m_cost = re.match(r"^(.+?)\s*\((\d[^)]*)\)\s*$", raw_header)
         if m_cost:
             item_name = m_cost.group(1).strip()
             cost = m_cost.group(2).strip()
@@ -213,8 +215,9 @@ def _parse_bold_italic_blocks(section_text: str, section: str,
 
         name, name_en, slug = extract_names(item_name, lang)
 
-        # Lookup cost/weight from table if not extracted from heading
-        t_cost, t_weight = _lookup_cost_weight(item_name, table_data)
+        # Lookup cost/weight from table by the LOCAL name (без английской скобки-имени —
+        # таблица цен/веса ключуется русским именем «Кислота», а item_name = «Кислота (Acid)»).
+        t_cost, t_weight = _lookup_cost_weight(name, table_data)
         if cost is None:
             cost = t_cost
         weight = t_weight

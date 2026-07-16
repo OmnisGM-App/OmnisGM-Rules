@@ -88,8 +88,17 @@ def _num_key(s: str | None) -> str | None:
     return digits or None
 
 
+def _dice_key(s: str | None) -> str | None:
+    """Языко-инвариантная нотация кубиков: RU пишет «1к4», EN «1d4» (и «д»/заглавные
+    варианты). Отпечаток должен совпадать → сводим разделитель к «d». Отображаемое
+    значение НЕ трогаем (RU-страницы легитимно используют «к», как в тексте заклинаний)."""
+    if not s:
+        return None
+    return re.sub(r"[кКдДdD]", "d", str(s)).lower()
+
+
 def _weapon_fp(e: dict) -> tuple:
-    return (e["category"], e["type"], e["damage_dice"], e["damage_type"],
+    return (e["category"], e["type"], _dice_key(e["damage_dice"]), e["damage_type"],
             _num_key(e.get("weight")), _num_key(e.get("cost")),
             e.get("range_normal"), e.get("range_long"))
 
