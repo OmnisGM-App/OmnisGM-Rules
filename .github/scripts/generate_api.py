@@ -22,19 +22,25 @@ try:
 except ImportError:
     jsonschema = None
 
-from config import (SOURCES, SKIP_HEADINGS_SPELL, SKIP_HEADINGS_MONSTER,
-                    SKIP_HEADINGS_EQUIPMENT, SKIP_HEADINGS_FEAT)
+import importlib
+
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins,
-                     parse_defs, parse_tagged_defs, parse_untagged_defs)
+                     parse_defs, parse_tagged_defs, parse_untagged_defs,
+                     parse_ancestries, parse_communities, parse_domain_cards,
+                     parse_adversaries, parse_environments, parse_dh_glossary)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
-SYSTEM = "dnd"
-SYSTEM_NAME = "Dungeons & Dragons"
 
-VERSION_NAMES = {"srd52": "SRD 5.2.1", "srd51": "SRD 5.1"}
+def load_game_config(game: str):
+    """Игро-специфичный конфиг: config.py (dnd) / config_{game}.py (daggerheart, …).
+
+    Держит SOURCES, SKIP_HEADINGS_*, SYSTEM/SYSTEM_NAME/VERSION_NAMES. Разнесено по
+    играм, чтобы D&D-пайплайн оставался нетронутым при добавлении новых систем.
+    """
+    return importlib.import_module("config" if game == "dnd" else f"config_{game}")
 
 
 _RU_EN_MAP_CACHE: dict[str, dict[str, str]] = {}
@@ -422,6 +428,8 @@ def main():
                         help="Generate individual {slug}.json files (default: only all.json per resource)")
     parser.add_argument("--no-validate", action="store_true",
                         help="Skip JSON Schema validation (for build-time data generation without jsonschema)")
+    parser.add_argument("--game", default="dnd",
+                        help="Game system to build (dnd, daggerheart, …) — selects config module")
     args = parser.parse_args()
 
     src_root = Path(args.src_root)
@@ -430,6 +438,16 @@ def main():
     if not src_root.is_dir():
         print(f"Error: source root '{src_root}' not found", file=sys.stderr)
         sys.exit(1)
+
+    cfg = load_game_config(args.game)
+    SOURCES = cfg.SOURCES
+    SYSTEM = cfg.SYSTEM
+    SYSTEM_NAME = cfg.SYSTEM_NAME
+    VERSION_NAMES = cfg.VERSION_NAMES
+    SKIP_HEADINGS_SPELL = getattr(cfg, "SKIP_HEADINGS_SPELL", set())
+    SKIP_HEADINGS_MONSTER = getattr(cfg, "SKIP_HEADINGS_MONSTER", set())
+    SKIP_HEADINGS_EQUIPMENT = getattr(cfg, "SKIP_HEADINGS_EQUIPMENT", set())
+    SKIP_HEADINGS_FEAT = getattr(cfg, "SKIP_HEADINGS_FEAT", set())
 
     system_dir = output_dir / SYSTEM
 
@@ -493,6 +511,24 @@ def main():
         elif entity_type == "untagged_defs":
             entities = parse_untagged_defs(text)
             resource = out_resource
+        elif entity_type == "ancestry":
+            entities = parse_ancestries(text, lang)
+            resource = "ancestries"
+        elif entity_type == "community":
+            entities = parse_communities(text, lang)
+            resource = "communities"
+        elif entity_type == "domain_card":
+            entities = parse_domain_cards(text, lang)
+            resource = "domain-cards"
+        elif entity_type == "adversary":
+            entities = parse_adversaries(text, lang)
+            resource = "adversaries"
+        elif entity_type == "environment":
+            entities = parse_environments(text, lang)
+            resource = "environments"
+        elif entity_type == "dh_glossary":
+            entities = parse_dh_glossary(text, lang)
+            resource = "rules-terms"
         else:
             print(f"  Warning: unknown type '{entity_type}', skipping", file=sys.stderr)
             continue
@@ -507,16 +543,19 @@ def main():
         total_entities += count
         print(f"  {ver}/{lang}/{resource}: {count} entities from {source['file']}")
 
-    # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
-    align_stat_table_name_en(all_data)
-    # RU-свойствам/мастерствам оружия и действиям — name_en по позиции (порядок определений = EN).
-    align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms", "areas-of-effect"))
-    # RU-заклинаниям — area (форма) по слагу из EN.
-    backfill_spell_area(all_data)
+    # D&D-специфичная реконсиляция name_en/area/подклассов. Daggerheart получает name_en
+    # напрямую из inline-English в заголовках (extract_names в парсерах), поэтому не нужна.
+    if SYSTEM == "dnd":
+        # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
+        align_stat_table_name_en(all_data)
+        # RU-свойствам/мастерствам оружия и действиям — name_en по позиции (порядок определений = EN).
+        align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms", "areas-of-effect"))
+        # RU-заклинаниям — area (форма) по слагу из EN.
+        backfill_spell_area(all_data)
 
-    # Resolve cross-references
-    resolve_cross_refs(all_data)
-    inject_spell_subclasses(all_data, src_root)
+        # Resolve cross-references
+        resolve_cross_refs(all_data)
+        inject_spell_subclasses(all_data, src_root)
 
     # Write files and collect hierarchy info
     file_count = 0
@@ -640,10 +679,17 @@ def main():
                      links, bc)
     file_count += 1
 
-    # Level 1: /api/ — available systems
-    write_index_html(output_dir / "index.html",
-                     "TTRPG SRD API",
-                     [{"href": f"{SYSTEM}/", "label": SYSTEM_NAME}])
+    # Level 1: /api/ — доступные системы. Мультиигровой билд гонит генератор несколько
+    # раз в один output-dir (dnd, затем daggerheart, …), поэтому корневой индекс не может
+    # перечислять только текущую SYSTEM — иначе последний прогон затирает ссылки остальных.
+    # Сканируем присутствующие системные подпапки (у каждой свой index.html из Level 2).
+    system_labels = {"dnd": "Dungeons & Dragons", "daggerheart": "Daggerheart", "brp": "Basic Roleplaying"}
+    system_labels[SYSTEM] = SYSTEM_NAME
+    sys_links = []
+    for d in sorted(output_dir.iterdir()):
+        if d.is_dir() and (d / "index.html").exists():
+            sys_links.append({"href": f"{d.name}/", "label": system_labels.get(d.name, d.name)})
+    write_index_html(output_dir / "index.html", "TTRPG SRD API", sys_links)
     file_count += 1
 
     print(f"\nDone: {file_count} files written ({total_entities} entities)")

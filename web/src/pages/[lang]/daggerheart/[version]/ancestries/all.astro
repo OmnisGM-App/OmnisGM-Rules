@@ -1,0 +1,77 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-справочник происхождений (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/ancestries/all/.
+// Групповая страница со ссылками на все страницы происхождений. Статический роут `all` приоритетнее `[slug]`.
+const GAME = 'daggerheart';
+const PARENT_NAV: Record<string, string> = { srd10: 'dh-ancestries-hub' };
+
+interface Ent { slug: string; name: string; name_en?: string | null }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, items: loadEntities(ver, lang, 'ancestries', 'daggerheart') as unknown as Ent[] },
+  }));
+}
+
+const { ver, lang, items } = Astro.props as { ver: string; lang: 'en' | 'ru'; items: Ent[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/${GAME}/${verSlug}/ancestries`;
+
+const heading = t('Происхождения', 'Ancestries');
+const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${items.length} происхождений Daggerheart ${verLabel} со ссылками на страницы: особенности происхождения.`,
+  `All ${items.length} Daggerheart ${verLabel} ancestries with links to each page: ancestry features.`,
+);
+const upLink = { href: `/${lang}/${GAME}/${verSlug}/05_Ancestries/`, ru: 'Происхождения (глава)', en: 'Ancestries (chapter)' };
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${items.length} происхождений Daggerheart ${verLabel}. Нажмите, чтобы открыть страницу с особенностями. Общие правила — в главе «Происхождения».`,
+      `${items.length} Daggerheart ${verLabel} ancestries. Select one to open its page with features. General rules are in the Ancestries chapter.`,
+    )}
+  </p>
+
+  <ul class="og-grid">
+    {items.map((r) => (
+      <li class="og-card">
+        <a class="og-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
+        {lang === 'ru' && r.name_en && <span class="og-card-en">{r.name_en}</span>}
+      </li>
+    ))}
+  </ul>
+</ReaderShell>
+
+<style>
+  .og-grid {
+    list-style: none; margin: 24px 0 0; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  }
+  .og-card {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2);
+  }
+  .og-card-link { font-weight: 600; font-size: 16px; }
+  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+</style>

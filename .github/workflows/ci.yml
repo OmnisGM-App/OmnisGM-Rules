@@ -35,6 +35,10 @@ jobs:
           pip install jsonschema
           python3 .github/scripts/generate_api.py \
             --src-root src/dnd --output-dir "$RUNNER_TEMP/api-validate"
+          # Daggerheart — те же схемы (schemas.py): ловит дрейф парсеров DH на PR
+          # (в т.ч. level/recall доменных карт ≠ null). rules-terms без схемы (проза).
+          python3 .github/scripts/generate_api.py --game daggerheart \
+            --src-root src/daggerheart --output-dir "$RUNNER_TEMP/api-validate-dh"
 
       - uses: actions/setup-node@v7
         with:

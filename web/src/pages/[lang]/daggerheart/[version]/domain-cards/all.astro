@@ -1,0 +1,111 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-справочник доменных карт (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/domain-cards/all/.
+// Сгруппирован по доменам (9 доменов, порядок фиксирован DOMAINS). Статический роут `all`
+// приоритетнее `[slug]`.
+const GAME = 'daggerheart';
+const PARENT_NAV: Record<string, string> = { srd10: 'dh-domaincards-hub' };
+const DOMAINS = ['arcana', 'blade', 'bone', 'codex', 'grace', 'midnight', 'sage', 'splendor', 'valor'];
+
+interface Card {
+  slug: string;
+  name: string;
+  name_en?: string | null;
+  domain: string;
+  domain_en?: string | null;
+  domain_slug: string;
+  level: number | null;
+  recall_cost: number | null;
+}
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, items: loadEntities(ver, lang, 'domain-cards', 'daggerheart') as unknown as Card[] },
+  }));
+}
+
+const { ver, lang, items } = Astro.props as { ver: string; lang: 'en' | 'ru'; items: Card[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/${GAME}/${verSlug}/domain-cards`;
+
+const groups = DOMAINS.map((domainSlug) => {
+  const cards = items.filter((c) => c.domain_slug === domainSlug).sort((a, b) => a.name.localeCompare(b.name));
+  const domainName = cards.length > 0 ? cards[0].domain : domainSlug;
+  return { domainSlug, domainName, cards };
+}).filter((g) => g.cards.length > 0);
+
+const heading = t('Доменные карты', 'Domain Cards');
+const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${items.length} доменных карт Daggerheart ${verLabel} в 9 доменах со ссылками на страницы карт.`,
+  `All ${items.length} Daggerheart ${verLabel} domain cards across 9 domains with links to each card.`,
+);
+const upLink = { href: `/${lang}/${GAME}/${verSlug}/16_DomainCardReference/`, ru: 'Справочник доменных карт (глава)', en: 'Domain Card Reference (chapter)' };
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${items.length} доменных карт Daggerheart ${verLabel} в 9 доменах. Нажмите, чтобы открыть страницу карты. Общие правила — в главе «Справочник доменных карт».`,
+      `${items.length} Daggerheart ${verLabel} domain cards across 9 domains. Select one to open its page. General rules are in the Domain Card Reference chapter.`,
+    )}
+  </p>
+
+  <nav class="og-jump" aria-label={t('Домены', 'Domains')}>
+    {groups.map((g, i) => (
+      <>{i > 0 ? ' · ' : ''}<a href={`${base}/domain/${g.domainSlug}/`}>{g.domainName}</a></>
+    ))}
+  </nav>
+
+  {groups.map((g) => (
+    <section class="og-group">
+      <h2 id={g.domainSlug}>{g.domainName}</h2>
+      <ul class="og-grid">
+        {g.cards.map((c) => (
+          <li class="og-card">
+            <a class="og-card-link" href={`${base}/${c.slug}/`}>{c.name}</a>
+            {lang === 'ru' && c.name_en && <span class="og-card-en">{c.name_en}</span>}
+            {c.level != null && <span class="og-card-level">{t(`Ур. ${c.level}`, `Lv ${c.level}`)}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</ReaderShell>
+
+<style>
+  .og-jump {
+    margin: 20px 0; font-size: 14px; color: var(--og-text-muted);
+  }
+  .og-group { margin-top: 32px; }
+  .og-grid {
+    list-style: none; margin: 16px 0 0; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  }
+  .og-card {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2);
+  }
+  .og-card-link { font-weight: 600; font-size: 16px; }
+  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+  .og-card-level { font-size: 12px; color: var(--og-text-muted); }
+</style>

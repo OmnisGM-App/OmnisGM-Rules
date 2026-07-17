@@ -113,7 +113,9 @@ export const NAV: NavNode[] = [
       group('dh-classes', 'Классы', 'Classes', DH_CLASSES.map(([slug, ru, en], i) =>
         page(`dh-cls-${slug.toLowerCase()}`, ru, en, `/daggerheart/srd-1.0/04_Classes/${String(i + 1).padStart(2, '0')}_${slug}/`))),
       page('dh-ancestries', 'Происхождения', 'Ancestries', '/daggerheart/srd-1.0/05_Ancestries/'),
+      page('dh-ancestries-hub', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/ancestries/all/'),
       page('dh-communities', 'Сообщества', 'Communities', '/daggerheart/srd-1.0/06_Communities/'),
+      page('dh-communities-hub', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/communities/all/'),
       page('dh-core', 'Основные механики', 'Core Mechanics', '/daggerheart/srd-1.0/07_CoreMechanics/'),
       page('dh-weapons', 'Оружие', 'Weapons', '/daggerheart/srd-1.0/08_Weapons/'),
       page('dh-armor', 'Броня', 'Armor', '/daggerheart/srd-1.0/09_Armor/'),
@@ -121,9 +123,12 @@ export const NAV: NavNode[] = [
       page('dh-consumables', 'Расходники', 'Consumables', '/daggerheart/srd-1.0/11_Consumables/'),
       page('dh-gmguide', 'Руководство мастера', 'GM Guide', '/daggerheart/srd-1.0/12_GMGuide/'),
       page('dh-adversaries', 'Противники', 'Adversaries', '/daggerheart/srd-1.0/13_Adversaries/'),
+      page('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
       page('dh-environments', 'Окружения', 'Environments', '/daggerheart/srd-1.0/14_Environments/'),
+      page('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
       page('dh-witherwild', 'Витервилд', 'Witherwild', '/daggerheart/srd-1.0/15_Witherwild/'),
       page('dh-domaincards', 'Справочник доменных карт', 'Domain Card Reference', '/daggerheart/srd-1.0/16_DomainCardReference/'),
+      page('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
       group('dh-glossary', 'Глоссарий', 'Glossary', [
         page('dh-g-terms', 'Термины', 'Terms', '/daggerheart/srd-1.0/17_Glossary/00_Glossary/'),
         page('dh-g-abilities', 'Способности (справочник)', 'Abilities (Reference)', '/daggerheart/srd-1.0/17_Glossary/01_Abilities/'),
