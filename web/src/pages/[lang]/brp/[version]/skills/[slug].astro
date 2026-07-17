@@ -44,7 +44,7 @@ const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
 const tree = fromHtml(marked.parse(entity.description_md ?? '', { async: false }), { fragment: true });
 autolinkTree(tree, { game: GAME, version: verSlug, lang, selfSlug: entity.slug });
-highlightKeywords(tree, { lang });
+highlightKeywords(tree, { lang, game: 'brp' });
 glossRules(tree, { game: GAME, version: verSlug, lang });
 const bodyHtml = toHtml(tree);
 const description = excerpt(entity.description_md as string);

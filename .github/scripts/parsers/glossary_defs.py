@@ -72,6 +72,66 @@ def parse_untagged_defs(text: str) -> list[dict]:
     return defs
 
 
+def parse_section_tables(text: str, lang: str) -> list[dict]:
+    """Глоссарий 5.1: секции ### с таблицами → термины ядра (rules-terms).
+
+    В отличие от 5.2 (08_RulesGlossary: #### Имя + абзац), глоссарий 5.1 (16_Glossary/
+    00_Glossary) — компактные таблицы по секциям. Формат колонок:
+      • EN: | Термин | Эффект |          → slug из термина.
+      • RU: | Термин | Original | Эффект | → RU-таблицы содержат колонку EN-оригинала (col 1),
+        поэтому канонический (EN) слаг и name_en берём ПРЯМО из неё — без позиционного
+        выравнивания EN↔RU (глоссарии не идеально параллельны построчно).
+
+    Заголовки/разделители таблиц пропускаем. Питает gloss-подсказки 5.1 (частичное покрытие:
+    глоссятся лишь термы, чей слаг ∈ CORE_TERMS — по-слаговый гейт на стороне ридера).
+    """
+    defs = []
+    seen = set()
+    lines = text.split("\n")
+    i, n = 0, len(lines)
+    while i < n:
+        if not lines[i].strip().startswith("|"):
+            i += 1
+            continue
+        block = []
+        while i < n and lines[i].strip().startswith("|"):
+            block.append(lines[i])
+            i += 1
+        for row_idx, ln in enumerate(block):
+            cells = [c.strip() for c in ln.strip().strip("|").split("|")]
+            if row_idx == 0:
+                continue  # строка-заголовок таблицы
+            if not any(cells) or all(set(c) <= set("-: ") for c in cells if c):
+                continue  # разделитель |---|---|
+            if not cells[0]:
+                continue
+            if lang == "ru":
+                if len(cells) < 2:
+                    continue  # нет EN-оригинала → слаг не вывести, пропускаем
+                name = cells[0]
+                name_en = cells[1]
+                effect = cells[2] if len(cells) >= 3 else ""
+                slug = slugify(name_en)
+            else:
+                name = cells[0]
+                name_en = None
+                effect = cells[1] if len(cells) >= 2 else ""
+                slug = slugify(name)
+            # Пустой эффект = строка-список имён без определения (Damage Types, Schools of Magic
+            # и пр. одноколоночные EN-таблицы / 2-колоночные RU). Такие термы — не «карточка»;
+            # выкидываем, чтобы гейт по-слагу не мог однажды показать пустую подсказку.
+            if not effect or not slug or slug in seen:
+                continue
+            seen.add(slug)
+            defs.append({
+                "slug": slug,
+                "name": name,
+                "name_en": name_en,
+                "description_md": effect,
+            })
+    return defs
+
+
 def parse_tagged_defs(text: str, tags: list[str]) -> list[dict]:
     """Собрать определения #### «Имя [Тег]» по всему файлу, где Тег ∈ tags.
 
