@@ -39,6 +39,9 @@ jobs:
           # (в т.ч. level/recall доменных карт ≠ null). rules-terms без схемы (проза).
           python3 .github/scripts/generate_api.py --game daggerheart \
             --src-root src/daggerheart --output-dir "$RUNNER_TEMP/api-validate-dh"
+          # BRP — схемы skills/professions/spot-rules.
+          python3 .github/scripts/generate_api.py --game brp \
+            --src-root src/brp --output-dir "$RUNNER_TEMP/api-validate-brp"
 
       - uses: actions/setup-node@v7
         with:
