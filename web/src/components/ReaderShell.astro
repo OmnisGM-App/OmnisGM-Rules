@@ -88,9 +88,18 @@ const alternates = bilingual
     ? { en: routeOf(pathSlug, 'en'), ru: routeOf(pathSlug, 'ru'), xDefault: routeOf(pathSlug, 'en') }
     : { en: '/en/', ru: '/ru/', xDefault: '/' };
 
+// prev/next пропускают hidden-узлы (скрытые из сайдбара глоссарий-списки, заменённые
+// хабами): иначе поток «дальше» уводил бы читателя в 2-3 страницы подряд, которых нет в
+// дереве. Соседей самой скрытой страницы считаем до ближайшего видимого в обе стороны.
 const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
-const prev = idx > 0 ? FLAT_PAGES[idx - 1] : null;
-const next = idx >= 0 && idx < FLAT_PAGES.length - 1 ? FLAT_PAGES[idx + 1] : null;
+const visibleFrom = (start: number, step: number) => {
+  for (let i = start; i >= 0 && i < FLAT_PAGES.length; i += step) {
+    if (!FLAT_PAGES[i].hidden) return FLAT_PAGES[i];
+  }
+  return null;
+};
+const prev = idx > 0 ? visibleFrom(idx - 1, -1) : null;
+const next = idx >= 0 ? visibleFrom(idx + 1, 1) : null;
 
 // ── JSON-LD (schema.org) — для rich-результатов и хлебных крошек в выдаче ───────
 const SITE = 'https://rules.omnisgm.com';

@@ -92,6 +92,13 @@ test('SEO: hreflang-тройка + сущности в sitemap', async ({ page, 
   expect(sm).toContain('/daggerheart/srd-1.0/adversaries/acid-burrower/');
 });
 
+test('prev/next пропускает скрытые глоссарий-списки (замена хабами)', async ({ page }) => {
+  // С последнего видимого хаба глоссария «дальше» не должно уводить в скрытый плоский список.
+  await page.goto('/ru/daggerheart/srd-1.0/environments/all/');
+  const nextHref = await page.locator('.rd-pn-r').first().getAttribute('href');
+  expect(nextHref, 'next не ведёт в скрытый /glossary/ список').not.toContain('/glossary/');
+});
+
 test('hovercard-бакет daggerheart отдаёт карточки терминов', async ({ request }) => {
   const res = await request.get('/hc/daggerheart/srd10/ru.json');
   expect(res.status()).toBe(200);
