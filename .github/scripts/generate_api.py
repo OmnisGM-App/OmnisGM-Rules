@@ -29,7 +29,8 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_conditions, parse_feats, parse_races, parse_origins,
                      parse_defs, parse_tagged_defs, parse_untagged_defs,
                      parse_ancestries, parse_communities, parse_domain_cards,
-                     parse_adversaries, parse_environments, parse_dh_glossary)
+                     parse_adversaries, parse_environments, parse_dh_glossary,
+                     parse_brp_skills, parse_brp_professions, parse_brp_spot_rules)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
@@ -119,6 +120,11 @@ def _armor_fp(e: dict) -> tuple:
 
 _STAT_TABLE_FP = {"weapons": _weapon_fp, "armor": _armor_fp}
 
+# Механически-идентичные RU-пары (один отпечаток, различимы ТОЛЬКО именем): RU-имя → EN-имя.
+# 5.1 Глефа/Алебарда — одинаковые стат-блоки, мастерства нет → fingerprint не разводит.
+# Новые коллизии ловит assert уникальности слагов (main) и требует явной записи здесь.
+_FP_COLLISION_RU_EN = {"Глефа": "Glaive", "Алебарда": "Halberd"}
+
 
 def align_stat_table_name_en(all_data: dict) -> None:
     """Проставить RU-оружию/доспехам name_en + канонический (англ.) слаг.
@@ -157,9 +163,16 @@ def align_stat_table_name_en(all_data: dict) -> None:
         for r in pending:
             bucket = en_by_fp.get(fp(r), [])
             target = None
-            if resource == "weapons":
+            # (а) курируемый разрешитель для стат-идентичных пар, различимых только именем.
+            want_en = _FP_COLLISION_RU_EN.get(r.get("name"))
+            if want_en:
+                target = next((e for e in bucket if e["name"] == want_en), None)
+            # (б) по мастерству (5.2) — только при реальном маппинге (иначе 5.1 с mastery=None
+            # ложно матчит первого кандидата и молча слепляет пару в один слаг).
+            if target is None and resource == "weapons":
                 want = mastery_ru_en.get(r.get("mastery"))
-                target = next((e for e in bucket if e.get("mastery") == want), None)
+                if want is not None:
+                    target = next((e for e in bucket if e.get("mastery") == want), None)
             if target is None:
                 target = bucket[0] if bucket else None
                 print(f"  Warning: неоднозначный name_en для RU {resource} "
@@ -529,6 +542,15 @@ def main():
         elif entity_type == "dh_glossary":
             entities = parse_dh_glossary(text, lang)
             resource = "rules-terms"
+        elif entity_type == "brp_skill":
+            entities = parse_brp_skills(text, lang)
+            resource = "skills"
+        elif entity_type == "brp_profession":
+            entities = parse_brp_professions(text, lang)
+            resource = "professions"
+        elif entity_type == "brp_spot_rule":
+            entities = parse_brp_spot_rules(text, lang)
+            resource = "spot-rules"
         else:
             print(f"  Warning: unknown type '{entity_type}', skipping", file=sys.stderr)
             continue
@@ -556,6 +578,26 @@ def main():
         # Resolve cross-references
         resolve_cross_refs(all_data)
         inject_spell_subclasses(all_data, src_root)
+
+    # Уникальность слагов внутри (ver, lang, resource): дубль = молчаливая перезапись
+    # entity-страницы/JSON-роута другой сущностью (напр. срезание «(specialty)» слепляет
+    # два навыка). Fail-fast для всех 4 игр — коллизию не увидишь глазами. При срабатывании:
+    # развести имена (inline-English / _FP_COLLISION_RU_EN / уникальный слаг в источнике).
+    slug_errors = []
+    for (ver, lang, resource), entities in all_data.items():
+        seen: dict[str, str] = {}
+        for e in entities:
+            slug = e.get("slug")
+            if slug in seen:
+                slug_errors.append(f"{SYSTEM}/{ver}/{lang}/{resource}: слаг '{slug}' — "
+                                   f"'{seen[slug]}' и '{e.get('name')}'")
+            else:
+                seen[slug] = e.get("name")
+    if slug_errors:
+        print("Error: дублирующиеся слаги (молчаливая перезапись сущностей):", file=sys.stderr)
+        for msg in slug_errors:
+            print(f"  {msg}", file=sys.stderr)
+        sys.exit(1)
 
     # Write files and collect hierarchy info
     file_count = 0

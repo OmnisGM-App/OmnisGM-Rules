@@ -501,6 +501,45 @@ DH_STATBLOCK_SCHEMA = {
     "additionalProperties": False,
 }
 
+# -- Basic Roleplaying (BRP) schemas ------------------------------------------
+# Имена ресурсов (skills/professions/spot-rules) не пересекаются с D&D/DH.
+
+BRP_SKILL_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "BRP Skill",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "base_chance": {"type": "string"},
+        "category": {"type": "string"},
+        "category_en": {"type": "string"},
+        "category_slug": {"type": "string"},
+        "description_md": {"type": "string"},
+    },
+    "required": [
+        "slug", "name", "name_en", "base_chance", "category",
+        "category_en", "category_slug", "description_md",
+    ],
+    "additionalProperties": False,
+}
+
+# Плоская именованная секция BRP с прозаическим телом (professions, spot-rules).
+BRP_SECTION_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "BRP Section",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "description_md": {"type": "string"},
+    },
+    "required": ["slug", "name", "name_en", "description_md"],
+    "additionalProperties": False,
+}
+
 # -- Mapping resource name → schema (used by generate_api.py) -----------------
 
 RESOURCE_SCHEMAS = {
@@ -519,4 +558,8 @@ RESOURCE_SCHEMAS = {
     "domain-cards": DH_DOMAIN_CARD_SCHEMA,
     "adversaries": DH_STATBLOCK_SCHEMA,
     "environments": DH_STATBLOCK_SCHEMA,
+    # BRP (имена не пересекаются с D&D/DH).
+    "skills": BRP_SKILL_SCHEMA,
+    "professions": BRP_SECTION_SCHEMA,
+    "spot-rules": BRP_SECTION_SCHEMA,
 }
