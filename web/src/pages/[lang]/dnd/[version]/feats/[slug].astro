@@ -12,7 +12,7 @@ import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../
 // URL: /{lang}/dnd/{version}/feats/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
 // Автолинк ИМЁН черт в чужом тексте не делаем (по решению), но в ТЕЛЕ черты линкуем
 // состояния/заклинания и подсвечиваем ключевые слова, как на прочих страницах.
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-feats' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-feats', srd51: 'd51-feats' };
 
 // Категория черты: ключ в данных общий для обеих локалей — нормализуем двусторонним мапом.
 const CATEGORY: Record<string, [string, string]> = {
@@ -28,6 +28,8 @@ export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as const },
     { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {

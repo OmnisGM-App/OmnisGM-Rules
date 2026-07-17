@@ -20,7 +20,12 @@ SIZES_RU_TO_EN = {
 def _parse_type_line(line: str, lang: str) -> dict:
     """Parse the type/alignment line: '*Large Aberration, Lawful Evil*'."""
     text = line.strip().strip("*").strip()
-    parts = text.split(",", 1)
+    # Split on the alignment comma ONLY — a comma INSIDE the subtype parentheses
+    # (5.1: '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*') must not be treated
+    # as the separator, else the type keeps a dangling '(Devil'. Negative lookahead
+    # skips any comma still enclosed by an unclosed '(' . 5.2 lines have no comma
+    # inside the type-parens, so this is a no-op there.
+    parts = re.split(r",\s*(?![^(]*\))", text, maxsplit=1)
     first = parts[0].strip()
     alignment = parts[1].strip() if len(parts) > 1 else None
 

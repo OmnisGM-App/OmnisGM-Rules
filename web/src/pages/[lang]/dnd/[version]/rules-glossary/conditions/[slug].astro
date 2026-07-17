@@ -11,12 +11,14 @@ import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../
 // EN и RU делят канонический (английский) слаг → корректный hreflang (ReaderShell считает его из URL).
 
 // Nav-узел главы-родителя по версии (для подсветки дерева, breadcrumb, prev/next, CTA-атрибуции).
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesglossary' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesglossary', srd51: 'd51-conditions' };
 
 export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as const },
     { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {

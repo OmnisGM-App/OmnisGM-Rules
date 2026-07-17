@@ -26,7 +26,8 @@ from config import (SOURCES, SKIP_HEADINGS_SPELL, SKIP_HEADINGS_MONSTER,
                     SKIP_HEADINGS_EQUIPMENT, SKIP_HEADINGS_FEAT)
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
-                     parse_conditions, parse_feats, parse_defs, parse_tagged_defs, parse_untagged_defs)
+                     parse_conditions, parse_feats, parse_races, parse_defs,
+                     parse_tagged_defs, parse_untagged_defs)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
@@ -88,8 +89,18 @@ def _num_key(s: str | None) -> str | None:
     return digits or None
 
 
+def _dice_key(s: str | None) -> str | None:
+    """Языко-инвариантная нотация кубиков: RU пишет «1к4», EN «1d4» (и «д»/заглавные
+    варианты). Отпечаток должен совпадать → сводим разделитель к «d». Отображаемое
+    значение НЕ трогаем (RU-страницы легитимно используют «к», как в тексте заклинаний)."""
+    if not s:
+        return None
+    # Только разделитель кубиков (между цифрами: «1к4»→«1d4»), не любую букву в строке.
+    return re.sub(r"(?<=\d)[кКдДdD](?=\d)", "d", str(s)).lower()
+
+
 def _weapon_fp(e: dict) -> tuple:
-    return (e["category"], e["type"], e["damage_dice"], e["damage_type"],
+    return (e["category"], e["type"], _dice_key(e["damage_dice"]), e["damage_type"],
             _num_key(e.get("weight")), _num_key(e.get("cost")),
             e.get("range_normal"), e.get("range_long"))
 
@@ -467,6 +478,9 @@ def main():
         elif entity_type == "feat":
             entities = parse_feats(text, heading_level, lang, after, SKIP_HEADINGS_FEAT)
             resource = "feats"
+        elif entity_type == "race":
+            entities = parse_races(text, heading_level, lang, after)
+            resource = "races"
         elif entity_type == "glossary_defs":
             entities = parse_defs(text, source["section"])
             resource = out_resource

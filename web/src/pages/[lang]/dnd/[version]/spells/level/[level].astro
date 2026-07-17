@@ -9,12 +9,14 @@ import {
 // Хаб заклинаний по уровню (issue #20, SEO §2.3): /{lang}/dnd/{version}/spells/level/{n}/.
 // Все заклинания уровня n (0 = заговоры) с колонкой классов (ссылки на класс-хабы). Ловит
 // «level 3 spells 5e» / «заклинания 3 уровня». EN/RU делят числовой слаг → каноникал + hreflang.
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells', srd51: 'd51-spells' };
 
 export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as Lang },
     { ver: 'srd52', lang: 'ru' as Lang },
+    { ver: 'srd51', lang: 'en' as Lang },
+    { ver: 'srd51', lang: 'ru' as Lang },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {

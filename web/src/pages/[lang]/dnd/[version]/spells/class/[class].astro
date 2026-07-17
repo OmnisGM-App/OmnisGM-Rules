@@ -10,12 +10,14 @@ import {
 // Все заклинания класса, сгруппированы H2-секциями по уровню (ловит и «wizard spells 5e», и
 // длинный хвост «заклинания жреца 1 уровня» без 80 тонких страниц). EN/RU делят англ. слаг
 // класса → общий каноникал + hreflang. Родитель nav — глава «Заклинания».
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-spells', srd51: 'd51-spells' };
 
 export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as Lang },
     { ver: 'srd52', lang: 'ru' as Lang },
+    { ver: 'srd51', lang: 'en' as Lang },
+    { ver: 'srd51', lang: 'ru' as Lang },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {

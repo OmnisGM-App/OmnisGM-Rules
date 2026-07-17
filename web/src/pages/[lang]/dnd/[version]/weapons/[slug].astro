@@ -7,7 +7,7 @@ import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/en
 // оно в главе «Снаряжение», поэтому родитель навигации и upLink ведут туда.
 // RU получает канонический (англ.) слаг + name_en через сверку стат-блоков в generate_api →
 // EN и RU делят слаг → корректный hreflang.
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment', srd51: 'd51-equipment' };
 
 const CATEGORY: Record<string, [string, string]> = {
   simple: ['Простое', 'Simple'], martial: ['Воинское', 'Martial'],
@@ -27,6 +27,8 @@ export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as const },
     { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {

@@ -5,7 +5,7 @@ import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/en
 // Programmatic-страницы доспехов (issue #20, Дорожка A) — тонкий стат-блок (данные табличные).
 // URL: /{lang}/dnd/{version}/armor/{slug}/. Своей главы нет — доспехи в «Снаряжении», туда и
 // ведёт навигация/upLink. RU получает канонический слаг + name_en (сверка стат-блоков) → hreflang.
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-equipment', srd51: 'd51-equipment' };
 
 const CATEGORY: Record<string, [string, string]> = {
   light: ['Лёгкий', 'Light'], medium: ['Средний', 'Medium'],
@@ -18,6 +18,8 @@ export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as const },
     { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {

@@ -12,7 +12,7 @@ import { enTypeMap, typeLabel, crHubForValue, crHubTitle } from '../../../../../
 // Programmatic-страницы монстров (issue #20, волна 3) в общем шелле ридера.
 // URL вложен под главу-бестиарий: /{lang}/dnd/{version}/monsters-a-z/{slug}/.
 // EN и RU делят канонический (англ.) слаг → корректный hreflang.
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz', srd51: 'd51-monstersaz' };
 
 interface Sib { slug: string; name: string; type: string; cr: string }
 
@@ -20,6 +20,8 @@ export function getStaticPaths() {
   const BUILDS = [
     { ver: 'srd52', lang: 'en' as const },
     { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
   ];
   const paths = [];
   for (const { ver, lang } of BUILDS) {
