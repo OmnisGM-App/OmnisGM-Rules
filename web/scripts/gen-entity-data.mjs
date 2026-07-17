@@ -21,6 +21,7 @@ const python = process.env.PYTHON || 'python3';
 const GAMES = [
   { game: 'dnd', srcRoot: resolve(repoRoot, 'src/dnd') },
   { game: 'daggerheart', srcRoot: resolve(repoRoot, 'src/daggerheart') },
+  { game: 'brp', srcRoot: resolve(repoRoot, 'src/brp') },
 ];
 
 if (!existsSync(script)) {
