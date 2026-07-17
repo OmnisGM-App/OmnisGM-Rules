@@ -117,7 +117,10 @@ def parse_section_tables(text: str, lang: str) -> list[dict]:
                 name_en = None
                 effect = cells[1] if len(cells) >= 2 else ""
                 slug = slugify(name)
-            if not slug or slug in seen:
+            # Пустой эффект = строка-список имён без определения (Damage Types, Schools of Magic
+            # и пр. одноколоночные EN-таблицы / 2-колоночные RU). Такие термы — не «карточка»;
+            # выкидываем, чтобы гейт по-слагу не мог однажды показать пустую подсказку.
+            if not effect or not slug or slug in seen:
                 continue
             seen.add(slug)
             defs.append({
