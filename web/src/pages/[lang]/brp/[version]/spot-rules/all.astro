@@ -15,7 +15,11 @@ export function getStaticPaths() {
   ];
   return BUILDS.map(({ ver, lang }) => ({
     params: { lang, version: VERSION_SLUG[ver] },
-    props: { ver, lang, items: loadEntities(ver, lang, 'spot-rules', 'brp') as unknown as Ent[] },
+    props: {
+      ver, lang,
+      items: (loadEntities(ver, lang, 'spot-rules', 'brp') as unknown as Ent[])
+        .slice().sort((a, b) => a.name.localeCompare(b.name)),
+    },
   }));
 }
 
@@ -46,31 +50,28 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/06_SpotRules/`, ru: 'Точ�
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} точечных правил Basic Roleplaying ${verLabel}. Нажмите, чтобы открыть страницу правила.`,
-      `${items.length} Basic Roleplaying ${verLabel} spot rules. Select one to open its page.`,
+      `${items.length} точечных правил Basic Roleplaying ${verLabel}. Нажмите на название, чтобы открыть страницу правила.`,
+      `${items.length} Basic Roleplaying ${verLabel} spot rules. Select a name to open its page.`,
     )}
   </p>
 
-  <ul class="og-grid">
-    {items.map((r) => (
-      <li class="og-card">
-        <a class="og-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
-        {lang === 'ru' && r.name_en && <span class="og-card-en">{r.name_en}</span>}
-      </li>
-    ))}
-  </ul>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr><th>{t('Правило', 'Rule')}</th>{lang === 'ru' && <th>Оригинал</th>}</tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr>
+            <td><a href={`${base}/${r.slug}/`}>{r.name}</a></td>
+            {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 </ReaderShell>
 
 <style>
-  .og-grid {
-    list-style: none; margin: 24px 0 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
-  }
-  .og-card {
-    display: flex; flex-direction: column; gap: 3px;
-    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
-    background: var(--og-bg-2);
-  }
-  .og-card-link { font-weight: 600; font-size: 16px; }
-  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
 </style>
