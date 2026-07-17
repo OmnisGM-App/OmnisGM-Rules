@@ -82,6 +82,18 @@ test('расы 5.1: страница расы — EN-имя, подрасы, а�
   await expect(page.locator('.ent-related a[href$="/races/elf/"]')).toBeVisible();
 });
 
+test('хаб рас 5.1: карточки всех рас со ссылками на страницы + доступен из страницы расы', async ({ page }) => {
+  const res = await page.goto('/ru/dnd/srd-5.1/races/all/');
+  expect(res?.status()).toBe(200);
+  // 9 карточек-ссылок на entity-страницы рас.
+  const links = page.locator('.race-card .race-card-link');
+  await expect(links).toHaveCount(9);
+  await expect(page.locator('.race-card a[href$="/races/tiefling/"]')).toBeVisible();
+  // Со страницы расы «в раздел» ведёт на хаб (entity → хаб).
+  await page.goto('/ru/dnd/srd-5.1/races/dwarf/');
+  await expect(page.locator(`a[href$="/dnd/srd-5.1/races/all/"]`).first()).toBeVisible();
+});
+
 test('раса 5.1 с подрасой: чипы подрас + канонический слаг', async ({ page }) => {
   const res = await page.goto('/en/dnd/srd-5.1/races/dwarf/');
   expect(res?.status()).toBe(200);

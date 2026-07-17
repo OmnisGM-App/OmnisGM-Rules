@@ -1,0 +1,85 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-справочник рас (SRD 5.1): /{lang}/dnd/{version}/races/all/. Групповая страница со ссылками
+// на все страницы рас — точка входа в entity-страницы (имена рас в главе не автолинкуются, в
+// отличие от заклинаний/монстров). Статический роут `all` приоритетнее `[slug]` (слага «all» нет).
+const PARENT_NAV: Record<string, string> = { srd51: 'd51-races-hub' };
+
+interface Sub { slug: string; name: string; name_en?: string | null }
+interface Race { slug: string; name: string; name_en?: string | null; subraces: Sub[] }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, races: loadEntities(ver, lang, 'races') as unknown as Race[] },
+  }));
+}
+
+const { ver, lang, races } = Astro.props as { ver: string; lang: 'en' | 'ru'; races: Race[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/races`;
+
+const heading = t('Расы', 'Races');
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${races.length} рас D&D ${verLabel} со ссылками на страницы: особенности, подрасы и расовые черты.`,
+  `All ${races.length} D&D ${verLabel} races with links to each page: traits, subraces and racial features.`,
+);
+// «В раздел» → глава «Расы» (полный текст SRD + общие расовые правила).
+const upLink = { href: `${base}/`, ru: 'Расы (глава)', en: 'Races (chapter)' };
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${races.length} рас D&D ${verLabel}. Нажмите на расу, чтобы открыть её страницу с особенностями и подрасами. Общие расовые правила — в главе «Расы».`,
+      `${races.length} D&D ${verLabel} races. Select a race to open its page with traits and subraces. General racial rules are in the Races chapter.`,
+    )}
+  </p>
+
+  <ul class="race-grid">
+    {races.map((r) => (
+      <li class="race-card">
+        <a class="race-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
+        {lang === 'ru' && r.name_en && <span class="race-card-en">{r.name_en}</span>}
+        {r.subraces.length > 0 && (
+          <span class="race-card-subs">
+            {t('Подрасы:', 'Subraces:')} {r.subraces.map((s) => s.name).join(', ')}
+          </span>
+        )}
+      </li>
+    ))}
+  </ul>
+</ReaderShell>
+
+<style>
+  .race-grid {
+    list-style: none; margin: 24px 0 0; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
+  }
+  .race-card {
+    display: flex; flex-direction: column; gap: 4px;
+    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2);
+  }
+  .race-card-link { font-weight: 600; font-size: 16px; }
+  .race-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+  .race-card-subs { font-size: 13px; color: var(--og-text-2); margin-top: 2px; }
+</style>

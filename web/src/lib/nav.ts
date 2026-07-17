@@ -81,6 +81,7 @@ export const NAV: NavNode[] = [
       page('d51-adventuring', 'Приключения', 'Adventuring', '/dnd/srd-5.1/02_Adventuring/'),
       page('d51-combat', 'Бой', 'Combat', '/dnd/srd-5.1/03_Combat/'),
       page('d51-races', 'Расы', 'Races', '/dnd/srd-5.1/04_Races/'),
+      page('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
       page('d51-details', 'Детали персонажа', 'Character Details', '/dnd/srd-5.1/05_CharacterDetails/'),
       group('d51-classes', 'Классы', 'Classes', dndClassKids('d51', '06', '5.1')),
       page('d51-multiclass', 'Мультиклассирование', 'Multiclassing', '/dnd/srd-5.1/07_Multiclassing/'),
