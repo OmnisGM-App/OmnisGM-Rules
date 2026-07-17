@@ -35,8 +35,10 @@ const catList = CATS
     return sample?.category ? { slug: cs, name: sample.category } : null;
   })
   .filter((c): c is { slug: string; name: string } => c !== null);
-// Базовый шанс «25%» → 25 для числовой сортировки (−1, если нет).
-const chanceOrder = (raw?: string) => { const n = raw ? parseInt(raw, 10) : NaN; return Number.isNaN(n) ? -1 : n; };
+// Базовый шанс «25%» → 25 для числовой сортировки. Формульные/нечисловые («DEX x2%»,
+// «INT+POW%» — Уклонение/Усилие) и отсутствующие → 999: уходят В КОНЕЦ при возрастании
+// (иначе −1 клал бы их перед «00%», читаясь как «самый низкий шанс»).
+const chanceOrder = (raw?: string) => { const n = raw ? parseInt(raw, 10) : NaN; return Number.isNaN(n) ? 999 : n; };
 
 const heading = t('Навыки', 'Skills');
 const title = `${heading} — Basic Roleplaying ${verLabel} · OmnisGM Rules`;
