@@ -679,10 +679,17 @@ def main():
                      links, bc)
     file_count += 1
 
-    # Level 1: /api/ — available systems
-    write_index_html(output_dir / "index.html",
-                     "TTRPG SRD API",
-                     [{"href": f"{SYSTEM}/", "label": SYSTEM_NAME}])
+    # Level 1: /api/ — доступные системы. Мультиигровой билд гонит генератор несколько
+    # раз в один output-dir (dnd, затем daggerheart, …), поэтому корневой индекс не может
+    # перечислять только текущую SYSTEM — иначе последний прогон затирает ссылки остальных.
+    # Сканируем присутствующие системные подпапки (у каждой свой index.html из Level 2).
+    system_labels = {"dnd": "Dungeons & Dragons", "daggerheart": "Daggerheart", "brp": "Basic Roleplaying"}
+    system_labels[SYSTEM] = SYSTEM_NAME
+    sys_links = []
+    for d in sorted(output_dir.iterdir()):
+        if d.is_dir() and (d / "index.html").exists():
+            sys_links.append({"href": f"{d.name}/", "label": system_labels.get(d.name, d.name)})
+    write_index_html(output_dir / "index.html", "TTRPG SRD API", sys_links)
     file_count += 1
 
     print(f"\nDone: {file_count} files written ({total_entities} entities)")
