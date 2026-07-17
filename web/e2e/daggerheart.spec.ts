@@ -119,6 +119,17 @@ test('prev/next пропускает скрытые глоссарий-спис�
   expect(nextHref, 'next не ведёт в скрытый /glossary/ список').not.toContain('/glossary/');
 });
 
+test('глоссарий: markdown-таблица оружия сортируема (клик по <th> переупорядочивает)', async ({ page }) => {
+  await page.goto('/ru/daggerheart/srd-1.0/glossary/weapons/');
+  const table = page.locator('.rd-doc table[data-sortable]').first();
+  await expect(table).toBeVisible();
+  const firstBefore = await table.locator('tbody tr td:first-child').first().textContent();
+  await table.locator('thead th').first().click();
+  await expect(table.locator('thead th').first()).toHaveAttribute('aria-sort', 'ascending');
+  const firstAfter = await table.locator('tbody tr td:first-child').first().textContent();
+  expect(firstAfter).not.toBe(firstBefore);
+});
+
 test('hovercard-бакет daggerheart отдаёт карточки терминов', async ({ request }) => {
   const res = await request.get('/hc/daggerheart/srd10/ru.json');
   expect(res.status()).toBe(200);
