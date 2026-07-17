@@ -133,14 +133,24 @@ function loadGloss(game, version, lang) {
   // пересекаются (изоляция бакетов game/ver/lang → подсказки не смешиваются).
   const terms = TERMS_BY_GAME[game] || [];
   let coreRe = null;
-  if (terms.length && read('rules-terms')) {
-    const field = lang === 'en' ? 'en' : 'ru';
-    const parts = terms.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
-    const flags = lang === 'en' ? 'gu' : 'giu';
-    coreRe = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${parts})(?![\\p{L}\\p{N}_])`, flags);
+  // termSlugs — слаги, реально присутствующие в rules-terms версии. Глоссим ТОЛЬКО их: если у
+  // версии нет карточки для терма (частичный глоссарий, напр. 5.1), span не создаётся — иначе
+  // была бы «мёртвая» подсказка в пустой бакет. Для 5.2 набор полный → поведение не меняется.
+  let termSlugs = null;
+  const rtData = read('rules-terms');
+  if (terms.length && rtData) {
+    termSlugs = new Set(rtData.map((e) => e && e.slug).filter(Boolean));
+    // В альтернацию берём только термы, у которых есть карточка (иначе матч → мёртвый span).
+    const present = terms.filter((t) => termSlugs.has(t.slug));
+    if (present.length) {
+      const field = lang === 'en' ? 'en' : 'ru';
+      const parts = present.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
+      const flags = lang === 'en' ? 'gu' : 'giu';
+      coreRe = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${parts})(?![\\p{L}\\p{N}_])`, flags);
+    }
   }
 
-  const res = actionRe || coreRe ? { actionRe, actionByName, coreRe, terms, verKey } : null;
+  const res = actionRe || coreRe ? { actionRe, actionByName, coreRe, terms, termSlugs, verKey } : null;
   cache.set(cacheKey, res);
   return res;
 }

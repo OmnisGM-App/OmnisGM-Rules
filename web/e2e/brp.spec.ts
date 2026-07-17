@@ -65,6 +65,12 @@ test('хабы: сортируемые таблицы навыков (+фасе�
   await expect(page.locator('.hub-table[data-sortable] a[href$="/spot-rules/ambush/"]')).toBeVisible();
 });
 
+test('автолинк: таблица навыков в глоссарии линкует навыки (grid-режим) + hovercard', async ({ page }) => {
+  await page.goto('/ru/brp/srd-1.0/glossary/skills/');
+  const link = page.locator('.rd-doc a.ent-link[href*="/skills/"][data-hc^="brp/srd10/ru/skills/"]').first();
+  await expect(link).toBeVisible();
+});
+
 test('SEO: hreflang-тройка + сущности в sitemap', async ({ page, request }) => {
   const res = await page.goto('/en/brp/srd-1.0/skills/dodge/');
   expect(res?.status()).toBe(200);

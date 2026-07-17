@@ -2,7 +2,7 @@
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
-// Хаб-справочник рас (SRD 5.1): /{lang}/dnd/{version}/races/all/. Групповая страница со ссылками
+// Хаб-справочник рас (SRD 5.1): /{lang}/dnd/{version}/races/all/. Сортируемая таблица со ссылками
 // на все страницы рас — точка входа в entity-страницы (имена рас в главе не автолинкуются, в
 // отличие от заклинаний/монстров). Статический роут `all` приоритетнее `[slug]` (слага «all» нет).
 const PARENT_NAV: Record<string, string> = { srd51: 'd51-races-hub' };
@@ -17,7 +17,11 @@ export function getStaticPaths() {
   ];
   return BUILDS.map(({ ver, lang }) => ({
     params: { lang, version: VERSION_SLUG[ver] },
-    props: { ver, lang, races: loadEntities(ver, lang, 'races') as unknown as Race[] },
+    props: {
+      ver, lang,
+      races: (loadEntities(ver, lang, 'races') as unknown as Race[])
+        .slice().sort((a, b) => a.name.localeCompare(b.name)),
+    },
   }));
 }
 
@@ -49,37 +53,32 @@ const upLink = { href: `${base}/`, ru: 'Расы (глава)', en: 'Races (chap
   <h1>{heading}</h1>
   <p>
     {t(
-      `${races.length} рас D&D ${verLabel}. Нажмите на расу, чтобы открыть её страницу с особенностями и подрасами. Общие расовые правила — в главе «Расы».`,
-      `${races.length} D&D ${verLabel} races. Select a race to open its page with traits and subraces. General racial rules are in the Races chapter.`,
+      `${races.length} рас D&D ${verLabel}. В таблице — подрасы каждой расы. Нажмите на название, чтобы открыть страницу с особенностями. Общие расовые правила — в главе «Расы».`,
+      `${races.length} D&D ${verLabel} races. The table lists each race's subraces. Select a name to open its page with traits. General racial rules are in the Races chapter.`,
     )}
   </p>
 
-  <ul class="race-grid">
-    {races.map((r) => (
-      <li class="race-card">
-        <a class="race-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
-        {lang === 'ru' && r.name_en && <span class="race-card-en">{r.name_en}</span>}
-        {r.subraces.length > 0 && (
-          <span class="race-card-subs">
-            {t('Подрасы:', 'Subraces:')} {r.subraces.map((s) => s.name).join(', ')}
-          </span>
-        )}
-      </li>
-    ))}
-  </ul>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Раса', 'Race')}</th><th>{t('Подрасы', 'Subraces')}</th>
+          {lang === 'ru' && <th>Оригинал</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {races.map((r) => (
+          <tr>
+            <td><a href={`${base}/${r.slug}/`}>{r.name}</a></td>
+            <td data-sort={r.subraces.length}>{r.subraces.length > 0 ? r.subraces.map((s) => s.name).join(', ') : '—'}</td>
+            {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 </ReaderShell>
 
 <style>
-  .race-grid {
-    list-style: none; margin: 24px 0 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(220px, 1fr)); gap: 12px;
-  }
-  .race-card {
-    display: flex; flex-direction: column; gap: 4px;
-    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
-    background: var(--og-bg-2);
-  }
-  .race-card-link { font-weight: 600; font-size: 16px; }
-  .race-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
-  .race-card-subs { font-size: 13px; color: var(--og-text-2); margin-top: 2px; }
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
 </style>

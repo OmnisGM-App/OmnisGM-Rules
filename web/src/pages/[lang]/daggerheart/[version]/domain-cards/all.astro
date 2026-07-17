@@ -86,8 +86,8 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/16_DomainCardReference/`, ru
           <tr>
             <td><a href={`${base}/${c.slug}/`}>{c.name}</a></td>
             <td><a href={`${base}/domain/${c.domain_slug}/`}>{c.domain}</a></td>
-            <td data-sort={c.level ?? -1}>{c.level ?? '—'}</td>
-            <td data-sort={c.recall_cost ?? -1}>{c.recall_cost ?? '—'}</td>
+            <td data-sort={c.level ?? 999}>{c.level ?? '—'}</td>
+            <td data-sort={c.recall_cost ?? 999}>{c.recall_cost ?? '—'}</td>
             {lang === 'ru' && <td class="og-en">{c.name_en ?? '—'}</td>}
           </tr>
         ))}

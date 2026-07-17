@@ -49,6 +49,7 @@ SOURCES = [
     {"ver": "srd51", "lang": "ru", "type": "condition",   "file": "srd-5.1/ru/11_Conditions.md",   "h": 4},
     {"ver": "srd51", "lang": "ru", "type": "feat",        "file": "srd-5.1/ru/08_Feats.md",        "h": 4},
     {"ver": "srd51", "lang": "ru", "type": "race",        "file": "srd-5.1/ru/04_Races.md",        "h": 2},
+    {"ver": "srd51", "lang": "ru", "type": "section_tables","file": "srd-5.1/ru/16_Glossary/00_Glossary.md", "out": "rules-terms"},
     # SRD 5.1 EN
     {"ver": "srd51", "lang": "en", "type": "spell",      "file": "srd-5.1/en/10_Spells.md",       "h": 3},
     {"ver": "srd51", "lang": "en", "type": "monster",     "file": "srd-5.1/en/15_MonstersA-Z.md",  "h": 3},
@@ -59,6 +60,7 @@ SOURCES = [
     {"ver": "srd51", "lang": "en", "type": "condition",   "file": "srd-5.1/en/11_Conditions.md",   "h": 4},
     {"ver": "srd51", "lang": "en", "type": "feat",        "file": "srd-5.1/en/08_Feats.md",        "h": 4},
     {"ver": "srd51", "lang": "en", "type": "race",        "file": "srd-5.1/en/04_Races.md",        "h": 2},
+    {"ver": "srd51", "lang": "en", "type": "section_tables","file": "srd-5.1/en/16_Glossary/00_Glossary.md", "out": "rules-terms"},
 ]
 
 # Heading patterns that are NOT entity entries (section headers, rules text, etc.)
