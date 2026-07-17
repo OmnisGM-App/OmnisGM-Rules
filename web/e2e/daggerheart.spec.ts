@@ -54,23 +54,36 @@ test('независимость: страница Daggerheart не содерж
   for (const h of links) expect(h.includes('/dnd/'), `link ${h}`).toBeFalsy();
 });
 
-test('хабы: происхождения, доменные карты (по доменам), противники (по тирам)', async ({ page }) => {
-  // Хаб происхождений.
+test('хабы: сортируемые таблицы (происхождения, доменные карты, противники) + фасет-колонки', async ({ page }) => {
+  // Хаб происхождений — таблица со ссылками.
   expect((await page.goto('/ru/daggerheart/srd-1.0/ancestries/all/'))?.status()).toBe(200);
-  await expect(page.locator('.og-card a[href$="/ancestries/clank/"]')).toBeVisible();
+  await expect(page.locator('.hub-table[data-sortable] a[href$="/ancestries/clank/"]')).toBeVisible();
 
-  // Доменные карты: сгруппированы, jump-нав на by-domain.
+  // Доменные карты — единая таблица; «Домен» кликабелен (в колонке и в футере).
   expect((await page.goto('/ru/daggerheart/srd-1.0/domain-cards/all/'))?.status()).toBe(200);
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/domain-cards/domain/"]').first()).toBeVisible();
   await expect(page.locator('a[href$="/domain-cards/domain/arcana/"]').first()).toBeVisible();
 
   // Фасет одного домена.
   expect((await page.goto('/en/daggerheart/srd-1.0/domain-cards/domain/blade/'))?.status()).toBe(200);
   await expect(page.locator('a[href$="/domain-cards/a-soldier-s-bond/"]')).toBeVisible();
 
-  // Противники: хаб по тирам + фасет тира.
+  // Противники: хаб-таблица, «Ранг» кликабелен → фасет тира.
   expect((await page.goto('/ru/daggerheart/srd-1.0/adversaries/all/'))?.status()).toBe(200);
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/adversaries/tier/"]').first()).toBeVisible();
   expect((await page.goto('/en/daggerheart/srd-1.0/adversaries/tier/1/'))?.status()).toBe(200);
   await expect(page.locator('a[href$="/adversaries/acid-burrower/"]')).toBeVisible();
+});
+
+test('глоссарий «Способности» = доменные карты → скрыт из сайдбара (как D&D), но страница жива', async ({ page }) => {
+  await page.goto('/ru/daggerheart/srd-1.0/domain-cards/all/');
+  // Дубль-список скрыт из nav, показан наш хаб доменных карт.
+  await expect(page.locator('.rd-nav a[href$="/17_glossary/01_abilities/"]')).toHaveCount(0);
+  await expect(page.locator('.rd-nav a.rd-nav-active[href$="/domain-cards/all/"]')).toBeVisible();
+  // Сама страница-дубль остаётся доступной и держит nav-контекст (не сирота).
+  const res = await page.goto('/ru/daggerheart/srd-1.0/glossary/abilities/');
+  expect(res?.status()).toBe(200);
+  await expect(page).toHaveTitle(/Daggerheart SRD 1\.0/);
 });
 
 test('канонический слаг EN↔RU: RU-сущность на английском слаге', async ({ page }) => {

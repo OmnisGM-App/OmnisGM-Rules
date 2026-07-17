@@ -3,7 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Хаб-справочник сообществ (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/communities/all/.
-// Групповая страница со ссылками на все страницы сообществ. Статический роут `all` приоритетнее `[slug]`.
+// Сортируемая таблица со ссылками на все страницы сообществ. Статический роут `all` приоритетнее `[slug]`.
 const GAME = 'daggerheart';
 const PARENT_NAV: Record<string, string> = { srd10: 'dh-communities-hub' };
 
@@ -16,7 +16,11 @@ export function getStaticPaths() {
   ];
   return BUILDS.map(({ ver, lang }) => ({
     params: { lang, version: VERSION_SLUG[ver] },
-    props: { ver, lang, items: loadEntities(ver, lang, 'communities', 'daggerheart') as unknown as Ent[] },
+    props: {
+      ver, lang,
+      items: (loadEntities(ver, lang, 'communities', 'daggerheart') as unknown as Ent[])
+        .slice().sort((a, b) => a.name.localeCompare(b.name)),
+    },
   }));
 }
 
@@ -47,31 +51,28 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/06_Communities/`, ru: 'Со�
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} сообществ Daggerheart ${verLabel}. Нажмите, чтобы открыть страницу с особенностью. Общие правила — в главе «Сообщества».`,
-      `${items.length} Daggerheart ${verLabel} communities. Select one to open its page with its feature. General rules are in the Communities chapter.`,
+      `${items.length} сообществ Daggerheart ${verLabel}. Нажмите на название, чтобы открыть страницу с особенностью. Общие правила — в главе «Сообщества».`,
+      `${items.length} Daggerheart ${verLabel} communities. Select a name to open its page with its feature. General rules are in the Communities chapter.`,
     )}
   </p>
 
-  <ul class="og-grid">
-    {items.map((r) => (
-      <li class="og-card">
-        <a class="og-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
-        {lang === 'ru' && r.name_en && <span class="og-card-en">{r.name_en}</span>}
-      </li>
-    ))}
-  </ul>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr><th>{t('Сообщество', 'Community')}</th>{lang === 'ru' && <th>Оригинал</th>}</tr>
+      </thead>
+      <tbody>
+        {items.map((r) => (
+          <tr>
+            <td><a href={`${base}/${r.slug}/`}>{r.name}</a></td>
+            {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
 </ReaderShell>
 
 <style>
-  .og-grid {
-    list-style: none; margin: 24px 0 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
-  }
-  .og-card {
-    display: flex; flex-direction: column; gap: 3px;
-    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
-    background: var(--og-bg-2);
-  }
-  .og-card-link { font-weight: 600; font-size: 16px; }
-  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
 </style>
