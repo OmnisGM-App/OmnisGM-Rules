@@ -1,0 +1,74 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { monstersWithFacets, typeLabel, type Lang, type MonsterLite } from '../../../../../lib/monster-hubs';
+
+// Хаб-справочник всех монстров (issue #20): /{lang}/dnd/{version}/monsters-a-z/all/.
+// Алфавитный индекс со ссылками на страницы монстров + колонка типа (ссылка на type-хаб).
+// Заменяет плоский глоссарий-список «Монстры (справочник)» (тот был без ссылок).
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-monsters-hub', srd51: 'd51-monsters-hub' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+    { ver: 'srd51', lang: 'en' as Lang },
+    { ver: 'srd51', lang: 'ru' as Lang },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, monsters: monstersWithFacets(ver, lang).sort((a, b) => a.name.localeCompare(b.name)) },
+  }));
+}
+
+const { ver, lang, monsters } = Astro.props as { ver: string; lang: Lang; monsters: MonsterLite[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
+
+const heading = t('Все монстры', 'All Monsters');
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${monsters.length} монстров D&D ${verLabel} по алфавиту: тип, размер, ПО и хиты со ссылками на страницы монстров.`,
+  `All ${monsters.length} D&D ${verLabel} monsters alphabetically: type, size, CR and HP with links to each monster page.`,
+);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/`, ru: 'Монстры от А до Я', en: 'Monsters A–Z' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${monsters.length} монстров D&D ${verLabel} по алфавиту. В таблице — тип (ссылка на список типа), размер, ПО и хиты. Нажмите на имя, чтобы открыть страницу монстра.`,
+      `${monsters.length} D&D ${verLabel} monsters alphabetically. The table lists type (linked to its list), size, CR and HP. Select a name to open the monster page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr>
+          <th>{t('Монстр', 'Monster')}</th><th>{t('Тип', 'Type')}</th>
+          <th>{t('Размер', 'Size')}</th><th>{t('ПО', 'CR')}</th><th>{t('Хиты', 'HP')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {monsters.map((m) => (
+          <tr>
+            <td><a href={`${base}/${m.slug}/`}>{m.name}</a></td>
+            <td><a href={`${base}/type/${m.typeSlug}/`}>{typeLabel(m.typeSlug, lang)}</a></td>
+            <td>{m.size}</td><td>{m.cr}</td><td>{m.hp ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</ReaderShell>

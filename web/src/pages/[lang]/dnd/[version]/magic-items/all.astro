@@ -1,0 +1,82 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-справочник всех магических предметов (issue #20): /{lang}/dnd/{version}/magic-items/all/.
+// Алфавитный индекс со ссылками на страницы предметов. Заменяет плоский глоссарий-список.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-magicitems-hub', srd51: 'd51-magicitems-hub' };
+
+interface Item { slug: string; name: string; name_en?: string | null; type?: string; rarity?: string; attunement?: { required?: boolean } }
+
+// Редкость в данных — английский ключ; отображаем по языку.
+const RARITY: Record<string, [string, string]> = {
+  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
+  'very rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'], artifact: ['артефакт', 'artifact'],
+};
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+    { ver: 'srd51', lang: 'en' as const },
+    { ver: 'srd51', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, items: (loadEntities(ver, lang, 'magic-items') as unknown as Item[]).slice().sort((a, b) => a.name.localeCompare(b.name)) },
+  }));
+}
+
+const { ver, lang, items } = Astro.props as { ver: string; lang: 'en' | 'ru'; items: Item[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/magic-items`;
+const rarityLabel = (r?: string) => (r && RARITY[r] ? (lang === 'ru' ? RARITY[r][0] : RARITY[r][1]) : (r ?? ''));
+
+const heading = t('Все магические предметы', 'All Magic Items');
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${items.length} магических предметов D&D ${verLabel} по алфавиту: тип, редкость и настройка со ссылками на страницы предметов.`,
+  `All ${items.length} D&D ${verLabel} magic items alphabetically: type, rarity and attunement with links to each item page.`,
+);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `/${lang}/dnd/${verSlug}/magic-items/`, ru: 'Магические предметы', en: 'Magic Items' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${items.length} магических предметов D&D ${verLabel} по алфавиту. В таблице — тип, редкость и требуется ли настройка. Нажмите на название, чтобы открыть страницу предмета.`,
+      `${items.length} D&D ${verLabel} magic items alphabetically. The table lists type, rarity and whether attunement is required. Select a name to open the item page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr>
+          <th>{t('Предмет', 'Item')}</th><th>{t('Тип', 'Type')}</th>
+          <th>{t('Редкость', 'Rarity')}</th><th>{t('Настройка', 'Attunement')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((it) => (
+          <tr>
+            <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
+            <td>{it.type ?? '—'}</td>
+            <td>{rarityLabel(it.rarity)}</td>
+            <td>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</ReaderShell>

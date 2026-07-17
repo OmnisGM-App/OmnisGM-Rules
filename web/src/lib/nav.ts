@@ -76,10 +76,16 @@ export const NAV: NavNode[] = [
       group('d52-glossary', 'Глоссарий', 'Glossary', [
         page('d52-g-terms', 'Термины', 'Terms', '/dnd/srd-5.2/14_Glossary/00_Glossary/'),
         page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
-        page('d52-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/14_Glossary/02_Spells/'),
-        page('d52-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/14_Glossary/03_MagicItems/'),
-        page('d52-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/14_Glossary/04_Monsters/'),
-        page('d52-g-animals', 'Животные (справочник)', 'Animals (Reference)', '/dnd/srd-5.2/14_Glossary/05_Animals/'),
+        // Плоские глоссарий-списки заменены нашими /all/-хабами (ссылки на entity-страницы +
+        // фасеты); сами списки скрыты (hidden), но их страницы остаются доступны по URL.
+        page('d52-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/spells/all/'),
+        page('d52-magicitems-hub', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/magic-items/all/'),
+        page('d52-monsters-hub', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/monsters-a-z/all/'),
+        page('d52-animals-hub', 'Животные (справочник)', 'Animals (Reference)', '/dnd/srd-5.2/animals/all/'),
+        hidden('d52-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/14_Glossary/02_Spells/'),
+        hidden('d52-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/14_Glossary/03_MagicItems/'),
+        hidden('d52-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/14_Glossary/04_Monsters/'),
+        hidden('d52-g-animals', 'Животные (справочник)', 'Animals (Reference)', '/dnd/srd-5.2/14_Glossary/05_Animals/'),
       ]),
     ]),
     group('d51', 'SRD 5.1', 'SRD 5.1', [
@@ -102,9 +108,13 @@ export const NAV: NavNode[] = [
       group('d51-glossary', 'Глоссарий', 'Glossary', [
         page('d51-g-terms', 'Термины', 'Terms', '/dnd/srd-5.1/16_Glossary/00_Glossary/'),
         page('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
-        page('d51-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/16_Glossary/02_Spells/'),
-        page('d51-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/16_Glossary/03_MagicItems/'),
-        page('d51-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/16_Glossary/04_Monsters/'),
+        // Плоские глоссарий-списки заменены /all/-хабами; списки скрыты (страницы живы).
+        page('d51-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/spells/all/'),
+        page('d51-magicitems-hub', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/magic-items/all/'),
+        page('d51-monsters-hub', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/monsters-a-z/all/'),
+        hidden('d51-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/16_Glossary/02_Spells/'),
+        hidden('d51-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/16_Glossary/03_MagicItems/'),
+        hidden('d51-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/16_Glossary/04_Monsters/'),
       ]),
     ]),
     page('d52-converting', 'Конвертация в SRD 5.2.1', 'Converting to SRD 5.2.1', '/dnd/converting-srd-5.2/converting-to-srd-5.2.1/'),
