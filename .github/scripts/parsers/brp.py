@@ -8,6 +8,7 @@ BRP-контент — таблицы (навыки) и нумерованная
 """
 
 import re
+import sys
 
 from .base import slugify, split_blocks, extract_names
 
@@ -69,7 +70,16 @@ def parse_brp_skills(text: str, lang: str) -> list[dict]:
         name_en = col(row, ["Оригинал"])  # только RU
         base = col(row, ["Base Chance", "Базовый шанс"])
         category = col(row, ["Category", "Категория"])
-        category_en = category if lang == "en" else _SKILL_CAT_EN.get(category, category)
+        if lang == "en":
+            category_en = category
+        else:
+            # Fail-loud на неизвестную RU-категорию: тихий фолбэк дал бы кириллический
+            # category_slug и «пустой» фасет (категорий всего 6 — это опечатка/дрейф).
+            category_en = _SKILL_CAT_EN.get(category)
+            if category_en is None:
+                print(f"  Warning: неизвестная RU-категория навыка {category!r} "
+                      f"(навык {name!r}) — фасет будет кириллическим", file=sys.stderr)
+                category_en = category
         description = col(row, ["Description", "Описание"], "")
         slug_src = name_en or name
         out.append({
