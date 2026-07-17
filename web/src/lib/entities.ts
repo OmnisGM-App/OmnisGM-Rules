@@ -12,14 +12,14 @@ const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 export const VERSION_SLUG: Record<string, string> = {
   srd52: 'srd-5.2',
   srd51: 'srd-5.1',
-  dh10: 'srd-1.0',
+  srd10: 'srd-1.0',
 };
 
 // Короткая метка версии для заголовков/сниппетов.
 export const VERSION_LABEL: Record<string, string> = {
   srd52: '5.2',
   srd51: '5.1',
-  dh10: '1.0',
+  srd10: '1.0',
 };
 
 export interface Entity {
