@@ -142,7 +142,6 @@ export const NAV: NavNode[] = [
       page('dh-domaincards', 'Справочник доменных карт', 'Domain Card Reference', '/daggerheart/srd-1.0/16_DomainCardReference/'),
       group('dh-glossary', 'Глоссарий', 'Glossary', [
         page('dh-g-terms', 'Термины', 'Terms', '/daggerheart/srd-1.0/17_Glossary/00_Glossary/'),
-        page('dh-g-abilities', 'Способности (справочник)', 'Abilities (Reference)', '/daggerheart/srd-1.0/17_Glossary/01_Abilities/'),
         // Заменены нашими entity-хабами (ссылки на страницы + фасеты); плоские глоссарий-списки
         // скрыты (hidden), но их страницы остаются доступны (currentId резолвится).
         page('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
@@ -155,6 +154,8 @@ export const NAV: NavNode[] = [
         page('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
         page('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
         // Скрытые глоссарий-списки (заменены хабами выше) — узлы держим ради nav-контекста их страниц.
+        // «Способности» = доменные карты (dh-domaincards-hub) → скрыт как дубль (как в D&D).
+        hidden('dh-g-abilities', 'Способности (справочник)', 'Abilities (Reference)', '/daggerheart/srd-1.0/17_Glossary/01_Abilities/'),
         hidden('dh-g-adversaries', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/17_Glossary/02_Adversaries/'),
         hidden('dh-g-ancestries', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/17_Glossary/05_Ancestries/'),
         hidden('dh-g-communities', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/17_Glossary/08_Communities/'),

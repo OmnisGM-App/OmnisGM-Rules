@@ -3,7 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Хаб-справочник окружений (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/environments/all/.
-// Групповая страница со ссылками на все страницы окружений, сгруппированная по рангам (1..4).
+// Сортируемая таблица со ссылками на все страницы окружений; «Ранг» ведёт на фасет по рангу.
 // Статический роут `all` приоритетнее `[slug]`.
 const GAME = 'daggerheart';
 const PARENT_NAV: Record<string, string> = { srd10: 'dh-environments-hub' };
@@ -28,11 +28,10 @@ const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/${GAME}/${verSlug}/environments`;
 const tierLabel = (tier: number) => t(`Ранг ${tier}`, `Tier ${tier}`);
+const tierHref = (tier: number) => `${base}/tier/${tier}/`;
 
-const groups = TIERS.map((tier) => ({
-  tier,
-  items: items.filter((r) => r.tier === tier).sort((a, b) => a.name.localeCompare(b.name)),
-})).filter((g) => g.items.length > 0);
+const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
+const presentTiers = TIERS.filter((tier) => items.some((r) => r.tier === tier));
 
 const heading = t('Окружения', 'Environments');
 const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
@@ -55,45 +54,40 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/14_Environments/`, ru: 'Ок
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} окружений Daggerheart ${verLabel}, сгруппированных по рангам. Нажмите, чтобы открыть страницу со стат-блоком. Общие правила — в главе «Окружения».`,
-      `${items.length} Daggerheart ${verLabel} environments, grouped by tier. Select one to open its stat block page. General rules are in the Environments chapter.`,
+      `${items.length} окружений Daggerheart ${verLabel} по рангам. В таблице — ранг (ссылка на список ранга). Нажмите на заголовок столбца, чтобы отсортировать. Общие правила — в главе «Окружения».`,
+      `${items.length} Daggerheart ${verLabel} environments by tier. The table lists tier (linked to its list). Click a column header to sort. General rules are in the Environments chapter.`,
     )}
   </p>
 
-  <nav class="og-jump" aria-label={t('Переход по рангам', 'Jump to tier')}>
-    {groups.map((g, i) => (
-      <>{i > 0 ? ' · ' : ''}<a href={`${base}/tier/${g.tier}/`}>{tierLabel(g.tier)}</a></>
-    ))}
-  </nav>
-
-  {groups.map((g) => (
-    <section class="og-group">
-      <h2>{tierLabel(g.tier)}</h2>
-      <ul class="og-grid">
-        {g.items.map((r) => (
-          <li class="og-card">
-            <a class="og-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
-            {lang === 'ru' && r.name_en && <span class="og-card-en">{r.name_en}</span>}
-          </li>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Окружение', 'Environment')}</th><th>{t('Ранг', 'Tier')}</th>
+          {lang === 'ru' && <th>Оригинал</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((r) => (
+          <tr>
+            <td><a href={`${base}/${r.slug}/`}>{r.name}</a></td>
+            <td data-sort={r.tier}><a href={tierHref(r.tier)}>{tierLabel(r.tier)}</a></td>
+            {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
+          </tr>
         ))}
-      </ul>
-    </section>
-  ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Хабы окружений по рангу', 'Environment hubs by tier')}>
+    <p><strong>{t('По рангу:', 'By tier:')}</strong>{' '}
+      {presentTiers.map((tier, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={tierHref(tier)}>{tierLabel(tier)}</a></>
+      ))}
+    </p>
+  </nav>
 </ReaderShell>
 
 <style>
-  .og-jump { margin: 20px 0 0; font-size: 14px; }
-  .og-group { margin-top: 32px; }
-  .og-group h2 { margin-bottom: 12px; }
-  .og-grid {
-    list-style: none; margin: 24px 0 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
-  }
-  .og-card {
-    display: flex; flex-direction: column; gap: 3px;
-    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
-    background: var(--og-bg-2);
-  }
-  .og-card-link { font-weight: 600; font-size: 16px; }
-  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
 </style>
