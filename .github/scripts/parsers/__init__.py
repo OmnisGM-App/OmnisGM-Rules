@@ -7,4 +7,5 @@ from .equipment import parse_equipment
 from .condition import parse_conditions
 from .feat import parse_feats
 from .race import parse_races
+from .origin import parse_origins
 from .glossary_defs import parse_defs, parse_tagged_defs, parse_untagged_defs
