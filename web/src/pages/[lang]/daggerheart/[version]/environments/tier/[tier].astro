@@ -6,7 +6,6 @@ import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib
 // Все окружения ранга n (1..4) со ссылками на страницы. EN/RU делят числовой слаг → каноникал + hreflang.
 const GAME = 'daggerheart';
 const PARENT_NAV: Record<string, string> = { srd10: 'dh-environments-hub' };
-const TIERS = [1, 2, 3, 4];
 
 interface Ent { slug: string; name: string; name_en?: string | null; tier: number }
 
