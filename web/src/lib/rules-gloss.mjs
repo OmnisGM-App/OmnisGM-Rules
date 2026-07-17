@@ -68,9 +68,37 @@ const CORE_TERMS = [
   // ковром идут по строкам «Чувства» в бестиарии, а RU-проза для truesight использует другой
   // термин («истинное зрение» ≠ глоссарное «Видение истины»). Отдельно, с гейтом «не в статблоке».
 ];
+// Курируемые термины глоссария Daggerheart для gloss-подсказок. Дистинктивные
+// (многословные броски/пороги/жаргон) + 3 состояния (в стат-блоках курсивом, высокая
+// ценность). en — точная фраза (регистро-зависимо); ru — стем/явные формы (регистро-
+// независимо, ловит склонения). Все слаги существуют в ресурсе rules-terms (карточки HC).
+const DH_TERMS = [
+  // Состояния.
+  { slug: 'hidden', en: 'Hidden', ru: 'Скрыт(?:ый|ого|ому|ым|ом|ая|ую|ое|ые|ых|ыми)' },
+  { slug: 'restrained', en: 'Restrained', ru: 'Опутанн[а-яё]+' },
+  { slug: 'vulnerable', en: 'Vulnerable', ru: 'Уязвим[а-яё]+' },
+  // Броски (многословные механики → регистро-независимы даже в EN, char-класс первых букв:
+  // SRD пишет их и с заглавной, и строчными — «make an action roll» / «Reaction Roll»).
+  { slug: 'action-roll', en: '[Aa]ction [Rr]olls?', ru: 'Броск[а-яё]+\\s+Действия' },
+  { slug: 'attack-roll', en: '[Aa]ttack [Rr]olls?', ru: 'Броск[а-яё]+\\s+Атаки' },
+  { slug: 'damage-roll', en: '[Dd]amage [Rr]olls?', ru: 'Броск[а-яё]+\\s+Урона' },
+  { slug: 'reaction-roll', en: '[Rr]eaction [Rr]olls?', ru: 'Броск[а-яё]+\\s+Реакции' },
+  { slug: 'spellcast-roll', en: '[Ss]pellcast [Rr]olls?', ru: 'Броск[а-яё]+\\s+Магической\\s+Характеристики' },
+  // Ядро (дистинктивные).
+  { slug: 'armor-slots', en: 'Armor Slots?', ru: 'Ячейк[а-яё]+\\s+Брони' },
+  { slug: 'damage-thresholds', en: 'Damage Thresholds?', ru: 'Порог[а-яё]*\\s+[Уу]рона' },
+  { slug: 'death-door', en: 'Death Door', ru: 'Врат[а-яё]*\\s+[Сс]мерти' },
+  { slug: 'direct-damage', en: 'Direct Damage', ru: 'Прям[а-яё]+\\s+[Уу]рон[а-яё]*' },
+  { slug: 'recall-cost', en: 'Recall Cost', ru: 'Стоимост[а-яё]+\\s+[Оо]тзыва' },
+  { slug: 'countdown', en: 'Countdown', ru: 'Обратн[а-яё]+\\s+[Оо]тсч[её]т[а-яё]*' },
+  { slug: 'evasion', en: 'Evasion', ru: 'Уклонени[а-яё]+' },
+];
+
+const TERMS_BY_GAME = { dnd: CORE_TERMS, daggerheart: DH_TERMS };
+
 const grp = (slug) => slug.replace(/-/g, '_');
-const slugFromGroups = (groups) => {
-  for (const t of CORE_TERMS) if (groups[grp(t.slug)] != null) return t.slug;
+const slugFromGroups = (groups, terms) => {
+  for (const t of terms) if (groups[grp(t.slug)] != null) return t.slug;
   return null;
 };
 
@@ -99,15 +127,20 @@ function loadGloss(game, version, lang) {
   // Глоссим ТОЛЬКО если у версии есть ресурс rules-terms (иначе data-hc указывал бы на пустой
   // hovercard-бакет — «мёртвая» подсказка). В 5.1 rules-terms нет → gloss ядра выключен, версии
   // независимы (подсказки не смешиваются). CORE_TERMS выверены на 5.2-корпусе.
+  // Термины ядра по игре (D&D — CORE_TERMS, Daggerheart — DH_TERMS). Гейт на наличие
+  // ресурса rules-terms у версии: иначе data-hc указывал бы в пустой бакет («мёртвая»
+  // подсказка). В D&D 5.1 rules-terms нет → gloss ядра выключен. Наборы разных игр не
+  // пересекаются (изоляция бакетов game/ver/lang → подсказки не смешиваются).
+  const terms = TERMS_BY_GAME[game] || [];
   let coreRe = null;
-  if (read('rules-terms')) {
+  if (terms.length && read('rules-terms')) {
     const field = lang === 'en' ? 'en' : 'ru';
-    const parts = CORE_TERMS.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
+    const parts = terms.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
     const flags = lang === 'en' ? 'gu' : 'giu';
     coreRe = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${parts})(?![\\p{L}\\p{N}_])`, flags);
   }
 
-  const res = actionRe || coreRe ? { actionRe, actionByName, coreRe, verKey } : null;
+  const res = actionRe || coreRe ? { actionRe, actionByName, coreRe, terms, verKey } : null;
   cache.set(cacheKey, res);
   return res;
 }
@@ -145,7 +178,7 @@ function glossText(value, map, lang, ctx) {
     map.coreRe.lastIndex = 0;
     let m;
     while ((m = map.coreRe.exec(value))) {
-      const slug = slugFromGroups(m.groups || {});
+      const slug = slugFromGroups(m.groups || {}, map.terms);
       if (slug) spans.push({ idx: m.index, end: m.index + m[0].length, term: m[0], slug, resource: 'rules-terms' });
     }
   }

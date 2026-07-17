@@ -29,7 +29,7 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_conditions, parse_feats, parse_races, parse_origins,
                      parse_defs, parse_tagged_defs, parse_untagged_defs,
                      parse_ancestries, parse_communities, parse_domain_cards,
-                     parse_adversaries, parse_environments)
+                     parse_adversaries, parse_environments, parse_dh_glossary)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
@@ -526,6 +526,9 @@ def main():
         elif entity_type == "environment":
             entities = parse_environments(text, lang)
             resource = "environments"
+        elif entity_type == "dh_glossary":
+            entities = parse_dh_glossary(text, lang)
+            resource = "rules-terms"
         else:
             print(f"  Warning: unknown type '{entity_type}', skipping", file=sys.stderr)
             continue

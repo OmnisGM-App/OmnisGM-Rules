@@ -115,3 +115,25 @@ def parse_adversaries(text: str, lang: str) -> list[dict]:
 def parse_environments(text: str, lang: str) -> list[dict]:
     """Окружения — стат-блоки по тирам."""
     return _parse_tiered(text, lang)
+
+
+# ── Глоссарий: `### Термин (English)` с прозаическим определением ──────────────
+# Файл начинается табличными секциями (Сокращения/Состояния/…), затем идут
+# индивидуальные термины прозой. Берём только прозаические (тело не таблица) →
+# ресурс rules-terms для gloss-подсказок. name_en из inline-English → слаг EN↔RU.
+
+def parse_dh_glossary(text: str, lang: str) -> list[dict]:
+    out = []
+    for heading, body in split_blocks(text, 3):
+        stripped = body.strip()
+        # Пропускаем табличные секции (Состояния/Типы урона/…) и пустые.
+        if not stripped or stripped.lstrip().startswith("|"):
+            continue
+        name, name_en, slug = extract_names(heading.strip(), lang)
+        out.append({
+            "slug": slug,
+            "name": name,
+            "name_en": name_en,
+            "description_md": stripped,
+        })
+    return out

@@ -214,6 +214,10 @@ const BUILDS = [
   { game: 'dnd', ver: 'srd52', lang: 'ru' },
   { game: 'dnd', ver: 'srd51', lang: 'en' },
   { game: 'dnd', ver: 'srd51', lang: 'ru' },
+  // Daggerheart: бакет rules-terms (gloss-подсказки глоссария). Изолирован ключом
+  // game/ver/lang → не смешивается с D&D.
+  { game: 'daggerheart', ver: 'srd10', lang: 'en' },
+  { game: 'daggerheart', ver: 'srd10', lang: 'ru' },
 ];
 
 export function getStaticPaths() {
@@ -225,7 +229,7 @@ export const GET: APIRoute = ({ params }) => {
   const verSlug = VERSION_SLUG[ver];
   const map: Record<string, { name: string; name_en: string | null; effect: string; href: string }> = {};
   for (const { key, urlParent, body } of RESOURCES) {
-    for (const e of loadEntities(ver, lang, key)) {
+    for (const e of loadEntities(ver, lang, key, game)) {
       map[`${key}/${e.slug}`] = {
         name: e.name,
         // EN-оригинал показываем в шапке ВСЕГДА (и в EN-карточке тоже). Для EN-сущностей
