@@ -189,7 +189,14 @@ function glossText(value, map, lang, ctx) {
     let m;
     while ((m = map.coreRe.exec(value))) {
       const slug = slugFromGroups(m.groups || {}, map.terms);
-      if (slug) spans.push({ idx: m.index, end: m.index + m[0].length, term: m[0], slug, resource: 'rules-terms' });
+      if (!slug) continue;
+      const end = m.index + m[0].length;
+      // Гейт ярлыка стат-блока: терм — это ВЕСЬ узел «Термин:» (жирный ярлык вроде
+      // «**Класс Доспеха:** 17», «**Показатель опасности:** 10»). В 5.1 стат-блоки пишут
+      // термин словами (в 5.2 — аббревиатурой «КД»/«ПО»), из-за чего КД/ПО глоссились ковром
+      // на каждой строке бестиария. Ярлык-определение — не место для подсказки; пропускаем.
+      if (m.index === 0 && /^:\s*$/.test(value.slice(end))) continue;
+      spans.push({ idx: m.index, end, term: m[0], slug, resource: 'rules-terms' });
     }
   }
   if (!spans.length) return null;

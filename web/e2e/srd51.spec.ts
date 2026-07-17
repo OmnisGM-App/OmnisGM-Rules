@@ -67,6 +67,37 @@ test('5.1 gloss-бакет отдаёт карточки терминов (не�
   expect(map['rules-terms/concentration']).toBeTruthy();
 });
 
+test('5.1 rules-terms: канонические слаги 5.2 (глоссарий 5.1 кодирует аббревиатуру в имени)', async ({ request }) => {
+  // Глоссарий 5.1 пишет «Armor Class (AC)»/«Challenge Rating (CR)»/«Opportunity Attack» (ед.ч.);
+  // канонизатор слага сводит их к слагам 5.2 → термы глоссятся и подсказки резолвятся.
+  const map = await (await request.get('/hc/dnd/srd51/ru.json')).json();
+  for (const slug of ['armor-class', 'challenge-rating', 'experience-points', 'opportunity-attacks']) {
+    expect(map[`rules-terms/${slug}`], slug).toBeTruthy();
+  }
+  // Старых слагов-с-аббревиатурой/ед.ч. быть не должно (иначе CORE_TERMS-гейт бы промахнулся).
+  for (const dead of ['armor-class-ac', 'challenge-rating-cr', 'experience-points-xp', 'opportunity-attack']) {
+    expect(map[`rules-terms/${dead}`], dead).toBeFalsy();
+  }
+});
+
+test('5.1 gloss: канонические термы подсвечены в прозе (не только в бакете)', async ({ page }) => {
+  // Показатель опасности — в прозе заклинаний призыва («ПО 2 или ниже»): подсказка уместна.
+  await page.goto('/ru/dnd/srd-5.1/spells/conjure-animals/');
+  await expect(page.locator('.rd-doc .gloss[data-hc$="/rules-terms/challenge-rating"]').first()).toBeVisible();
+});
+
+test('5.1 gloss-гейт: ярлыки стат-блоков («Класс Доспеха:») НЕ глоссятся (без ковра)', async ({ page }) => {
+  // Мега-страница главы бестиария: каждый стат-блок пишет «**Класс Доспеха:** 17» словами.
+  // Терм-ярлык — не место для подсказки; гейт (терм = весь жирный узел + двоеточие) их пропускает.
+  await page.goto('/ru/dnd/srd-5.1/monsters-a-z/');
+  const label = page.locator('.rd-doc strong', { hasText: /^Класс Доспеха:$/ }).first();
+  await expect(label).toBeVisible();
+  await expect(label.locator('.gloss')).toHaveCount(0);
+  // Ковра нет: armor-class на всей мега-странице — единицы, не сотни (было 318 до гейта).
+  const carpet = await page.locator('.rd-doc .gloss[data-hc$="/rules-terms/armor-class"]').count();
+  expect(carpet).toBeLessThan(5);
+});
+
 test('монстр 5.1: чистый тип (запятая в скобках подтипа) + бэклинк в type-хаб', async ({ page }) => {
   await page.goto('/en/dnd/srd-5.1/monsters-a-z/imp/');
   // Тип-строка должна быть «… Fiend (Devil, Shapechanger) …», без обрезанного «Fiend (Devil».
