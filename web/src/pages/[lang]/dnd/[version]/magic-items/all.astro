@@ -1,18 +1,11 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { RARITIES, raritySlug, rarityLabel, rarityRank, rarityHubLabel, type ItemLite as Item } from '../../../../../lib/magic-item-hubs';
 
 // Хаб-справочник всех магических предметов (issue #20): /{lang}/dnd/{version}/magic-items/all/.
-// Алфавитный индекс со ссылками на страницы предметов. Заменяет плоский глоссарий-список.
+// Алфавитный индекс со ссылками на страницы предметов + колонка редкости (ссылка на rarity-хаб).
 const PARENT_NAV: Record<string, string> = { srd52: 'd52-magicitems-hub', srd51: 'd51-magicitems-hub' };
-
-interface Item { slug: string; name: string; name_en?: string | null; type?: string; rarity?: string; attunement?: { required?: boolean } }
-
-// Редкость в данных — английский ключ; отображаем по языку.
-const RARITY: Record<string, [string, string]> = {
-  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
-  'very rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'], artifact: ['артефакт', 'artifact'],
-};
 
 export function getStaticPaths() {
   const BUILDS = [
@@ -32,10 +25,8 @@ const verSlug = VERSION_SLUG[ver];
 const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/dnd/${verSlug}/magic-items`;
-const rarityLabel = (r?: string) => (r && RARITY[r] ? (lang === 'ru' ? RARITY[r][0] : RARITY[r][1]) : (r ?? ''));
-// Порядок редкости для сортировки (обычный → артефакт), а не по алфавиту.
-const RARITY_ORDER = ['common', 'uncommon', 'rare', 'very rare', 'legendary', 'artifact'];
-const rarityRank = (r?: string) => { const i = RARITY_ORDER.indexOf(r ?? ''); return i === -1 ? 99 : i; };
+// Редкости, реально присутствующие в версии — для футер-навигации на rarity-хабы.
+const presentRarities = RARITIES.filter((r) => items.some((it) => raritySlug(it.rarity) === r.slug));
 
 const heading = t('Все магические предметы', 'All Magic Items');
 const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
@@ -71,15 +62,26 @@ const description = t(
         </tr>
       </thead>
       <tbody>
-        {items.map((it) => (
-          <tr>
-            <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
-            <td>{it.type ?? '—'}</td>
-            <td data-sort={rarityRank(it.rarity)}>{rarityLabel(it.rarity)}</td>
-            <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
-          </tr>
-        ))}
+        {items.map((it) => {
+          const rs = raritySlug(it.rarity);
+          return (
+            <tr>
+              <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
+              <td>{it.type ?? '—'}</td>
+              <td data-sort={rarityRank(it.rarity)}>{rs ? <a href={`${base}/rarity/${rs}/`}>{rarityLabel(it.rarity, lang)}</a> : rarityLabel(it.rarity, lang)}</td>
+              <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>
+
+  <nav class="hub-links" aria-label={t('Хабы предметов по редкости', 'Magic item hubs by rarity')}>
+    <p><strong>{t('По редкости:', 'By rarity:')}</strong>{' '}
+      {presentRarities.map((r, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/rarity/${r.slug}/`}>{rarityHubLabel(r.slug, lang)}</a></>
+      ))}
+    </p>
+  </nav>
 </ReaderShell>
