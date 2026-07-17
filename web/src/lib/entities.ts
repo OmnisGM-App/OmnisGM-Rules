@@ -12,12 +12,14 @@ const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 export const VERSION_SLUG: Record<string, string> = {
   srd52: 'srd-5.2',
   srd51: 'srd-5.1',
+  dh10: 'srd-1.0',
 };
 
 // Короткая метка версии для заголовков/сниппетов.
 export const VERSION_LABEL: Record<string, string> = {
   srd52: '5.2',
   srd51: '5.1',
+  dh10: '1.0',
 };
 
 export interface Entity {
@@ -28,8 +30,9 @@ export interface Entity {
   [key: string]: unknown;
 }
 
-export function loadEntities(ver: string, lang: string, resource: string): Entity[] {
-  const file = path.join(DATA_ROOT, 'dnd', ver, lang, resource, 'all.json');
+// game по умолчанию 'dnd' — не ломает существующие D&D-вызовы; Daggerheart передаёт 'daggerheart'.
+export function loadEntities(ver: string, lang: string, resource: string, game = 'dnd'): Entity[] {
+  const file = path.join(DATA_ROOT, game, ver, lang, resource, 'all.json');
   if (!fs.existsSync(file)) return [];
   return JSON.parse(fs.readFileSync(file, 'utf-8')) as Entity[];
 }

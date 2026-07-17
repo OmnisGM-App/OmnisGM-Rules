@@ -1,5 +1,9 @@
 """Configuration for D&D SRD API generation."""
 
+SYSTEM = "dnd"
+SYSTEM_NAME = "Dungeons & Dragons"
+VERSION_NAMES = {"srd52": "SRD 5.2.1", "srd51": "SRD 5.1"}
+
 SOURCES = [
     # SRD 5.2 RU
     {"ver": "srd52", "lang": "ru", "type": "spell",      "file": "srd-5.2/ru/07_Spells.md",       "h": 3},
