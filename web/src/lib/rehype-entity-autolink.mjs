@@ -18,10 +18,11 @@ import path from 'node:path';
 // (страницы сущностей). import.meta.url под Vite указывает не туда.
 const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 
-// Ресурсы с программными страницами. mode: 'text' | 'exact'. container (для exact) — тег-обёртка
-// разметки-сигнала SRD: 'em' (курсив, заклинания) или 'strong' (жирный, монстры). versions —
-// ограничение по версиям (где реально есть страницы); без него — все версии.
-const RESOURCES = [
+// Ресурсы с программными страницами. mode: 'text' | 'exact' | 'feats' | 'cells' | 'grid'.
+// container (для exact) — тег-обёртка сигнала SRD: 'em' (курсив, заклинания) / 'strong' (жирный,
+// монстры). versions — где реально есть страницы. chapters (для grid) — regex главы-источника.
+// Наборы ресурсов — ПО ИГРАМ: у D&D свои ресурсы/разметка, у Daggerheart/BRP — свои.
+const DND_RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
   { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2', 'srd-5.1'] },
@@ -47,6 +48,22 @@ const RESOURCES = [
   { key: 'armor', urlParent: 'armor', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'equipment', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
 ];
+
+// Daggerheart: имена сущностей в прозе НЕ размечены (нет курсив/жирный-сигнала, как в D&D).
+// Единственная безопасная поверхность — таблица-сетка доменных карт в главе «Домены»
+// (03_Domains: Уровень × Опция 1–3, ячейки = имена карт). Режим 'grid': линкуем ЛЮБУЮ ячейку
+// <td>, точно равную имени карты, ТОЛЬКО в этой главе (chapters) → точное совпадение = 0 ложных.
+const DH_RESOURCES = [
+  { key: 'domain-cards', urlParent: 'domain-cards', mode: 'grid', versions: ['srd-1.0'], chapters: /\/03_Domains/ },
+];
+
+// BRP: имена в прозе тоже не размечены. Безопасная поверхность — таблица навыков в глоссарии
+// (09_Glossary/01_Skills, первая колонка = имя навыка). Режим 'grid' с гейтом на эту главу.
+const BRP_RESOURCES = [
+  { key: 'skills', urlParent: 'skills', mode: 'grid', versions: ['srd-1.0'], chapters: /\/09_Glossary\/01_Skills/ },
+];
+
+const RESOURCES_BY_GAME = { dnd: DND_RESOURCES, daggerheart: DH_RESOURCES, brp: BRP_RESOURCES };
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.
 const SPELL_TABLE_HEAD = new Set(['Заклинание', 'Spell']);
@@ -137,11 +154,13 @@ function loadMap(game, version, lang) {
   const feats = new Map();
   // Оружие/доспехи/снаряжение: карта «имя → сущность» для матча точных ячеек таблиц.
   const cells = new Map();
+  // Grid (DH/BRP): «имя → сущность (+chapters)» — линкуем любую ячейку = имя, только в своей главе.
+  const grid = new Map();
   // Имена magic-items/monsters — зарезервированы: их не линкуем как cells (редкие кросс-ресурс
   // коллизии: «Свиток заклинания» = equipment+magic-item, «Страж-щит» = magic-item+monster).
   // magic-items/monsters идут в RESOURCES раньше оружия → к моменту cells набор полон.
   const reserved = new Set();
-  for (const { key, urlParent, mode, container, versions } of RESOURCES) {
+  for (const { key, urlParent, mode, container, versions, chapters } of (RESOURCES_BY_GAME[game] || [])) {
     if (versions && !versions.includes(version)) continue;
     const file = path.join(DATA_ROOT, game, verKey, lang, key, 'all.json');
     let data;
@@ -174,6 +193,10 @@ function loadMap(game, version, lang) {
       } else if (mode === 'cells') {
         const k = e.name.toLowerCase();
         if (!reserved.has(k) && !cells.has(k)) cells.set(k, entry);
+      } else if (mode === 'grid') {
+        // Любая ячейка = имя сущности → ссылка, но только в главе-источнике (chapters).
+        const k = e.name.toLowerCase();
+        if (!grid.has(k)) grid.set(k, { ...entry, chapters });
       } else {
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
@@ -189,8 +212,8 @@ function loadMap(game, version, lang) {
     const alt = textEntries.map((e) => escapeRegExp(e.name)).join('|');
     text = { regexSource: `(?<![\\p{L}\\p{N}_])(${alt})(?![\\p{L}\\p{N}_])`, byName };
   }
-  const result = text || exact.em.size || exact.strong.size || feats.size || cells.size
-    ? { text, exact, feats, cells, verKey } : null;
+  const result = text || exact.em.size || exact.strong.size || feats.size || cells.size || grid.size
+    ? { text, exact, feats, cells, grid, verKey } : null;
   mapCache.set(cacheKey, result);
   return result;
 }
@@ -247,7 +270,7 @@ function collectRows(node, out) {
 
 // Ядро: линкует имена сущностей прямо в hast-дереве. Общая логика для глав (rehype) и страниц
 // сущностей (marked → hast). selfSlug — не линковать саму сущность на её же странице.
-export function autolinkTree(tree, { game, version, lang, selfSlug }) {
+export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath = '' }) {
   const map = loadMap(game, version, lang);
   if (!map) return tree;
   const skip = new Set();
@@ -325,6 +348,24 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
     }
   };
 
+  // Grid (DH/BRP): любая ячейка <td>, точно равная имени сущности → ссылка, ТОЛЬКО в главе-
+  // источнике (entry.chapters vs chapterPath). Точное совпадение + гейт главы → 0 ложных.
+  const linkGridCells = (table) => {
+    const rows = [];
+    collectRows(table, rows);
+    for (const tr of rows) {
+      for (const cell of tr.children) {
+        if (cell.type !== 'element' || cell.tagName !== 'td') continue;
+        const txt = directText(cell);
+        if (txt == null) continue;
+        const entry = map.grid.get(txt.trim().toLowerCase());
+        if (entry && !skip.has(entry.slug) && (!entry.chapters || entry.chapters.test(chapterPath || ''))) {
+          cell.children = [linkNode(entry, txt.trim(), ctx)];
+        }
+      }
+    }
+  };
+
   const walk = (node, insideSkip) => {
     if (!node.children) return;
     for (let i = 0; i < node.children.length; i++) {
@@ -333,6 +374,8 @@ export function autolinkTree(tree, { game, version, lang, selfSlug }) {
         const tag = child.tagName;
         // Спелл-таблица класса: линкуем первую колонку (данные), затем обычный обход остального.
         if (tag === 'table' && map.exact.em.size && isSpellTable(child)) linkSpellTable(child);
+        // Grid-режим (DH доменные карты, BRP навыки) — любая ячейка = имя, в главе-источнике.
+        if (tag === 'table' && map.grid && map.grid.size && chapterPath) linkGridCells(child);
         // Черты в ячейках любых таблиц (таблицы прогрессии классов и т.п.).
         if (tag === 'table' && map.feats && map.feats.size) linkFeatCells(child);
         // Оружие/доспехи/снаряжение — первая колонка таблиц-перечней (глава «Снаряжение»).
@@ -369,6 +412,6 @@ export default function rehypeEntityAutolink() {
     const m = p.replace(/\\/g, '/').match(/\/(dnd|daggerheart|brp)\/([^/]+)\/(en|ru)\//);
     if (!m) return;
     const [, game, version, lang] = m;
-    autolinkTree(tree, { game, version, lang });
+    autolinkTree(tree, { game, version, lang, chapterPath: p.replace(/\\/g, '/') });
   };
 }
