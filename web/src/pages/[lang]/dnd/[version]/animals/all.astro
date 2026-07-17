@@ -1,0 +1,72 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-справочник всех животных (issue #20, только 5.2): /{lang}/dnd/{version}/animals/all/.
+// Алфавитный индекс со ссылками на страницы животных. Заменяет плоский глоссарий-список.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-animals-hub' };
+
+interface Animal { slug: string; name: string; size?: string; type?: string; cr?: { value?: string }; hp?: { average?: number } }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, animals: (loadEntities(ver, lang, 'animals') as unknown as Animal[]).slice().sort((a, b) => a.name.localeCompare(b.name)) },
+  }));
+}
+
+const { ver, lang, animals } = Astro.props as { ver: string; lang: 'en' | 'ru'; animals: Animal[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/animals`;
+
+const heading = t('Все животные', 'All Animals');
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${animals.length} животных D&D ${verLabel} по алфавиту: размер, тип, ПО и хиты со ссылками на страницы животных.`,
+  `All ${animals.length} D&D ${verLabel} animals alphabetically: size, type, CR and HP with links to each animal page.`,
+);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `/${lang}/dnd/${verSlug}/animals/`, ru: 'Животные', en: 'Animals' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${animals.length} животных D&D ${verLabel} по алфавиту. В таблице — размер, тип, ПО и хиты. Нажмите на имя, чтобы открыть страницу животного.`,
+      `${animals.length} D&D ${verLabel} animals alphabetically. The table lists size, type, CR and HP. Select a name to open the animal page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr>
+          <th>{t('Животное', 'Animal')}</th><th>{t('Размер', 'Size')}</th>
+          <th>{t('Тип', 'Type')}</th><th>{t('ПО', 'CR')}</th><th>{t('Хиты', 'HP')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {animals.map((a) => (
+          <tr>
+            <td><a href={`${base}/${a.slug}/`}>{a.name}</a></td>
+            <td>{a.size ?? '—'}</td><td>{a.type ?? '—'}</td>
+            <td>{a.cr?.value ?? '—'}</td><td>{a.hp?.average ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</ReaderShell>
