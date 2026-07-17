@@ -16,7 +16,7 @@ const dual = (n: NavNode) =>
     ? `<span class="l-en">${label(n, 'en')}</span><span class="l-ru">${label(n, 'ru')}</span>`
     : null;
 ---
-{nodes.map((n) =>
+{nodes.filter((n) => isGroup(n) || !n.hidden).map((n) =>
   isGroup(n) ? (
     <details class="rd-nav-det" open={openIds.has(n.id)}>
       <summary class="rd-nav-group" style={`padding-left:${pad(depth, false)}px`}>

@@ -10,6 +10,8 @@ export interface NavPage {
   ru: string;
   en: string;
   slug: string; // путь без языка: "dnd/srd-5.2/legal"
+  hidden?: boolean; // страница есть, но НЕ рендерится в боковом дереве (NavTree её пропускает).
+  // Остаётся в FLAT_PAGES/findPath → currentId, крошки, prev/next, активная система работают.
 }
 export interface NavGroup {
   id: string;
@@ -28,6 +30,9 @@ function pathToSlug(path: string): string {
 }
 
 const page = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path) });
+// Программный entity-хаб (/all/): страница есть, но скрыта из бокового дерева до отдельной
+// доработки навигации. currentId entity/хаб-страниц указывает сюда → крошки/подсветка живы.
+const hub = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path), hidden: true });
 const group = (id: string, ru: string, en: string, kids: NavNode[]): NavGroup => ({ id, ru, en, kids });
 
 // Классы D&D — одни и те же 12 имён в 5.2/5.1 (разный индекс папки).
@@ -58,7 +63,7 @@ export const NAV: NavNode[] = [
       page('d52-charcreation', 'Создание персонажа', 'Character Creation', '/dnd/srd-5.2/02_CharacterCreation/'),
       group('d52-classes', 'Классы', 'Classes', dndClassKids('d52', '03', '5.2')),
       page('d52-origins', 'Происхождение персонажа', 'Character Origins', '/dnd/srd-5.2/04_CharacterOrigins/'),
-      page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
+      hub('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
       page('d52-feats', 'Черты', 'Feats', '/dnd/srd-5.2/05_Feats/'),
       page('d52-equipment', 'Снаряжение', 'Equipment', '/dnd/srd-5.2/06_Equipment/'),
       page('d52-spells', 'Заклинания', 'Spells', '/dnd/srd-5.2/07_Spells/'),
@@ -82,7 +87,7 @@ export const NAV: NavNode[] = [
       page('d51-adventuring', 'Приключения', 'Adventuring', '/dnd/srd-5.1/02_Adventuring/'),
       page('d51-combat', 'Бой', 'Combat', '/dnd/srd-5.1/03_Combat/'),
       page('d51-races', 'Расы', 'Races', '/dnd/srd-5.1/04_Races/'),
-      page('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
+      hub('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
       page('d51-details', 'Детали персонажа', 'Character Details', '/dnd/srd-5.1/05_CharacterDetails/'),
       group('d51-classes', 'Классы', 'Classes', dndClassKids('d51', '06', '5.1')),
       page('d51-multiclass', 'Мультиклассирование', 'Multiclassing', '/dnd/srd-5.1/07_Multiclassing/'),
@@ -113,9 +118,9 @@ export const NAV: NavNode[] = [
       group('dh-classes', 'Классы', 'Classes', DH_CLASSES.map(([slug, ru, en], i) =>
         page(`dh-cls-${slug.toLowerCase()}`, ru, en, `/daggerheart/srd-1.0/04_Classes/${String(i + 1).padStart(2, '0')}_${slug}/`))),
       page('dh-ancestries', 'Происхождения', 'Ancestries', '/daggerheart/srd-1.0/05_Ancestries/'),
-      page('dh-ancestries-hub', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/ancestries/all/'),
+      hub('dh-ancestries-hub', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/ancestries/all/'),
       page('dh-communities', 'Сообщества', 'Communities', '/daggerheart/srd-1.0/06_Communities/'),
-      page('dh-communities-hub', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/communities/all/'),
+      hub('dh-communities-hub', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/communities/all/'),
       page('dh-core', 'Основные механики', 'Core Mechanics', '/daggerheart/srd-1.0/07_CoreMechanics/'),
       page('dh-weapons', 'Оружие', 'Weapons', '/daggerheart/srd-1.0/08_Weapons/'),
       page('dh-armor', 'Броня', 'Armor', '/daggerheart/srd-1.0/09_Armor/'),
@@ -123,12 +128,12 @@ export const NAV: NavNode[] = [
       page('dh-consumables', 'Расходники', 'Consumables', '/daggerheart/srd-1.0/11_Consumables/'),
       page('dh-gmguide', 'Руководство мастера', 'GM Guide', '/daggerheart/srd-1.0/12_GMGuide/'),
       page('dh-adversaries', 'Противники', 'Adversaries', '/daggerheart/srd-1.0/13_Adversaries/'),
-      page('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
+      hub('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
       page('dh-environments', 'Окружения', 'Environments', '/daggerheart/srd-1.0/14_Environments/'),
-      page('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
+      hub('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
       page('dh-witherwild', 'Витервилд', 'Witherwild', '/daggerheart/srd-1.0/15_Witherwild/'),
       page('dh-domaincards', 'Справочник доменных карт', 'Domain Card Reference', '/daggerheart/srd-1.0/16_DomainCardReference/'),
-      page('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
+      hub('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
       group('dh-glossary', 'Глоссарий', 'Glossary', [
         page('dh-g-terms', 'Термины', 'Terms', '/daggerheart/srd-1.0/17_Glossary/00_Glossary/'),
         page('dh-g-abilities', 'Способности (справочник)', 'Abilities (Reference)', '/daggerheart/srd-1.0/17_Glossary/01_Abilities/'),
