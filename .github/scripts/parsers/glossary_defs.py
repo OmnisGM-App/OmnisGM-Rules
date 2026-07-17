@@ -10,6 +10,26 @@ import re
 from .base import slugify
 
 
+# ── Канонизация слага термина 5.1 под слаги 5.2 ───────────────────────────────
+# Слаг rules-terms — общий ключ и hovercard-бакета, и gloss-гейта на стороне ридера
+# (CORE_TERMS матчатся по слагу). Глоссарий 5.1 кодирует аббревиатуру прямо в имени
+# («Armor Class (AC)», «Challenge Rating (CR)»), из-за чего слаг выходил armor-class-ac
+# и НЕ совпадал с каноническим armor-class из 5.2 → термин не глоссился, хотя карточка
+# есть. Снимаем хвост «(ABBR)» (короткая всезаглавная аббревиатура в скобках) + точечные
+# орфографические синонимы 5.1→5.2, которые снятие скобок не покрывает.
+_ABBR_TAIL = re.compile(r"\s*\([A-Z]{1,6}\)\s*$")
+# Орфографические различия 5.1↔5.2, не сводимые снятием «(ABBR)» (число, формулировка).
+_SLUG_ALIASES = {
+    "opportunity-attack": "opportunity-attacks",  # 5.1 ед.ч. → канон 5.2 мн.ч.
+}
+
+
+def canonical_term_slug(name: str) -> str:
+    """Канонический (5.2-совместимый) слаг термина из его EN-имени."""
+    base = slugify(_ABBR_TAIL.sub("", name))
+    return _SLUG_ALIASES.get(base, base)
+
+
 def parse_defs(text: str, section: str) -> list[dict]:
     """Собрать определения #### внутри секции ### {section}.
 
@@ -111,12 +131,12 @@ def parse_section_tables(text: str, lang: str) -> list[dict]:
                 name = cells[0]
                 name_en = cells[1]
                 effect = cells[2] if len(cells) >= 3 else ""
-                slug = slugify(name_en)
+                slug = canonical_term_slug(name_en)
             else:
                 name = cells[0]
                 name_en = None
                 effect = cells[1] if len(cells) >= 2 else ""
-                slug = slugify(name)
+                slug = canonical_term_slug(name)
             # Пустой эффект = строка-список имён без определения (Damage Types, Schools of Magic
             # и пр. одноколоночные EN-таблицы / 2-колоночные RU). Такие термы — не «карточка»;
             # выкидываем, чтобы гейт по-слагу не мог однажды показать пустую подсказку.
