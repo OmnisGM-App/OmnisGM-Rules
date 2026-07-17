@@ -1,0 +1,105 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
+import { glossRules } from '../../../../../lib/rules-gloss.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы противников (Daggerheart SRD 1.0). URL:
+// /{lang}/daggerheart/{version}/adversaries/{slug}/. EN и RU делят канонический (англ.) слаг →
+// корректный hreflang. game=daggerheart, свой бакет данных/hc.
+const GAME = 'daggerheart';
+const PARENT_NAV: Record<string, string> = { srd10: 'dh-adversaries-hub' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const adversaries = loadEntities(ver, lang, 'adversaries', 'daggerheart');
+    const siblings = adversaries.map((r) => ({ slug: r.slug, name: r.name, tier: r.tier as number }));
+    for (const entity of adversaries) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const tier = entity.tier as number;
+const tierLabel = t(`Ранг ${tier}`, `Tier ${tier}`);
+
+const tree = fromHtml(marked.parse(entity.description_md ?? '', { async: false }), { fragment: true });
+autolinkTree(tree, { game: GAME, version: verSlug, lang, selfSlug: entity.slug });
+highlightKeywords(tree, { lang });
+glossRules(tree, { game: GAME, version: verSlug, lang });
+const bodyHtml = toHtml(tree);
+const description = excerpt(entity.description_md as string);
+
+const base = `/${lang}/${GAME}/${verSlug}/adversaries`;
+const related = (siblings as { slug: string; name: string; tier: number }[]).filter(
+  (s) => s.slug !== entity.slug && s.tier === tier,
+);
+const upLink = { href: `${base}/all/`, ru: 'Все противники', en: 'All adversaries' };
+
+const kind = t('Противник', 'Adversary');
+const title = `${entity.name} — ${t(`${kind} Daggerheart ${verLabel}`, `Daggerheart ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+  </h1>
+
+  <p class="ent-meta">
+    <a href={`/${lang}/${GAME}/${verSlug}/adversaries/tier/${tier}/`}>{tierLabel}</a>
+  </p>
+
+  <Fragment set:html={bodyHtml} />
+
+  {related.length > 0 && (
+    <nav class="ent-related" aria-label={t(`Другие противники ${tierLabel}`, `Other ${tierLabel} adversaries`)}>
+      <span class="ent-related-h">{t(`Другие противники ${tierLabel}`, `Other ${tierLabel} adversaries`)}</span>
+      <span class="ent-related-list">
+        {related.map((r) => (
+          <a href={`${base}/${r.slug}/`}>{r.name}</a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  .ent-en {
+    display: block; margin-top: 8px;
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .ent-meta { font-size: 14px; color: var(--og-text-muted); margin: 4px 0 20px; }
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+</style>

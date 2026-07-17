@@ -1,0 +1,99 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-справочник окружений (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/environments/all/.
+// Групповая страница со ссылками на все страницы окружений, сгруппированная по рангам (1..4).
+// Статический роут `all` приоритетнее `[slug]`.
+const GAME = 'daggerheart';
+const PARENT_NAV: Record<string, string> = { srd10: 'dh-environments-hub' };
+const TIERS = [1, 2, 3, 4];
+
+interface Ent { slug: string; name: string; name_en?: string | null; tier: number }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => ({
+    params: { lang, version: VERSION_SLUG[ver] },
+    props: { ver, lang, items: loadEntities(ver, lang, 'environments', 'daggerheart') as unknown as Ent[] },
+  }));
+}
+
+const { ver, lang, items } = Astro.props as { ver: string; lang: 'en' | 'ru'; items: Ent[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/${GAME}/${verSlug}/environments`;
+const tierLabel = (tier: number) => t(`Ранг ${tier}`, `Tier ${tier}`);
+
+const groups = TIERS.map((tier) => ({
+  tier,
+  items: items.filter((r) => r.tier === tier).sort((a, b) => a.name.localeCompare(b.name)),
+})).filter((g) => g.items.length > 0);
+
+const heading = t('Окружения', 'Environments');
+const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${items.length} окружений Daggerheart ${verLabel} по рангам (1–4) со ссылками на страницы: сложность, импульсы, противники, особенности.`,
+  `All ${items.length} Daggerheart ${verLabel} environments by tier (1–4) with links to each page: difficulty, impulses, adversaries, features.`,
+);
+const upLink = { href: `/${lang}/${GAME}/${verSlug}/14_Environments/`, ru: 'Окружения (глава)', en: 'Environments (chapter)' };
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${items.length} окружений Daggerheart ${verLabel}, сгруппированных по рангам. Нажмите, чтобы открыть страницу со стат-блоком. Общие правила — в главе «Окружения».`,
+      `${items.length} Daggerheart ${verLabel} environments, grouped by tier. Select one to open its stat block page. General rules are in the Environments chapter.`,
+    )}
+  </p>
+
+  <nav class="og-jump" aria-label={t('Переход по рангам', 'Jump to tier')}>
+    {groups.map((g, i) => (
+      <>{i > 0 ? ' · ' : ''}<a href={`${base}/tier/${g.tier}/`}>{tierLabel(g.tier)}</a></>
+    ))}
+  </nav>
+
+  {groups.map((g) => (
+    <section class="og-group">
+      <h2>{tierLabel(g.tier)}</h2>
+      <ul class="og-grid">
+        {g.items.map((r) => (
+          <li class="og-card">
+            <a class="og-card-link" href={`${base}/${r.slug}/`}>{r.name}</a>
+            {lang === 'ru' && r.name_en && <span class="og-card-en">{r.name_en}</span>}
+          </li>
+        ))}
+      </ul>
+    </section>
+  ))}
+</ReaderShell>
+
+<style>
+  .og-jump { margin: 20px 0 0; font-size: 14px; }
+  .og-group { margin-top: 32px; }
+  .og-group h2 { margin-bottom: 12px; }
+  .og-grid {
+    list-style: none; margin: 24px 0 0; padding: 0;
+    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
+  }
+  .og-card {
+    display: flex; flex-direction: column; gap: 3px;
+    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
+    background: var(--og-bg-2);
+  }
+  .og-card-link { font-weight: 600; font-size: 16px; }
+  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+</style>

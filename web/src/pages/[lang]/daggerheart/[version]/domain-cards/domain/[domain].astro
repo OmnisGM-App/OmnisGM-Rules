@@ -1,0 +1,107 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+
+// Фасет доменных карт по домену (Daggerheart SRD 1.0):
+// /{lang}/daggerheart/{version}/domain-cards/domain/{domain}/. 9 доменов, карты отсортированы
+// по (level, name).
+const GAME = 'daggerheart';
+const PARENT_NAV: Record<string, string> = { srd10: 'dh-domaincards-hub' };
+const DOMAINS = ['arcana', 'blade', 'bone', 'codex', 'grace', 'midnight', 'sage', 'splendor', 'valor'];
+
+interface Card {
+  slug: string;
+  name: string;
+  name_en?: string | null;
+  domain: string;
+  domain_en?: string | null;
+  domain_slug: string;
+  level: number | null;
+  recall_cost: number | null;
+}
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const items = loadEntities(ver, lang, 'domain-cards', 'daggerheart') as unknown as Card[];
+    const domainNames: Record<string, string> = {};
+    for (const c of items) domainNames[c.domain_slug] = c.domain;
+    for (const domainSlug of ['arcana', 'blade', 'bone', 'codex', 'grace', 'midnight', 'sage', 'splendor', 'valor']) {
+      const cards = items
+        .filter((c) => c.domain_slug === domainSlug)
+        .sort((a, b) => (a.level ?? 0) - (b.level ?? 0) || a.name.localeCompare(b.name));
+      if (!cards.length) continue;
+      const domainName = cards[0].domain;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], domain: domainSlug },
+        props: { ver, lang, domain_slug: domainSlug, domainName, cards, domainNames },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, domain_slug, domainName, cards, domainNames } = Astro.props as {
+  ver: string; lang: 'en' | 'ru'; domain_slug: string; domainName: string; cards: Card[];
+  domainNames: Record<string, string>;
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/${GAME}/${verSlug}/domain-cards`;
+
+const heading = t(`${domainName} — доменные карты`, `${domainName} — Domain Cards`);
+const title = `${heading} · OmnisGM Rules`;
+const description = t(
+  `Все ${cards.length} карт домена ${domainName} в Daggerheart ${verLabel}: уровень и ссылки на страницы карт.`,
+  `All ${cards.length} ${domainName} domain cards in Daggerheart ${verLabel}: level and links to each card.`,
+);
+const otherDomains = DOMAINS.filter((d) => d !== domain_slug);
+const upLink = { href: `${base}/all/`, ru: 'Все доменные карты', en: 'All domain cards' };
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${cards.length} карт домена ${domainName} в Daggerheart ${verLabel}. В таблице — уровень карты. Нажмите на название, чтобы открыть страницу карты.`,
+      `${cards.length} ${domainName} domain cards in Daggerheart ${verLabel}. The table lists each card's level. Select a name to open the card page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr><th>{t('Карта', 'Card')}</th><th>{t('Уровень', 'Level')}</th></tr>
+      </thead>
+      <tbody>
+        {cards.map((c) => (
+          <tr>
+            <td><a href={`${base}/${c.slug}/`}>{c.name}</a></td>
+            <td>{c.level != null ? c.level : '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие домены', 'Other domains')}>
+    <p><strong>{t('Другие домены:', 'Other domains:')}</strong>{' '}
+      {otherDomains.map((d, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/domain/${d}/`}>{domainNames[d] ?? d}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>
