@@ -184,6 +184,23 @@ function defHtml(md: string | undefined): string {
     .join('');
 }
 
+// ── Daggerheart доменная карта: «уровень · домен · стоимость отзыва» + выдержка описания.
+function dhCardHtml(e: Record<string, unknown>, lang: string): string {
+  const lvl = e.level != null ? (lang === 'ru' ? `Ур. ${e.level}` : `Lv ${e.level}`) : '';
+  const domain = (e.domain as string) ?? '';
+  const recall = e.recall_cost != null ? (lang === 'ru' ? `Отзыв ${e.recall_cost}` : `Recall ${e.recall_cost}`) : '';
+  const sub = [lvl, domain, recall].filter(Boolean).join(' · ');
+  const ex = excerpt(e.description_md as string | undefined, 190);
+  return (sub ? `<p class="hc-sub">${escapeHtml(sub)}</p>` : '') + (ex ? `<p>${escapeHtml(ex)}</p>` : '');
+}
+
+// ── BRP навык: «категория · базовый шанс» + выдержка описания.
+function brpSkillHtml(e: Record<string, unknown>, lang: string): string {
+  const sub = [e.category as string, e.base_chance as string].filter(Boolean).join(' · ');
+  const ex = excerpt(e.description_md as string | undefined, 190);
+  return (sub ? `<p class="hc-sub">${escapeHtml(sub)}</p>` : '') + (ex ? `<p>${escapeHtml(ex)}</p>` : '');
+}
+
 // resource → { urlParent, build(entity) → HTML тела карточки }.
 const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unknown>, lang: string) => string }[] = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', body: (e) => conditionHtml(e.description_md as string) },
@@ -205,6 +222,10 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   { key: 'rules-terms', urlParent: 'rules-terms', body: (e) => defHtml(e.description_md as string) },
   // Области эффекта — карточка-определение (глосс формы в стат-блоке заклинания).
   { key: 'areas-of-effect', urlParent: 'areas-of-effect', body: (e) => defHtml(e.description_md as string) },
+  // Daggerheart доменные карты (автолинк в главе «Домены») + BRP навыки (таблица глоссария).
+  // Грузятся только для своих игр (loadEntities для чужой игры вернёт []).
+  { key: 'domain-cards', urlParent: 'domain-cards', body: (e, lang) => dhCardHtml(e, lang) },
+  { key: 'skills', urlParent: 'skills', body: (e, lang) => brpSkillHtml(e, lang) },
 ];
 
 // Согласовано со сборкой страниц сущностей: srd52 + srd51 (en/ru). Бакеты по версиям
@@ -214,10 +235,12 @@ const BUILDS = [
   { game: 'dnd', ver: 'srd52', lang: 'ru' },
   { game: 'dnd', ver: 'srd51', lang: 'en' },
   { game: 'dnd', ver: 'srd51', lang: 'ru' },
-  // Daggerheart: бакет rules-terms (gloss-подсказки глоссария). Изолирован ключом
-  // game/ver/lang → не смешивается с D&D.
+  // Daggerheart: rules-terms (gloss) + domain-cards (автолинк «Домены»). Изолирован ключом.
   { game: 'daggerheart', ver: 'srd10', lang: 'en' },
   { game: 'daggerheart', ver: 'srd10', lang: 'ru' },
+  // BRP: навыки (автолинк таблицы глоссария навыков).
+  { game: 'brp', ver: 'srd10', lang: 'en' },
+  { game: 'brp', ver: 'srd10', lang: 'ru' },
 ];
 
 export function getStaticPaths() {
