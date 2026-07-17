@@ -89,18 +89,24 @@ function brpSkills(lang) {
   return names;
 }
 
-// Термсет по игре: { abil, skill } на язык. abil — всегда; skill — в контексте.
-function gameTerms(game, lang) {
-  if (game === 'daggerheart') return { abil: DH_ABIL[lang] || [], skill: [] };
-  if (game === 'brp') return { abil: BRP_ABIL[lang] || [], skill: [...(BRP_CHAR_FULL[lang] || []), ...brpSkills(lang)] };
-  return { abil: DND_ABIL[lang] || [], skill: DND_SKILL[lang] || [] };
-}
-
-// Контекст-слова, легитимирующие подсветку навыка/характеристики (если не в скобках). Общие.
-const SKILL_CTX = {
+// Контекст-слова, легитимирующие подсветку навыка/характеристики (если не в скобках). ПО ИГРАМ,
+// чтобы наборы не тянули друг друга: BRP добавляет «характеристик*/characteristic/roll» — это не
+// должно влиять на D&D (иначе следующее расширение молча поедет на чужую систему).
+const DND_CTX = {
+  ru: /(?:навык\w*|владе\w+|проверк\w+|спасброс\w+|Навыки)\s*$/u,
+  en: /(?:proficiency|proficient|check|save|saving throw|skill|Skills|\bin)\s*$/iu,
+};
+const BRP_CTX = {
   ru: /(?:навык\w*|владе\w+|проверк\w+|спасброс\w+|характеристик\w*|Навыки)\s*$/u,
   en: /(?:proficiency|proficient|check|save|saving throw|skill|characteristic|roll|Skills|\bin)\s*$/iu,
 };
+
+// Термсет по игре: { abil, skill, ctx } на язык. abil — всегда; skill — в контексте ctx.
+function gameTerms(game, lang) {
+  if (game === 'daggerheart') return { abil: DH_ABIL[lang] || [], skill: [], ctx: DND_CTX };
+  if (game === 'brp') return { abil: BRP_ABIL[lang] || [], skill: [...(BRP_CHAR_FULL[lang] || []), ...brpSkills(lang)], ctx: BRP_CTX };
+  return { abil: DND_ABIL[lang] || [], skill: DND_SKILL[lang] || [], ctx: DND_CTX };
+}
 
 // Разделитель списка навыков: запятая и/или союз («A, B, or C», «A, B … или F»). Если два
 // соседних навыка разделены только им — они члены одного перечисления. Пустой зазор (только
@@ -113,13 +119,13 @@ const cache = new Map(); // `${game}/${lang}` → { re, abil:Set, skill:Set, ctx
 function build(game, lang) {
   const cacheKey = `${game}/${lang}`;
   if (cache.has(cacheKey)) return cache.get(cacheKey);
-  const { abil, skill } = gameTerms(game, lang);
+  const { abil, skill, ctx } = gameTerms(game, lang);
   if (!abil.length && !skill.length) { cache.set(cacheKey, null); return null; }
   // Длинные формы раньше коротких (в альтернации побеждает первый матч).
   const all = [...abil, ...skill].sort((a, b) => b.length - a.length);
   const alt = all.map(escapeRegExp).join('|');
   const re = new RegExp(`(?<![\\p{L}\\p{N}_])(${alt})(?![\\p{L}\\p{N}_])`, 'gu');
-  const res = { re, abil: new Set(abil), skill: new Set(skill), ctx: SKILL_CTX[lang] };
+  const res = { re, abil: new Set(abil), skill: new Set(skill), ctx: ctx[lang] };
   cache.set(cacheKey, res);
   return res;
 }

@@ -73,6 +73,13 @@ test('хабы: происхождения, доменные карты (по д
   await expect(page.locator('a[href$="/adversaries/acid-burrower/"]')).toBeVisible();
 });
 
+test('автолинк: глава «Домены» линкует доменные карты (grid-режим) + hovercard', async ({ page }) => {
+  await page.goto('/ru/daggerheart/srd-1.0/domains/');
+  // Ячейки-имена карт в сетке домена стали ссылками на страницы карт с data-hc.
+  const link = page.locator('.rd-doc a.ent-link[href*="/domain-cards/"][data-hc^="daggerheart/srd10/ru/domain-cards/"]').first();
+  await expect(link).toBeVisible();
+});
+
 test('канонический слаг EN↔RU: RU-сущность на английском слаге', async ({ page }) => {
   expect((await page.goto('/ru/daggerheart/srd-1.0/ancestries/goblin/'))?.status()).toBe(200);
   expect((await page.goto('/ru/daggerheart/srd-1.0/domain-cards/rune-ward/'))?.status()).toBe(200);
