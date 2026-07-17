@@ -724,7 +724,7 @@ const searchUi = {
     const d = c.getAttribute('data-sort');
     return d !== null ? d : (c.textContent || '').trim();
   };
-  for (const table of document.querySelectorAll<HTMLTableElement>('table.hub-table[data-sortable]')) {
+  for (const table of document.querySelectorAll<HTMLTableElement>('table[data-sortable]')) {
     const tbody = table.tBodies[0];
     const ths = Array.from(table.tHead?.rows[0]?.cells ?? []);
     if (!tbody || !ths.length) continue;

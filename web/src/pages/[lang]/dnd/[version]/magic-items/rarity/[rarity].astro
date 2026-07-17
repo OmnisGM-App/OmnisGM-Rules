@@ -1,0 +1,101 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import {
+  RARITIES, rarityBySlug, raritySlug, rarityHubLabel, byName,
+  type Lang, type ItemLite,
+} from '../../../../../../lib/magic-item-hubs';
+
+// Хаб магических предметов по редкости (issue #20): /{lang}/dnd/{version}/magic-items/rarity/{rarity}/.
+// Все предметы одной редкости (обычные…артефакты). Ловит «rare magic items 5e» / «редкие
+// магические предметы». EN/RU делят слаг редкости → каноникал + hreflang.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-magicitems-hub', srd51: 'd51-magicitems-hub' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+    { ver: 'srd51', lang: 'en' as Lang },
+    { ver: 'srd51', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const all = loadEntities(ver, lang, 'magic-items') as unknown as ItemLite[];
+    for (const r of RARITIES) {
+      const mine = all.filter((it) => raritySlug(it.rarity) === r.slug).slice().sort(byName);
+      if (!mine.length) continue;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], rarity: r.slug },
+        props: { ver, lang, raritySlug: r.slug, items: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, raritySlug: rSlug, items } = Astro.props as {
+  ver: string; lang: Lang; raritySlug: string; items: ItemLite[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/magic-items`;
+const rName = rarityHubLabel(rSlug, lang);
+
+const heading = t(`Магические предметы: ${rName}`, `${rName[0].toUpperCase()}${rName.slice(1)} magic items`);
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${items.length} ${rName} магических предметов D&D ${verLabel}: тип и настройка со ссылками на страницы предметов.`,
+  `All ${items.length} ${rName} magic items in D&D ${verLabel}: type and attunement with links to each item.`,
+);
+// Другие редкости — только реально присутствующие в версии (без битых ссылок на пустые хабы).
+const present = new Set(
+  (loadEntities(ver, 'en', 'magic-items') as unknown as ItemLite[]).map((it) => raritySlug(it.rarity)).filter(Boolean),
+);
+const otherRarities = RARITIES.filter((r) => r.slug !== rSlug && present.has(r.slug));
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/all/`, ru: 'Все магические предметы', en: 'All Magic Items' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${items.length} ${rName} магических предметов D&D ${verLabel}. В таблице — тип и требуется ли настройка. Нажмите на название, чтобы открыть страницу предмета.`,
+      `${items.length} ${rName} magic items in D&D ${verLabel}. The table lists type and whether attunement is required. Select a name to open the item page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Предмет', 'Item')}</th><th>{t('Тип', 'Type')}</th><th>{t('Настройка', 'Attunement')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {items.map((it) => (
+          <tr>
+            <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
+            <td>{it.type ?? '—'}</td>
+            <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие редкости', 'Other rarities')}>
+    <p><strong>{t('По редкости:', 'By rarity:')}</strong>{' '}
+      {otherRarities.map((r, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/rarity/${r.slug}/`}>{rarityHubLabel(r.slug, lang)}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>

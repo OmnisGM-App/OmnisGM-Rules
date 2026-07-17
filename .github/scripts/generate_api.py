@@ -607,6 +607,24 @@ def main():
             print(f"  {msg}", file=sys.stderr)
         sys.exit(1)
 
+    # Тип противника (DH) не должен молча выпасть из type-фасета: у ВСЕХ adversaries `type`
+    # распознан (∈ 10 известных). Схема допускает type=null (общая с environments), поэтому
+    # гарантия — уровнем выше. Ловит опечатку/двусловный тип в будущем апдейте SRD.
+    if SYSTEM == "daggerheart":
+        from parsers.daggerheart import ADVERSARY_TYPE_WORDS
+        type_errors = []
+        for (ver, lang, resource), entities in all_data.items():
+            if resource != "adversaries":
+                continue
+            for e in entities:
+                if e.get("type") not in ADVERSARY_TYPE_WORDS:
+                    type_errors.append(f"{ver}/{lang}: '{e.get('name')}' — тип '{e.get('type')}' не распознан")
+        if type_errors:
+            print("Error: нераспознанный тип противника (выпадет из type-фасета):", file=sys.stderr)
+            for msg in type_errors:
+                print(f"  {msg}", file=sys.stderr)
+            sys.exit(1)
+
     # Write files and collect hierarchy info
     file_count = 0
 

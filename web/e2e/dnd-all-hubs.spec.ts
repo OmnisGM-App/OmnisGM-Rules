@@ -79,6 +79,15 @@ test('сортировка: клик по заголовку столбца пе
   expect(firstAfter).not.toBe(firstBefore); // порядок изменился (алфавит → по CR)
 });
 
+test('magic-items/all: редкость кликабельна → rarity-хаб', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/magic-items/all/');
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/magic-items/rarity/"]').first()).toBeVisible();
+  const res = await page.goto('/en/dnd/srd-5.2/magic-items/rarity/rare/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Rare');
+  await expect(page.locator('.hub-table[data-sortable]')).toBeVisible();
+});
+
 test('SEO: hreflang-тройка + /all/-хабы в sitemap', async ({ page, request }) => {
   const res = await page.goto('/en/dnd/srd-5.2/spells/all/');
   expect(res?.status()).toBe(200);

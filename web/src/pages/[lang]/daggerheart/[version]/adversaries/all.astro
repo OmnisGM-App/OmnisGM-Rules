@@ -1,15 +1,16 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { ADVERSARY_TYPES, advTypeSlug, advTypeLabel } from '../../../../../lib/adversary-hubs';
 
 // Хаб-справочник противников (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/adversaries/all/.
-// Сортируемая таблица со ссылками на все страницы противников; «Ранг» ведёт на фасет по рангу.
+// Сортируемая таблица со ссылками на все страницы противников; «Тип» и «Ранг» ведут на фасеты.
 // Статический роут `all` приоритетнее `[slug]`.
 const GAME = 'daggerheart';
 const PARENT_NAV: Record<string, string> = { srd10: 'dh-adversaries-hub' };
 const TIERS = [1, 2, 3, 4] as const;
 
-interface Ent { slug: string; name: string; name_en?: string | null; tier: number }
+interface Ent { slug: string; name: string; name_en?: string | null; tier: number; type?: string | null }
 
 export function getStaticPaths() {
   const BUILDS = [
@@ -30,8 +31,10 @@ const base = `/${lang}/${GAME}/${verSlug}/adversaries`;
 const tierLabel = (tier: number) => t(`Ранг ${tier}`, `Tier ${tier}`);
 const tierHref = (tier: number) => `/${lang}/${GAME}/${verSlug}/adversaries/tier/${tier}/`;
 
+const typeHref = (slug: string) => `${base}/type/${slug}/`;
 const sorted = items.slice().sort((a, b) => a.name.localeCompare(b.name));
 const presentTiers = TIERS.filter((tier) => items.some((r) => r.tier === tier));
+const presentTypes = ADVERSARY_TYPES.filter((x) => items.some((r) => advTypeSlug(r.type) === x.slug));
 
 const heading = t('Противники', 'Adversaries');
 const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
@@ -54,8 +57,8 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/13_Adversaries/`, ru: 'Пр�
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} противников Daggerheart ${verLabel} по 4 рангам сложности. В таблице — ранг (ссылка на список ранга). Нажмите на заголовок столбца, чтобы отсортировать. Общие правила — в главе «Противники».`,
-      `${items.length} Daggerheart ${verLabel} adversaries across 4 tiers. The table lists tier (linked to its list). Click a column header to sort. General rules are in the Adversaries chapter.`,
+      `${items.length} противников Daggerheart ${verLabel}. В таблице — тип (Одиночка/Громила/…) и ранг, оба ведут на списки. Нажмите на заголовок столбца, чтобы отсортировать. Общие правила — в главе «Противники».`,
+      `${items.length} Daggerheart ${verLabel} adversaries. The table lists type (Solo/Bruiser/…) and tier, both linked to their lists. Click a column header to sort. General rules are in the Adversaries chapter.`,
     )}
   </p>
 
@@ -63,23 +66,32 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/13_Adversaries/`, ru: 'Пр�
     <table class="hub-table" data-sortable>
       <thead>
         <tr>
-          <th>{t('Противник', 'Adversary')}</th><th>{t('Ранг', 'Tier')}</th>
+          <th>{t('Противник', 'Adversary')}</th><th>{t('Тип', 'Type')}</th><th>{t('Ранг', 'Tier')}</th>
           {lang === 'ru' && <th>Оригинал</th>}
         </tr>
       </thead>
       <tbody>
-        {sorted.map((r) => (
-          <tr>
-            <td><a href={`${base}/${r.slug}/`}>{r.name}</a></td>
-            <td data-sort={r.tier}><a href={tierHref(r.tier)}>{tierLabel(r.tier)}</a></td>
-            {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
-          </tr>
-        ))}
+        {sorted.map((r) => {
+          const ts = advTypeSlug(r.type);
+          return (
+            <tr>
+              <td><a href={`${base}/${r.slug}/`}>{r.name}</a></td>
+              <td>{ts ? <a href={typeHref(ts)}>{advTypeLabel(ts, lang)}</a> : (r.type ?? '—')}</td>
+              <td data-sort={r.tier}><a href={tierHref(r.tier)}>{tierLabel(r.tier)}</a></td>
+              {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>
 
-  <nav class="hub-links" aria-label={t('Хабы противников по рангу', 'Adversary hubs by tier')}>
+  <nav class="hub-links" aria-label={t('Хабы противников', 'Adversary hubs')}>
+    <p><strong>{t('По типу:', 'By type:')}</strong>{' '}
+      {presentTypes.map((x, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={typeHref(x.slug)}>{advTypeLabel(x.slug, lang)}</a></>
+      ))}
+    </p>
     <p><strong>{t('По рангу:', 'By tier:')}</strong>{' '}
       {presentTiers.map((tier, i) => (
         <>{i > 0 ? ' · ' : ''}<a href={tierHref(tier)}>{tierLabel(tier)}</a></>

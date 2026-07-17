@@ -75,6 +75,15 @@ test('хабы: сортируемые таблицы (происхождени�
   await expect(page.locator('a[href$="/adversaries/acid-burrower/"]')).toBeVisible();
 });
 
+test('противники: колонка «Тип» кликабельна → type-фасет (Solo/Bruiser/…)', async ({ page }) => {
+  await page.goto('/ru/daggerheart/srd-1.0/adversaries/all/');
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/adversaries/type/"]').first()).toBeVisible();
+  const res = await page.goto('/en/daggerheart/srd-1.0/adversaries/type/solo/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Solo');
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/adversaries/tier/"]').first()).toBeVisible();
+});
+
 test('глоссарий «Способности» = доменные карты → скрыт из сайдбара (как D&D), но страница жива', async ({ page }) => {
   await page.goto('/ru/daggerheart/srd-1.0/domain-cards/all/');
   // Дубль-список скрыт из nav, показан наш хаб доменных карт.
@@ -117,6 +126,17 @@ test('prev/next пропускает скрытые глоссарий-спис�
   await page.goto('/ru/daggerheart/srd-1.0/environments/all/');
   const nextHref = await page.locator('.rd-pn-r').first().getAttribute('href');
   expect(nextHref, 'next не ведёт в скрытый /glossary/ список').not.toContain('/glossary/');
+});
+
+test('глоссарий: markdown-таблица оружия сортируема (клик по <th> переупорядочивает)', async ({ page }) => {
+  await page.goto('/ru/daggerheart/srd-1.0/glossary/weapons/');
+  const table = page.locator('.rd-doc table[data-sortable]').first();
+  await expect(table).toBeVisible();
+  const firstBefore = await table.locator('tbody tr td:first-child').first().textContent();
+  await table.locator('thead th').first().click();
+  await expect(table.locator('thead th').first()).toHaveAttribute('aria-sort', 'ascending');
+  const firstAfter = await table.locator('tbody tr td:first-child').first().textContent();
+  expect(firstAfter).not.toBe(firstBefore);
 });
 
 test('hovercard-бакет daggerheart отдаёт карточки терминов', async ({ request }) => {

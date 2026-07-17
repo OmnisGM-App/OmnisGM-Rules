@@ -247,13 +247,15 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc tbody td { color: var(--og-text-2); line-height: 1.5; }
 .rd-doc tbody td:first-child { color: var(--og-text); font-weight: 500; }
 
-/* Сортируемые хаб-таблицы (issue #20): клик по <th> сортирует колонку; стрелка отражает aria-sort. */
-.rd-doc .hub-table[data-sortable] thead th { cursor: pointer; user-select: none; white-space: nowrap; }
-.rd-doc .hub-table[data-sortable] thead th::after { content: '↕'; margin-left: 6px; opacity: 0.3; font-size: 0.9em; }
-.rd-doc .hub-table[data-sortable] thead th[aria-sort="ascending"]::after { content: '↑'; opacity: 0.85; }
-.rd-doc .hub-table[data-sortable] thead th[aria-sort="descending"]::after { content: '↓'; opacity: 0.85; }
-.rd-doc .hub-table[data-sortable] thead th:hover { color: var(--og-text-2); }
-.rd-doc .hub-table[data-sortable] thead th:focus-visible { outline: 2px solid var(--og-accent); outline-offset: -2px; }
+/* Сортируемые таблицы (issue #20): клик по <th> сортирует колонку; стрелка отражает aria-sort.
+   Наши хаб-таблицы (.hub-table) + markdown-таблицы глоссария (rehype-sortable-glossary) — обе
+   через общий селектор table[data-sortable]. */
+.rd-doc table[data-sortable] thead th { cursor: pointer; user-select: none; white-space: nowrap; }
+.rd-doc table[data-sortable] thead th::after { content: '↕'; margin-left: 6px; opacity: 0.3; font-size: 0.9em; }
+.rd-doc table[data-sortable] thead th[aria-sort="ascending"]::after { content: '↑'; opacity: 0.85; }
+.rd-doc table[data-sortable] thead th[aria-sort="descending"]::after { content: '↓'; opacity: 0.85; }
+.rd-doc table[data-sortable] thead th:hover { color: var(--og-text-2); }
+.rd-doc table[data-sortable] thead th:focus-visible { outline: 2px solid var(--og-accent); outline-offset: -2px; }
 
 /* Хабы заклинаний (issue #20): счётчик у заголовка уровня + блок перелинковки на соседние хабы. */
 .rd-doc .hub-count { color: var(--og-text-muted); font-weight: 400; font-size: 0.85em; }
