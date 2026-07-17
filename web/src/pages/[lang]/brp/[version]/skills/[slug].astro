@@ -1,0 +1,109 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
+import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
+import { glossRules } from '../../../../../lib/rules-gloss.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Programmatic-страницы навыков (Basic Roleplaying SRD 1.0). URL:
+// /{lang}/brp/{version}/skills/{slug}/. EN/RU делят канонический (англ.) слаг → hreflang.
+// Полностью независимо от других систем: game=brp, свой бакет данных/hc.
+const GAME = 'brp';
+const PARENT_NAV: Record<string, string> = { srd10: 'brp-skills-hub' };
+
+interface Skill { slug: string; name: string; name_en?: string | null; base_chance?: string; category?: string; category_en?: string; category_slug?: string; description_md?: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const skills = loadEntities(ver, lang, 'skills', 'brp') as unknown as Skill[];
+    const siblings = skills.map((s) => ({ slug: s.slug, name: s.name, category_slug: s.category_slug }));
+    for (const entity of skills) {
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
+        props: { entity, ver, lang, siblings },
+      });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang, siblings } = Astro.props as {
+  entity: Skill; ver: string; lang: 'en' | 'ru'; siblings: { slug: string; name: string; category_slug?: string }[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+const tree = fromHtml(marked.parse(entity.description_md ?? '', { async: false }), { fragment: true });
+autolinkTree(tree, { game: GAME, version: verSlug, lang, selfSlug: entity.slug });
+highlightKeywords(tree, { lang });
+glossRules(tree, { game: GAME, version: verSlug, lang });
+const bodyHtml = toHtml(tree);
+const description = excerpt(entity.description_md as string);
+
+const base = `/${lang}/${GAME}/${verSlug}/skills`;
+const categoryHref = `${base}/category/${entity.category_slug}/`;
+const related = siblings.filter((s) => s.slug !== entity.slug && s.category_slug === entity.category_slug);
+const upLink = { href: `${base}/all/`, ru: 'Все навыки', en: 'All skills' };
+
+const kind = t('Навык', 'Skill');
+const title = `${entity.name} — ${t(`${kind} Basic Roleplaying ${verLabel}`, `Basic Roleplaying ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>
+    {entity.name}
+    {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+  </h1>
+
+  <p class="ent-meta">
+    {entity.base_chance && <>{`${t('Базовый шанс', 'Base Chance')}: ${entity.base_chance}`}</>}
+    {entity.category && <>{' · '}<a href={categoryHref}>{entity.category}</a></>}
+  </p>
+
+  <Fragment set:html={bodyHtml} />
+
+  {related.length > 0 && (
+    <nav class="ent-related" aria-label={t('Другие навыки категории', 'Other skills in category')}>
+      <span class="ent-related-h">{t(`Другие навыки: ${entity.category}`, `Other ${entity.category} skills`)}</span>
+      <span class="ent-related-list">
+        {related.map((r) => (
+          <a href={`${base}/${r.slug}/`}>{r.name}</a>
+        ))}
+      </span>
+    </nav>
+  )}
+</ReaderShell>
+
+<style>
+  .ent-en {
+    display: block; margin-top: 8px;
+    font-family: var(--font-mono); font-size: 14px; font-weight: 400; letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  .ent-meta { font-size: 14px; color: var(--og-text-muted); margin: 4px 0 20px; }
+  .ent-meta a { color: var(--og-text-muted); text-decoration: underline; }
+  .ent-meta a:hover { color: var(--og-text); }
+  .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
+  .ent-related-h {
+    display: block; font-size: 13px; text-transform: uppercase; letter-spacing: 1px;
+    color: var(--og-text-muted); margin-bottom: 10px;
+  }
+  .ent-related-list { display: flex; flex-wrap: wrap; gap: 6px 14px; }
+</style>

@@ -1,0 +1,86 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+
+// Фасет навыков по категории (BRP): /{lang}/brp/{version}/skills/category/{slug}/.
+// EN/RU делят слаг категории → каноникал + hreflang. Родитель nav — хаб навыков.
+const GAME = 'brp';
+const PARENT_NAV: Record<string, string> = { srd10: 'brp-skills-hub' };
+
+interface Skill { slug: string; name: string; name_en?: string | null; base_chance?: string; category?: string; category_slug?: string }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as const },
+    { ver: 'srd10', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const skills = loadEntities(ver, lang, 'skills', 'brp') as unknown as Skill[];
+    const cats = [...new Set(skills.map((s) => s.category_slug))].filter(Boolean) as string[];
+    const catNames: Record<string, string> = {};
+    for (const s of skills) if (s.category_slug) catNames[s.category_slug] = s.category ?? s.category_slug;
+    for (const cs of cats) {
+      const items = skills.filter((s) => s.category_slug === cs).sort((a, b) => a.name.localeCompare(b.name));
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], category: cs },
+        props: { ver, lang, categorySlug: cs, categoryName: catNames[cs], items, catNames },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, categorySlug, categoryName, items, catNames } = Astro.props as {
+  ver: string; lang: 'en' | 'ru'; categorySlug: string; categoryName: string;
+  items: Skill[]; catNames: Record<string, string>;
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/${GAME}/${verSlug}/skills`;
+const otherCats = Object.keys(catNames).filter((c) => c !== categorySlug).sort();
+
+const heading = t(`${categoryName} — навыки`, `${categoryName} — Skills`);
+const title = `${heading} — Basic Roleplaying ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Навыки категории «${categoryName}» (${items.length}) в Basic Roleplaying ${verLabel}: базовый шанс и ссылки на страницы.`,
+  `${items.length} ${categoryName} skills in Basic Roleplaying ${verLabel} with base chance and links to each page.`,
+);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/all/`, ru: 'Все навыки', en: 'All skills' }}
+>
+  <h1>{heading}</h1>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table">
+      <thead>
+        <tr><th>{t('Навык', 'Skill')}</th><th>{t('Базовый шанс', 'Base Chance')}</th></tr>
+      </thead>
+      <tbody>
+        {items.map((s) => (
+          <tr>
+            <td><a href={`${base}/${s.slug}/`}>{s.name}</a></td>
+            <td>{s.base_chance}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие категории', 'Other categories')}>
+    <p><strong>{t('Другие категории:', 'Other categories:')}</strong>{' '}
+      {otherCats.map((c, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/category/${c}/`}>{catNames[c]}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>
