@@ -26,8 +26,8 @@ from config import (SOURCES, SKIP_HEADINGS_SPELL, SKIP_HEADINGS_MONSTER,
                     SKIP_HEADINGS_EQUIPMENT, SKIP_HEADINGS_FEAT)
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
-                     parse_conditions, parse_feats, parse_races, parse_defs,
-                     parse_tagged_defs, parse_untagged_defs)
+                     parse_conditions, parse_feats, parse_races, parse_origins,
+                     parse_defs, parse_tagged_defs, parse_untagged_defs)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
 
@@ -481,6 +481,9 @@ def main():
         elif entity_type == "race":
             entities = parse_races(text, heading_level, lang, after)
             resource = "races"
+        elif entity_type == "origin":
+            entities = parse_origins(text, source["section"], lang)
+            resource = out_resource  # "species" / "backgrounds"
         elif entity_type == "glossary_defs":
             entities = parse_defs(text, source["section"])
             resource = out_resource

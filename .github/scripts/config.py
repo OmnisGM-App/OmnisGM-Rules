@@ -16,6 +16,8 @@ SOURCES = [
     {"ver": "srd52", "lang": "ru", "type": "tagged_defs",  "file": "srd-5.2/ru/08_RulesGlossary.md","tags": ["Действие"],           "out": "actions"},
     {"ver": "srd52", "lang": "ru", "type": "untagged_defs","file": "srd-5.2/ru/08_RulesGlossary.md","out": "rules-terms"},
     {"ver": "srd52", "lang": "ru", "type": "tagged_defs",  "file": "srd-5.2/ru/08_RulesGlossary.md","tags": ["Область воздействия"], "out": "areas-of-effect"},
+    {"ver": "srd52", "lang": "ru", "type": "origin",       "file": "srd-5.2/ru/04_CharacterOrigins.md", "section": "Описания видов",       "out": "species"},
+    {"ver": "srd52", "lang": "ru", "type": "origin",       "file": "srd-5.2/ru/04_CharacterOrigins.md", "section": "Описания предысторий", "out": "backgrounds"},
     # SRD 5.2 EN
     {"ver": "srd52", "lang": "en", "type": "spell",      "file": "srd-5.2/en/07_Spells.md",       "h": 3},
     {"ver": "srd52", "lang": "en", "type": "monster",     "file": "srd-5.2/en/12_MonstersA-Z.md",  "h": 3},
@@ -31,6 +33,8 @@ SOURCES = [
     {"ver": "srd52", "lang": "en", "type": "tagged_defs",  "file": "srd-5.2/en/08_RulesGlossary.md","tags": ["Action"],             "out": "actions"},
     {"ver": "srd52", "lang": "en", "type": "untagged_defs","file": "srd-5.2/en/08_RulesGlossary.md","out": "rules-terms"},
     {"ver": "srd52", "lang": "en", "type": "tagged_defs",  "file": "srd-5.2/en/08_RulesGlossary.md","tags": ["Area of Effect"], "out": "areas-of-effect"},
+    {"ver": "srd52", "lang": "en", "type": "origin",       "file": "srd-5.2/en/04_CharacterOrigins.md", "section": "Species Descriptions",    "out": "species"},
+    {"ver": "srd52", "lang": "en", "type": "origin",       "file": "srd-5.2/en/04_CharacterOrigins.md", "section": "Background Descriptions", "out": "backgrounds"},
     # SRD 5.1 RU
     {"ver": "srd51", "lang": "ru", "type": "spell",      "file": "srd-5.1/ru/10_Spells.md",       "h": 3},
     {"ver": "srd51", "lang": "ru", "type": "monster",     "file": "srd-5.1/ru/15_MonstersA-Z.md",  "h": 3},

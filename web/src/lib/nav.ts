@@ -58,6 +58,7 @@ export const NAV: NavNode[] = [
       page('d52-charcreation', 'Создание персонажа', 'Character Creation', '/dnd/srd-5.2/02_CharacterCreation/'),
       group('d52-classes', 'Классы', 'Classes', dndClassKids('d52', '03', '5.2')),
       page('d52-origins', 'Происхождение персонажа', 'Character Origins', '/dnd/srd-5.2/04_CharacterOrigins/'),
+      page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
       page('d52-feats', 'Черты', 'Feats', '/dnd/srd-5.2/05_Feats/'),
       page('d52-equipment', 'Снаряжение', 'Equipment', '/dnd/srd-5.2/06_Equipment/'),
       page('d52-spells', 'Заклинания', 'Spells', '/dnd/srd-5.2/07_Spells/'),
