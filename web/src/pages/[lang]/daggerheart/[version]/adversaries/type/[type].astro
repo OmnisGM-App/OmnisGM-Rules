@@ -1,0 +1,112 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import {
+  ADVERSARY_TYPES, advTypeBySlug, advTypeSlug, advTypeLabel, byName,
+  type Lang, type AdversaryLite,
+} from '../../../../../../lib/adversary-hubs';
+
+// Хаб противников по ТИПУ (issue #20): /{lang}/daggerheart/{version}/adversaries/type/{type}/.
+// Все противники одного типа (Solo/Bruiser/Minion/…). «Ранг» ведёт на tier-фасет. EN/RU делят
+// слаг типа → каноникал + hreflang.
+const GAME = 'daggerheart';
+const PARENT_NAV: Record<string, string> = { srd10: 'dh-adversaries-hub' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd10', lang: 'en' as Lang },
+    { ver: 'srd10', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const all = loadEntities(ver, lang, 'adversaries', 'daggerheart') as unknown as AdversaryLite[];
+    for (const tp of ADVERSARY_TYPES) {
+      const mine = all.filter((a) => advTypeSlug(a.type) === tp.slug).slice().sort(byName);
+      if (!mine.length) continue;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], type: tp.slug },
+        props: { ver, lang, typeSlug: tp.slug, adversaries: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, typeSlug: tSlug, adversaries } = Astro.props as {
+  ver: string; lang: Lang; typeSlug: string; adversaries: AdversaryLite[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/${GAME}/${verSlug}/adversaries`;
+const tierLabel = (tier: number) => t(`Ранг ${tier}`, `Tier ${tier}`);
+const typeName = advTypeLabel(tSlug, lang);
+
+const heading = t(`Противники: ${typeName}`, `${typeName} Adversaries`);
+const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${adversaries.length} противников типа «${typeName}» в Daggerheart ${verLabel} со ссылками на стат-блоки.`,
+  `All ${adversaries.length} ${typeName} adversaries in Daggerheart ${verLabel} with links to each stat block.`,
+);
+// Другие типы — только реально присутствующие (без битых ссылок).
+const present = new Set(
+  (loadEntities(ver, 'en', 'adversaries', 'daggerheart') as unknown as AdversaryLite[]).map((a) => advTypeSlug(a.type)).filter(Boolean),
+);
+const otherTypes = ADVERSARY_TYPES.filter((x) => x.slug !== tSlug && present.has(x.slug));
+const tiers = [...new Set(adversaries.map((a) => a.tier))].sort((a, b) => a - b);
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/all/`, ru: 'Все противники', en: 'All Adversaries' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${adversaries.length} противников типа «${typeName}» в Daggerheart ${verLabel}. «Ранг» ведёт на список ранга. Нажмите на имя, чтобы открыть стат-блок.`,
+      `${adversaries.length} ${typeName} adversaries in Daggerheart ${verLabel}. Tier links to its list. Select a name to open the stat block.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Противник', 'Adversary')}</th><th>{t('Ранг', 'Tier')}</th>
+          {lang === 'ru' && <th>Оригинал</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {adversaries.map((a) => (
+          <tr>
+            <td><a href={`${base}/${a.slug}/`}>{a.name}</a></td>
+            <td data-sort={a.tier}><a href={`${base}/tier/${a.tier}/`}>{tierLabel(a.tier)}</a></td>
+            {lang === 'ru' && <td class="og-en">{a.name_en ?? '—'}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Другие хабы противников', 'Other adversary hubs')}>
+    <p><strong>{t('По типу:', 'By type:')}</strong>{' '}
+      {otherTypes.map((x, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/type/${x.slug}/`}>{advTypeLabel(x.slug, lang)}</a></>
+      ))}
+    </p>
+    <p><strong>{t('По рангу:', 'By tier:')}</strong>{' '}
+      {tiers.map((tier, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/tier/${tier}/`}>{tierLabel(tier)}</a></>
+      ))}
+    </p>
+  </nav>
+</ReaderShell>
+
+<style>
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+</style>

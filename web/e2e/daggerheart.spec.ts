@@ -75,6 +75,15 @@ test('хабы: сортируемые таблицы (происхождени�
   await expect(page.locator('a[href$="/adversaries/acid-burrower/"]')).toBeVisible();
 });
 
+test('противники: колонка «Тип» кликабельна → type-фасет (Solo/Bruiser/…)', async ({ page }) => {
+  await page.goto('/ru/daggerheart/srd-1.0/adversaries/all/');
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/adversaries/type/"]').first()).toBeVisible();
+  const res = await page.goto('/en/daggerheart/srd-1.0/adversaries/type/solo/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Solo');
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/adversaries/tier/"]').first()).toBeVisible();
+});
+
 test('глоссарий «Способности» = доменные карты → скрыт из сайдбара (как D&D), но страница жива', async ({ page }) => {
   await page.goto('/ru/daggerheart/srd-1.0/domain-cards/all/');
   // Дубль-список скрыт из nav, показан наш хаб доменных карт.

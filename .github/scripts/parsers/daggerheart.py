@@ -88,7 +88,7 @@ def parse_domain_cards(text: str, lang: str) -> list[dict]:
 # ── Adversaries / Environments: `## Ранг N` → `### Имя` (→ `#### Способности`) ──
 # Тир — фасет. Вводная секция «Using …» / «Использование …» без номера — пропускается.
 
-def _parse_tiered(text: str, lang: str) -> list[dict]:
+def _parse_tiered(text: str, lang: str, with_type: bool = False) -> list[dict]:
     out = []
     for parent_heading, parent_body in split_blocks(text, 2):
         m = re.search(r"(?:Tier|Ранга?)\s+(\d+)", parent_heading)
@@ -97,19 +97,27 @@ def _parse_tiered(text: str, lang: str) -> list[dict]:
         tier = int(m.group(1))
         for heading, body in split_blocks(parent_body, 3):
             name, name_en, slug = extract_names(heading.strip(), lang)
-            out.append({
+            body = body.strip()
+            entry = {
                 "slug": slug,
                 "name": name,
                 "name_en": name_en,
                 "tier": tier,
-                "description_md": body.strip(),
-            })
+                "description_md": body,
+            }
+            if with_type:
+                # Тип противника — слово после «Tier N»/«Ранг N» во вводной строке стат-блока:
+                # «**_Tier 1 Solo._**» / «**_Ранг 1 Одиночка._**». Локализованное слово; канонический
+                # слаг сводится на стороне ридера (ADVERSARY_TYPES) по EN/RU-подписи.
+                tm = re.search(r"(?:Tier|Ранга?)\s+\d+\s+([A-Za-zА-ЯЁа-яё]+)", body)
+                entry["type"] = tm.group(1) if tm else None
+            out.append(entry)
     return out
 
 
 def parse_adversaries(text: str, lang: str) -> list[dict]:
-    """Противники — стат-блоки по тирам."""
-    return _parse_tiered(text, lang)
+    """Противники — стат-блоки по тирам (+ тип: Solo/Bruiser/Minion/…)."""
+    return _parse_tiered(text, lang, with_type=True)
 
 
 def parse_environments(text: str, lang: str) -> list[dict]:

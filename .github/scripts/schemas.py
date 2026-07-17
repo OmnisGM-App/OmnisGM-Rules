@@ -495,6 +495,8 @@ DH_STATBLOCK_SCHEMA = {
         "name": {"type": "string"},
         "name_en": {"type": ["string", "null"]},
         "tier": {"type": "integer", "minimum": 1, "maximum": 4},
+        # Тип противника (Solo/Bruiser/Minion/…) — локализованное слово; только у adversaries.
+        "type": {"type": ["string", "null"]},
         "description_md": {"type": "string"},
     },
     "required": ["slug", "name", "name_en", "tier", "description_md"],
