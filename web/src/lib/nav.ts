@@ -113,6 +113,7 @@ export const NAV: NavNode[] = [
       group('dh-classes', 'Классы', 'Classes', DH_CLASSES.map(([slug, ru, en], i) =>
         page(`dh-cls-${slug.toLowerCase()}`, ru, en, `/daggerheart/srd-1.0/04_Classes/${String(i + 1).padStart(2, '0')}_${slug}/`))),
       page('dh-ancestries', 'Происхождения', 'Ancestries', '/daggerheart/srd-1.0/05_Ancestries/'),
+      page('dh-ancestries-hub', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/ancestries/all/'),
       page('dh-communities', 'Сообщества', 'Communities', '/daggerheart/srd-1.0/06_Communities/'),
       page('dh-core', 'Основные механики', 'Core Mechanics', '/daggerheart/srd-1.0/07_CoreMechanics/'),
       page('dh-weapons', 'Оружие', 'Weapons', '/daggerheart/srd-1.0/08_Weapons/'),
