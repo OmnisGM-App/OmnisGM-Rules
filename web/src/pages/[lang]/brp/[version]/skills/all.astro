@@ -3,7 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 
 // Хаб-справочник навыков (BRP SRD 1.0): /{lang}/brp/{version}/skills/all/.
-// Сгруппирован по 6 категориям + джамп-нав на by-category фасеты. Статический `all` > `[slug]`.
+// Единая сортируемая таблица (навык · категория · базовый шанс); «Категория» → фасет. `all` > `[slug]`.
 const GAME = 'brp';
 const PARENT_NAV: Record<string, string> = { srd10: 'brp-skills-hub' };
 const CATS = ['combat', 'communication', 'manipulation', 'mental', 'perception', 'physical'];
@@ -27,12 +27,16 @@ const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/${GAME}/${verSlug}/skills`;
 
-// Группировка по категории в фиксированном порядке; отображаемое имя — из первой карточки.
-const byCat = CATS.map((cs) => ({
-  slug: cs,
-  name: skills.find((s) => s.category_slug === cs)?.category ?? cs,
-  items: skills.filter((s) => s.category_slug === cs).sort((a, b) => a.name.localeCompare(b.name)),
-})).filter((g) => g.items.length);
+const sorted = skills.slice().sort((a, b) => a.name.localeCompare(b.name));
+// Категории (фикс. порядок), реально присутствующие, + локализованное имя — для футер-навигации.
+const catList = CATS
+  .map((cs) => {
+    const sample = skills.find((s) => s.category_slug === cs);
+    return sample?.category ? { slug: cs, name: sample.category } : null;
+  })
+  .filter((c): c is { slug: string; name: string } => c !== null);
+// Базовый шанс «25%» → 25 для числовой сортировки (−1, если нет).
+const chanceOrder = (raw?: string) => { const n = raw ? parseInt(raw, 10) : NaN; return Number.isNaN(n) ? -1 : n; };
 
 const heading = t('Навыки', 'Skills');
 const title = `${heading} — Basic Roleplaying ${verLabel} · OmnisGM Rules`;
@@ -55,44 +59,41 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/09_Glossary/01_Skills/`, ru:
   <h1>{heading}</h1>
   <p>
     {t(
-      `${skills.length} навыков Basic Roleplaying ${verLabel} по категориям. Нажмите на навык, чтобы открыть его страницу.`,
-      `${skills.length} Basic Roleplaying ${verLabel} skills by category. Select a skill to open its page.`,
+      `${skills.length} навыков Basic Roleplaying ${verLabel}. В таблице — категория (ссылка на список категории) и базовый шанс. Нажмите на заголовок столбца, чтобы отсортировать.`,
+      `${skills.length} Basic Roleplaying ${verLabel} skills. The table lists category (linked to its list) and base chance. Click a column header to sort.`,
     )}
   </p>
 
-  <nav class="og-jump" aria-label={t('Категории', 'Categories')}>
-    {byCat.map((g) => <a href={`${base}/category/${g.slug}/`}>{g.name}</a>)}
-  </nav>
-
-  {byCat.map((g) => (
-    <section class="og-group">
-      <h2>{g.name}</h2>
-      <ul class="og-grid">
-        {g.items.map((s) => (
-          <li class="og-card">
-            <a class="og-card-link" href={`${base}/${s.slug}/`}>{s.name}</a>
-            {lang === 'ru' && s.name_en && <span class="og-card-en">{s.name_en}</span>}
-            {s.base_chance && <span class="og-card-sub">{s.base_chance}</span>}
-          </li>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Навык', 'Skill')}</th><th>{t('Категория', 'Category')}</th>
+          <th>{t('Баз. шанс', 'Base %')}</th>{lang === 'ru' && <th>Оригинал</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((s) => (
+          <tr>
+            <td><a href={`${base}/${s.slug}/`}>{s.name}</a></td>
+            <td>{s.category_slug ? <a href={`${base}/category/${s.category_slug}/`}>{s.category}</a> : (s.category ?? '—')}</td>
+            <td data-sort={chanceOrder(s.base_chance)}>{s.base_chance ?? '—'}</td>
+            {lang === 'ru' && <td class="og-en">{s.name_en ?? '—'}</td>}
+          </tr>
         ))}
-      </ul>
-    </section>
-  ))}
+      </tbody>
+    </table>
+  </div>
+
+  <nav class="hub-links" aria-label={t('Навыки по категории', 'Skills by category')}>
+    <p><strong>{t('По категории:', 'By category:')}</strong>{' '}
+      {catList.map((c, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/category/${c.slug}/`}>{c.name}</a></>
+      ))}
+    </p>
+  </nav>
 </ReaderShell>
 
 <style>
-  .og-jump { display: flex; flex-wrap: wrap; gap: 6px 14px; margin: 20px 0 8px; }
-  .og-group { margin-top: 28px; }
-  .og-grid {
-    list-style: none; margin: 14px 0 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
-  }
-  .og-card {
-    display: flex; flex-direction: column; gap: 3px;
-    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
-    background: var(--og-bg-2);
-  }
-  .og-card-link { font-weight: 600; font-size: 16px; }
-  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
-  .og-card-sub { font-size: 13px; color: var(--og-text-2); }
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
 </style>

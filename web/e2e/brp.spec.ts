@@ -48,19 +48,21 @@ test('канонический слаг EN↔RU: RU-сущность на анг
   expect((await page.goto('/ru/brp/srd-1.0/skills/%D0%BB%D0%B0%D0%B7%D0%B0%D0%BD%D0%B8%D0%B5/'))?.status()).toBe(404);
 });
 
-test('хабы: навыки по категориям + фасет категории, профессии, правила', async ({ page }) => {
+test('хабы: сортируемые таблицы навыков (+фасет категории), профессий, правил', async ({ page }) => {
   expect((await page.goto('/ru/brp/srd-1.0/skills/all/'))?.status()).toBe(200);
-  await expect(page.locator('.og-card a[href$="/skills/climb/"]')).toBeVisible();
-  await expect(page.locator('.og-jump a[href$="/skills/category/combat/"]')).toBeVisible();
+  await expect(page.locator('.hub-table[data-sortable] a[href$="/skills/climb/"]')).toBeVisible();
+  // «Категория» кликабельна в колонке таблицы + в футере.
+  await expect(page.locator('.hub-table[data-sortable] a[href*="/skills/category/"]').first()).toBeVisible();
+  await expect(page.locator('.hub-links a[href$="/skills/category/combat/"]')).toBeVisible();
 
   expect((await page.goto('/en/brp/srd-1.0/skills/category/physical/'))?.status()).toBe(200);
   await expect(page.locator('a[href$="/skills/climb/"]')).toBeVisible();
 
   expect((await page.goto('/ru/brp/srd-1.0/professions/all/'))?.status()).toBe(200);
-  await expect(page.locator('.og-card a[href$="/professions/detective/"]')).toBeVisible();
+  await expect(page.locator('.hub-table[data-sortable] a[href$="/professions/detective/"]')).toBeVisible();
 
   expect((await page.goto('/en/brp/srd-1.0/spot-rules/all/'))?.status()).toBe(200);
-  await expect(page.locator('.og-card a[href$="/spot-rules/ambush/"]')).toBeVisible();
+  await expect(page.locator('.hub-table[data-sortable] a[href$="/spot-rules/ambush/"]')).toBeVisible();
 });
 
 test('SEO: hreflang-тройка + сущности в sitemap', async ({ page, request }) => {
