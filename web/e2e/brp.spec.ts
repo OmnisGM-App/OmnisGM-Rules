@@ -75,9 +75,10 @@ test('SEO: hreflang-тройка + сущности в sitemap', async ({ page, 
   expect(sm).toContain('/brp/srd-1.0/spot-rules/ambush/');
 });
 
-test('хаб-справочники BRP скрыты из бокового меню (страницы живы)', async ({ page }) => {
+test('хаб-справочники BRP — в боковом меню (группа «Глоссарий»), плоский список скрыт', async ({ page }) => {
   await page.goto('/ru/brp/srd-1.0/skills/climb/');
-  await expect(page.locator('.rd-nav a[href$="/skills/all/"]')).toHaveCount(0);
-  // но сама страница хаба доступна
-  expect((await page.goto('/ru/brp/srd-1.0/skills/all/'))?.status()).toBe(200);
+  // Наш entity-хаб виден в сайдбаре и подсвечен (currentId страницы навыка → хаб).
+  await expect(page.locator('.rd-nav a.rd-nav-active[href$="/skills/all/"]')).toBeVisible();
+  // Заменённый плоский глоссарий-список навыков скрыт из дерева (страница живёт по URL).
+  await expect(page.locator('.rd-nav a[href$="/brp/srd-1.0/glossary/skills/"]')).toHaveCount(0);
 });

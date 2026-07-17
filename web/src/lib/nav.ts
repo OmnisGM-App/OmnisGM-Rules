@@ -30,9 +30,10 @@ function pathToSlug(path: string): string {
 }
 
 const page = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path) });
-// Программный entity-хаб (/all/): страница есть, но скрыта из бокового дерева до отдельной
-// доработки навигации. currentId entity/хаб-страниц указывает сюда → крошки/подсветка живы.
-const hub = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path), hidden: true });
+// Страница есть, но НЕ рендерится в боковом дереве (NavTree пропускает). Остаётся в
+// FLAT_PAGES/findPath → currentId/крошки/prev-next/активная система страницы живы. Сейчас
+// так помечены глоссарий-списки сущностей, заменённые в сайдбаре нашими entity-хабами.
+const hidden = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path), hidden: true });
 const group = (id: string, ru: string, en: string, kids: NavNode[]): NavGroup => ({ id, ru, en, kids });
 
 // Классы D&D — одни и те же 12 имён в 5.2/5.1 (разный индекс папки).
@@ -63,7 +64,6 @@ export const NAV: NavNode[] = [
       page('d52-charcreation', 'Создание персонажа', 'Character Creation', '/dnd/srd-5.2/02_CharacterCreation/'),
       group('d52-classes', 'Классы', 'Classes', dndClassKids('d52', '03', '5.2')),
       page('d52-origins', 'Происхождение персонажа', 'Character Origins', '/dnd/srd-5.2/04_CharacterOrigins/'),
-      hub('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
       page('d52-feats', 'Черты', 'Feats', '/dnd/srd-5.2/05_Feats/'),
       page('d52-equipment', 'Снаряжение', 'Equipment', '/dnd/srd-5.2/06_Equipment/'),
       page('d52-spells', 'Заклинания', 'Spells', '/dnd/srd-5.2/07_Spells/'),
@@ -75,6 +75,7 @@ export const NAV: NavNode[] = [
       page('d52-animals', 'Животные', 'Animals', '/dnd/srd-5.2/13_Animals/'),
       group('d52-glossary', 'Глоссарий', 'Glossary', [
         page('d52-g-terms', 'Термины', 'Terms', '/dnd/srd-5.2/14_Glossary/00_Glossary/'),
+        page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
         page('d52-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/14_Glossary/02_Spells/'),
         page('d52-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/14_Glossary/03_MagicItems/'),
         page('d52-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/14_Glossary/04_Monsters/'),
@@ -87,7 +88,6 @@ export const NAV: NavNode[] = [
       page('d51-adventuring', 'Приключения', 'Adventuring', '/dnd/srd-5.1/02_Adventuring/'),
       page('d51-combat', 'Бой', 'Combat', '/dnd/srd-5.1/03_Combat/'),
       page('d51-races', 'Расы', 'Races', '/dnd/srd-5.1/04_Races/'),
-      hub('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
       page('d51-details', 'Детали персонажа', 'Character Details', '/dnd/srd-5.1/05_CharacterDetails/'),
       group('d51-classes', 'Классы', 'Classes', dndClassKids('d51', '06', '5.1')),
       page('d51-multiclass', 'Мультиклассирование', 'Multiclassing', '/dnd/srd-5.1/07_Multiclassing/'),
@@ -101,6 +101,7 @@ export const NAV: NavNode[] = [
       page('d51-monstersaz', 'Монстры от А до Я', 'Monsters A–Z', '/dnd/srd-5.1/15_MonstersA-Z/'),
       group('d51-glossary', 'Глоссарий', 'Glossary', [
         page('d51-g-terms', 'Термины', 'Terms', '/dnd/srd-5.1/16_Glossary/00_Glossary/'),
+        page('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
         page('d51-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/16_Glossary/02_Spells/'),
         page('d51-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/16_Glossary/03_MagicItems/'),
         page('d51-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/16_Glossary/04_Monsters/'),
@@ -118,9 +119,7 @@ export const NAV: NavNode[] = [
       group('dh-classes', 'Классы', 'Classes', DH_CLASSES.map(([slug, ru, en], i) =>
         page(`dh-cls-${slug.toLowerCase()}`, ru, en, `/daggerheart/srd-1.0/04_Classes/${String(i + 1).padStart(2, '0')}_${slug}/`))),
       page('dh-ancestries', 'Происхождения', 'Ancestries', '/daggerheart/srd-1.0/05_Ancestries/'),
-      hub('dh-ancestries-hub', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/ancestries/all/'),
       page('dh-communities', 'Сообщества', 'Communities', '/daggerheart/srd-1.0/06_Communities/'),
-      hub('dh-communities-hub', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/communities/all/'),
       page('dh-core', 'Основные механики', 'Core Mechanics', '/daggerheart/srd-1.0/07_CoreMechanics/'),
       page('dh-weapons', 'Оружие', 'Weapons', '/daggerheart/srd-1.0/08_Weapons/'),
       page('dh-armor', 'Броня', 'Armor', '/daggerheart/srd-1.0/09_Armor/'),
@@ -128,22 +127,27 @@ export const NAV: NavNode[] = [
       page('dh-consumables', 'Расходники', 'Consumables', '/daggerheart/srd-1.0/11_Consumables/'),
       page('dh-gmguide', 'Руководство мастера', 'GM Guide', '/daggerheart/srd-1.0/12_GMGuide/'),
       page('dh-adversaries', 'Противники', 'Adversaries', '/daggerheart/srd-1.0/13_Adversaries/'),
-      hub('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
       page('dh-environments', 'Окружения', 'Environments', '/daggerheart/srd-1.0/14_Environments/'),
-      hub('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
       page('dh-witherwild', 'Витервилд', 'Witherwild', '/daggerheart/srd-1.0/15_Witherwild/'),
       page('dh-domaincards', 'Справочник доменных карт', 'Domain Card Reference', '/daggerheart/srd-1.0/16_DomainCardReference/'),
-      hub('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
       group('dh-glossary', 'Глоссарий', 'Glossary', [
         page('dh-g-terms', 'Термины', 'Terms', '/daggerheart/srd-1.0/17_Glossary/00_Glossary/'),
         page('dh-g-abilities', 'Способности (справочник)', 'Abilities (Reference)', '/daggerheart/srd-1.0/17_Glossary/01_Abilities/'),
-        page('dh-g-adversaries', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/17_Glossary/02_Adversaries/'),
+        // Заменены нашими entity-хабами (ссылки на страницы + фасеты); плоские глоссарий-списки
+        // скрыты (hidden), но их страницы остаются доступны (currentId резолвится).
+        page('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
         page('dh-g-weapons', 'Оружие (справочник)', 'Weapons (Reference)', '/daggerheart/srd-1.0/17_Glossary/03_Weapons/'),
         page('dh-g-armor', 'Броня (справочник)', 'Armor (Reference)', '/daggerheart/srd-1.0/17_Glossary/04_Armor/'),
-        page('dh-g-ancestries', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/17_Glossary/05_Ancestries/'),
+        page('dh-ancestries-hub', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/ancestries/all/'),
         page('dh-g-items', 'Предметы (справочник)', 'Items (Reference)', '/daggerheart/srd-1.0/17_Glossary/06_Items/'),
         page('dh-g-consumables', 'Расходники (справочник)', 'Consumables (Reference)', '/daggerheart/srd-1.0/17_Glossary/07_Consumables/'),
-        page('dh-g-communities', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/17_Glossary/08_Communities/'),
+        page('dh-communities-hub', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/communities/all/'),
+        page('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
+        page('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
+        // Скрытые глоссарий-списки (заменены хабами выше) — узлы держим ради nav-контекста их страниц.
+        hidden('dh-g-adversaries', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/17_Glossary/02_Adversaries/'),
+        hidden('dh-g-ancestries', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/17_Glossary/05_Ancestries/'),
+        hidden('dh-g-communities', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/17_Glossary/08_Communities/'),
       ]),
     ]),
   ]),
@@ -157,17 +161,19 @@ export const NAV: NavNode[] = [
       page('brp-time', 'Время', 'Time', '/brp/srd-1.0/04_Time/'),
       page('brp-combat', 'Бой', 'Combat', '/brp/srd-1.0/05_Combat/'),
       page('brp-spotrules', 'Точечные правила', 'Spot Rules', '/brp/srd-1.0/06_SpotRules/'),
-      hub('brp-spotrules-hub', 'Точечные правила (справочник)', 'Spot Rules (Reference)', '/brp/srd-1.0/spot-rules/all/'),
       page('brp-samplefoe', 'Пример противника', 'Sample Foe', '/brp/srd-1.0/07_SampleFoe/'),
       page('brp-charsheet', 'Лист персонажа', 'Character Sheet', '/brp/srd-1.0/08_CharacterSheet/'),
       group('brp-glossary', 'Глоссарий (BRP)', 'Glossary', [
         page('brp-g-terms', 'Термины', 'Terms', '/brp/srd-1.0/09_Glossary/00_Glossary/'),
-        page('brp-g-skills', 'Навыки', 'Skills', '/brp/srd-1.0/09_Glossary/01_Skills/'),
-        hub('brp-skills-hub', 'Навыки (справочник)', 'Skills (Reference)', '/brp/srd-1.0/skills/all/'),
+        // Навыки/Профессии заменены нашими entity-хабами (ссылки на страницы + фасет категорий);
+        // плоские глоссарий-списки скрыты (hidden), страницы остаются доступны.
+        page('brp-skills-hub', 'Навыки (справочник)', 'Skills (Reference)', '/brp/srd-1.0/skills/all/'),
         page('brp-g-weapons', 'Оружие', 'Weapons', '/brp/srd-1.0/09_Glossary/02_Weapons/'),
         page('brp-g-armor', 'Броня', 'Armor', '/brp/srd-1.0/09_Glossary/03_Armor/'),
-        page('brp-g-professions', 'Профессии', 'Professions', '/brp/srd-1.0/09_Glossary/04_Professions/'),
-        hub('brp-professions-hub', 'Профессии (справочник)', 'Professions (Reference)', '/brp/srd-1.0/professions/all/'),
+        page('brp-professions-hub', 'Профессии (справочник)', 'Professions (Reference)', '/brp/srd-1.0/professions/all/'),
+        page('brp-spotrules-hub', 'Точечные правила (справочник)', 'Spot Rules (Reference)', '/brp/srd-1.0/spot-rules/all/'),
+        hidden('brp-g-skills', 'Навыки', 'Skills', '/brp/srd-1.0/09_Glossary/01_Skills/'),
+        hidden('brp-g-professions', 'Профессии', 'Professions', '/brp/srd-1.0/09_Glossary/04_Professions/'),
       ]),
     ]),
   ]),
