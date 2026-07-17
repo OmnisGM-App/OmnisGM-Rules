@@ -34,26 +34,37 @@ test('канонический слаг EN↔RU: таблично-парсиру
   }
 });
 
-test('независимость: 5.1-страница линкует ТОЛЬКО 5.1, hovercard-бакет srd51, без «мёртвого» gloss', async ({ page }) => {
+test('независимость: 5.1-страница линкует и глоссит ТОЛЬКО через бакет srd51', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.1/monsters-a-z/imp/');
   const doc = page.locator('.rd-doc');
   // Все автоссылки в теле → srd-5.1.
   const hrefs = await doc.locator('a.ent-link').evaluateAll((els) =>
     els.map((e) => (e as HTMLAnchorElement).getAttribute('href') || ''));
   for (const h of hrefs) expect(h, `ent-link ${h}`).toContain('/dnd/srd-5.1/');
-  // data-hc в теле → бакет srd51 (не srd52).
+  // Любой data-hc в теле (автолинк ИЛИ gloss ядра) → бакет srd51, не srd52 (изоляция версий).
   const hc = await doc.locator('[data-hc]').evaluateAll((els) =>
     els.map((e) => e.getAttribute('data-hc') || ''));
   for (const b of hc) expect(b, `data-hc ${b}`).toContain('dnd/srd51/');
-  // rules-terms/actions в 5.1 нет → gloss ядра выключен (иначе data-hc указывал бы на пустой бакет).
-  await expect(doc.locator('.gloss[data-hc*="rules-terms"]')).toHaveCount(0);
 });
 
-test('5.1-глава не даёт rules-terms-gloss (независимость от 5.2), а 5.2 — даёт', async ({ page }) => {
-  await page.goto('/ru/dnd/srd-5.1/combat/');
-  await expect(page.locator('.rd-doc .gloss[data-hc*="rules-terms"]')).toHaveCount(0);
+test('5.1 gloss: свой rules-terms-бакет (srd51), изолирован от 5.2', async ({ page }) => {
+  // 5.1 теперь глоссит термины ядра из собственного глоссария (парсер секций-таблиц).
+  await page.goto('/ru/dnd/srd-5.1/classes/barbarian/');
+  await expect(page.locator('.rd-doc .gloss[data-hc^="dnd/srd51/ru/rules-terms/"]').first()).toBeVisible();
+  // Изоляция: ни одной 5.2-подсказки на 5.1-странице.
+  await expect(page.locator('.rd-doc .gloss[data-hc*="srd52"]')).toHaveCount(0);
+  // 5.2 тоже глоссит (не сломали).
   await page.goto('/ru/dnd/srd-5.2/playing-the-game/');
   await expect(page.locator('.rd-doc .gloss[data-hc*="rules-terms"]').first()).toBeVisible();
+});
+
+test('5.1 gloss-бакет отдаёт карточки терминов (нет мёртвых подсказок)', async ({ request }) => {
+  const res = await request.get('/hc/dnd/srd51/ru.json');
+  expect(res.status()).toBe(200);
+  const map = await res.json();
+  // Символические термы, покрытые глоссарием 5.1 (симметрично EN/RU).
+  expect(map['rules-terms/initiative']).toBeTruthy();
+  expect(map['rules-terms/concentration']).toBeTruthy();
 });
 
 test('монстр 5.1: чистый тип (запятая в скобках подтипа) + бэклинк в type-хаб', async ({ page }) => {
@@ -118,6 +129,7 @@ test('hovercard-эндпоинт srd51: непустой, карточки за�
   expect(Object.keys(ru).length).toBeGreaterThan(500);
   expect(ru['spells/fireball']?.name_en).toBe('Fireball');
   expect(ru['magic-items/bag-of-holding']?.name_en).toBe('Bag of Holding');
-  // rules-terms/actions в 5.1 отсутствуют → бакет их не содержит.
-  expect(Object.keys(ru).some((k) => k.startsWith('rules-terms/'))).toBe(false);
+  // 5.1 теперь имеет rules-terms (парсер секций-таблиц глоссария) → бакет их содержит.
+  expect(Object.keys(ru).some((k) => k.startsWith('rules-terms/'))).toBe(true);
+  expect(ru['rules-terms/initiative']?.name_en).toBe('Initiative');
 });

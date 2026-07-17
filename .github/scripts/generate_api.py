@@ -27,7 +27,7 @@ import importlib
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins,
-                     parse_defs, parse_tagged_defs, parse_untagged_defs,
+                     parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
                      parse_brp_skills, parse_brp_professions, parse_brp_spot_rules)
@@ -192,6 +192,11 @@ def align_positional_name_en(all_data: dict, resources: tuple[str, ...]) -> None
     """
     for (ver, lang, resource), ru_entities in list(all_data.items()):
         if lang != "ru" or resource not in resources:
+            continue
+        # Записи, у которых name_en уже проставлен (напр. rules-terms 5.1 берёт слаг из
+        # EN-колонки RU-таблицы) — не выравниваем позиционно и не считаем расхождением.
+        pending = [r for r in ru_entities if not r.get("name_en")]
+        if not pending:
             continue
         en_entities = all_data.get((ver, "en", resource))
         if not en_entities:
@@ -523,6 +528,9 @@ def main():
             resource = out_resource
         elif entity_type == "untagged_defs":
             entities = parse_untagged_defs(text)
+            resource = out_resource
+        elif entity_type == "section_tables":
+            entities = parse_section_tables(text, lang)
             resource = out_resource
         elif entity_type == "ancestry":
             entities = parse_ancestries(text, lang)
