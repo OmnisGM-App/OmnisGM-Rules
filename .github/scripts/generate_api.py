@@ -95,7 +95,8 @@ def _dice_key(s: str | None) -> str | None:
     значение НЕ трогаем (RU-страницы легитимно используют «к», как в тексте заклинаний)."""
     if not s:
         return None
-    return re.sub(r"[кКдДdD]", "d", str(s)).lower()
+    # Только разделитель кубиков (между цифрами: «1к4»→«1d4»), не любую букву в строке.
+    return re.sub(r"(?<=\d)[кКдДdD](?=\d)", "d", str(s)).lower()
 
 
 def _weapon_fp(e: dict) -> tuple:
