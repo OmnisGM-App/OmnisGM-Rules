@@ -115,6 +115,15 @@ def _parse_tiered(text: str, lang: str, with_type: bool = False) -> list[dict]:
     return out
 
 
+# Известные типы противников (10) — EN + RU слова, как они стоят в стат-блоке. Генератор
+# сверяет извлечённый `type` с этим набором (fail-fast), чтобы опечатка/двусловный тип в
+# будущем апдейте SRD не выпал молча из type-фасета (слаги — на стороне ридера, ADVERSARY_TYPES).
+ADVERSARY_TYPE_WORDS = frozenset({
+    "Bruiser", "Horde", "Leader", "Minion", "Ranged", "Skulk", "Social", "Solo", "Standard", "Support",
+    "Громила", "Орда", "Лидер", "Приспешник", "Стрелок", "Скрытник", "Дипломат", "Одиночка", "Обычный", "Поддержка",
+})
+
+
 def parse_adversaries(text: str, lang: str) -> list[dict]:
     """Противники — стат-блоки по тирам (+ тип: Solo/Bruiser/Minion/…)."""
     return _parse_tiered(text, lang, with_type=True)

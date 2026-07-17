@@ -6,6 +6,25 @@
 // Гейт — только главы глоссария (NN_Glossary/*): там таблицы-справочники, сортировка полезна.
 // Прочие главы (проза) не трогаем — их редкие таблицы обычно не для сортировки.
 const GLOSSARY = /\/\d+_Glossary\//;
+// Порог строк-данных: крошечные таблицы (аббревиатуры, 1–2 строки) сортировать бессмысленно —
+// не вешаем на них role=button/стрелки. ≥3 строки → сортируемая.
+const MIN_ROWS = 3;
+
+// Число строк-данных таблицы (<tr> внутри <tbody>; при отсутствии tbody — все <tr> минус шапка).
+function dataRowCount(table) {
+  const rows = [];
+  const collect = (n) => {
+    for (const c of n.children || []) {
+      if (c.type !== 'element') continue;
+      if (c.tagName === 'tr') rows.push(c);
+      else collect(c);
+    }
+  };
+  const tbody = (table.children || []).find((c) => c.type === 'element' && c.tagName === 'tbody');
+  if (tbody) { collect(tbody); return rows.length; }
+  collect(table);
+  return Math.max(0, rows.length - 1); // без <tbody> первая строка — шапка
+}
 
 export default function rehypeSortableGlossary() {
   return (tree, file) => {
@@ -14,7 +33,7 @@ export default function rehypeSortableGlossary() {
     const walk = (node) => {
       if (!node || !node.children) return;
       for (const child of node.children) {
-        if (child.type === 'element' && child.tagName === 'table') {
+        if (child.type === 'element' && child.tagName === 'table' && dataRowCount(child) >= MIN_ROWS) {
           child.properties = child.properties || {};
           child.properties['data-sortable'] = '';
         }
