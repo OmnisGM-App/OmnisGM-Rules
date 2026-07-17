@@ -2,8 +2,8 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import {
-  SPELL_CLASSES, LEVELS, classLabel, classHubName, classNameInData, levelLabel, schoolLabel, byName,
-  type Lang, type SpellLite,
+  SPELL_CLASSES, LEVELS, SCHOOL_HUBS, classLabel, classHubName, classNameInData, levelLabel,
+  schoolLabel, schoolSlug, schoolHubLabel, byName, type Lang, type SpellLite,
 } from '../../../../../../lib/spell-hubs';
 
 // Хаб заклинаний по классу (issue #20, SEO §2.3): /{lang}/dnd/{version}/spells/class/{class}/.
@@ -89,7 +89,7 @@ const otherClasses = SPELL_CLASSES.filter((c) => c.slug !== classSlug);
             {sec.items.map((s) => (
               <tr>
                 <td><a href={spellHref(s.slug)}>{s.name}</a></td>
-                <td>{schoolLabel(s.school, lang)}</td>
+                <td>{schoolSlug(s.school) ? <a href={`${base}/school/${schoolSlug(s.school)}/`}>{schoolLabel(s.school, lang)}</a> : schoolLabel(s.school, lang)}</td>
               </tr>
             ))}
           </tbody>
@@ -107,6 +107,11 @@ const otherClasses = SPELL_CLASSES.filter((c) => c.slug !== classSlug);
     <p><strong>{t('По уровню:', 'By level:')}</strong>{' '}
       {LEVELS.map((n, i) => (
         <>{i > 0 ? ' · ' : ''}<a href={`${base}/level/${n}/`}>{levelLabel(n, lang)}</a></>
+      ))}
+    </p>
+    <p><strong>{t('По школе:', 'By school:')}</strong>{' '}
+      {SCHOOL_HUBS.map((s, i) => (
+        <>{i > 0 ? ' · ' : ''}<a href={`${base}/school/${s.slug}/`}>{schoolHubLabel(s.slug, lang)}</a></>
       ))}
     </p>
   </nav>

@@ -46,6 +46,39 @@ test('заменённая глоссарий-страница жива и де�
   await expect(page).toHaveTitle(/D&D SRD 5\.2\.1/);
 });
 
+test('spells/all: уровень и школа кликабельны; школа-хаб рендерится', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/spells/all/');
+  // Уровень → level-хаб, школа → school-хаб (оба новые).
+  await expect(page.locator('.hub-table a[href*="/spells/level/"]').first()).toBeVisible();
+  const school = page.locator('.hub-table a[href*="/spells/school/"]').first();
+  await expect(school).toBeVisible();
+  const res = await page.goto('/en/dnd/srd-5.2/spells/school/evocation/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Evocation');
+  await expect(page.locator('.hub-table a[href*="/spells/level/"]').first()).toBeVisible();
+});
+
+test('monsters/all + animals/all: ПО кликабельно → CR-хаб (у животных свой)', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/monsters-a-z/all/');
+  await expect(page.locator('.hub-table a[href*="/monsters-a-z/cr/"]').first()).toBeVisible();
+  await page.goto('/en/dnd/srd-5.2/animals/all/');
+  const acr = page.locator('.hub-table a[href*="/animals/cr/"]').first();
+  await expect(acr).toBeVisible();
+  const res = await page.goto('/en/dnd/srd-5.2/animals/cr/0/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.hub-table')).toBeVisible();
+});
+
+test('сортировка: клик по заголовку столбца переупорядочивает строки', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/monsters-a-z/all/');
+  const firstBefore = await page.locator('.hub-table tbody tr td:first-child').first().textContent();
+  const crHeader = page.locator('.hub-table[data-sortable] thead th').nth(3); // столбец «CR»
+  await crHeader.click();
+  await expect(crHeader).toHaveAttribute('aria-sort', 'ascending');
+  const firstAfter = await page.locator('.hub-table tbody tr td:first-child').first().textContent();
+  expect(firstAfter).not.toBe(firstBefore); // порядок изменился (алфавит → по CR)
+});
+
 test('SEO: hreflang-тройка + /all/-хабы в sitemap', async ({ page, request }) => {
   const res = await page.goto('/en/dnd/srd-5.2/spells/all/');
   expect(res?.status()).toBe(200);

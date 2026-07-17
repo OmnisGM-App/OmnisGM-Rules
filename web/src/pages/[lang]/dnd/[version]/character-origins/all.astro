@@ -38,9 +38,11 @@ const description = t(
 );
 const upLink = { href: `/${lang}/dnd/${verSlug}/character-origins/`, ru: 'Происхождение (глава)', en: 'Character Origins (chapter)' };
 
-const groups = [
-  { title: t('Виды', 'Species'), items: species, dir: 'species' },
-  { title: t('Предыстории', 'Backgrounds'), items: backgrounds, dir: 'backgrounds' },
+// Единая таблица: вид/предыстория помечены колонкой «Тип» — так строки сортируются вместе
+// (по имени / по типу), а не двумя раздельными списками.
+const rows = [
+  ...species.map((e) => ({ ...e, dir: 'species', kind: t('Вид', 'Species') })),
+  ...backgrounds.map((e) => ({ ...e, dir: 'backgrounds', kind: t('Предыстория', 'Background') })),
 ];
 ---
 
@@ -61,32 +63,27 @@ const groups = [
     )}
   </p>
 
-  {groups.map((g) => (
-    <section class="og-group">
-      <h2>{g.title}</h2>
-      <ul class="og-grid">
-        {g.items.map((e) => (
-          <li class="og-card">
-            <a class="og-card-link" href={`/${lang}/dnd/${verSlug}/${g.dir}/${e.slug}/`}>{e.name}</a>
-            {lang === 'ru' && e.name_en && <span class="og-card-en">{e.name_en}</span>}
-          </li>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Название', 'Name')}</th><th>{t('Тип', 'Kind')}</th>
+          {lang === 'ru' && <th>Оригинал</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {rows.map((e) => (
+          <tr>
+            <td><a href={`/${lang}/dnd/${verSlug}/${e.dir}/${e.slug}/`}>{e.name}</a></td>
+            <td>{e.kind}</td>
+            {lang === 'ru' && <td class="og-en">{e.name_en ?? '—'}</td>}
+          </tr>
         ))}
-      </ul>
-    </section>
-  ))}
+      </tbody>
+    </table>
+  </div>
 </ReaderShell>
 
 <style>
-  .og-group { margin-top: 28px; }
-  .og-grid {
-    list-style: none; margin: 14px 0 0; padding: 0;
-    display: grid; grid-template-columns: repeat(auto-fill, minmax(200px, 1fr)); gap: 12px;
-  }
-  .og-card {
-    display: flex; flex-direction: column; gap: 3px;
-    padding: 14px 16px; border: 1px solid var(--og-border); border-radius: 10px;
-    background: var(--og-bg-2);
-  }
-  .og-card-link { font-weight: 600; font-size: 16px; }
-  .og-card-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
 </style>

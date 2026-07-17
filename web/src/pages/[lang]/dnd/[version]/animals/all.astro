@@ -1,9 +1,11 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { crHubForValue, crOrder } from '../../../../../lib/monster-hubs';
 
 // Хаб-справочник всех животных (issue #20, только 5.2): /{lang}/dnd/{version}/animals/all/.
 // Алфавитный индекс со ссылками на страницы животных. Заменяет плоский глоссарий-список.
+// ПО ведёт на общие CR-хабы животных (переиспользуем шкалу CR монстров).
 const PARENT_NAV: Record<string, string> = { srd52: 'd52-animals-hub' };
 
 interface Animal { slug: string; name: string; size?: string; type?: string; cr?: { value?: string }; hp?: { average?: number } }
@@ -45,13 +47,13 @@ const description = t(
   <h1>{heading}</h1>
   <p>
     {t(
-      `${animals.length} животных D&D ${verLabel} по алфавиту. В таблице — размер, тип, ПО и хиты. Нажмите на имя, чтобы открыть страницу животного.`,
-      `${animals.length} D&D ${verLabel} animals alphabetically. The table lists size, type, CR and HP. Select a name to open the animal page.`,
+      `${animals.length} животных D&D ${verLabel} по алфавиту. В таблице — размер, тип, ПО (ссылка на хаб) и хиты. Нажмите на заголовок столбца, чтобы отсортировать.`,
+      `${animals.length} D&D ${verLabel} animals alphabetically. The table lists size, type, CR (linked to hub) and HP. Click a column header to sort.`,
     )}
   </p>
 
   <div class="rd-table-wrap">
-    <table class="hub-table">
+    <table class="hub-table" data-sortable>
       <thead>
         <tr>
           <th>{t('Животное', 'Animal')}</th><th>{t('Размер', 'Size')}</th>
@@ -59,13 +61,18 @@ const description = t(
         </tr>
       </thead>
       <tbody>
-        {animals.map((a) => (
-          <tr>
-            <td><a href={`${base}/${a.slug}/`}>{a.name}</a></td>
-            <td>{a.size ?? '—'}</td><td>{a.type ?? '—'}</td>
-            <td>{a.cr?.value ?? '—'}</td><td>{a.hp?.average ?? '—'}</td>
-          </tr>
-        ))}
+        {animals.map((a) => {
+          const cr = a.cr?.value;
+          const crHub = cr ? crHubForValue(cr) : undefined;
+          return (
+            <tr>
+              <td><a href={`${base}/${a.slug}/`}>{a.name}</a></td>
+              <td>{a.size ?? '—'}</td><td>{a.type ?? '—'}</td>
+              <td data-sort={cr ? crOrder(cr) : -1}>{crHub ? <a href={`${base}/cr/${crHub.slug}/`}>{cr}</a> : (cr ?? '—')}</td>
+              <td data-sort={a.hp?.average ?? -1}>{a.hp?.average ?? '—'}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>

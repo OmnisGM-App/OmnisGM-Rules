@@ -44,12 +44,12 @@ test('канонический слаг EN↔RU: RU-вид/предыстори�
   expect((await page.goto('/ru/dnd/srd-5.2/species/%D0%B3%D0%BE%D0%BB%D0%B8%D0%B0%D1%84/'))?.status()).toBe(404);
 });
 
-test('хаб происхождений: карточки видов и предысторий + entity→хаб', async ({ page }) => {
+test('хаб происхождений: таблица видов и предысторий (сортируемая) + entity→хаб', async ({ page }) => {
   const res = await page.goto('/ru/dnd/srd-5.2/character-origins/all/');
   expect(res?.status()).toBe(200);
-  await expect(page.locator('.og-card a[href$="/species/human/"]')).toBeVisible();
-  await expect(page.locator('.og-card a[href$="/backgrounds/sage/"]')).toBeVisible();
-  await expect(page.locator('.og-card .og-card-link')).toHaveCount(13); // 9 видов + 4 предыстории
+  await expect(page.locator('.hub-table[data-sortable] a[href$="/species/human/"]')).toBeVisible();
+  await expect(page.locator('.hub-table a[href$="/backgrounds/sage/"]')).toBeVisible();
+  await expect(page.locator('.hub-table tbody td:first-child a')).toHaveCount(13); // 9 видов + 4 предыстории
   // Со страницы вида «в раздел» → хаб.
   await page.goto('/ru/dnd/srd-5.2/species/elf/');
   await expect(page.locator(`a[href$="/character-origins/all/"]`).first()).toBeVisible();

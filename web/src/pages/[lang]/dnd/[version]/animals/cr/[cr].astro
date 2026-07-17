@@ -1,0 +1,106 @@
+---
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import { CR_HUBS, crHubBySlug, crHubTitle, crOrder, type Lang } from '../../../../../../lib/monster-hubs';
+
+// Хаб животных по ПО (issue #20, только 5.2): /{lang}/dnd/{version}/animals/cr/{cr}/.
+// Переиспользуем CR-шкалу монстров (одиночные 0–10 + диапазоны). Животные — почти все звери
+// низкого ПО, тяжёлые диапазоны обычно пусты и отбрасываются (страхуемся `if (!mine.length)`).
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-animals-hub' };
+
+interface Animal { slug: string; name: string; size?: string; type?: string; cr?: { value?: string }; hp?: { average?: number } }
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as Lang },
+    { ver: 'srd52', lang: 'ru' as Lang },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    const all = loadEntities(ver, lang, 'animals') as unknown as Animal[];
+    for (const hub of CR_HUBS) {
+      const set = new Set(hub.values);
+      const mine = all
+        .filter((a) => a.cr?.value && set.has(a.cr.value))
+        .sort((a, b) => crOrder(a.cr!.value!) - crOrder(b.cr!.value!) || a.name.localeCompare(b.name));
+      if (!mine.length) continue;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], cr: hub.slug },
+        props: { ver, lang, crHubSlug: hub.slug, animals: mine },
+      });
+    }
+  }
+  return paths;
+}
+
+const { ver, lang, crHubSlug, animals } = Astro.props as {
+  ver: string; lang: Lang; crHubSlug: string; animals: Animal[];
+};
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/animals`;
+const hub = crHubBySlug(crHubSlug)!;
+const crName = crHubTitle(hub, lang);
+
+const heading = t(`Животные с ${crName}`, `${crName} Animals`);
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${animals.length} животных с ${crName} в D&D ${verLabel}: размер, тип и хиты, со ссылками на страницы животных.`,
+  `All ${animals.length} animals of ${crName} in D&D ${verLabel}: size, type and HP, with links to each animal.`,
+);
+// Другие ПО — только реально присутствующие среди животных (страхуемся от битых ссылок на пустые хабы).
+const presentCr = new Set(
+  (loadEntities(ver, 'en', 'animals') as unknown as Animal[]).map((a) => a.cr?.value).filter(Boolean) as string[],
+);
+const otherCr = CR_HUBS.filter((h) => h.slug !== crHubSlug && h.values.some((v) => presentCr.has(v)));
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={{ href: `${base}/`, ru: 'Животные', en: 'Animals' }}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${animals.length} животных с ${crName} в D&D ${verLabel}. В таблице — размер, тип и хиты. Нажмите на имя, чтобы открыть страницу животного.`,
+      `${animals.length} animals of ${crName} in D&D ${verLabel}. The table lists size, type and HP. Select a name to open the animal page.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Животное', 'Animal')}</th><th>{t('Размер', 'Size')}</th>
+          <th>{t('Тип', 'Type')}</th><th>{t('ПО', 'CR')}</th><th>{t('Хиты', 'HP')}</th>
+        </tr>
+      </thead>
+      <tbody>
+        {animals.map((a) => (
+          <tr>
+            <td><a href={`${base}/${a.slug}/`}>{a.name}</a></td>
+            <td>{a.size ?? '—'}</td><td>{a.type ?? '—'}</td>
+            <td data-sort={a.cr?.value ? crOrder(a.cr.value) : -1}>{a.cr?.value ?? '—'}</td>
+            <td data-sort={a.hp?.average ?? -1}>{a.hp?.average ?? '—'}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+
+  {otherCr.length > 0 && (
+    <nav class="hub-links" aria-label={t('Другие хабы животных', 'Other animal hubs')}>
+      <p><strong>{t('Другие ПО:', 'Other CR:')}</strong>{' '}
+        {otherCr.map((h, i) => (
+          <>{i > 0 ? ' · ' : ''}<a href={`${base}/cr/${h.slug}/`}>{crHubTitle(h, lang)}</a></>
+        ))}
+      </p>
+    </nav>
+  )}
+</ReaderShell>
