@@ -2,7 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import {
-  MONSTER_TYPES, CR_HUBS, typeLabel, crHubTitle, byCrThenName, monstersWithFacets, activeMonsterTypes,
+  MONSTER_TYPES, CR_HUBS, typeLabel, crHubTitle, byCrThenName, crOrder, monstersWithFacets, activeMonsterTypes,
   type Lang, type MonsterLite,
 } from '../../../../../../lib/monster-hubs';
 
@@ -69,7 +69,7 @@ const otherTypes = activeMonsterTypes(ver).filter((x) => x.slug !== typeSlug);
   </p>
 
   <div class="rd-table-wrap">
-    <table class="hub-table">
+    <table class="hub-table" data-sortable>
       <thead>
         <tr>
           <th>{t('Монстр', 'Monster')}</th><th>{t('ПО', 'CR')}</th>
@@ -80,8 +80,8 @@ const otherTypes = activeMonsterTypes(ver).filter((x) => x.slug !== typeSlug);
         {monsters.map((m) => (
           <tr>
             <td><a href={monHref(m.slug)}>{m.name}</a></td>
-            <td>{m.cr}</td><td>{m.size}</td>
-            <td>{m.hp ?? '—'}</td><td>{m.ac ?? '—'}</td>
+            <td data-sort={crOrder(m.cr)}>{m.cr}</td><td>{m.size}</td>
+            <td data-sort={m.hp ?? -1}>{m.hp ?? '—'}</td><td data-sort={m.ac ?? -1}>{m.ac ?? '—'}</td>
           </tr>
         ))}
       </tbody>

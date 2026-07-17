@@ -33,6 +33,9 @@ const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/dnd/${verSlug}/magic-items`;
 const rarityLabel = (r?: string) => (r && RARITY[r] ? (lang === 'ru' ? RARITY[r][0] : RARITY[r][1]) : (r ?? ''));
+// Порядок редкости для сортировки (обычный → артефакт), а не по алфавиту.
+const RARITY_ORDER = ['common', 'uncommon', 'rare', 'very rare', 'legendary', 'artifact'];
+const rarityRank = (r?: string) => { const i = RARITY_ORDER.indexOf(r ?? ''); return i === -1 ? 99 : i; };
 
 const heading = t('Все магические предметы', 'All Magic Items');
 const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
@@ -54,13 +57,13 @@ const description = t(
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} магических предметов D&D ${verLabel} по алфавиту. В таблице — тип, редкость и требуется ли настройка. Нажмите на название, чтобы открыть страницу предмета.`,
-      `${items.length} D&D ${verLabel} magic items alphabetically. The table lists type, rarity and whether attunement is required. Select a name to open the item page.`,
+      `${items.length} магических предметов D&D ${verLabel} по алфавиту. В таблице — тип, редкость и требуется ли настройка. Нажмите на заголовок столбца, чтобы отсортировать.`,
+      `${items.length} D&D ${verLabel} magic items alphabetically. The table lists type, rarity and whether attunement is required. Click a column header to sort.`,
     )}
   </p>
 
   <div class="rd-table-wrap">
-    <table class="hub-table">
+    <table class="hub-table" data-sortable>
       <thead>
         <tr>
           <th>{t('Предмет', 'Item')}</th><th>{t('Тип', 'Type')}</th>
@@ -72,8 +75,8 @@ const description = t(
           <tr>
             <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
             <td>{it.type ?? '—'}</td>
-            <td>{rarityLabel(it.rarity)}</td>
-            <td>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
+            <td data-sort={rarityRank(it.rarity)}>{rarityLabel(it.rarity)}</td>
+            <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
           </tr>
         ))}
       </tbody>

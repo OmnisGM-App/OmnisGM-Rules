@@ -2,7 +2,7 @@
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import {
-  classLabel, levelShort, schoolLabel, spellClassSlugs, byName,
+  classLabel, levelShort, schoolLabel, schoolSlug, spellClassSlugs, byName,
   type Lang, type SpellLite,
 } from '../../../../../lib/spell-hubs';
 
@@ -50,13 +50,13 @@ const description = t(
   <h1>{heading}</h1>
   <p>
     {t(
-      `${spells.length} заклинаний D&D ${verLabel} по алфавиту. В таблице — уровень, школа и классы (ссылки на класс-хабы). Нажмите на название, чтобы открыть страницу заклинания.`,
-      `${spells.length} D&D ${verLabel} spells alphabetically. The table lists level, school and classes (linked to class hubs). Select a name to open the spell page.`,
+      `${spells.length} заклинаний D&D ${verLabel} по алфавиту. В таблице — уровень, школа и классы (все ссылки ведут на хабы). Нажмите на заголовок столбца, чтобы отсортировать.`,
+      `${spells.length} D&D ${verLabel} spells alphabetically. The table lists level, school and classes (all linked to hubs). Click a column header to sort.`,
     )}
   </p>
 
   <div class="rd-table-wrap">
-    <table class="hub-table">
+    <table class="hub-table" data-sortable>
       <thead>
         <tr>
           <th>{t('Заклинание', 'Spell')}</th><th>{t('Уровень', 'Level')}</th>
@@ -64,18 +64,21 @@ const description = t(
         </tr>
       </thead>
       <tbody>
-        {spells.map((s) => (
-          <tr>
-            <td><a href={`${base}/${s.slug}/`}>{s.name}</a></td>
-            <td>{levelShort(s.level, lang)}</td>
-            <td>{schoolLabel(s.school, lang)}</td>
-            <td>
-              {spellClassSlugs(s, lang).map((cs, i) => (
-                <>{i > 0 ? ', ' : ''}<a href={`${base}/class/${cs}/`}>{classLabel(cs, lang)}</a></>
-              ))}
-            </td>
-          </tr>
-        ))}
+        {spells.map((s) => {
+          const ss = schoolSlug(s.school);
+          return (
+            <tr>
+              <td><a href={`${base}/${s.slug}/`}>{s.name}</a></td>
+              <td data-sort={s.level}><a href={`${base}/level/${s.level}/`}>{levelShort(s.level, lang)}</a></td>
+              <td>{ss ? <a href={`${base}/school/${ss}/`}>{schoolLabel(s.school, lang)}</a> : schoolLabel(s.school, lang)}</td>
+              <td>
+                {spellClassSlugs(s, lang).map((cs, i) => (
+                  <>{i > 0 ? ', ' : ''}<a href={`${base}/class/${cs}/`}>{classLabel(cs, lang)}</a></>
+                ))}
+              </td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>

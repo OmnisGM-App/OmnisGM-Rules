@@ -1,7 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
-import { monstersWithFacets, typeLabel, type Lang, type MonsterLite } from '../../../../../lib/monster-hubs';
+import { monstersWithFacets, typeLabel, crHubForValue, crOrder, type Lang, type MonsterLite } from '../../../../../lib/monster-hubs';
 
 // Хаб-справочник всех монстров (issue #20): /{lang}/dnd/{version}/monsters-a-z/all/.
 // Алфавитный индекс со ссылками на страницы монстров + колонка типа (ссылка на type-хаб).
@@ -47,13 +47,13 @@ const description = t(
   <h1>{heading}</h1>
   <p>
     {t(
-      `${monsters.length} монстров D&D ${verLabel} по алфавиту. В таблице — тип (ссылка на список типа), размер, ПО и хиты. Нажмите на имя, чтобы открыть страницу монстра.`,
-      `${monsters.length} D&D ${verLabel} monsters alphabetically. The table lists type (linked to its list), size, CR and HP. Select a name to open the monster page.`,
+      `${monsters.length} монстров D&D ${verLabel} по алфавиту. В таблице — тип и ПО (ссылки на хабы), размер и хиты. Нажмите на заголовок столбца, чтобы отсортировать.`,
+      `${monsters.length} D&D ${verLabel} monsters alphabetically. The table lists type and CR (linked to hubs), size and HP. Click a column header to sort.`,
     )}
   </p>
 
   <div class="rd-table-wrap">
-    <table class="hub-table">
+    <table class="hub-table" data-sortable>
       <thead>
         <tr>
           <th>{t('Монстр', 'Monster')}</th><th>{t('Тип', 'Type')}</th>
@@ -61,13 +61,18 @@ const description = t(
         </tr>
       </thead>
       <tbody>
-        {monsters.map((m) => (
-          <tr>
-            <td><a href={`${base}/${m.slug}/`}>{m.name}</a></td>
-            <td><a href={`${base}/type/${m.typeSlug}/`}>{typeLabel(m.typeSlug, lang)}</a></td>
-            <td>{m.size}</td><td>{m.cr}</td><td>{m.hp ?? '—'}</td>
-          </tr>
-        ))}
+        {monsters.map((m) => {
+          const crHub = crHubForValue(m.cr);
+          return (
+            <tr>
+              <td><a href={`${base}/${m.slug}/`}>{m.name}</a></td>
+              <td><a href={`${base}/type/${m.typeSlug}/`}>{typeLabel(m.typeSlug, lang)}</a></td>
+              <td>{m.size}</td>
+              <td data-sort={crOrder(m.cr)}>{crHub ? <a href={`${base}/cr/${crHub.slug}/`}>{m.cr}</a> : m.cr}</td>
+              <td data-sort={m.hp ?? -1}>{m.hp ?? '—'}</td>
+            </tr>
+          );
+        })}
       </tbody>
     </table>
   </div>

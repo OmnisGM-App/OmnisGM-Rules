@@ -60,6 +60,20 @@ export const schoolLabel = (raw: string, lang: Lang) => {
   return p ? (lang === 'ru' ? p[1] : p[0]) : raw;
 };
 
+// Школа-хаб (issue #20): слаг языконезависим (EN в lowercase, как у классов) → общий каноникал.
+export const SCHOOL_HUBS: { slug: string; en: string; ru: string }[] =
+  SCHOOLS.map(([en, ru]) => ({ slug: en.toLowerCase(), en, ru }));
+// Сырое поле school любого языка → слаг школы (undefined, если школа неизвестна).
+export const schoolSlug = (raw: string): string | undefined => {
+  const p = SCHOOLS.find(([en, ru]) => en === raw || ru === raw);
+  return p ? p[0].toLowerCase() : undefined;
+};
+export const schoolBySlug = (slug: string) => SCHOOL_HUBS.find((s) => s.slug === slug);
+export const schoolHubLabel = (slug: string, lang: Lang) => {
+  const s = schoolBySlug(slug);
+  return s ? s[lang] : slug;
+};
+
 // Классы заклинания (слаги) — из переведённого поля classes через обратный поиск по языку данных.
 export const spellClassSlugs = (spell: SpellLite, lang: Lang): string[] =>
   (spell.classes || [])

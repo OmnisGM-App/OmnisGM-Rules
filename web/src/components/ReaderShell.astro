@@ -711,3 +711,48 @@ const searchUi = {
   // По ресайзу — прячем открытую (геометрия ссылки могла сместиться).
   window.addEventListener('resize', () => { if (current) hide(); }, { passive: true });
 </script>
+
+{/* Сортируемые хаб-таблицы (issue #20): <table class="hub-table" data-sortable>. Клик/Enter по
+    <th> сортирует строки по колонке. Ключ сортировки — атрибут data-sort ячейки (для CR/уровня —
+    числовой порядок), иначе видимый текст. Колонка сравнивается численно, если все ключи числа,
+    иначе localeCompare по языку страницы. Прогрессивное улучшение: без JS таблица просто статична. */}
+<script>
+  const lang = document.documentElement.lang || undefined;
+  const cellKey = (row: HTMLTableRowElement, i: number): string => {
+    const c = row.cells[i];
+    if (!c) return '';
+    const d = c.getAttribute('data-sort');
+    return d !== null ? d : (c.textContent || '').trim();
+  };
+  for (const table of document.querySelectorAll<HTMLTableElement>('table.hub-table[data-sortable]')) {
+    const tbody = table.tBodies[0];
+    const ths = Array.from(table.tHead?.rows[0]?.cells ?? []);
+    if (!tbody || !ths.length) continue;
+    const sortBy = (i: number, dir: 1 | -1) => {
+      const rows = Array.from(tbody.rows);
+      const keys = rows.map((r) => cellKey(r, i));
+      const numeric = keys.every((k) => k !== '' && !Number.isNaN(Number(k)));
+      rows.sort((a, b) => {
+        const ka = cellKey(a, i), kb = cellKey(b, i);
+        const cmp = numeric ? Number(ka) - Number(kb) : ka.localeCompare(kb, lang);
+        return cmp * dir;
+      });
+      for (const r of rows) tbody.appendChild(r);
+    };
+    ths.forEach((th, i) => {
+      th.tabIndex = 0;
+      th.setAttribute('role', 'button');
+      const activate = () => {
+        const dir: 1 | -1 = th.getAttribute('aria-sort') === 'ascending' ? -1 : 1;
+        for (const o of ths) o.removeAttribute('aria-sort');
+        th.setAttribute('aria-sort', dir === 1 ? 'ascending' : 'descending');
+        sortBy(i, dir);
+      };
+      th.addEventListener('click', activate);
+      th.addEventListener('keydown', (e) => {
+        const k = (e as KeyboardEvent).key;
+        if (k === 'Enter' || k === ' ') { e.preventDefault(); activate(); }
+      });
+    });
+  }
+</script>
