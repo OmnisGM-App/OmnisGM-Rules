@@ -439,6 +439,68 @@ FEAT_SCHEMA = {
     "additionalProperties": False,
 }
 
+# -- Daggerheart schemas -------------------------------------------------------
+# Имена ресурсов DH (ancestries/communities/domain-cards/adversaries/environments)
+# не пересекаются с D&D → схемы применяются только к Daggerheart. rules-terms НЕ
+# схемируем (коллизия имени с D&D untagged-defs; у прозаических ресурсов схем нет —
+# как у D&D actions/rules-terms/weapon-properties).
+
+# Плоская именованная секция с прозаическим телом (ancestries, communities).
+DH_SECTION_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Daggerheart Section",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "description_md": {"type": "string"},
+    },
+    "required": ["slug", "name", "name_en", "description_md"],
+    "additionalProperties": False,
+}
+
+# Доменная карта. level/recall_cost — обязательные integer (НЕ null): ловит дрейф
+# парсинга мета-строки «**_Level N_** _…._ **_Recall Cost_** _M._» (нит ревью #147).
+DH_DOMAIN_CARD_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Daggerheart Domain Card",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "domain": {"type": "string"},
+        "domain_en": {"type": "string"},
+        "domain_slug": {"type": "string"},
+        "level": {"type": "integer", "minimum": 1, "maximum": 10},
+        "recall_cost": {"type": "integer", "minimum": 0},
+        "card_type": {"type": ["string", "null"]},
+        "description_md": {"type": "string"},
+    },
+    "required": [
+        "slug", "name", "name_en", "domain", "domain_en", "domain_slug",
+        "level", "recall_cost", "card_type", "description_md",
+    ],
+    "additionalProperties": False,
+}
+
+# Стат-блок по тиру (adversaries, environments).
+DH_STATBLOCK_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Daggerheart Stat Block",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "tier": {"type": "integer", "minimum": 1, "maximum": 4},
+        "description_md": {"type": "string"},
+    },
+    "required": ["slug", "name", "name_en", "tier", "description_md"],
+    "additionalProperties": False,
+}
+
 # -- Mapping resource name → schema (used by generate_api.py) -----------------
 
 RESOURCE_SCHEMAS = {
@@ -451,4 +513,10 @@ RESOURCE_SCHEMAS = {
     "equipment": EQUIPMENT_SCHEMA,
     "conditions": CONDITION_SCHEMA,
     "feats": FEAT_SCHEMA,
+    # Daggerheart (имена не пересекаются с D&D).
+    "ancestries": DH_SECTION_SCHEMA,
+    "communities": DH_SECTION_SCHEMA,
+    "domain-cards": DH_DOMAIN_CARD_SCHEMA,
+    "adversaries": DH_STATBLOCK_SCHEMA,
+    "environments": DH_STATBLOCK_SCHEMA,
 }
