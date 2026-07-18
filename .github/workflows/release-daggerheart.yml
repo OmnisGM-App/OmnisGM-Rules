@@ -5,6 +5,12 @@ on:
     tags:
       - 'dh-srd-v*'
 
+# Обновление/создание релиза через softprops/action-gh-release требует записи в contents.
+# Дефолтные права токена в репо — read, поэтому объявляем явно (иначе «Create release» падает
+# с «Resource not accessible by integration»).
+permissions:
+  contents: write
+
 jobs:
   build:
     runs-on: ubuntu-latest
