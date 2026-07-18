@@ -15,6 +15,26 @@
         "source": "/sitemap.xml",
         "destination": "/sitemap-index.xml",
         "type": 301
+      },
+      {
+        "source": "/:lang/daggerheart/srd-1.0/glossary/adversaries",
+        "destination": "/:lang/daggerheart/srd-1.0/adversaries/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/daggerheart/srd-1.0/glossary/abilities",
+        "destination": "/:lang/daggerheart/srd-1.0/domain-cards/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/daggerheart/srd-1.0/glossary/ancestries",
+        "destination": "/:lang/daggerheart/srd-1.0/ancestries/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/daggerheart/srd-1.0/glossary/communities",
+        "destination": "/:lang/daggerheart/srd-1.0/communities/all/",
+        "type": 301
       }
     ],
     "headers": [
