@@ -1,10 +1,12 @@
 import { test, expect } from '@playwright/test';
 
-// Глоссарные страницы (справочные таблицы) выведены из индекса: meta noindex,follow
-// + исключены из sitemap (issue #37). Контентные страницы — индексируемы как прежде.
-const GLOSSARY = '/en/dnd/srd-5.2/glossary/spells/';
+// Глоссарные страницы по умолчанию выведены из индекса: meta noindex,follow + вне sitemap
+// (issue #37). ИСКЛЮЧЕНИЕ (#106, этап 1): содержательные справочники без entity-хаба
+// (DH оружие/броня/предметы/расходники, BRP оружие/броня) — индексируемы. Контентные — как прежде.
+const GLOSSARY = '/en/dnd/srd-5.2/glossary/spells/';    // дубль хаба (hidden) → noindex
 const CONTENT = '/en/dnd/srd-5.2/legal/';
 const RULES_GLOSSARY = '/en/dnd/srd-5.2/rules-glossary/'; // реальная глава, НЕ /glossary/ — индексируется
+const GLOSSARY_INDEXED = '/en/daggerheart/srd-1.0/glossary/weapons/'; // справочник без хаба → индексируем
 
 test('глоссарий: noindex,follow и без hreflang', async ({ page }) => {
   await page.goto(GLOSSARY);
@@ -26,9 +28,22 @@ test('rules-glossary — контентная глава, НЕ noindex', async (
   await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
 });
 
-test('sitemap не содержит /glossary/', async ({ page }) => {
+test('справочник без хаба (#106): индексируем — без robots-meta, с hreflang', async ({ page }) => {
+  await page.goto(GLOSSARY_INDEXED);
+  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
+});
+
+test('sitemap: содержит справочники без хаба (#106), но НЕ дубли/термы-глоссарий', async ({ page }) => {
   const res = await page.request.get('/sitemap-0.xml');
   expect(res.ok()).toBeTruthy();
   const xml = await res.text();
-  expect(xml).not.toContain('/glossary/');
+  // Возвращённые справочники — в sitemap.
+  expect(xml).toContain('/daggerheart/srd-1.0/glossary/weapons/');
+  expect(xml).toContain('/brp/srd-1.0/glossary/armor/');
+  // Дубли хабов (301) и оглавления-термины — НЕ в sitemap.
+  expect(xml).not.toContain('/glossary/adversaries/');
+  expect(xml).not.toContain('/glossary/skills/');
+  expect(xml).not.toContain('/glossary/glossary/');
+  expect(xml).not.toContain('/dnd/srd-5.2/glossary/');
 });
