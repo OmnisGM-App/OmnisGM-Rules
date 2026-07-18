@@ -1,0 +1,65 @@
+---
+import { marked } from 'marked';
+import { fromHtml } from 'hast-util-from-html';
+import { toHtml } from 'hast-util-to-html';
+import ReaderShell from '../../../../../../components/ReaderShell.astro';
+import RulesTermEntry from '../../../../../../components/RulesTermEntry.astro';
+import { autolinkTree } from '../../../../../../lib/rehype-entity-autolink.mjs';
+import { sourceLinkFor } from '../../../../../../lib/rules-glossary-source.mjs';
+import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+
+// Programmatic-страницы терминов ядра Rules Glossary (issue #106): каждый термин главы
+// 08_RulesGlossary — свой URL /{lang}/dnd/{version}/rules-glossary/term/{slug}/, чтобы ловить
+// точечные запросы («преимущество днд 2024»). Зеркалит паттерн состояний. EN и RU делят
+// канонический (английский) слаг → корректный hreflang (ReaderShell считает его из URL).
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesglossary' };
+
+export function getStaticPaths() {
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  const paths = [];
+  for (const { ver, lang } of BUILDS) {
+    for (const entity of loadEntities(ver, lang, 'rules-terms')) {
+      paths.push({ params: { lang, version: VERSION_SLUG[ver], slug: entity.slug }, props: { entity, ver, lang } });
+    }
+  }
+  return paths;
+}
+
+const { entity, ver, lang } = Astro.props;
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+
+// Автоссылки на другие сущности прямо в теле: marked → hast → autolink → html.
+const rawHtml = marked.parse(entity.description_md ?? '', { async: false });
+const tree = fromHtml(rawHtml, { fragment: true });
+autolinkTree(tree, { game: 'dnd', version: verSlug, lang, selfSlug: entity.slug });
+const bodyHtml = toHtml(tree);
+const description = excerpt(entity.description_md);
+const source = sourceLinkFor(entity.description_md, { verSlug, lang });
+
+const upLink = { href: `/${lang}/dnd/${verSlug}/rules-glossary/`, ru: 'Глоссарий правил', en: 'Rules Glossary' };
+const kind = t('Термин', 'Term');
+const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={entity.name}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <RulesTermEntry
+    name={entity.name}
+    nameEn={entity.name_en}
+    lang={lang}
+    bodyHtml={bodyHtml}
+    source={source}
+  />
+</ReaderShell>
