@@ -35,6 +35,16 @@
         "source": "/:lang/daggerheart/srd-1.0/glossary/communities",
         "destination": "/:lang/daggerheart/srd-1.0/communities/all/",
         "type": 301
+      },
+      {
+        "source": "/:lang/brp/srd-1.0/glossary/skills",
+        "destination": "/:lang/brp/srd-1.0/skills/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/brp/srd-1.0/glossary/professions",
+        "destination": "/:lang/brp/srd-1.0/professions/all/",
+        "type": 301
       }
     ],
     "headers": [
