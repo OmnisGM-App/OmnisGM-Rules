@@ -3,6 +3,7 @@ import '@omnisgm-app/brand/tokens.css';
 import '@omnisgm-app/brand/fonts.css'; // self-host @font-face (Spectral/Inter/JetBrains), woff2 в public/fonts/ (#10)
 import '@omnisgm-app/brand/base.css';
 import '../styles/reader.css';
+import { isIndexableGlossary } from '../lib/glossary-seo.mjs';
 
 export interface Props {
   title: string;
@@ -18,11 +19,13 @@ export interface Props {
 const { title, description = '', lang = 'en', canonical, bilingual = false, titleRu, image = '/og.png', jsonLd, alternates } = Astro.props;
 const canonicalURL = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
 const ORIGIN = Astro.site ? Astro.site.origin : 'https://rules.omnisgm.com';
-// Глоссарные страницы (справочные таблицы-выжимки) выводим из индекса: noindex,follow
-// — ссылочный вес продолжает течь по внутренним ссылкам, но сами страницы не конкурируют
-// за краул-бюджет с контентными и programmatic-страницами (issue #37). Их же исключаем
-// из sitemap (astro.config). robots.txt НЕ трогаем (Disallow скрыл бы сам noindex).
-const isGlossary = Astro.url.pathname.includes('/glossary/');
+// Глоссарные страницы (справочные таблицы-выжимки) по умолчанию выводим из индекса:
+// noindex,follow — вес течёт по внутренним ссылкам, но страницы не конкурируют за краул-
+// бюджет (issue #37). ИСКЛЮЧЕНИЕ (#106, этап 1): содержательные справочники без entity-хаба
+// (DH оружие/броня/предметы/расходники, BRP оружие/броня) — их индексируем (спрос по кликам),
+// поэтому им НЕ ставим noindex и оставляем hreflang-alternates. Дубли хабов (301) и оглавления-
+// термины остаются noindex. Синхронно с sitemap-фильтром (astro.config, тот же allow-list).
+const isGlossary = Astro.url.pathname.includes('/glossary/') && !isIndexableGlossary(Astro.url.pathname);
 const imageURL = new URL(image, ORIGIN).toString();
 const ogLocale = lang === 'ru' ? 'ru_RU' : 'en_US';
 const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';

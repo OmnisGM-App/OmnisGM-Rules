@@ -8,6 +8,7 @@ import rehypeSortableGlossary from './src/lib/rehype-sortable-glossary.mjs';
 import rehypeEntityAutolink from './src/lib/rehype-entity-autolink.mjs';
 import rehypeKeywordHighlight from './src/lib/keyword-highlight.mjs';
 import rehypeRulesGloss from './src/lib/rules-gloss.mjs';
+import { isIndexableGlossary } from './src/lib/glossary-seo.mjs';
 
 // rules.omnisgm.com — статический (SSG) ридер SRD экосистемы OmnisGM.
 // Контент — Markdown из ../src/{game}/{version}/{en,ru}/**.md (вход контентного пайплайна),
@@ -18,11 +19,12 @@ export default defineConfig({
   // работают с относительными ссылками; Firebase trailingSlash:true их не ломает редиректом.
   trailingSlash: 'always',
   integrations: [
-    // Глоссарные страницы noindex (см. Reader.astro) — исключаем их и из sitemap,
-    // чтобы не тратить краул-бюджет и не слать противоречивый сигнал (issue #37).
-    // Ожидаемо ~223 → ~167 URL. IndexNow берёт URL из dist-sitemap → glossary
-    // перестанут пинговаться автоматически.
-    sitemap({ filter: (page) => !page.includes('/glossary/') }),
+    // Глоссарные страницы по умолчанию noindex (см. Reader.astro) — исключаем их и из sitemap
+    // (issue #37: не тратить краул-бюджет, не слать противоречивый сигнал). ИСКЛЮЧЕНИЕ (#106,
+    // этап 1): содержательные справочники без entity-хаба (DH оружие/броня/предметы/расходники,
+    // BRP оружие/броня) возвращаем в индекс и sitemap — спрос подтверждён кликами. Дубли хабов
+    // и оглавления-термины остаются вне sitemap. IndexNow берёт URL из dist-sitemap.
+    sitemap({ filter: (page) => !page.includes('/glossary/') || isIndexableGlossary(page) }),
     pagefind(),
     AstroPWA({
       registerType: 'autoUpdate',
