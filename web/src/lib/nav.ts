@@ -75,6 +75,9 @@ export const NAV: NavNode[] = [
       page('d52-animals', 'Животные', 'Animals', '/dnd/srd-5.2/13_Animals/'),
       group('d52-glossary', 'Глоссарий', 'Glossary', [
         page('d52-g-terms', 'Термины', 'Terms', '/dnd/srd-5.2/14_Glossary/00_Glossary/'),
+        // Индекс всех терминов Глоссария правил (08_RulesGlossary) со ссылками на их
+        // programmatic-страницы — даёт им внутренние входящие ссылки (иначе sitemap-сироты, #106).
+        page('d52-rulesterms-hub', 'Глоссарий правил (все термины)', 'Rules Glossary (All Terms)', '/dnd/srd-5.2/rules-glossary/all/'),
         page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
         // Плоские глоссарий-списки заменены нашими /all/-хабами (ссылки на entity-страницы +
         // фасеты); сами списки скрыты (hidden), но их страницы остаются доступны по URL.

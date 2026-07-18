@@ -55,6 +55,20 @@ test('канонический слаг EN↔RU: RU-термин на англи
   expect((await page.goto('/ru/dnd/srd-5.2/rules-glossary/term/difficult-terrain/'))?.status()).toBe(200);
 });
 
+test('хаб /rules-glossary/all/: сортируемая таблица со ссылками на все термины (не сироты)', async ({ page }) => {
+  const res = await page.goto('/ru/dnd/srd-5.2/rules-glossary/all/');
+  expect(res?.status()).toBe(200);
+  // Сортируемая таблица со ссылками на страницы всех типов.
+  await expect(page.locator('table.hub-table[data-sortable] a[href$="/rules-glossary/term/advantage/"]')).toBeVisible();
+  await expect(page.locator('.hub-table a[href$="/rules-glossary/action/dash/"]')).toBeVisible();
+  await expect(page.locator('.hub-table a[href$="/rules-glossary/conditions/prone/"]')).toBeVisible();
+  // Входящая ссылка: со страницы термина в HTML сайдбара есть ссылка на хаб (термин не
+  // sitemap-сирота). Группа глоссария на странице термина свёрнута, поэтому проверяем наличие
+  // в DOM (краулится), а не визуальную видимость.
+  await page.goto('/ru/dnd/srd-5.2/rules-glossary/term/advantage/');
+  await expect(page.locator('.rd-nav a[href$="/rules-glossary/all/"]').first()).toBeAttached();
+});
+
 test('sitemap: страницы терминов включены (индексируются)', async ({ page }) => {
   const xml = await (await page.request.get('/sitemap-0.xml')).text();
   expect(xml).toContain('/dnd/srd-5.2/rules-glossary/term/advantage/');
