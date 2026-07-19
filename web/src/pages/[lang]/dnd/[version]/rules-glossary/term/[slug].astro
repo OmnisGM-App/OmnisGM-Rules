@@ -12,7 +12,7 @@ import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../
 // 08_RulesGlossary — свой URL /{lang}/dnd/{version}/rules-glossary/term/{slug}/, чтобы ловить
 // точечные запросы («преимущество днд 2024»). Зеркалит паттерн состояний. EN и RU делят
 // канонический (английский) слаг → корректный hreflang (ReaderShell считает его из URL).
-const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesglossary' };
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesterms-hub' };
 
 export function getStaticPaths() {
   const BUILDS = [
