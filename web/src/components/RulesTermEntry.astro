@@ -1,0 +1,91 @@
+---
+// Общая разметка страницы термина глоссария правил (issue #106): состояния, термины,
+// действия, области эффекта. Рендерится внутри слота ReaderShell. h1 + тело (уже с
+// автоссылками) + ссылка-источник в главу (#106) + список родственных + скоуп-стили.
+interface Source { href: string; label: string }
+interface Related { slug: string; name: string }
+interface Props {
+  name: string;
+  nameEn?: string | null;
+  lang: 'en' | 'ru';
+  bodyHtml: string;
+  source?: Source | null;         // «Подробнее — глава …»; null для терминов без главы-источника
+  related?: Related[];            // родственные (соседи-состояния/действия/AoE); [] у обычных терминов
+  relatedBase?: string;           // база ссылок родственных: /{lang}/dnd/{ver}/rules-glossary/{type}
+  relatedLabel?: string;          // «Другие состояния» и т.п.
+}
+const { name, nameEn = null, lang, bodyHtml, source = null, related = [], relatedBase = '', relatedLabel = '' } = Astro.props;
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+---
+<h1>
+  {name}
+  {lang === 'ru' && nameEn && <span class="ent-en">{nameEn}</span>}
+</h1>
+
+<Fragment set:html={bodyHtml} />
+
+{source && (
+  <p class="ent-source">
+    <span class="ent-source-h">{t('Подробнее', 'Read more')}</span>
+    <a href={source.href}>{source.label}</a>
+  </p>
+)}
+
+{related.length > 0 && (
+  <nav class="ent-related" aria-label={relatedLabel}>
+    <span class="ent-related-h">{relatedLabel}</span>
+    <span class="ent-related-list">
+      {related.map((r) => (
+        <a href={`${relatedBase}/${r.slug}/`}>{r.name}</a>
+      ))}
+    </span>
+  </nav>
+)}
+
+<style>
+  /* Оригинальное (англ.) название — ВНУТРИ h1, над её нижней границей (чертой). */
+  .ent-en {
+    display: block;
+    margin-top: 8px;
+    font-family: var(--font-mono);
+    font-size: 14px;
+    font-weight: 400;
+    letter-spacing: 0;
+    color: var(--og-text-muted);
+  }
+  /* Ссылка-источник в главу правил (#106): термин — выжимка, отсюда — в полный контекст. */
+  .ent-source {
+    margin-top: 28px;
+    padding: 12px 16px;
+    background: var(--og-surface-2, rgba(127, 127, 127, 0.06));
+    border-left: 3px solid var(--og-border);
+    border-radius: 0 6px 6px 0;
+    font-size: 15px;
+  }
+  .ent-source-h {
+    font-size: 12px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--og-text-muted);
+    margin-right: 10px;
+  }
+  .ent-related {
+    display: block;
+    margin-top: 40px;
+    padding-top: 20px;
+    border-top: 1px solid var(--og-border);
+  }
+  .ent-related-h {
+    display: block;
+    font-size: 13px;
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    color: var(--og-text-muted);
+    margin-bottom: 10px;
+  }
+  .ent-related-list {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 6px 14px;
+  }
+</style>

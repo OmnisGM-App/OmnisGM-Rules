@@ -1,0 +1,94 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+
+// Хаб-индекс Глоссария правил (issue #106): /{lang}/dnd/{version}/rules-glossary/all/.
+// Сортируемая таблица ВСЕХ терминов главы 08_RulesGlossary (термины/действия/области
+// эффекта/состояния) со ссылками на их страницы. Ключевая роль — внутренняя перелинковка:
+// programmatic-страницы терминов иначе sitemap-сироты; хаб даёт каждой входящую ссылку и
+// сам линкуется из сайдбара. Статический роут `all` приоритетнее `[slug]`.
+const PARENT_NAV: Record<string, string> = { srd52: 'd52-rulesterms-hub' };
+
+interface Row { slug: string; name: string; name_en?: string | null; seg: string; ru: string; en: string }
+
+export function getStaticPaths() {
+  // Ресурс → { тип-подпись RU/EN, сегмент URL страницы }. Внутри getStaticPaths (Astro его
+  // изолирует — локальные const фронтматтера снаружи ему не видны).
+  const KINDS = [
+    { res: 'rules-terms', ru: 'Термин', en: 'Term', seg: 'term' },
+    { res: 'actions', ru: 'Действие', en: 'Action', seg: 'action' },
+    { res: 'areas-of-effect', ru: 'Область эффекта', en: 'Area of Effect', seg: 'area-of-effect' },
+    { res: 'conditions', ru: 'Состояние', en: 'Condition', seg: 'conditions' },
+  ] as const;
+  const BUILDS = [
+    { ver: 'srd52', lang: 'en' as const },
+    { ver: 'srd52', lang: 'ru' as const },
+  ];
+  return BUILDS.map(({ ver, lang }) => {
+    const rows: Row[] = [];
+    for (const k of KINDS) {
+      for (const e of loadEntities(ver, lang, k.res) as Array<{ slug: string; name: string; name_en?: string | null }>) {
+        rows.push({ slug: e.slug, name: e.name, name_en: e.name_en, seg: k.seg, ru: k.ru, en: k.en });
+      }
+    }
+    return { params: { lang, version: VERSION_SLUG[ver] }, props: { ver, lang, rows } };
+  });
+}
+
+const { ver, lang, rows } = Astro.props as { ver: string; lang: 'en' | 'ru'; rows: Row[] };
+const verSlug = VERSION_SLUG[ver];
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const base = `/${lang}/dnd/${verSlug}/rules-glossary`;
+const sorted = rows.slice().sort((a, b) => a.name.localeCompare(b.name, lang));
+
+const heading = t('Глоссарий правил: все термины', 'Rules Glossary: All Terms');
+const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const description = t(
+  `Все ${rows.length} терминов Глоссария правил D&D ${verLabel} (термины, действия, области эффекта, состояния) — таблица со ссылками на каждую страницу и переходом в главу-источник.`,
+  `All ${rows.length} D&D ${verLabel} Rules Glossary terms (terms, actions, areas of effect, conditions) — a table linking every page, each with a link to its source chapter.`,
+);
+const upLink = { href: `/${lang}/dnd/${verSlug}/rules-glossary/`, ru: 'Глоссарий правил (глава)', en: 'Rules Glossary (chapter)' };
+---
+
+<ReaderShell
+  lang={lang}
+  currentId={PARENT_NAV[ver]}
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+  upLink={upLink}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${rows.length} терминов Глоссария правил D&D ${verLabel}. Нажмите на заголовок столбца, чтобы отсортировать. Каждый термин ведёт на свою страницу с выжимкой и ссылкой в главу-источник.`,
+      `${rows.length} D&D ${verLabel} Rules Glossary terms. Click a column header to sort. Each term links to its own page with a summary and a link to the source chapter.`,
+    )}
+  </p>
+
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-sortable>
+      <thead>
+        <tr>
+          <th>{t('Термин', 'Term')}</th><th>{t('Тип', 'Type')}</th>
+          {lang === 'ru' && <th>Оригинал</th>}
+        </tr>
+      </thead>
+      <tbody>
+        {sorted.map((r) => (
+          <tr>
+            <td><a href={`${base}/${r.seg}/${r.slug}/`}>{r.name}</a></td>
+            <td>{t(r.ru, r.en)}</td>
+            {lang === 'ru' && <td class="og-en">{r.name_en ?? '—'}</td>}
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</ReaderShell>
+
+<style>
+  .og-en { font-family: var(--font-mono); font-size: 13px; color: var(--og-text-muted); }
+</style>
