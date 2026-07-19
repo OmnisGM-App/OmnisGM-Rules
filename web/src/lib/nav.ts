@@ -80,15 +80,12 @@ export const NAV: NavNode[] = [
         page('d52-rulesterms-hub', 'Глоссарий правил (все термины)', 'Rules Glossary (All Terms)', '/dnd/srd-5.2/rules-glossary/all/'),
         page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
         // Плоские глоссарий-списки заменены нашими /all/-хабами (ссылки на entity-страницы +
-        // фасеты); сами списки скрыты (hidden), но их страницы остаются доступны по URL.
+        // фасеты). Сами дубли-списки (14_Glossary/02-05) редиректятся 301 на хабы (firebase.json)
+        // → узлы им больше не нужны (были hidden ради nav-контекста; теперь страницы не отдаются).
         page('d52-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/spells/all/'),
         page('d52-magicitems-hub', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/magic-items/all/'),
         page('d52-monsters-hub', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/monsters-a-z/all/'),
         page('d52-animals-hub', 'Животные (справочник)', 'Animals (Reference)', '/dnd/srd-5.2/animals/all/'),
-        hidden('d52-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/14_Glossary/02_Spells/'),
-        hidden('d52-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/14_Glossary/03_MagicItems/'),
-        hidden('d52-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/14_Glossary/04_Monsters/'),
-        hidden('d52-g-animals', 'Животные (справочник)', 'Animals (Reference)', '/dnd/srd-5.2/14_Glossary/05_Animals/'),
       ]),
     ]),
     group('d51', 'SRD 5.1', 'SRD 5.1', [
@@ -111,13 +108,11 @@ export const NAV: NavNode[] = [
       group('d51-glossary', 'Глоссарий', 'Glossary', [
         page('d51-g-terms', 'Термины', 'Terms', '/dnd/srd-5.1/16_Glossary/00_Glossary/'),
         page('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
-        // Плоские глоссарий-списки заменены /all/-хабами; списки скрыты (страницы живы).
+        // Плоские глоссарий-списки заменены /all/-хабами; дубли (16_Glossary/02-04) редиректятся
+        // 301 на хабы (firebase.json) → узлы им больше не нужны.
         page('d51-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/spells/all/'),
         page('d51-magicitems-hub', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/magic-items/all/'),
         page('d51-monsters-hub', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/monsters-a-z/all/'),
-        hidden('d51-g-spells', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/16_Glossary/02_Spells/'),
-        hidden('d51-g-magicitems', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/16_Glossary/03_MagicItems/'),
-        hidden('d51-g-monsters', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/16_Glossary/04_Monsters/'),
       ]),
     ]),
     page('d52-converting', 'Конвертация в SRD 5.2.1', 'Converting to SRD 5.2.1', '/dnd/converting-srd-5.2/converting-to-srd-5.2.1/'),
