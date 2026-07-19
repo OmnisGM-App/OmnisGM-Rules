@@ -45,6 +45,41 @@
         "source": "/:lang/brp/srd-1.0/glossary/professions",
         "destination": "/:lang/brp/srd-1.0/professions/all/",
         "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.2/glossary/spells",
+        "destination": "/:lang/dnd/srd-5.2/spells/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.2/glossary/magic-items",
+        "destination": "/:lang/dnd/srd-5.2/magic-items/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.2/glossary/monsters",
+        "destination": "/:lang/dnd/srd-5.2/monsters-a-z/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.2/glossary/animals",
+        "destination": "/:lang/dnd/srd-5.2/animals/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.1/glossary/spells",
+        "destination": "/:lang/dnd/srd-5.1/spells/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.1/glossary/magic-items",
+        "destination": "/:lang/dnd/srd-5.1/magic-items/all/",
+        "type": 301
+      },
+      {
+        "source": "/:lang/dnd/srd-5.1/glossary/monsters",
+        "destination": "/:lang/dnd/srd-5.1/monsters-a-z/all/",
+        "type": 301
       }
     ],
     "headers": [
