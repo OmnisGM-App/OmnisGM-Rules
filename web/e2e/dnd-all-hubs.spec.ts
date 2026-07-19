@@ -37,15 +37,6 @@ test('хаб в сайдбаре (глоссарий) виден и подсве
   await expect(page.locator('.rd-nav a[href$="/14_glossary/02_spells/"]')).toHaveCount(0);
 });
 
-test('заменённая глоссарий-страница жива и держит nav-контекст (не сирота)', async ({ page }) => {
-  const res = await page.goto('/ru/dnd/srd-5.2/glossary/spells/');
-  expect(res?.status()).toBe(200);
-  await expect(page.locator('.rd-doc')).toBeVisible();
-  // Крошки/таб резолвятся через скрытый узел → активная система D&D 5.2, не «home»
-  // (у сироты title был бы без «D&D SRD 5.2.1»).
-  await expect(page).toHaveTitle(/D&D SRD 5\.2\.1/);
-});
-
 test('spells/all: уровень и школа кликабельны; школа-хаб рендерится', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/all/');
   // Уровень → level-хаб, школа → school-хаб (оба новые).

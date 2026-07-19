@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Глоссарные страницы по умолчанию выведены из индекса: meta noindex,follow + вне sitemap
 // (issue #37). ИСКЛЮЧЕНИЕ (#106, этап 1): содержательные справочники без entity-хаба
 // (DH оружие/броня/предметы/расходники, BRP оружие/броня) — индексируемы. Контентные — как прежде.
-const GLOSSARY = '/en/dnd/srd-5.2/glossary/spells/';    // дубль хаба (hidden) → noindex
+const GLOSSARY = '/en/dnd/srd-5.2/glossary/glossary/';  // индекс-термины 14_Glossary → noindex (не редиректится)
 const CONTENT = '/en/dnd/srd-5.2/legal/';
 const RULES_GLOSSARY = '/en/dnd/srd-5.2/rules-glossary/'; // реальная глава, НЕ /glossary/ — индексируется
 const GLOSSARY_INDEXED = '/en/daggerheart/srd-1.0/glossary/weapons/'; // справочник без хаба → индексируем
