@@ -30,21 +30,21 @@ physical table:
 | ✅ | D&D SRD 5.1 | Wizards of the Coast | CC BY 4.0 | [PDF](https://www.dndbeyond.com/srd) |
 | ✅ | Daggerheart SRD 1.0 | Darrington Press | [DPCGL](https://darringtonpress.com/license/) | [PDF](https://www.daggerheart.com/srd/), [Markdown](https://github.com/seansbox/daggerheart-srd) |
 | ✅ | Basic Roleplaying (BRP) | Chaosium | [BRP OGL v1.0](https://www.chaosium.com/brp-system-reference-document/) | [PDF](https://www.chaosium.com/brp-system-reference-document/) |
-| 📅 | Pathfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonprd.com/) |
-| 📅 | Starfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonsrd.com/) |
-| 📅 | Year Zero Engine | Free League | [FTL](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | [PDF](https://freeleaguepublishing.com/wp-content/uploads/2023/11/YZE-Standard-Reference-Document.pdf) |
-| ❓ | Dragonbane | Free League | [3rd Party License](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | PDF |
+| ❓ | Pathfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonprd.com/) |
+| ❓ | Starfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonsrd.com/) |
+| ❓ | Year Zero Engine | Free League | [FTL](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | [PDF](https://freeleaguepublishing.com/wp-content/uploads/2023/11/YZE-Standard-Reference-Document.pdf); the license explicitly permits copying and translating the SRD ("copy, use, modify, translate") "as part of your own Game"; a NOTICE block is required |
 | ❓ | Fate Core / FAE | Evil Hat Productions | CC BY 3.0 | [Web](https://fate-srd.com/), [Markdown](https://github.com/amazingrando/fate-srd-content) |
 | ❓ | Blades in the Dark | One Seven Design | CC BY 3.0 | [Web](https://bladesinthedark.com/), [Markdown](https://github.com/amazingrando/blades-in-the-dark-srd-content) |
 | ❓ | Dungeon World | Sage LaTorra | CC BY 3.0 | [Web](https://www.dungeonworldsrd.com/), [GitHub](https://github.com/Sagelt/Dungeon-World) |
 | ❓ | 13th Age (Archmage Engine) | Pelgrane Press | OGL 1.0a | [Web](https://www.13thagesrd.com/), [PDF](https://pelgranepress.com/media/SRD/13thAgeArchmageEngineSRD.pdf) |
-| ❓ | MORK BORG | Free League | [3rd Party License](https://morkborg.com/license/) | [Web](https://morkborg.com/content/) |
-| ❓ | Worlds Without Number | Sine Nomine | CC0 | PDF (DriveThruRPG) |
-| ❓ | Cypher System | Monte Cook Games | [CSOL](https://www.montecookgames.com/cypher-system-open-license/) | [Web](https://callmepartario.github.io/og-csrd/) |
+| ❓ | Worlds Without Number | Sine Nomine | CC0 (SRD only) | PDF (DriveThruRPG); only the **WWN SRD** (2024) is CC0 — the game's Free Edition is under a regular license and may not be copied or translated |
+| ❓ | Cypher System | Monte Cook Games | [CSOL](https://www.montecookgames.com/cypher-system-open-license/) | [Web](https://callmepartario.github.io/og-csrd/); CSRD text may be duplicated verbatim, but the license is silent on translations — MCG confirmation needed before a RU version |
+| 🚫 | Dragonbane | Free League | [3rd Party License](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | No SRD by design; the license covers original supplements only — "not ... a copy of those rules", "you may not use any Dragonbane text"; Russian is not among the 14 licensed languages |
+| 🚫 | MORK BORG | Ockult Örtmästare / Stockholm Kartell | [3rd Party License](https://morkborg.com/license/) | No SRD; the license forbids reusing or translating book text — "Art and text from our books may not be reused or translated"; only mechanics may be referenced or paraphrased |
 | 🚫 | World of Darkness (VtM, WtA, DtD…) | Paradox Interactive | — | No open SRD; the [Dark Pack](https://worldofdarkness.com/dark-pack) covers free fan content only |
 | 🚫 | 2d20 (Dune, Fallout, Star Trek…) | Modiphius | — | An SRD exists, but [World Builders](https://modiphius.net/en-us/pages/2d20worldbuilders) is tied to DriveThruRPG; free redistribution is not permitted |
 
-> ✅ done · 📅 planned · ❓ under consideration · 🚫 licensing does not permit
+> ✅ done · ❓ under consideration · 🚫 licensing does not permit
 
 ## Licenses
 

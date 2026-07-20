@@ -32,21 +32,21 @@
 | ✅ | D&D SRD 5.1 | Wizards of the Coast | CC BY 4.0 | [PDF](https://www.dndbeyond.com/srd) |
 | ✅ | Daggerheart SRD 1.0 | Darrington Press | [DPCGL](https://darringtonpress.com/license/) | [PDF](https://www.daggerheart.com/srd/), [Markdown](https://github.com/seansbox/daggerheart-srd) |
 | ✅ | Basic Roleplaying (BRP) | Chaosium | [BRP OGL v1.0](https://www.chaosium.com/brp-system-reference-document/) | [PDF](https://www.chaosium.com/brp-system-reference-document/) |
-| 📅 | Pathfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonprd.com/) |
-| 📅 | Starfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonsrd.com/) |
-| 📅 | Year Zero Engine | Free League | [FTL](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | [PDF](https://freeleaguepublishing.com/wp-content/uploads/2023/11/YZE-Standard-Reference-Document.pdf) |
-| ❓ | Dragonbane | Free League | [3rd Party License](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | PDF |
+| ❓ | Pathfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonprd.com/) |
+| ❓ | Starfinder 2e | Paizo | [ORC](https://paizo.com/orclicense) | [Web](https://2e.aonsrd.com/) |
+| ❓ | Year Zero Engine | Free League | [FTL](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | [PDF](https://freeleaguepublishing.com/wp-content/uploads/2023/11/YZE-Standard-Reference-Document.pdf); лицензия прямо разрешает копирование и перевод SRD («copy, use, modify, translate») «как часть собственной игры», обязательна NOTICE-плашка |
 | ❓ | Fate Core / FAE | Evil Hat Productions | CC BY 3.0 | [Web](https://fate-srd.com/), [Markdown](https://github.com/amazingrando/fate-srd-content) |
 | ❓ | Blades in the Dark | One Seven Design | CC BY 3.0 | [Web](https://bladesinthedark.com/), [Markdown](https://github.com/amazingrando/blades-in-the-dark-srd-content) |
 | ❓ | Dungeon World | Sage LaTorra | CC BY 3.0 | [Web](https://www.dungeonworldsrd.com/), [GitHub](https://github.com/Sagelt/Dungeon-World) |
 | ❓ | 13th Age (Archmage Engine) | Pelgrane Press | OGL 1.0a | [Web](https://www.13thagesrd.com/), [PDF](https://pelgranepress.com/media/SRD/13thAgeArchmageEngineSRD.pdf) |
-| ❓ | MORK BORG | Free League | [3rd Party License](https://morkborg.com/license/) | [Web](https://morkborg.com/content/) |
-| ❓ | Worlds Without Number | Sine Nomine | CC0 | PDF (DriveThruRPG) |
-| ❓ | Cypher System | Monte Cook Games | [CSOL](https://www.montecookgames.com/cypher-system-open-license/) | [Web](https://callmepartario.github.io/og-csrd/) |
+| ❓ | Worlds Without Number | Sine Nomine | CC0 (только SRD) | PDF (DriveThruRPG); под CC0 только **WWN SRD** (2024) — Free Edition игры под обычной лицензией, её копировать/переводить нельзя |
+| ❓ | Cypher System | Monte Cook Games | [CSOL](https://www.montecookgames.com/cypher-system-open-license/) | [Web](https://callmepartario.github.io/og-csrd/); текст CSRD можно воспроизводить дословно, но лицензия молчит о переводах — перед RU-версией нужно подтверждение MCG |
+| 🚫 | Dragonbane | Free League | [3rd Party License](https://freeleaguepublishing.com/community-content/free-tabletop-licenses/) | SRD нет принципиально; лицензия покрывает только собственные дополнения — «not … a copy of those rules», «you may not use any Dragonbane text»; русского нет среди 14 лицензированных языков |
+| 🚫 | MORK BORG | Ockult Örtmästare / Stockholm Kartell | [3rd Party License](https://morkborg.com/license/) | SRD нет; лицензия запрещает переиспользование и перевод текста книг — «Art and text from our books may not be reused or translated»; механику можно лишь пересказывать своими словами |
 | 🚫 | World of Darkness (VtM, WtA, DtD…) | Paradox Interactive | — | Нет открытого SRD; [Dark Pack](https://worldofdarkness.com/dark-pack) покрывает только бесплатный фанатский контент |
 | 🚫 | 2d20 (Dune, Fallout, Star Trek…) | Modiphius | — | SRD существует, но [World Builders](https://modiphius.net/en-us/pages/2d20worldbuilders) привязан к DriveThruRPG; свободное распространение не разрешено |
 
-> ✅ готово · 📅 запланировано · ❓ рассматривается · 🚫 лицензия не позволяет
+> ✅ готово · ❓ рассматривается · 🚫 лицензия не позволяет
 
 ## Лицензии
 
