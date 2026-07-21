@@ -331,6 +331,11 @@ def check_whitespace(name, lines, in_code, findings):
 
         if i in in_code:
             continue
+        if "\t" in line:
+            findings.append(Finding(
+                name, i + 1, CAT_SPACE, WARNING,
+                "табуляция (использовать пробелы)",
+            ))
         if not is_table_row(line):
             # Table rows keep alignment padding — double spaces there are noise.
             if DOUBLE_SPACE_RE.search(line):
@@ -351,6 +356,68 @@ def check_whitespace(name, lines, in_code, findings):
 # монстры пересортированы по RU-именам, и число буквенных заголовков легитимно
 # расходится — исключаем их из паритета уровней (симметрично для EN и RU).
 ALPHA_BUCKET_RE = re.compile(r":\s*\S$")
+
+
+UL_ITEM_RE = re.compile(r"^(\s*)([-*+])\s+\S")
+
+
+def check_lists(name, lines, in_code, findings):
+    """Marker mixing, nested-indent uniformity, blank line before a list."""
+    i, n = 0, len(lines)
+    while i < n:
+        if i in in_code or not LIST_ITEM_RE.match(lines[i]):
+            i += 1
+            continue
+        start = i
+        markers_by_indent = {}
+        indents = set()
+        while i < n and i not in in_code and LIST_ITEM_RE.match(lines[i]):
+            m = UL_ITEM_RE.match(lines[i])
+            if m:
+                indent = len(m.group(1))
+                indents.add(indent)
+                markers_by_indent.setdefault(indent, set()).add(m.group(2))
+            i += 1
+
+        if start > 0:
+            prev = lines[start - 1]
+            if (prev.strip() != "" and not HEADING_RE.match(prev)
+                    and not LIST_ITEM_RE.match(prev)
+                    and not is_table_row(prev)):
+                findings.append(Finding(
+                    name, start + 1, CAT_SPACE, NOTE,
+                    "нет пустой строки перед списком",
+                ))
+        for indent, marks in sorted(markers_by_indent.items()):
+            if len(marks) > 1:
+                findings.append(Finding(
+                    name, start + 1, CAT_SPACE, WARNING,
+                    f"смешение маркеров списка на одном уровне: "
+                    f"{', '.join(sorted(marks))}",
+                ))
+        levels = sorted(indents)
+        steps = {b - a for a, b in zip(levels, levels[1:])}
+        if len(steps) > 1:
+            findings.append(Finding(
+                name, start + 1, CAT_SPACE, NOTE,
+                f"непоследовательные отступы вложенного списка "
+                f"(шаги: {sorted(steps)})",
+            ))
+
+
+def check_blockquotes(name, lines, in_code, findings):
+    """A non-quoted line sandwiched between `>` lines breaks the block."""
+    for i in range(1, len(lines) - 1):
+        if i in in_code:
+            continue
+        line = lines[i]
+        if (line.strip() != "" and not line.lstrip().startswith(">")
+                and lines[i - 1].lstrip().startswith(">")
+                and lines[i + 1].lstrip().startswith(">")):
+            findings.append(Finding(
+                name, i + 1, CAT_FORMAT, WARNING,
+                "разрыв blockquote: строка без `>` между `>`-строками",
+            ))
 
 
 def file_profile(lines, in_code):
@@ -393,6 +460,8 @@ def check_file(path, findings):
     check_headings(name, lines, in_code, findings)
     check_formatting(name, lines, in_code, findings)
     check_whitespace(name, lines, in_code, findings)
+    check_lists(name, lines, in_code, findings)
+    check_blockquotes(name, lines, in_code, findings)
     return file_profile(lines, in_code)
 
 
