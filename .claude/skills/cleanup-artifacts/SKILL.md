@@ -16,10 +16,10 @@ user-invocable: true
 ## Предварительные условия
 
 Файлы из `/convert-pdf` в `/tmp/`:
-- `/tmp/{game}_marker.md`
-- `/tmp/{game}_pymupdf.md`
-- `/tmp/{game}_docling.md`
-- `/tmp/{game}_convert_summary.json` (опционально — сводка от скрипта конвертации)
+- `/tmp/{game}_{version}_marker.md`
+- `/tmp/{game}_{version}_pymupdf.md`
+- `/tmp/{game}_{version}_docling.md`
+- `/tmp/{game}_{version}_convert_summary.json` (опционально — сводка от скрипта конвертации)
 
 Оригинальный PDF для сверки — спросить путь если неизвестен.
 
@@ -29,11 +29,13 @@ user-invocable: true
 
 Чеклист: **`.claude/rules/merge-extraction.md`**
 
+Агент сведения — **model: "opus"**. Большие файлы (>3000 строк) читать чанками через offset/limit.
+
 Агент анализирует все результаты конвертации и выбирает лучшие части для каждого раздела. Если есть `convert_summary.json` — используй статистику для предварительной оценки (конвертер с 0 таблиц не годится для таблиц).
 
 **Частый сценарий:** один конвертер значительно лучше остальных (например, marker даёт 98% результата). В этом случае — бери его за основу целиком, остальные только для верификации. Не трать время на посекционное сравнение, если разница очевидна из статистики.
 
-Результат: `/tmp/{game}_merged.md`
+Результат: `/tmp/{game}_{version}_merged.md`
 
 **Отчёт о полезности конвертеров:**
 
@@ -52,25 +54,20 @@ docling:     ~N% (основной / верификация)
 #### Шаг 1: Автоматические исправления (скрипт)
 
 ```bash
-python3 .claude/skills/cleanup-artifacts/layout_recovery.py /tmp/{game}_merged.md /tmp/{game}_recovered.md
+python3 .claude/skills/cleanup-artifacts/layout_recovery.py /tmp/{game}_{version}_merged.md /tmp/{game}_{version}_recovered.md
 ```
 
-Скрипт исправляет: bold в заголовках, артефакты `<br>`, дефисные переносы, split components, склеенные поля stat-блока (`**Casting Time:** … **Range:** …` → по строкам), trailing пустые колонки таблиц.
+Скрипт исправляет: bold в заголовках, артефакты `<br>`, дефисные переносы, split components, склеенные поля stat-блока (`**Casting Time:** … **Range:** …` → по строкам), trailing пустые колонки таблиц. Регресс-тесты скрипта: `python3 .claude/skills/cleanup-artifacts/test_layout_recovery.py`.
 
 #### Шаг 2: Ручные исправления (агент)
 
-После скрипта агент выполняет то, что скрипт не может:
-- Склейка абзацев, разорванных sidebar-контентом на границах страниц
-- Удаление номеров страниц (числа на отдельных строках между разделами)
-- Удаление колонтитулов (повторяющийся текст вроде "System Reference Document 5.2")
-- Удаление OCR-маркеров и image placeholders
-- Восстановление порядка при двухколоночной вёрстке
+После скрипта агент выполняет ручные исправления по `.claude/rules/layout-recovery.md` (§4–6, §10).
 
 ### Фаза C: Разбивка на файлы
 
 1. **Определи структуру** — найди все H1 заголовки:
    ```bash
-   grep -n '^# ' /tmp/{game}_recovered.md
+   grep -n '^# ' /tmp/{game}_{version}_recovered.md
    ```
 
 2. **Точки разбивки:**
@@ -104,7 +101,7 @@ python3 .claude/skills/cleanup-artifacts/normalize_markdown.py src/{game}/{versi
 
 ### Коммиты
 
-**Один коммит на файл** (создание + нормализация вместе, не два отдельных):
+**Один коммит на файл** (создание + нормализация вместе, не два отдельных), сообщение на русском:
 ```
 Импорт {game} {version}: {filename}
 ```
@@ -121,19 +118,3 @@ python3 .claude/skills/cleanup-artifacts/normalize_markdown.py src/{game}/{versi
 
 Следующий шаг: /verify-import {game} {version}
 ```
-
-## Скрипты
-
-| Скрипт | Что делает |
-|--------|------------|
-| `layout_recovery.py` | Автоматический layout recovery (bold, `<br>`, переносы, components, склейка полей, columns) |
-| `test_layout_recovery.py` | Регресс-тесты layout recovery на реальных дефектах (`python3 test_layout_recovery.py`) |
-| `normalize_markdown.py` | Нормализация markdown (лигатуры, пробелы, тире, пустые строки) |
-
-## Технические требования
-
-- Агент сведения — **model: "opus"**
-- Большие файлы (>3000 строк) — чтение чанками через offset/limit
-- **Один** коммит на файл (не два)
-- Сообщения коммитов на русском
-- Оригинальный PDF для сверки при расхождениях
