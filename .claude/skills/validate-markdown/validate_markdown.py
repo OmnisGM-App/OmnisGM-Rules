@@ -12,10 +12,11 @@ Runs the checks that need no human judgement — table shape, heading hierarchy,
 unbalanced **/*/`/[](), whitespace noise, EN<->RU structural parity, glossary index
 coverage — and prints one line per finding as `file:line — категория: описание`.
 
-Exit code: 0 when clean, 1 when any error/warning is reported. Note-level
-findings (typography suggestions, bare `[Tag]` references, trailing whitespace)
-are printed but do not affect the exit code — released SRD text legitimately
-contains bracketed rule tags and long-dash variants.
+Exit codes: 0 — clean; 1 — error/warning findings; 2 — argument misuse;
+3 — input/IO errors (path resolved to no .md files, unreadable/non-UTF8 file).
+Note-level findings (typography suggestions, bare `[Tag]` references, trailing
+whitespace) are printed but do not affect the exit code — released SRD text
+legitimately contains bracketed rule tags and long-dash variants.
 
 Parity exception: files named `00_Legal*` are excluded from EN<->RU structural
 parity — the RU legal notice legitimately diverges (translation addendum).
@@ -106,23 +107,41 @@ def is_table_row(line):
     return strip_blockquote(line).startswith("|")
 
 
-def table_columns(row):
+def table_cells(row):
     s = strip_blockquote(row)
     if s.startswith("|"):
         s = s[1:]
     if s.endswith("|"):
         s = s[:-1]
-    return len(re.split(r"(?<!\\)\|", s))
+    return re.split(r"(?<!\\)\|", s)
+
+
+def table_columns(row):
+    return len(table_cells(row))
 
 
 def is_separator_row(row):
-    s = strip_blockquote(row)
-    if s.startswith("|"):
-        s = s[1:]
-    if s.endswith("|"):
-        s = s[:-1]
-    cells = re.split(r"(?<!\\)\|", s)
-    return all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in cells)
+    return all(re.fullmatch(r"\s*:?-+:?\s*", c) for c in table_cells(row))
+
+
+def iter_table_blocks(lines, in_code):
+    """Yield (start, end) half-open ranges of consecutive table rows outside code."""
+    i, n = 0, len(lines)
+    while i < n:
+        if i in in_code or not is_table_row(lines[i]):
+            i += 1
+            continue
+        start = i
+        while i < n and i not in in_code and is_table_row(lines[i]):
+            i += 1
+        yield start, i
+
+
+def table_data_rows(lines, start, end):
+    """Data-row count of a proper table block, or None if it has no separator."""
+    if end - start >= 2 and is_separator_row(lines[start + 1]):
+        return end - start - 2
+    return None
 
 
 # --- per-file checks --------------------------------------------------------
@@ -130,21 +149,13 @@ def is_separator_row(row):
 
 def check_tables(name, lines, in_code, findings):
     """Group consecutive table rows into blocks and validate each block."""
-    i = 0
-    n = len(lines)
     prev_block_proper = False
     prev_block_end = -10
-    while i < n:
-        if not is_table_row(lines[i]) or i in in_code:
-            i += 1
-            continue
-        start = i
-        while i < n and is_table_row(lines[i]) and i not in in_code:
-            i += 1
-        block = list(range(start, i))  # line indices of this block
+    for start, end in iter_table_blocks(lines, in_code):
+        block = list(range(start, end))  # line indices of this block
 
         header_cols = table_columns(lines[start])
-        has_sep = len(block) >= 2 and is_separator_row(lines[block[1]])
+        has_sep = table_data_rows(lines, start, end) is not None
 
         if not has_sep:
             # A table block with no separator on its second row is either a broken
@@ -424,11 +435,15 @@ def file_profile(lines, in_code):
     """Structural counts used for EN<->RU parity."""
     prof = {"h": [0, 0, 0, 0, 0, 0], "blockquotes": 0, "list_items": 0,
             "table_data": 0, "table_cols": [], "lines": len(lines)}
-    i, n = 0, len(lines)
-    while i < n:
-        line = lines[i]
-        if i in in_code:
-            i += 1
+    table_lines = set()
+    for start, end in iter_table_blocks(lines, in_code):
+        table_lines.update(range(start, end))
+        data = table_data_rows(lines, start, end)
+        if data is not None:
+            prof["table_data"] += data
+            prof["table_cols"].append(table_columns(lines[start]))
+    for i, line in enumerate(lines):
+        if i in in_code or i in table_lines:
             continue
         m = HEADING_RE.match(line)
         if m and not ALPHA_BUCKET_RE.search(line.strip()):
@@ -437,16 +452,6 @@ def file_profile(lines, in_code):
             prof["blockquotes"] += 1
         if LIST_ITEM_RE.match(line):
             prof["list_items"] += 1
-        if is_table_row(line):
-            start = i
-            while i < n and is_table_row(lines[i]) and i not in in_code:
-                i += 1
-            block = list(range(start, i))
-            if len(block) >= 2 and is_separator_row(lines[block[1]]):
-                prof["table_data"] += len(block) - 2  # minus header + separator
-                prof["table_cols"].append(table_columns(lines[start]))
-            continue
-        i += 1
     return prof
 
 
@@ -456,6 +461,11 @@ def check_file(path, findings):
     lines = text.split("\n")
     in_code = code_fence_mask(lines)
     name = str(path)
+    if text and not text.endswith("\n"):
+        findings.append(Finding(
+            name, len(lines), CAT_SPACE, NOTE,
+            "нет перевода строки в конце файла",
+        ))
     check_tables(name, lines, in_code, findings)
     check_headings(name, lines, in_code, findings)
     check_formatting(name, lines, in_code, findings)
@@ -522,25 +532,22 @@ def check_parity(en_name, ru_name, en_prof, ru_prof, findings):
 def check_glossary_coverage(index_path, chapter_path, findings):
     index_lines = Path(index_path).read_text(encoding="utf-8").split("\n")
     chapter_lines = Path(chapter_path).read_text(encoding="utf-8").split("\n")
-    in_code = code_fence_mask(chapter_lines)
+    index_in_code = code_fence_mask(index_lines)
+    chapter_in_code = code_fence_mask(chapter_lines)
 
-    # Data rows across all proper tables in the index.
-    index_rows, i, n = 0, 0, len(index_lines)
-    while i < n:
-        if is_table_row(index_lines[i]):
-            start = i
-            while i < n and is_table_row(index_lines[i]):
-                i += 1
-            block = list(range(start, i))
-            if len(block) >= 2 and is_separator_row(index_lines[block[1]]):
-                index_rows += len(block) - 2
-            continue
-        i += 1
+    # Data rows across all proper tables in the index (outside code blocks).
+    index_rows = 0
+    for start, end in iter_table_blocks(index_lines, index_in_code):
+        data = table_data_rows(index_lines, start, end)
+        if data is not None:
+            index_rows += data
 
     # Entities in the chapter: denser of ### / #### (mirrors extract_entities.py).
-    h3 = [l for l in chapter_lines if l.startswith("### ")]
-    h4 = [l for l in chapter_lines if l.startswith("#### ")]
-    entities = len(h3) if len(h3) >= len(h4) else len(h4)
+    h3 = sum(1 for i, l in enumerate(chapter_lines)
+             if i not in chapter_in_code and l.startswith("### "))
+    h4 = sum(1 for i, l in enumerate(chapter_lines)
+             if i not in chapter_in_code and l.startswith("#### "))
+    entities = max(h3, h4)
 
     if index_rows != entities:
         findings.append(Finding(
@@ -581,6 +588,9 @@ def apply_fixes(path):
         if new != line:
             changed += 1
         out.append(new)
+    if not out or out[-1] != "":  # финальный перевод строки
+        out.append("")
+        changed += 1
     Path(path).write_text("\n".join(out), encoding="utf-8")
     return changed
 
@@ -592,7 +602,7 @@ def collect_md(path):
     p = Path(path)
     if p.is_dir():
         return sorted(p.rglob("*.md"))
-    if p.suffix == ".md":
+    if p.suffix == ".md" and p.is_file():
         return [p]
     return []
 
@@ -613,26 +623,48 @@ def main():
 
     findings = []
     profiles = {}
+    io_errors = []
+
+    def resolve_inputs(path):
+        """Non-empty file list, or an io_errors entry — опечатка в CI не должна
+        превращаться в зелёный exit 0."""
+        files = collect_md(path)
+        if not files:
+            io_errors.append(f"{path}: не существует или не содержит .md файлов")
+        return files
 
     def run_file(p):
         key = str(p)
         if key not in profiles:
-            profiles[key] = check_file(p, findings)
+            try:
+                profiles[key] = check_file(p, findings)
+            except (OSError, UnicodeDecodeError) as e:
+                io_errors.append(f"{p}: {e}")
+                profiles[key] = None
         return profiles[key]
 
     if args.fix:
         targets = []
         for path in args.paths:
-            targets.extend(collect_md(path))
+            targets.extend(resolve_inputs(path))
         if args.pair:
-            targets.extend(collect_md(args.pair[0]))
-            targets.extend(collect_md(args.pair[1]))
-        total = sum(apply_fixes(t) for t in targets)
+            targets.extend(resolve_inputs(args.pair[0]))
+            targets.extend(resolve_inputs(args.pair[1]))
+        total = 0
+        for t in targets:
+            try:
+                total += apply_fixes(t)
+            except (OSError, UnicodeDecodeError) as e:
+                io_errors.append(f"{t}: {e}")
         print(f"--fix: изменено строк — {total} в {len(targets)} файл(ах)")
+        if io_errors:
+            for msg in io_errors:
+                print(f"Ошибка ввода: {msg}", file=sys.stderr)
+            return 3
         return 0
 
     for path in args.paths:
-        for p in collect_md(path):
+        for p in resolve_inputs(path):
             run_file(p)
 
     if args.pair:
@@ -645,8 +677,8 @@ def main():
             def rel(p, root):
                 return str(p.relative_to(root))
 
-            en_map = {rel(p, en_root): p for p in collect_md(en_root)}
-            ru_map = {rel(p, ru_root): p for p in collect_md(ru_root)}
+            en_map = {rel(p, en_root): p for p in resolve_inputs(en_root)}
+            ru_map = {rel(p, ru_root): p for p in resolve_inputs(ru_root)}
         for key in sorted(set(en_map) | set(ru_map)):
             if key not in ru_map:
                 findings.append(Finding(str(en_map[key]), 1, CAT_PAIR, ERROR,
@@ -658,6 +690,8 @@ def main():
                 continue
             en_prof = run_file(en_map[key])
             ru_prof = run_file(ru_map[key])
+            if en_prof is None or ru_prof is None:  # файл не прочитался (exit 3)
+                continue
             rel_path = Path(key) if key else en_map[key]
             # RU 00_Legal легитимно расходится (примечание о переводе);
             # структуру *_Glossary/ (RU = EN + «Оригинал», своя разбивка)
@@ -669,7 +703,10 @@ def main():
                          findings)
 
     if args.glossary_index and args.chapter:
-        check_glossary_coverage(args.glossary_index, args.chapter, findings)
+        try:
+            check_glossary_coverage(args.glossary_index, args.chapter, findings)
+        except (OSError, UnicodeDecodeError) as e:
+            io_errors.append(f"--glossary-index/--chapter: {e}")
     elif args.glossary_index or args.chapter:
         print("Ошибка: --glossary-index и --chapter используются вместе",
               file=sys.stderr)
@@ -696,6 +733,11 @@ def main():
     if by_cat:
         print("По категориям: " + ", ".join(
             f"{c} — {n}" for c, n in sorted(by_cat.items())))
+    if io_errors:
+        for msg in io_errors:
+            print(f"Ошибка ввода: {msg}", file=sys.stderr)
+        print("Статус: ✗ Ошибки ввода (exit 3)")
+        return 3
     print("Статус: " + ("✗ Найдены проблемы" if gating else "✓ Все проверки пройдены"))
     return 1 if gating else 0
 
