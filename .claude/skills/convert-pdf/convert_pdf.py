@@ -3,12 +3,15 @@
 PDF to Markdown converter — runs 3 converters and produces statistics.
 
 Usage:
-    python3 convert_pdf.py <pdf_path> <game>
+    python3 convert_pdf.py <pdf_path> <prefix>
+
+`prefix` — opaque имя для /tmp-артефактов; пайплайн передаёт `{game}_{version}`
+(см. SKILL.md), чтобы прогоны разных версий не перезаписывали друг друга.
 
 Output files:
-    /tmp/{game}_marker.md
-    /tmp/{game}_pymupdf.md
-    /tmp/{game}_docling.md
+    /tmp/{prefix}_marker.md
+    /tmp/{prefix}_pymupdf.md
+    /tmp/{prefix}_docling.md
 
 Each converter runs in its own venv (/tmp/venv-{tool}/).
 Missing venvs are created automatically.

@@ -167,12 +167,16 @@ def log_files_sorted(log_dir: Path) -> list:
 def aggregate_dict_tier(files: list, ver_num: str, conflicts: list, label: str):
     """Merge one dictionary tier; same EN → different RU within it is a conflict."""
     tier = {}
+    seen = set()  # один и тот же конфликт из повторяющихся строк — один раз
     for path in files:
         for en, ru in terms_from_dict_file(path, ver_num):
             if en in tier and tier[en] != ru:
-                conflicts.append(
-                    {"term": en, "tier": label, "values": [tier[en], ru]}
-                )
+                key = (label, en, frozenset((tier[en], ru)))
+                if key not in seen:
+                    seen.add(key)
+                    conflicts.append(
+                        {"term": en, "tier": label, "values": [tier[en], ru]}
+                    )
                 continue
             tier.setdefault(en, ru)
     return tier
@@ -194,7 +198,9 @@ def build(game: str, version: str, src: Path):
     common_tr = src / "translate"
 
     entity_files = sorted(
-        f for f in game_tr.glob("0*_dictionary_*.md") if not f.name.startswith("01_")
+        # [0-9]*, а не 0* — иначе 10_dictionary_*.md молча выпадет из карты
+        f for f in game_tr.glob("[0-9]*_dictionary_*.md")
+        if not f.name.startswith("01_")
     )
     system_base = [f for f in [game_tr / "01_dictionary_base.md"] if f.is_file()]
     common_base = [f for f in [common_tr / "01_dictionary_base.md"] if f.is_file()]
