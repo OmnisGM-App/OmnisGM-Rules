@@ -35,15 +35,7 @@ paths:
 | Blinded | Cannot see... |
 ```
 
-Типичные категории (адаптировать под конкретную игру):
-- Характеристики (Abilities/Attributes)
-- Условия/состояния (Conditions)
-- Типы урона (Damage Types)
-- Классы (Classes)
-- Расы/происхождения (Species/Ancestries)
-- Навыки (Skills)
-- Типы существ (Creature Types)
-- Ключевые слова механик (Keywords)
+Категории терминов (обязательные и расширенные) — см. `.claude/rules/translate-dictionaries.md` → «Категории терминов в базовом словаре (01)». Заголовок каждой категории в EN-версии — на английском (напр. `## Conditions`, `## Damage Types`).
 
 ### RU версия
 
