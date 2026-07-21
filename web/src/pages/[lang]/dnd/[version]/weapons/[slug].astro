@@ -99,8 +99,9 @@ const subLine = t(
   `${catLabel} оружие ${typeLabel}`,
   `${catLabel} ${typeLabel.toLowerCase()} weapon`,
 );
+// «(днд)» — кириллическая форма запросов (issue #173, п.2), одна встреча рядом с «D&D».
 const description = t(
-  `${entity.name} — ${catLabel.toLowerCase()} оружие ${typeLabel}, урон ${damageLine}. D&D ${verLabel}.`,
+  `${entity.name} — ${catLabel.toLowerCase()} оружие ${typeLabel}, урон ${damageLine}. D&D ${verLabel} (днд).`,
   `${entity.name} — ${catLabel.toLowerCase()} ${typeLabel.toLowerCase()} weapon, ${damageLine} damage. D&D ${verLabel}.`,
 );
 

@@ -3,6 +3,7 @@ import { getCollection, render } from 'astro:content';
 import ReaderShell from '../../components/ReaderShell.astro';
 import { parseId, titleFromBody } from '../../lib/slug';
 import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
+import { classDescription } from '../../lib/class-facts';
 
 export async function getStaticPaths() {
   const all = await getCollection('srd');
@@ -37,10 +38,19 @@ const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
 
 const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
 const title = `${searchTitle} · ${sysLabel} ${verLabel} · OmnisGM Rules`;
-const description = t(
-  `${searchTitle} — ${sysLabel} ${verLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
-  `${searchTitle} — ${sysLabel} ${verLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
-);
+
+// Класс-страницы (напр. /classes/rogue/) — самый крупный кластер кириллического спроса
+// («плут днд»: 513 запросов, issue #173). Даём содержательный сниппет из умений 1-го уровня
+// класса вместо бойлерплейта; если умений не извлекли — откат к общему шаблону ниже.
+const isClass = ref.game === 'dnd' && ref.slug.startsWith('classes/');
+const description =
+  (isClass
+    ? classDescription({ name: searchTitle, body: entry.body, lang: ref.lang, version: ref.version, verLabel })
+    : null) ??
+  t(
+    `${searchTitle} — ${sysLabel} ${verLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
+    `${searchTitle} — ${sysLabel} ${verLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
+  );
 ---
 <ReaderShell
   lang={ref.lang}

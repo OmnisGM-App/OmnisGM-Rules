@@ -69,10 +69,11 @@ if (isShield) {
 
 // Подстрока в шапке: «Средний доспех» / «Medium armor»; для щита — просто «Щит»/«Shield».
 const subLine = isShield ? catLabel : t(`${catLabel} доспех`, `${catLabel} armor`);
+// «(днд)» — кириллическая форма запросов (issue #173, п.2), одна встреча рядом с «D&D».
 const description = isShield
-  ? t(`${entity.name} — щит, +${acBase} к КД. D&D ${verLabel}.`,
+  ? t(`${entity.name} — щит, +${acBase} к КД. D&D ${verLabel} (днд).`,
       `${entity.name} — shield, +${acBase} AC. D&D ${verLabel}.`)
-  : t(`${entity.name} — ${catLabel.toLowerCase()} доспех, КД ${acLine}. D&D ${verLabel}.`,
+  : t(`${entity.name} — ${catLabel.toLowerCase()} доспех, КД ${acLine}. D&D ${verLabel} (днд).`,
       `${entity.name} — ${catLabel.toLowerCase()} armor, AC ${acLine}. D&D ${verLabel}.`);
 
 const base = `/${lang}/dnd/${verSlug}/armor`;
