@@ -26,7 +26,7 @@ jobs:
       # с --no-validate (без jsonschema, чтобы dev-сборка была бездефолтной), поэтому дрейф схемы
       # (новое поле парсера не заведено в schemas.py) на PR не всплывал и ронял уже ДЕПЛОЙ (#20,
       # spell.area). Ставим python+jsonschema и валидируем здесь — раньше мёржа, а не после.
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: '3.12'
 
