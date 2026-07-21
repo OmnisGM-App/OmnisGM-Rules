@@ -12,7 +12,13 @@ Runs the checks that need no human judgement — table shape, heading hierarchy,
 unbalanced **/*/`/[](), whitespace noise, EN<->RU structural parity, glossary index
 coverage — and prints one line per finding as `file:line — категория: описание`.
 
-Exit code: 0 when clean, 1 when any finding is reported.
+Exit code: 0 when clean, 1 when any error/warning is reported. Note-level
+findings (typography suggestions, bare `[Tag]` references, trailing whitespace)
+are printed but do not affect the exit code — released SRD text legitimately
+contains bracketed rule tags and long-dash variants.
+
+Parity exception: files named `00_Legal*` are excluded from EN<->RU structural
+parity — the RU legal notice legitimately diverges (translation addendum).
 
 --fix applies only the context-free repairs (trailing whitespace, 3+ blank lines
 collapsed to 2, missing space after `#`). Everything else is left for a human /
@@ -59,10 +65,15 @@ FENCE_RE = re.compile(r"^\s*(```|~~~)")
 LIST_ITEM_RE = re.compile(r"^\s*([-*+]\s+\S|\d+\.\s+\S)")
 
 
+HTML_BLOCK_OPEN_RE = re.compile(r"<(style|script)\b", re.IGNORECASE)
+HTML_BLOCK_CLOSE_RE = re.compile(r"</(style|script)>", re.IGNORECASE)
+
+
 def code_fence_mask(lines):
-    """Return a set of line indices that sit inside a fenced code block."""
+    """Line indices inside fenced code blocks or raw <style>/<script> HTML."""
     inside = set()
     fenced = False
+    html_block = False
     for i, line in enumerate(lines):
         if FENCE_RE.match(line):
             inside.add(i)  # the fence line itself is not prose either
@@ -70,15 +81,33 @@ def code_fence_mask(lines):
             continue
         if fenced:
             inside.add(i)
+            continue
+        if html_block:
+            inside.add(i)
+            if HTML_BLOCK_CLOSE_RE.search(line):
+                html_block = False
+            continue
+        if HTML_BLOCK_OPEN_RE.search(line):
+            inside.add(i)
+            if not HTML_BLOCK_CLOSE_RE.search(line):
+                html_block = True
     return inside
 
 
+def strip_blockquote(line):
+    """Stat blocks embed tables inside blockquotes (`> | Str | ... |`)."""
+    s = line.strip()
+    while s.startswith(">"):
+        s = s[1:].lstrip()
+    return s
+
+
 def is_table_row(line):
-    return line.strip().startswith("|")
+    return strip_blockquote(line).startswith("|")
 
 
 def table_columns(row):
-    s = row.strip()
+    s = strip_blockquote(row)
     if s.startswith("|"):
         s = s[1:]
     if s.endswith("|"):
@@ -87,7 +116,7 @@ def table_columns(row):
 
 
 def is_separator_row(row):
-    s = row.strip()
+    s = strip_blockquote(row)
     if s.startswith("|"):
         s = s[1:]
     if s.endswith("|"):
@@ -176,8 +205,10 @@ def check_headings(name, lines, in_code, findings):
                     f"файл начинается с заголовка уровня {level}, а не `#`",
                 ))
         elif level > prev_level + 1:
+            # Выпущенный канон (5.1) намеренно использует прыжки уровней в
+            # stat-блоках — note; потерю уровня в RU ловит паритет по уровням.
             findings.append(Finding(
-                name, i + 1, CAT_HEADING, ERROR,
+                name, i + 1, CAT_HEADING, NOTE,
                 f"прыжок уровня: `{'#' * level}` после `{'#' * prev_level}` "
                 f"(пропущено {level - prev_level - 1})",
             ))
@@ -201,13 +232,14 @@ def check_headings(name, lines, in_code, findings):
         prev_text = text
 
 
-SPACED_BOLD_RE = re.compile(r"\*\*\s+\S.*?\S\s+\*\*")
 LINK_RE = re.compile(r"(?<!\!)\[([^\]]*)\]")
+LIST_MARKER_RE = re.compile(r"^\s*(?:[-*+]|\d+\.)\s+")
+HR_RE = re.compile(r"^\s*(\*{3,}|-{3,}|_{3,})\s*$")
 
 
 def check_formatting(name, lines, in_code, findings):
     for i, line in enumerate(lines):
-        if i in in_code or is_table_row(line):
+        if i in in_code or is_table_row(line) or HR_RE.match(line):
             continue
 
         # Inline code: an odd number of backticks means one is unclosed.
@@ -217,9 +249,13 @@ def check_formatting(name, lines, in_code, findings):
                 "незакрытый inline-код (нечётное число `` ` ``)",
             ))
 
+        # A `* ` list marker is not an italic asterisk — strip it before counting;
+        # escaped `\*` (сноски таблиц) — тоже не маркер форматирования.
+        prose = LIST_MARKER_RE.sub("", line).replace("\\*", "")
+
         # Bold: odd count of `**` tokens.
-        bold_tokens = line.count("**")
-        stripped_bold = line.replace("**", "")
+        bold_tokens = prose.count("**")
+        stripped_bold = prose.replace("**", "")
         if bold_tokens % 2 == 1:
             findings.append(Finding(
                 name, i + 1, CAT_FORMAT, ERROR,
@@ -232,11 +268,18 @@ def check_formatting(name, lines, in_code, findings):
                 "незакрытый `*` (italic без закрывающего маркера)",
             ))
 
-        if SPACED_BOLD_RE.search(line):
-            findings.append(Finding(
-                name, i + 1, CAT_FORMAT, WARNING,
-                "пробелы внутри bold-маркеров (`** text **`)",
-            ))
+        # Spaces inside bold markers: regex can't tell a closing `**` from the
+        # next opening one, so split into segments — odd indices are bold text.
+        if bold_tokens and bold_tokens % 2 == 0:
+            segments = prose.split("**")
+            for k in range(1, len(segments), 2):
+                seg = segments[k]
+                if seg.strip() and seg != seg.strip():
+                    findings.append(Finding(
+                        name, i + 1, CAT_FORMAT, WARNING,
+                        "пробелы внутри bold-маркеров (`** text **`)",
+                    ))
+                    break
 
         for m in LINK_RE.finditer(line):
             inner = m.group(1).strip()
@@ -244,9 +287,11 @@ def check_formatting(name, lines, in_code, findings):
                 continue
             after = line[m.end():m.end() + 1]
             if after not in ("(", "[", ":"):
+                # SRD-текст легитимно содержит теги в скобках ([Action],
+                # [Condition], [d10s] — «Tags in Brackets»), поэтому note.
                 findings.append(Finding(
-                    name, i + 1, CAT_FORMAT, ERROR,
-                    f"битая ссылка: `[{inner}]` без `(url)`",
+                    name, i + 1, CAT_FORMAT, NOTE,
+                    f"`[{inner}]` без `(url)` — битая ссылка или тег правил",
                 ))
                 break
 
@@ -279,11 +324,12 @@ def check_whitespace(name, lines, in_code, findings):
 
         if i in in_code:
             continue
-        if DOUBLE_SPACE_RE.search(line):
-            findings.append(Finding(
-                name, i + 1, CAT_SPACE, WARNING, "двойные пробелы в тексте",
-            ))
         if not is_table_row(line):
+            # Table rows keep alignment padding — double spaces there are noise.
+            if DOUBLE_SPACE_RE.search(line):
+                findings.append(Finding(
+                    name, i + 1, CAT_SPACE, WARNING, "двойные пробелы в тексте",
+                ))
             if DASH_DASH_RE.search(line):
                 findings.append(Finding(
                     name, i + 1, CAT_SPACE, NOTE, "`--` вместо `—` (em dash)",
@@ -294,10 +340,16 @@ def check_whitespace(name, lines, in_code, findings):
                 ))
 
 
+# Алфавитные «корзины» (`## Monsters: A` / `## Монстры: А`): при переводе
+# монстры пересортированы по RU-именам, и число буквенных заголовков легитимно
+# расходится — исключаем их из паритета уровней (симметрично для EN и RU).
+ALPHA_BUCKET_RE = re.compile(r":\s*\S$")
+
+
 def file_profile(lines, in_code):
     """Structural counts used for EN<->RU parity."""
     prof = {"h": [0, 0, 0, 0, 0, 0], "blockquotes": 0, "list_items": 0,
-            "table_data": 0, "lines": len(lines)}
+            "table_data": 0, "table_cols": [], "lines": len(lines)}
     i, n = 0, len(lines)
     while i < n:
         line = lines[i]
@@ -305,7 +357,7 @@ def file_profile(lines, in_code):
             i += 1
             continue
         m = HEADING_RE.match(line)
-        if m:
+        if m and not ALPHA_BUCKET_RE.search(line.strip()):
             prof["h"][len(m.group(1)) - 1] += 1
         if line.strip().startswith(">"):
             prof["blockquotes"] += 1
@@ -318,6 +370,7 @@ def file_profile(lines, in_code):
             block = list(range(start, i))
             if len(block) >= 2 and is_separator_row(lines[block[1]]):
                 prof["table_data"] += len(block) - 2  # minus header + separator
+                prof["table_cols"].append(table_columns(lines[start]))
             continue
         i += 1
     return prof
@@ -364,6 +417,24 @@ def check_parity(en_name, ru_name, en_prof, ru_prof, findings):
             f"элементов списков: EN={en_prof['list_items']}, "
             f"RU={ru_prof['list_items']}",
         ))
+    en_cols, ru_cols = en_prof["table_cols"], ru_prof["table_cols"]
+    if len(en_cols) != len(ru_cols):
+        findings.append(Finding(
+            ru_name, 1, CAT_PARITY, ERROR,
+            f"таблиц: EN={len(en_cols)}, RU={len(ru_cols)}",
+        ))
+    else:
+        # Позиционное сравнение ловит сдвиг порядка таблиц как каскад ложных
+        # расхождений — сравниваем отсортированные мультимножества ширин.
+        for ec, rc in zip(sorted(en_cols), sorted(ru_cols)):
+            # RU glossary tables carry an extra «Оригинал» column → EN+1 is fine.
+            if rc not in (ec, ec + 1):
+                findings.append(Finding(
+                    ru_name, 1, CAT_PARITY, ERROR,
+                    f"набор ширин таблиц расходится: EN={sorted(en_cols)}, "
+                    f"RU={sorted(ru_cols)} (допустимо EN или EN+1 по-таблично)",
+                ))
+                break
     en_lines, ru_lines = en_prof["lines"], ru_prof["lines"]
     if en_lines and abs(ru_lines - en_lines) / en_lines > 0.05:
         findings.append(Finding(
@@ -410,10 +481,15 @@ def apply_fixes(path):
     """Context-free repairs only. Returns the number of lines changed."""
     text = Path(path).read_text(encoding="utf-8")
     lines = text.split("\n")
+    in_code = code_fence_mask(lines)
     changed = 0
     out = []
     blank_run = 0
-    for line in lines:
+    for i, line in enumerate(lines):
+        if i in in_code:  # never rewrite fenced code (`#comment`, значимые пробелы)
+            out.append(line)
+            blank_run = 0
+            continue
         new = line.rstrip()  # trailing whitespace + whitespace-only lines
         m = NOSPACE_HEADING_RE.match(new)
         if m:
@@ -460,16 +536,13 @@ def main():
     args = parser.parse_args()
 
     findings = []
-    checked = set()
+    profiles = {}
 
     def run_file(p):
         key = str(p)
-        if key in checked:
-            return file_profile(
-                Path(p).read_text(encoding="utf-8").split("\n"),
-                code_fence_mask(Path(p).read_text(encoding="utf-8").split("\n")))
-        checked.add(key)
-        return check_file(p, findings)
+        if key not in profiles:
+            profiles[key] = check_file(p, findings)
+        return profiles[key]
 
     if args.fix:
         targets = []
@@ -509,6 +582,13 @@ def main():
                 continue
             en_prof = run_file(en_map[key])
             ru_prof = run_file(ru_map[key])
+            rel_path = Path(key) if key else en_map[key]
+            # RU 00_Legal легитимно расходится (примечание о переводе);
+            # структуру *_Glossary/ (RU = EN + «Оригинал», своя разбивка)
+            # проверяет доменный check_glossary.py, а не generic-паритет.
+            if rel_path.name.startswith("00_Legal") or any(
+                    part.endswith("_Glossary") for part in rel_path.parts):
+                continue
             check_parity(str(en_map[key]), str(ru_map[key]), en_prof, ru_prof,
                          findings)
 
@@ -520,21 +600,28 @@ def main():
         return 2
 
     findings.sort(key=lambda f: (f.file, f.line))
-    for f in findings:
+    gating = [f for f in findings if f.severity in (ERROR, WARNING)]
+    notes = [f for f in findings if f.severity == NOTE]
+    for f in gating:
         print(f.format())
+    if notes:
+        print()
+        print("Заметки (не влияют на exit-код):")
+        for f in notes:
+            print(f.format())
 
     by_cat = {}
-    for f in findings:
+    for f in gating:
         by_cat[f.category] = by_cat.get(f.category, 0) + 1
 
     print()
-    print(f"Файлов проверено: {len(checked)}")
-    print(f"Найдено проблем: {len(findings)}")
+    print(f"Файлов проверено: {len(profiles)}")
+    print(f"Найдено проблем: {len(gating)} (+ заметок: {len(notes)})")
     if by_cat:
         print("По категориям: " + ", ".join(
             f"{c} — {n}" for c, n in sorted(by_cat.items())))
-    print("Статус: " + ("✗ Найдены проблемы" if findings else "✓ Все проверки пройдены"))
-    return 1 if findings else 0
+    print("Статус: " + ("✗ Найдены проблемы" if gating else "✓ Все проверки пройдены"))
+    return 1 if gating else 0
 
 
 if __name__ == "__main__":
