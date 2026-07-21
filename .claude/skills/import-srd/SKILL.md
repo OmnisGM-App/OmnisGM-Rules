@@ -36,8 +36,6 @@ user-invocable: true
 → /convert-pdf {pdf_path} {game} {version}
 ```
 
-Вызови skill `convert-pdf` с аргументами `{pdf_path} {game} {version}`.
-
 Результат: три файла в `/tmp/` — сырой markdown от трёх конвертеров.
 
 После завершения:
@@ -51,14 +49,6 @@ user-invocable: true
 → /cleanup-artifacts {game} {version}
 ```
 
-Вызови skill `cleanup-artifacts` с аргументами `{game} {version}`.
-
-Это включает:
-- Сведение лучших частей из трёх конвертеров
-- Отчёт о полезности каждого конвертера
-- Разбивка на файлы `src/{game}/{version}/en/NN_Name.md`
-- Чистка артефактов PDF
-
 После завершения:
 ```
 ✓ Phase 2 завершена: файлы созданы и очищены (K файлов)
@@ -69,8 +59,6 @@ user-invocable: true
 ```
 → /verify-import {game} {version}
 ```
-
-Вызови skill `verify-import` с аргументами `{game} {version}`.
 
 Это включает:
 - Автоматическая проверка полноты, структуры, таблиц, форматирования
@@ -111,45 +99,25 @@ user-invocable: true
 → /integrate-srd {game} {version}
 ```
 
-Вызови skill `integrate-srd` с аргументами `{game} {version}`.
-
-Это включает:
-- `.github/scripts/prepare_docs.sh` — команды копирования
-- `.github/workflows/pages.yml` — CI деплой
-- `src/site/mkdocs.yml` — навигация + nav_translations
-- `.github/workflows/release-{game}.yml` — release workflow
-- Релизный тег + push (с подтверждением пользователя)
-
 После завершения:
 ```
 ✓ Phase 4 завершена: интеграция в сайт + релиз
-
-Полный пайплайн импорта завершён для {game} {version}:
-- Phase 0: Ветка import/{game}-{version} ✓
-- Phase 1: Конвертация PDF ✓
-- Phase 2: Сведение + разбивка + чистка (K файлов) ✓
-- Phase 3: Верификация (N раундов, M исправлений) ✓
-- Phase 3.5: Squash merge в main ✓
-- Phase 4: Интеграция + релиз ✓
+✓ Полный пайплайн импорта завершён для {game} {version}
 ```
 
 ## Восстановление после сбоя
 
-Если пайплайн прерван, можно перезапустить с любой фазы, вызвав соответствующий skill напрямую.
+Перезапуск с любой фазы — вызовом соответствующего skill напрямую (ветку восстанови как в Phase 0).
 
-**Ветка:** при возобновлении проверь, существует ли ветка `import/{game}-{version}`. Если да — переключись на неё перед продолжением. Если нет (фазы 1-3 не начинались или уже смержены) — создай новую.
-
-- PDF ещё не конвертирован → начни с `/convert-pdf` (Phase 1)
-- PDF уже конвертирован (файлы в `/tmp/`) → начни с `/cleanup-artifacts` (Phase 2)
-- Файлы созданы, но не проверены → начни с `/verify-import` (Phase 3)
-- Всё чисто и проверено → начни с `/integrate-srd` (Phase 4, уже в main)
+```
+PDF не конвертирован         → /convert-pdf       (Phase 1)
+PDF конвертирован (в /tmp/)  → /cleanup-artifacts (Phase 2)
+файлы созданы, не проверены  → /verify-import     (Phase 3)
+всё чисто и проверено        → /integrate-srd     (Phase 4, в main)
+```
 
 ## Технические требования
 
 - Все агенты во всех фазах — **model: "opus"**
-- Фазы 1-3 работают в ветке `import/{game}-{version}`, коммиты по файлам
-- Phase 3.5: squash merge в main (один коммит в истории main)
-- Phase 4 (интеграция) — уже в main
-- Пайплайн останавливается на Phase 3 для ручной проверки
 - При ошибке в любой фазе — остановка и отчёт пользователю
 - Сообщения коммитов на русском

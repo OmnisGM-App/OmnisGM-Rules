@@ -67,30 +67,13 @@ paths:
 
 ### EN версия
 
-Колонки зависят от типа сущности:
+Колонки зависят от типа сущности (заклинания: Level/School/Classes; монстры: CR/Type/Size; предметы: Type/Rarity/Attunement) — адаптировать под конкретную игру. Образец «шапка + строка»:
 
-**Заклинания:**
-```markdown
-| Spell | Level | School | Classes |
-|---|---|---|---|
-| Acid Splash | Cantrip | Evocation | Sorcerer, Wizard |
-```
-
-**Монстры:**
 ```markdown
 | Monster | CR | Type | Size |
 |---|---|---|---|
 | Aboleth | 10 | Aberration | Large |
 ```
-
-**Магические предметы:**
-```markdown
-| Item | Type | Rarity | Attunement |
-|---|---|---|---|
-| Amulet of Health | Wondrous Item | Rare | Yes |
-```
-
-Адаптировать колонки под конкретную игру.
 
 ### RU версия
 

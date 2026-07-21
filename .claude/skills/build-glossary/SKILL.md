@@ -20,7 +20,7 @@ user-invocable: true
 1. Определи директорию: `src/{game}/{version}/en/`
 2. Запусти скрипт анализа сущностей:
    ```bash
-   python3 .claude/skills/build-glossary/extract_entities.py src/{game}/{version}/en/ > /tmp/{game}_entities.json
+   python3 .claude/skills/build-glossary/extract_entities.py src/{game}/{version}/en/ > /tmp/{game}_{version}_entities.json
    ```
    Скрипт автоматически определяет типы файлов (spells, monsters, animals, magic_items, equipment, feats) и считает сущности. Используй его вывод для планирования файлов глоссария.
 
@@ -87,15 +87,7 @@ user-invocable: true
 ...
 ```
 
-## Скрипты
-
-| Скрипт | Что делает |
-|--------|------------|
-| `extract_entities.py` | Сканирует EN файлы, классифицирует по типам, считает сущности, выводит JSON |
-
 ## Технические требования
 
-- Все агенты — **model: "opus"**
 - Большие файлы (>3000 строк) — чанками
-- Коммит после каждого файла
 - Сообщения коммитов на русском

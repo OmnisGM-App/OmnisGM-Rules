@@ -78,14 +78,45 @@ def check_file(filepath: Path) -> list:
                 })
             last_heading_level = level
 
-        # Unclosed bold (** without matching **)
-        # Count ** on this line — odd count means unclosed
-        bold_count = len(re.findall(r"\*\*", line))
-        if bold_count % 2 != 0 and not line.startswith("|"):
-            # Exclude table rows and heading markers
+        # Unclosed bold/italic. Guards against known false positives:
+        # `- `/`* ` list markers, escaped \*, inline-code spans (`**kwargs`),
+        # isolated * with spaces both sides (a * b), horizontal rules.
+        if line.startswith("|") or re.match(r"^\s*(\*{3,}|-{3,}|_{3,})\s*$", line):
+            continue
+        prose = re.sub(r"^\s*(?:[-*+]|\d+\.)\s+", "", line).replace("\\*", "")
+        prose = re.sub(r"`[^`]*`", "", prose)
+        prose = re.sub(r"(?:(?<=\s)|^)\*{1,2}(?=\s|$)", "", prose)
+        bold_count = prose.count("**")
+        if bold_count % 2 != 0:
             issues.append({
                 "file": name, "line": i, "type": "unclosed_bold",
                 "msg": f"Possible unclosed bold marker: {line[:80]}"
+            })
+        elif prose.replace("**", "").count("*") % 2 != 0:
+            issues.append({
+                "file": name, "line": i, "type": "unclosed_italic",
+                "msg": f"Possible unclosed italic marker: {line[:80]}"
+            })
+
+    # Broken blockquote: a non-empty line without `>` sandwiched between `>` lines
+    in_code = set()
+    fenced = False
+    for idx, l in enumerate(lines):
+        if l.strip().startswith("```"):
+            in_code.add(idx)
+            fenced = not fenced
+        elif fenced:
+            in_code.add(idx)
+    for idx in range(1, len(lines) - 1):
+        if idx in in_code:
+            continue
+        cur = lines[idx]
+        if (cur.strip() and not cur.lstrip().startswith(">")
+                and lines[idx - 1].lstrip().startswith(">")
+                and lines[idx + 1].lstrip().startswith(">")):
+            issues.append({
+                "file": name, "line": idx + 1, "type": "broken_blockquote",
+                "msg": f"Non-quoted line inside blockquote: {cur[:80]}"
             })
 
     return issues

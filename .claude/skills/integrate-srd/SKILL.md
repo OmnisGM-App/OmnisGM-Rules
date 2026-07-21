@@ -32,7 +32,7 @@ user-invocable: true
 
 ### Шаг 2: Главная страница `src/site/index.md` и `src/site/en/index.md`
 
-**ВАЖНО:** Главная страница существует в двух версиях — RU (`src/site/index.md`) и EN (`src/site/en/index.md`). Нужно добавить блок в ОБА файла.
+Главная страница существует в двух версиях — RU (`src/site/index.md`) и EN (`src/site/en/index.md`). Нужно добавить блок в ОБА файла.
 
 1. Прочитай `src/site/index.md` (RU) и `src/site/en/index.md` (EN)
 2. Добавь блок для нового SRD **по образцу существующих** (D&D, Daggerheart):
@@ -72,7 +72,7 @@ cp -r src/{game}/{version}/en/* docs/ru/{game}/{version}/
 cp -r src/{game}/{version}/ru/* docs/ru/{game}/{version}/
 ```
 
-**Паттерн RU:** сначала копируем EN как fallback (`cp -r en/* docs/ru/`), затем поверх RU (`cp -r ru/* docs/ru/`). Это обеспечивает EN fallback для ещё не переведённых файлов.
+RU: сначала копируем EN как fallback (`cp -r en/* docs/ru/`), затем поверх RU (`cp -r ru/* docs/ru/`) — EN fallback для ещё не переведённых файлов.
 
 3. `mkdir -p` для каждой подпапки (классы, глоссарий и т.д.)
 4. **Коммит:** `Интеграция {game} {version}: prepare_docs.sh`
@@ -129,78 +129,7 @@ bash .claude/skills/integrate-srd/build_combined_md.sh src/{game}/{version}/ru {
 
 1. Определи короткий префикс для тега — см. `.claude/rules/file-naming-conventions.md` (раздел "Релизные теги")
 2. Проверь существует ли уже workflow `.github/workflows/release-{game}.yml`
-3. Если нет — создай по образцу `release-daggerheart.yml`:
-
-```yaml
-name: Build and Release {Game Title}
-
-on:
-  push:
-    tags:
-      - '{short}-srd-v*'
-
-jobs:
-  build:
-    runs-on: ubuntu-latest
-
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v4
-
-      - name: Build combined RU document
-        uses: ./.github/actions/build-markdown
-        with:
-          source-dir: src/{game}/{version}/ru
-          output-file: {SHORT}-SRD-{VER}-RU.md
-
-      - name: Build combined EN document
-        uses: ./.github/actions/build-markdown
-        with:
-          source-dir: src/{game}/{version}/en
-          output-file: {SHORT}-SRD-{VER}-EN.md
-
-      - name: Install pandoc and LaTeX
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y pandoc texlive-xetex texlive-fonts-extra texlive-lang-cyrillic fonts-liberation
-
-      - name: Convert RU to PDF
-        uses: ./.github/actions/build-pdf
-        with:
-          input-file: {SHORT}-SRD-{VER}-RU.md
-          output-file: {SHORT}-SRD-{VER}-RU.pdf
-          lang: ru
-          toc-title: "Содержание"
-
-      - name: Convert EN to PDF
-        uses: ./.github/actions/build-pdf
-        with:
-          input-file: {SHORT}-SRD-{VER}-EN.md
-          output-file: {SHORT}-SRD-{VER}-EN.pdf
-          lang: en
-          toc-title: "Table of Contents"
-
-      - name: Create release
-        uses: softprops/action-gh-release@v1
-        with:
-          name: "{Game Title} SRD — RU + EN ${{ github.ref_name }}"
-          body: |
-            {Game Title} System Reference Document
-
-            ## SRD {ver}
-            - `{SHORT}-SRD-{VER}-RU.md` — Markdown (русский)
-            - `{SHORT}-SRD-{VER}-RU.pdf` — PDF (русский)
-            - `{SHORT}-SRD-{VER}-EN.md` — Markdown (English)
-            - `{SHORT}-SRD-{VER}-EN.pdf` — PDF (English)
-          files: |
-            {SHORT}-SRD-{VER}-RU.md
-            {SHORT}-SRD-{VER}-RU.pdf
-            {SHORT}-SRD-{VER}-EN.md
-            {SHORT}-SRD-{VER}-EN.pdf
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-```
-
+3. Если нет — скопируй `.github/workflows/release-daggerheart.yml` → `release-{game}.yml`, подставив: `source-dir` = `src/{game}/{version}/{ru,en}`, `output-file`/`input-file` = `{SHORT}-SRD-{VER}-{RU,EN}`, тег-триггер `{short}-srd-v*`, заголовок release = `{Game Title} SRD — RU + EN`. Значения `lang`/`toc-title` в образце уже корректны. Файл-образец — единый источник правды.
 4. **Коммит:** `Интеграция {game} {version}: release workflow`
 
 ### Шаг 8: Создание релизного тега
@@ -249,29 +178,8 @@ ls docs/ru/{game}/{version}/
 - Проверка: docs/ структура корректна ✓
 ```
 
-## Правила
-
-### Именование в навигации
-
-- RU имена берутся из заголовков `#` в RU-файлах
-- Если RU-файл ещё не переведён — имя из EN заголовка + nav_translations
-- Классы, глоссарий — отдельные секции с подстраницами
-
-### Паттерн копирования (EN fallback)
-
-Порядок копирования для RU:
-1. `cp -r en/* docs/ru/` — EN как fallback
-2. `cp -r ru/* docs/ru/` — RU поверх, перезаписывает переведённое
-
-Это гарантирует что непереведённые файлы показываются на EN, а не 404.
-
-### Синхронизация prepare_docs.sh ↔ pages.yml
-
-Команды копирования **должны быть идентичны** в обоих файлах. При изменении одного — менять второй.
-
 ## Технические требования
 
-- Все агенты используют **model: "opus"**
 - Проверить работоспособность через `bash .github/scripts/prepare_docs.sh`
 - Коммит после каждого изменённого файла
 - Сообщения коммитов на русском
