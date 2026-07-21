@@ -239,6 +239,18 @@ def build(game: str, version: str, src: Path):
         and dict_snapshot[en] != terms[en]
     )
 
+    # Алиасы без скобочного хвоста: «Armor Class (AC)» → также «Armor Class»,
+    # чтобы потребитель по голому ключу не решил, что термина в словаре нет.
+    # setdefault: явная словарная запись всегда побеждает алиас.
+    paren = re.compile(r"^(.+?)\s*\([^)]*\)$")
+    aliases = 0
+    for en in list(terms):
+        m = paren.match(en)
+        if m and m.group(1) not in terms:
+            terms[m.group(1)] = terms[en]
+            source_of[m.group(1)] = source_of[en]
+            aliases += 1
+
     counts = Counter(source_of.values())
     files_read = (
         entity_files + common_base + system_base + common_log_files + system_log_files
@@ -248,6 +260,7 @@ def build(game: str, version: str, src: Path):
         "version": version,
         "terms": dict(sorted(terms.items())),
         "sources": {label: counts.get(label, 0) for label, _ in tiers},
+        "aliases": aliases,
         "conflicts": conflicts,
     }
     return result, files_read, overridden_by_logs
@@ -287,7 +300,8 @@ def main():
     n_files = len(files_read)
     n_conflicts = len(result["conflicts"])
     print(
-        f"{n_terms} терминов из {n_files} файлов, "
+        f"{n_terms} терминов из {n_files} файлов "
+        f"(в т.ч. {result['aliases']} алиасов без скобок), "
         f"{overridden} переопределено логами, конфликты: {n_conflicts}"
     )
     print(f"JSON: {out}")
