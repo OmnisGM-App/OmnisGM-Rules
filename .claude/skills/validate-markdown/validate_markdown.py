@@ -250,8 +250,14 @@ def check_formatting(name, lines, in_code, findings):
             ))
 
         # A `* ` list marker is not an italic asterisk — strip it before counting;
-        # escaped `\*` (сноски таблиц) — тоже не маркер форматирования.
-        prose = LIST_MARKER_RE.sub("", line).replace("\\*", "")
+        # escaped `\*` (сноски таблиц) — тоже не маркер форматирования;
+        # inline-code спаны (`**kwargs`) — не markup.
+        spaced_src = re.sub(r"`[^`]*`", "",
+                            LIST_MARKER_RE.sub("", line).replace("\\*", ""))
+        # Одиночные `*`/`**` с пробелами по обе стороны (умножение: a * b) — не
+        # маркеры эмфазиса для парности; но для spaced-bold (`** text **`) они
+        # и есть искомый дефект, поэтому та проверка идёт по spaced_src.
+        prose = re.sub(r"(?:(?<=\s)|^)\*{1,2}(?=\s|$)", "", spaced_src)
 
         # Bold: odd count of `**` tokens.
         bold_tokens = prose.count("**")
@@ -270,8 +276,9 @@ def check_formatting(name, lines, in_code, findings):
 
         # Spaces inside bold markers: regex can't tell a closing `**` from the
         # next opening one, so split into segments — odd indices are bold text.
-        if bold_tokens and bold_tokens % 2 == 0:
-            segments = prose.split("**")
+        spaced_tokens = spaced_src.count("**")
+        if spaced_tokens and spaced_tokens % 2 == 0:
+            segments = spaced_src.split("**")
             for k in range(1, len(segments), 2):
                 seg = segments[k]
                 if seg.strip() and seg != seg.strip():
