@@ -37,28 +37,20 @@ user-invocable: true
 
 Прочитай ВСЕ EN файлы и извлеки термины по категориям.
 
-#### Обязательные категории (для любой TTRPG)
+Категории терминов (обязательные и расширенные) — см. `.claude/rules/translate-dictionaries.md` → «Категории терминов».
 
-| Категория | Примеры (D&D) | Откуда извлекать |
-|-----------|---------------|-----------------|
-| Характеристики | STR, DEX, CON... | PlayingTheGame, CharacterCreation |
-| Состояния | Blinded, Charmed... | RulesGlossary, PlayingTheGame |
-| Типы урона | Fire, Cold, Necrotic... | RulesGlossary, Equipment |
-| Классы | Fighter, Wizard... | Classes/, CharacterCreation |
-| Виды/расы | Elf, Dwarf... | CharacterOrigins |
-| Навыки | Stealth, Athletics... | PlayingTheGame |
-| Типы существ | Undead, Fiend... | Monsters, RulesGlossary |
-| Ключевые механики | Saving Throw, AC, HP... | PlayingTheGame, RulesGlossary |
+Откуда извлекать (специфика build-glossary):
 
-#### Расширенные категории (см. `.claude/rules/translate-dictionaries.md`)
-
-| Категория | Примеры | Зачем |
-|-----------|---------|-------|
-| Названия разделов/глав | Playing the Game, Equipment... | Кросс-файловые ссылки |
-| Подклассы | Path of the Berserker, Circle of the Land... | Консистентность |
-| Ключевые умения классов | Rage, Sneak Attack, Wild Shape... | Консистентность |
-| Рекуррентные фразы | Using a Higher-Level Spell Slot... | Единообразие |
-| Единицы/сокращения | ft., GP, SP, CP... | Единообразие |
+| Категория | Откуда извлекать |
+|-----------|-----------------|
+| Характеристики | PlayingTheGame, CharacterCreation |
+| Состояния | RulesGlossary, PlayingTheGame |
+| Типы урона | RulesGlossary, Equipment |
+| Классы | Classes/, CharacterCreation |
+| Виды/расы | CharacterOrigins |
+| Навыки | PlayingTheGame |
+| Типы существ | Monsters, RulesGlossary |
+| Ключевые механики | PlayingTheGame, RulesGlossary |
 
 Формат таблиц — по `.claude/rules/glossary-format.md`. Сортировка A-Z.
 
