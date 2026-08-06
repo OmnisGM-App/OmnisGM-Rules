@@ -214,4 +214,7 @@ CI (`pages.yml`) вызывает тот же скрипт.
 - Большие файлы (>3000 строк) — чанками через offset/limit
 - Коммиты после каждого файла, сообщения на русском
 - Сайт: MkDocs Material + mkdocs-static-i18n + mkdocs-minify-plugin
-- Теги: `{short}-srd-v*` (dnd→`dnd-srd-v*`, daggerheart→`dh-srd-v*`, brp→`brp-srd-v*`)
+- Релиз: один rolling-релиз с тегом `latest` (`.github/workflows/release.yml`). Триггерится
+  `push` в `main` при изменении `src/**/*.md` и пересобирает/перезаписывает **только** документы
+  затронутой системы/версии (D&D 5.2/5.1/converting, Daggerheart, BRP); `workflow_dispatch` —
+  полная пересборка всех. Прежние пер-системные теги `{short}-srd-v*` выведены из употребления.
