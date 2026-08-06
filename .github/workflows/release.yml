@@ -1,149 +1,231 @@
-name: Build and Release
+name: Release SRD documents
+
+# Единый rolling-релиз `latest` (заменил 3 пер-системных релиза по тегам *-srd-v*).
+# При изменении .md-контента пересобираются и перезаписываются ТОЛЬКО документы
+# затронутой системы/версии; остальные ассеты релиза остаются нетронутыми —
+# softprops/action-gh-release апсертит переданные файлы по имени, не удаляя прочие.
+#
+# Триггеры:
+#   • push в main с изменением src/**/*.md → инкрементально (только затронутые группы);
+#   • workflow_dispatch → полная пересборка всех групп (сид/починка релиза).
+#
+# Известное ограничение: правки шаблона/скриптов сборки (.github/actions/build-markdown|
+# build-pdf) НЕ пересобирают релиз автоматически (триггер — только контент .md). После таких
+# правок пересобрать вручную через workflow_dispatch.
 
 on:
   push:
-    tags:
-      - 'dnd-srd-v*'
+    branches: [main]
+    paths:
+      - 'src/**/*.md'
+  workflow_dispatch:
 
-# Обновление/создание релиза через softprops/action-gh-release требует записи в contents.
-# Дефолтные права токена в репо — read, поэтому объявляем явно (иначе «Create release» падает
-# с «Resource not accessible by integration»).
+# softprops требует запись в contents (иначе «Resource not accessible by integration»).
 permissions:
   contents: write
 
-jobs:
-  build:
-    runs-on: ubuntu-latest
+# Не гоняем два релиза параллельно и не отменяем идущий (upload ассетов не рвём).
+concurrency:
+  group: release-srd
+  cancel-in-progress: false
 
+jobs:
+  release:
+    runs-on: ubuntu-latest
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7
 
-      - name: Build combined RU document
+      # Какие документ-группы затронул push (по src-папке; обе локали ru/en в одной группе).
+      # Только на push: dorny/paths-filter вне push/PR требует настроенного base и может
+      # уронить джобу. На workflow_dispatch шаг пропускается — его выходы там не нужны (все
+      # условия ниже короткозамкнуты на event_name == 'workflow_dispatch').
+      - name: Detect changed document groups
+        if: github.event_name == 'push'
+        id: filter
+        uses: dorny/paths-filter@v3
+        with:
+          filters: |
+            dnd52:
+              - 'src/dnd/srd-5.2/**/*.md'
+            dnd51:
+              - 'src/dnd/srd-5.1/**/*.md'
+            converting:
+              - 'src/dnd/converting-srd-5.2/**/*.md'
+            dh:
+              - 'src/daggerheart/srd-1.0/**/*.md'
+            brp:
+              - 'src/brp/srd-1.0/**/*.md'
+
+      # Есть ли вообще что собирать (иначе push затронул только не-релизный .md — напр.
+      # translate/логи/глоссарий — тогда пропускаем установку LaTeX и сам релиз).
+      - name: Any group selected?
+        id: any
+        run: echo "build=${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' || steps.filter.outputs.dnd51 == 'true' || steps.filter.outputs.converting == 'true' || steps.filter.outputs.dh == 'true' || steps.filter.outputs.brp == 'true' }}" >> "$GITHUB_OUTPUT"
+
+      # ─── Сборка combined-MD (только затронутых групп; dispatch = все) ───
+
+      - name: Build D&D 5.2.1 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' }}
         uses: ./.github/actions/build-markdown
         with:
           source-dir: src/dnd/srd-5.2/ru
           output-file: DND-SRD-5.2.1-RU.md
-
-      - name: Build combined EN document
+      - name: Build D&D 5.2.1 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' }}
         uses: ./.github/actions/build-markdown
         with:
           source-dir: src/dnd/srd-5.2/en
           output-file: DND-SRD-5.2.1-EN.md
 
-      - name: Build combined SRD 5.1 EN document
+      - name: Build D&D 5.1 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd51 == 'true' }}
+        uses: ./.github/actions/build-markdown
+        with:
+          source-dir: src/dnd/srd-5.1/ru
+          output-file: DND-SRD-5.1-RU.md
+      - name: Build D&D 5.1 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd51 == 'true' }}
         uses: ./.github/actions/build-markdown
         with:
           source-dir: src/dnd/srd-5.1/en
           output-file: DND-SRD-5.1-EN.md
 
-      - name: Build Converting to SRD 5.2.1 EN document
+      - name: Build Converting to 5.2.1 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.converting == 'true' }}
+        uses: ./.github/actions/build-markdown
+        with:
+          source-dir: src/dnd/converting-srd-5.2/ru
+          output-file: Converting-to-SRD-5.2.1-RU.md
+      - name: Build Converting to 5.2.1 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.converting == 'true' }}
         uses: ./.github/actions/build-markdown
         with:
           source-dir: src/dnd/converting-srd-5.2/en
           output-file: Converting-to-SRD-5.2.1-EN.md
 
-      - name: Build Converting to SRD 5.2.1 RU document
+      - name: Build Daggerheart 1.0 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dh == 'true' }}
         uses: ./.github/actions/build-markdown
         with:
-          source-dir: src/dnd/converting-srd-5.2/ru
-          output-file: Converting-to-SRD-5.2.1-RU.md
-
-      - name: Build combined SRD 5.1 RU document
+          source-dir: src/daggerheart/srd-1.0/ru
+          output-file: DH-SRD-1.0-RU.md
+      - name: Build Daggerheart 1.0 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dh == 'true' }}
         uses: ./.github/actions/build-markdown
         with:
-          source-dir: src/dnd/srd-5.1/ru
-          output-file: DND-SRD-5.1-RU.md
+          source-dir: src/daggerheart/srd-1.0/en
+          output-file: DH-SRD-1.0-EN.md
 
+      - name: Build BRP 1.0 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.brp == 'true' }}
+        uses: ./.github/actions/build-markdown
+        with:
+          source-dir: src/brp/srd-1.0/ru
+          output-file: BRP-SRD-1.0-RU.md
+      - name: Build BRP 1.0 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.brp == 'true' }}
+        uses: ./.github/actions/build-markdown
+        with:
+          source-dir: src/brp/srd-1.0/en
+          output-file: BRP-SRD-1.0-EN.md
+
+      # LaTeX/pandoc нужен только если хоть одна группа собирается.
       - name: Install pandoc and LaTeX
+        if: steps.any.outputs.build == 'true'
         run: |
           sudo apt-get update
           sudo apt-get install -y pandoc texlive-xetex texlive-fonts-extra texlive-lang-cyrillic fonts-liberation
 
-      - name: Convert RU to PDF
-        uses: ./.github/actions/build-pdf
-        with:
-          input-file: DND-SRD-5.2.1-RU.md
-          output-file: DND-SRD-5.2.1-RU.pdf
-          lang: ru
-          toc-title: "Содержание"
+      # ─── PDF (только затронутых групп) ───
 
-      - name: Convert EN to PDF
+      - name: PDF D&D 5.2.1 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' }}
         uses: ./.github/actions/build-pdf
-        with:
-          input-file: DND-SRD-5.2.1-EN.md
-          output-file: DND-SRD-5.2.1-EN.pdf
-          lang: en
-          toc-title: "Table of Contents"
-
-      - name: Convert SRD 5.1 EN to PDF
+        with: { input-file: DND-SRD-5.2.1-RU.md, output-file: DND-SRD-5.2.1-RU.pdf, lang: ru, toc-title: "Содержание" }
+      - name: PDF D&D 5.2.1 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' }}
         uses: ./.github/actions/build-pdf
-        with:
-          input-file: DND-SRD-5.1-EN.md
-          output-file: DND-SRD-5.1-EN.pdf
-          lang: en
-          toc-title: "Table of Contents"
+        with: { input-file: DND-SRD-5.2.1-EN.md, output-file: DND-SRD-5.2.1-EN.pdf, lang: en, toc-title: "Table of Contents" }
 
-      - name: Convert Converting to SRD 5.2.1 EN to PDF
+      - name: PDF D&D 5.1 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd51 == 'true' }}
         uses: ./.github/actions/build-pdf
-        with:
-          input-file: Converting-to-SRD-5.2.1-EN.md
-          output-file: Converting-to-SRD-5.2.1-EN.pdf
-          lang: en
-          toc-title: "Table of Contents"
-
-      - name: Convert Converting to SRD 5.2.1 RU to PDF
+        with: { input-file: DND-SRD-5.1-RU.md, output-file: DND-SRD-5.1-RU.pdf, lang: ru, toc-title: "Содержание" }
+      - name: PDF D&D 5.1 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd51 == 'true' }}
         uses: ./.github/actions/build-pdf
-        with:
-          input-file: Converting-to-SRD-5.2.1-RU.md
-          output-file: Converting-to-SRD-5.2.1-RU.pdf
-          lang: ru
-          toc-title: "Содержание"
+        with: { input-file: DND-SRD-5.1-EN.md, output-file: DND-SRD-5.1-EN.pdf, lang: en, toc-title: "Table of Contents" }
 
-      - name: Convert SRD 5.1 RU to PDF
+      - name: PDF Converting to 5.2.1 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.converting == 'true' }}
         uses: ./.github/actions/build-pdf
-        with:
-          input-file: DND-SRD-5.1-RU.md
-          output-file: DND-SRD-5.1-RU.pdf
-          lang: ru
-          toc-title: "Содержание"
+        with: { input-file: Converting-to-SRD-5.2.1-RU.md, output-file: Converting-to-SRD-5.2.1-RU.pdf, lang: ru, toc-title: "Содержание" }
+      - name: PDF Converting to 5.2.1 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.converting == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: Converting-to-SRD-5.2.1-EN.md, output-file: Converting-to-SRD-5.2.1-EN.pdf, lang: en, toc-title: "Table of Contents" }
 
-      - name: Create release
+      - name: PDF Daggerheart 1.0 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dh == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: DH-SRD-1.0-RU.md, output-file: DH-SRD-1.0-RU.pdf, lang: ru, toc-title: "Содержание" }
+      - name: PDF Daggerheart 1.0 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dh == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: DH-SRD-1.0-EN.md, output-file: DH-SRD-1.0-EN.pdf, lang: en, toc-title: "Table of Contents" }
+
+      - name: PDF BRP 1.0 RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.brp == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: BRP-SRD-1.0-RU.md, output-file: BRP-SRD-1.0-RU.pdf, lang: ru, toc-title: "Содержание" }
+      - name: PDF BRP 1.0 EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.brp == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: BRP-SRD-1.0-EN.md, output-file: BRP-SRD-1.0-EN.pdf, lang: en, toc-title: "Table of Contents" }
+
+      # Двигаем тег `latest` на текущий коммит: softprops апсертит только ассеты и existing
+      # тег не перемещает — иначе «Source code (zip/tar.gz)» релиза застыл бы на коммите сида
+      # и всё сильнее отставал от ассетов. Форс — тег уже существует (кроме первого запуска).
+      - name: Move `latest` tag to current commit
+        if: steps.any.outputs.build == 'true'
+        run: |
+          git tag -f latest
+          git push -f origin latest
+
+      # Апсертим ТОЛЬКО собранные файлы в единый релиз `latest`. Globы, не совпавшие ни с
+      # чем (несобранные группы), тихо пропускаются (fail_on_unmatched_files по умолчанию false),
+      # их прежние ассеты на релизе остаются.
+      - name: Upsert `latest` release
+        if: steps.any.outputs.build == 'true'
         uses: softprops/action-gh-release@v3
         with:
-          name: "D&D SRD — RU + EN ${{ github.ref_name }}"
+          tag_name: latest
+          make_latest: true
+          name: "OmnisGM SRD — RU + EN (D&D · Daggerheart · BRP)"
           body: |
-            D&D System Reference Documents
+            Единый выпуск System Reference Documents экосистемы OmnisGM — Markdown + PDF,
+            RU и EN. Обновляется автоматически при изменении контента; каждый документ
+            перезаписывается по мере правок своей системы/версии.
 
-            ## SRD 5.2.1
-            - `DND-SRD-5.2.1-RU.md` — Markdown (русский)
-            - `DND-SRD-5.2.1-RU.pdf` — PDF (русский)
-            - `DND-SRD-5.2.1-EN.md` — Markdown (English)
-            - `DND-SRD-5.2.1-EN.pdf` — PDF (English)
-
-            ## SRD 5.1
-            - `DND-SRD-5.1-RU.md` — Markdown (русский)
-            - `DND-SRD-5.1-RU.pdf` — PDF (русский)
-            - `DND-SRD-5.1-EN.md` — Markdown (English)
-            - `DND-SRD-5.1-EN.pdf` — PDF (English)
-
-            ## Converting to SRD 5.2.1 / Переход на SRD 5.2.1
-            - `Converting-to-SRD-5.2.1-RU.md` — Markdown (русский)
-            - `Converting-to-SRD-5.2.1-RU.pdf` — PDF (русский)
-            - `Converting-to-SRD-5.2.1-EN.md` — Markdown (English)
-            - `Converting-to-SRD-5.2.1-EN.pdf` — PDF (English)
+            ## D&D — SRD 5.2.1
+            `DND-SRD-5.2.1-RU.md` · `DND-SRD-5.2.1-RU.pdf` · `DND-SRD-5.2.1-EN.md` · `DND-SRD-5.2.1-EN.pdf`
+            ## D&D — SRD 5.1
+            `DND-SRD-5.1-RU.md` · `DND-SRD-5.1-RU.pdf` · `DND-SRD-5.1-EN.md` · `DND-SRD-5.1-EN.pdf`
+            ## D&D — Переход на 5.2.1 / Converting to 5.2.1
+            `Converting-to-SRD-5.2.1-RU.md` · `Converting-to-SRD-5.2.1-RU.pdf` · `Converting-to-SRD-5.2.1-EN.md` · `Converting-to-SRD-5.2.1-EN.pdf`
+            ## Daggerheart — SRD 1.0
+            `DH-SRD-1.0-RU.md` · `DH-SRD-1.0-RU.pdf` · `DH-SRD-1.0-EN.md` · `DH-SRD-1.0-EN.pdf`
+            ## Basic Roleplaying — SRD 1.0
+            `BRP-SRD-1.0-RU.md` · `BRP-SRD-1.0-RU.pdf` · `BRP-SRD-1.0-EN.md` · `BRP-SRD-1.0-EN.pdf`
           files: |
-            DND-SRD-5.2.1-RU.md
-            DND-SRD-5.2.1-RU.pdf
-            DND-SRD-5.2.1-EN.md
-            DND-SRD-5.2.1-EN.pdf
-            DND-SRD-5.1-RU.md
-            DND-SRD-5.1-RU.pdf
-            DND-SRD-5.1-EN.md
-            DND-SRD-5.1-EN.pdf
-            Converting-to-SRD-5.2.1-RU.md
-            Converting-to-SRD-5.2.1-RU.pdf
-            Converting-to-SRD-5.2.1-EN.md
-            Converting-to-SRD-5.2.1-EN.pdf
+            DND-SRD-*.md
+            DND-SRD-*.pdf
+            Converting-to-SRD-*.md
+            Converting-to-SRD-*.pdf
+            DH-SRD-*.md
+            DH-SRD-*.pdf
+            BRP-SRD-*.md
+            BRP-SRD-*.pdf
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
