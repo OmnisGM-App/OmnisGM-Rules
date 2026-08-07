@@ -16,7 +16,7 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.3.0",
-    "@omnisgm-app/brand": "^0.8.0",
+    "@omnisgm-app/brand": "^0.9.0",
     "astro": "^5.7.0",
     "hast-util-from-html": "^2.0.3",
     "hast-util-to-html": "^9.0.5",
