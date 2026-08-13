@@ -16,6 +16,11 @@ on:
       - '.github/scripts/**'
       - 'firebase.json'
   workflow_dispatch:
+    inputs:
+      full_ping:
+        description: 'IndexNow: пингануть ВЕСЬ sitemap (только при смене домена/структуры URL)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -105,41 +110,84 @@ jobs:
           echo "$resp" | grep -q '"success":true' || { echo "❌ Cloudflare purge не удался"; exit 1; }
           echo "✔ Cloudflare: edge-кэш фикс-файлов rules.omnisgm.com сброшен"
 
-      # IndexNow — мгновенный пинг Bing + Яндекс о задеплоенных страницах (#17).
-      # URL берём из свежесобранного web/dist/sitemap-0.xml (predeploy собрал его тем же билдом,
-      # что ушёл на хостинг) — только реально существующие URL, битых не шлём. Для нового сайта
-      # на первичной индексации шлём весь набор (~177 URL после исключения glossary из
-      # sitemap, см. #37; лимит IndexNow — 10 000/запрос).
-      # KEY — публичный по дизайну, лежит в web/public/${KEY}.txt и совпадает с этой строкой.
+      # IndexNow — стриминг ТОЛЬКО изменённых URL (#186; заведён в #17).
       #
-      # ВАЖНО: это best-effort уведомление ПОСЛЕ уже успешного деплоя — оно НЕ должно ронять ран.
-      # Любой не-2xx (в т.ч. 403 SiteVerificationNotCompleted при самом первом пинге, пока движок
-      # не подтянул ключ-файл) → ::warning::, exit 0. Сайт от этого не страдает; следующий деплой
-      # после завершения верификации вернёт 200/202.
+      # Раньше слали весь sitemap на каждом деплое (5975 URL), из-за чего Bing показывал
+      # рекомендацию «IndexNow is in batch mode». Теперь: манифест «URL → сигнатура содержимого»
+      # кладётся в кэш, следующий деплой берёт прошлый манифест и шлёт разницу.
+      #
+      # Сигнатура — <title> + description + текст страницы без разметки, а не хеш файла: Astro
+      # штампует хеши в имена ассетов и классов, побайтовое сравнение показывало бы «изменилось
+      # всё» каждый раз. Проверено локально: пересборка без правок и правка CSS дают 0 URL,
+      # правка одного файла контента — ровно 1.
+      - name: Восстановить прошлый манифест IndexNow
+        if: success()
+        uses: actions/cache/restore@v4
+        with:
+          path: web/.indexnow/manifest.json
+          key: indexnow-manifest-${{ github.sha }}
+          restore-keys: indexnow-manifest-
+
       - name: IndexNow ping
         if: success()
         env:
           KEY: 94c855220fc93a1e6ccdc3f67fdfbb92
+          FULL: ${{ inputs.full_ping }}
         run: |
+          set -euo pipefail
           host="rules.omnisgm.com"
-          urls=$(grep -ohE '<loc>[^<]+</loc>' web/dist/sitemap-[0-9]*.xml 2>/dev/null | sed -E 's#</?loc>##g')
-          n=$(printf '%s\n' "$urls" | grep -c . || true)
-          if [ "$n" -eq 0 ]; then echo "::warning::IndexNow: sitemap пуст — пинг пропущен."; exit 0; fi
-          # Payload в файл (не в аргумент curl): при >~1500 URL строка --data "$payload"
-          # перешагивает ARG_MAX → «curl: Argument list too long» (грабли #20, sitemap вырос
-          # на страницы животных). --data-binary @file снимает лимит.
-          printf '%s\n' "$urls" | grep . | jq -R . \
-            | jq -sc --arg h "$host" --arg k "$KEY" --arg kl "https://$host/$KEY.txt" \
-                '{host:$h,key:$k,keyLocation:$kl,urlList:.}' > /tmp/indexnow.json
-          resp=$(curl -s -w '\n%{http_code}' -X POST 'https://api.indexnow.org/indexnow' \
-            -H 'Content-Type: application/json; charset=utf-8' --data-binary @/tmp/indexnow.json)
-          code=$(printf '%s' "$resp" | tail -n1)
-          body=$(printf '%s\n' "$resp" | sed '$d')
-          echo "IndexNow: $n URL, HTTP $code"
-          [ -n "$body" ] && echo "$body"
-          case "$code" in
-            200|202) echo "✔ IndexNow принял пинг ($code)";;
-            403) echo "::warning::IndexNow вернул 403 (вероятно верификация ключа ещё идёт) — деплой не затронут, следующий пинг пройдёт.";;
-            *)   echo "::warning::IndexNow вернул $code — пинг best-effort, деплой не затронут.";;
-          esac
+          cd web
+          # Кэш кладёт файл по тому же пути, под которым его сохранили, поэтому прошлый
+          # манифест приезжает как manifest.json — переименовываем, чтобы не перезаписать.
+          mkdir -p .indexnow
+          [ -f .indexnow/manifest.json ] && mv .indexnow/manifest.json .indexnow/prev.json || true
+          # Верхний предел на один прогон: массовая правка шаблона меняет сигнатуру у всех
+          # страниц, и слать 6000 URL — это ровно тот batch-режим, от которого уходим.
+          # Скрипт сортирует изменённые по длине пути, поэтому первыми идут хабы и классы.
+          MAX=1000
+
+          if [ "${FULL:-false}" = "true" ]; then
+            grep -ohE '<loc>[^<]+</loc>' dist/sitemap-[0-9]*.xml | sed -E 's#</?loc>##g' > /tmp/urls.txt
+            echo "::warning::Аварийный режим: шлём ВЕСЬ sitemap ($(wc -l < /tmp/urls.txt) URL)."
+          else
+            node scripts/indexnow_manifest.mjs \
+              --out .indexnow/manifest.json \
+              --prev .indexnow/prev.json \
+              --changed /tmp/urls.txt
+          fi
+
+          n=$(grep -c . /tmp/urls.txt || true)
+          if [ "$n" -eq 0 ]; then echo "IndexNow: изменённых URL нет — пинг не нужен."; exit 0; fi
+          if [ "$n" -gt "$MAX" ]; then
+            echo "::warning::IndexNow: изменилось $n URL, шлём первые $MAX (короткие пути — хабы и классы). Остальные $((n - MAX)) найдутся обходом по sitemap."
+            head -n "$MAX" /tmp/urls.txt > /tmp/urls.capped.txt && mv /tmp/urls.capped.txt /tmp/urls.txt
+            n=$MAX
+          fi
+
+          # Порции по 100 URL с паузой — «streaming» в терминах рекомендации Bing.
+          split -l 100 /tmp/urls.txt /tmp/indexnow-batch-
+          sent=0; failed=0
+          for batch in /tmp/indexnow-batch-*; do
+            jq -R . < "$batch" | jq -sc --arg h "$host" --arg k "$KEY" --arg kl "https://$host/$KEY.txt" \
+              '{host:$h,key:$k,keyLocation:$kl,urlList:.}' > /tmp/indexnow.json
+            code=$(curl -s -o /tmp/indexnow.resp -w '%{http_code}' -X POST 'https://api.indexnow.org/indexnow' \
+              -H 'Content-Type: application/json; charset=utf-8' --data-binary @/tmp/indexnow.json)
+            cnt=$(grep -c . "$batch")
+            case "$code" in
+              200|202) sent=$((sent + cnt)); echo "  ✔ порция $cnt URL — HTTP $code";;
+              *) failed=$((failed + 1)); echo "::warning::порция $cnt URL — HTTP $code: $(cat /tmp/indexnow.resp)";;
+            esac
+            sleep 2
+          done
+          echo "IndexNow: отправлено $sent из $n URL, неуспешных порций: $failed"
+          # Пинг — best-effort уведомление ПОСЛЕ успешного деплоя: он не должен ронять ран.
           exit 0
+
+      # Манифест сохраняем ТОЛЬКО после успешного пинга: иначе следующий деплой сравнил бы
+      # свежий манифест с этим же и решил, что менять нечего, — изменения потерялись бы молча.
+      - name: Сохранить манифест IndexNow
+        if: success() && inputs.full_ping != true
+        uses: actions/cache/save@v4
+        with:
+          path: web/.indexnow/manifest.json
+          key: indexnow-manifest-${{ github.sha }}
