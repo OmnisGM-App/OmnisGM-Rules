@@ -54,7 +54,12 @@ function systemLabel(game: string, version: string, short: boolean): string {
     return ed ? `D&D ${ed}` : `D&D ${ver}`.trim();
   }
   if (game === 'brp') return short ? `BRP ${ver}`.trim() : `Basic Roleplaying ${ver}`.trim();
-  if (game === 'daggerheart') return short ? 'Daggerheart' : `Daggerheart ${ver}`.trim();
+  // «SRD» в метке Daggerheart — не украшение, а требование DPCGL §2.5(a): Name Mark «DAGGERHEART»
+  // нельзя использовать как заголовок работы или главы. Полная форма «Daggerheart SRD 1.0» —
+  // номинативная ссылка на документ-источник (именно так он назван в обязательной строке
+  // атрибуции §4.1), а не имя нашей страницы. Короткая ступень лестницы роняет номер версии,
+  // но НЕ «SRD» — иначе в <title> останется голая марка (issue #166).
+  if (game === 'daggerheart') return short ? 'Daggerheart SRD' : `Daggerheart SRD ${ver}`.trim();
   return `${game.toUpperCase()} ${ver}`.trim();
 }
 

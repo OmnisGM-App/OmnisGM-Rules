@@ -92,9 +92,9 @@ test('глоссарий «Способности» = доменные карт�
   // Сама страница-дубль остаётся доступной и держит nav-контекст (не сирота).
   const res = await page.goto('/ru/daggerheart/srd-1.0/glossary/abilities/');
   expect(res?.status()).toBe(200);
-  // Метка системы в <title> с #185 берётся из VERSION_LABEL («Daggerheart 1.0»), а не из
-  // nav-подписи («Daggerheart SRD 1.0») — проверяем сам факт системного контекста.
-  await expect(page).toHaveTitle(/Daggerheart 1\.0/);
+  // Метка системы в <title>: «Daggerheart SRD 1.0» — марка не должна стоять в заголовке
+  // голой (DPCGL §2.5(a), issue #166), поэтому «SRD» из лестницы укорачивания не выпадает.
+  await expect(page).toHaveTitle(/Daggerheart SRD 1\.0/);
 });
 
 test('автолинк: глава «Домены» линкует доменные карты (grid-режим) + hovercard', async ({ page }) => {
@@ -147,4 +147,27 @@ test('hovercard-бакет daggerheart отдаёт карточки терми�
   const map = await res.json();
   expect(map['rules-terms/vulnerable']).toBeTruthy();
   expect(map['rules-terms/action-roll']).toBeTruthy();
+});
+
+// DPCGL-комплаенс (issue #166). Требования лицензии, которые обязаны жить на КАЖДОЙ странице
+// Daggerheart, а не только на Legal: §4.1(a) копирайт, (b) точное имя Public Game Content,
+// (c) гиперссылка на него, (d) гиперссылка на лицензию, (e) пометка о модификациях;
+// §2.5(a) — Name Mark «Daggerheart» не должен стоять в заголовке главы/страницы голым.
+test('DPCGL: атрибуция §4.1 в футере и §2.5 в <title>', async ({ page }) => {
+  for (const [url, mods] of [
+    ['/ru/daggerheart/srd-1.0/adversaries/all/', /переведён на русский/],
+    ['/en/daggerheart/srd-1.0/adversaries/all/', /the rules text is unchanged/],
+  ] as const) {
+    await page.goto(url);
+    const attrib = page.locator('.rd-attrib');
+    await expect(attrib).toContainText('Daggerheart System Reference Document 1.0');
+    await expect(attrib).toContainText('Critical Role, LLC');
+    await expect(attrib).toContainText(mods);
+    await expect(attrib.locator('a[href="https://www.daggerheart.com"]')).toHaveCount(1);
+    await expect(attrib.locator('a[href="https://darringtonpress.com/license"]')).toHaveCount(1);
+    // Марка в заголовке — только как часть имени документа-источника.
+    const title = await page.title();
+    expect(title).toMatch(/Daggerheart SRD/);
+    expect(title).not.toMatch(/Daggerheart(?! SRD)/);
+  }
 });

@@ -44,8 +44,8 @@ const tierLabelFor = (n: number) => t(`Ранг ${n}`, `Tier ${n}`);
 const heading = `${tierLabel}${t(' — окружения', ' — Environments')}`;
 const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
 const description = t(
-  `Все ${items.length} окружений ${tierLabel} в Daggerheart ${verLabel} со ссылками на страницы: сложность, импульсы, противники, особенности.`,
-  `All ${items.length} ${tierLabel} environments in Daggerheart ${verLabel} with links to each page: difficulty, impulses, adversaries, features.`,
+  `Все ${items.length} окружений ${tierLabel} в Daggerheart SRD ${verLabel} со ссылками на страницы: сложность, импульсы, противники, особенности.`,
+  `All ${items.length} ${tierLabel} environments in Daggerheart SRD ${verLabel} with links to each page: difficulty, impulses, adversaries, features.`,
 );
 const upLink = { href: `${base}/all/`, ru: 'Все окружения', en: 'All environments' };
 ---
@@ -62,8 +62,8 @@ const upLink = { href: `${base}/all/`, ru: 'Все окружения', en: 'All
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} окружений ${tierLabel} в Daggerheart ${verLabel}. Нажмите, чтобы открыть страницу со стат-блоком.`,
-      `${items.length} ${tierLabel} environments in Daggerheart ${verLabel}. Select one to open its stat block page.`,
+      `${items.length} окружений ${tierLabel} в Daggerheart SRD ${verLabel}. Нажмите, чтобы открыть страницу со стат-блоком.`,
+      `${items.length} ${tierLabel} environments in Daggerheart SRD ${verLabel}. Select one to open its stat block page.`,
     )}
   </p>
 

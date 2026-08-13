@@ -52,7 +52,7 @@ Each SRD is distributed under its own license. See `LICENSE.md` in the correspon
 
 - D&D SRD 5.2 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.2/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.2/LICENSE-RU.md)
 - D&D SRD 5.1 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.1/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.1/LICENSE-RU.md)
-- Daggerheart SRD 1.0 — DPCGL © Critical Role, LLC (not affiliated with or endorsed by Darrington Press); see the in-app [Legal page](src/daggerheart/srd-1.0/en/00_Legal.md)
+- Daggerheart SRD 1.0 — this product includes materials from the [Daggerheart System Reference Document 1.0](https://www.daggerheart.com), © Critical Role, LLC. under the terms of the [DPCGL](https://darringtonpress.com/license); converted to Markdown and translated into Russian by OmnisGM, rules text unchanged; not affiliated with or endorsed by Darrington Press. See the in-app [Legal page](src/daggerheart/srd-1.0/en/00_Legal.md)
 - Basic Roleplaying SRD 1.0 — BRP OGL v1.0 © Chaosium Inc.: [LICENSE.md](src/brp/srd-1.0/LICENSE.md)
 
 ## Repository structure

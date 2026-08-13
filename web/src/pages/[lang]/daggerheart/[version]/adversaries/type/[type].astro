@@ -46,8 +46,8 @@ const typeName = advTypeLabel(tSlug, lang);
 const heading = t(`Противники: ${typeName}`, `${typeName} Adversaries`);
 const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
 const description = t(
-  `Все ${adversaries.length} противников типа «${typeName}» в Daggerheart ${verLabel} со ссылками на стат-блоки.`,
-  `All ${adversaries.length} ${typeName} adversaries in Daggerheart ${verLabel} with links to each stat block.`,
+  `Все ${adversaries.length} противников типа «${typeName}» в Daggerheart SRD ${verLabel} со ссылками на стат-блоки.`,
+  `All ${adversaries.length} ${typeName} adversaries in Daggerheart SRD ${verLabel} with links to each stat block.`,
 );
 // Другие типы — только реально присутствующие (без битых ссылок).
 const present = new Set(
@@ -69,8 +69,8 @@ const tiers = [...new Set(adversaries.map((a) => a.tier))].sort((a, b) => a - b)
   <h1>{heading}</h1>
   <p>
     {t(
-      `${adversaries.length} противников типа «${typeName}» в Daggerheart ${verLabel}. «Ранг» ведёт на список ранга. Нажмите на имя, чтобы открыть стат-блок.`,
-      `${adversaries.length} ${typeName} adversaries in Daggerheart ${verLabel}. Tier links to its list. Select a name to open the stat block.`,
+      `${adversaries.length} противников типа «${typeName}» в Daggerheart SRD ${verLabel}. «Ранг» ведёт на список ранга. Нажмите на имя, чтобы открыть стат-блок.`,
+      `${adversaries.length} ${typeName} adversaries in Daggerheart SRD ${verLabel}. Tier links to its list. Select a name to open the stat block.`,
     )}
   </p>
 

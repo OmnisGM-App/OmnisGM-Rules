@@ -39,20 +39,28 @@ const navRoots = activeSys === 'home' ? NAV : ((NAV.find((n) => n.id === activeS
 
 // Атрибуция лицензии в футере — по системе, на каждой контентной странице (требование лицензий:
 // CC BY 4.0 для D&D, DPCGL + non-affiliation для Daggerheart, BRP OGL для BRP). На home не показываем.
+//
+// Строки содержат разметку и рендерятся через set:html — обе лицензии требуют именно ГИПЕРССЫЛКИ,
+// а не упоминания: CC BY 4.0 §3(a)(1)(B) — «a URI or hyperlink to the license»; DPCGL §4.1(c) —
+// ссылка на сам Public Game Content, §4.1(d) — ссылка на лицензию. Текст здесь наш, не пользовательский.
 const ATTRIB: Record<string, { ru: string; en: string }> = {
   dnd: {
-    en: 'Includes material from the System Reference Document (SRD 5.2.1 / 5.1) by Wizards of the Coast, licensed under CC BY 4.0.',
-    ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия CC BY 4.0.',
+    en: 'Includes material from the System Reference Document (SRD 5.2.1 / 5.1) by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>.',
+    ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>. Перевод на русский — OmnisGM.',
   },
   daggerheart: {
-    // §4.1(e) DPCGL требует пометку о модификациях: EN — оригинал без изменений,
-    // RU — перевод (см. LICENSING-NOTES.md в корне папки OmnisGM).
-    en: 'Daggerheart content used under the Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Not affiliated with or endorsed by Darrington Press. There are no previous modifications by others.',
-    ru: 'Материалы Daggerheart используются по Darrington Press Community Gaming License (DPCGL). © Critical Role, LLC. Не аффилировано с Darrington Press и не одобрено ей. Текст переведён на русский; иных модификаций нет.',
+    // Формула §4.1(a–e) DPCGL: копирайт (a) + точное имя Public Game Content (b) + ссылка на него (c)
+    // + ссылка на лицензию (d) + пометка о модификациях (e). Эталонная строка лицензии кончается
+    // словами «There are no previous modifications by others» — у нас это не так: EN-текст
+    // конвертирован в Markdown с опорой в том числе на стороннюю конверсию, RU — наш перевод.
+    // Пишем как есть, подробности — на странице «Правовая информация» (см. LICENSING-NOTES.md
+    // в корне папки OmnisGM).
+    en: 'This product includes materials from the Daggerheart System Reference Document 1.0, © Critical Role, LLC. under the terms of the <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming (DPCGL) License</a>. More information can be found at <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Converted to Markdown by OmnisGM; the rules text is unchanged. Not affiliated with or endorsed by Darrington Press.',
+    ru: 'Этот продукт включает материалы из Daggerheart System Reference Document 1.0, © Critical Role, LLC., на условиях <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming License (DPCGL)</a>. Подробности — на <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Текст переведён на русский и конвертирован в Markdown силами OmnisGM. Не аффилировано с Darrington Press и не одобрено ей.',
   },
   brp: {
-    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the BRP Open Game License v1.0.',
-    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по BRP Open Game License v1.0.',
+    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>.',
+    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Перевод на русский — OmnisGM.',
   },
 };
 const attribution = activeSys !== 'home' ? ATTRIB[activeSys] : undefined;
@@ -275,7 +283,7 @@ const searchUi = {
                   <img src="/powered-by-brp.png" alt="Powered by BRP — Basic Roleplaying, Chaosium Inc." width="80" height="80" loading="lazy" />
                 </a>
               )}
-              <span>{t(attribution.ru, attribution.en)}</span>{' '}
+              <span set:html={t(attribution.ru, attribution.en)} />{' '}
               <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>
             </div>
           )}
