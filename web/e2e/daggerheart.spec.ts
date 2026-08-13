@@ -154,15 +154,18 @@ test('hovercard-бакет daggerheart отдаёт карточки терми�
 // (c) гиперссылка на него, (d) гиперссылка на лицензию, (e) пометка о модификациях;
 // §2.5(a) — Name Mark «Daggerheart» не должен стоять в заголовке главы/страницы голым.
 test('DPCGL: атрибуция §4.1 в футере и §2.5 в <title>', async ({ page }) => {
-  for (const [url, mods] of [
-    ['/ru/daggerheart/srd-1.0/adversaries/all/', /переведён на русский/],
-    ['/en/daggerheart/srd-1.0/adversaries/all/', /the rules text is unchanged/],
+  for (const [url, mods, prevMods] of [
+    ['/ru/daggerheart/srd-1.0/adversaries/all/', /переведён на русский/, /сообществной конверсии/],
+    ['/en/daggerheart/srd-1.0/adversaries/all/', /the rules text is unchanged/, /earlier community conversion/],
   ] as const) {
     await page.goto(url);
     const attrib = page.locator('.rd-attrib');
     await expect(attrib).toContainText('Daggerheart System Reference Document 1.0');
     await expect(attrib).toContainText('Critical Role, LLC');
     await expect(attrib).toContainText(mods);
+    // (e) требует назвать и предыдущие модификации ДРУГИХ лиц — обе половины в самом футере,
+    // без опоры на переход по ссылке «Правовая информация».
+    await expect(attrib).toContainText(prevMods);
     await expect(attrib.locator('a[href="https://www.daggerheart.com"]')).toHaveCount(1);
     await expect(attrib.locator('a[href="https://darringtonpress.com/license"]')).toHaveCount(1);
     // Марка в заголовке — только как часть имени документа-источника.

@@ -53,10 +53,12 @@ const ATTRIB: Record<string, { ru: string; en: string }> = {
     // + ссылка на лицензию (d) + пометка о модификациях (e). Эталонная строка лицензии кончается
     // словами «There are no previous modifications by others» — у нас это не так: EN-текст
     // конвертирован в Markdown с опорой в том числе на стороннюю конверсию, RU — наш перевод.
-    // Пишем как есть, подробности — на странице «Правовая информация» (см. LICENSING-NOTES.md
-    // в корне папки OmnisGM).
-    en: 'This product includes materials from the Daggerheart System Reference Document 1.0, © Critical Role, LLC. under the terms of the <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming (DPCGL) License</a>. More information can be found at <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Converted to Markdown by OmnisGM; the rules text is unchanged. Not affiliated with or endorsed by Darrington Press.',
-    ru: 'Этот продукт включает материалы из Daggerheart System Reference Document 1.0, © Critical Role, LLC., на условиях <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming License (DPCGL)</a>. Подробности — на <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Текст переведён на русский и конвертирован в Markdown силами OmnisGM. Не аффилировано с Darrington Press и не одобрено ей.',
+    // Пишем как есть. (e) требует назвать И свои модификации, И предыдущие чужие, поэтому обе
+    // половины стоят прямо здесь: notice каждой страницы самодостаточен и не опирается на то,
+    // что читатель перейдёт на «Правовую информацию». Полный разбор — LICENSING-NOTES.md
+    // в корне папки OmnisGM.
+    en: 'This product includes materials from the Daggerheart System Reference Document 1.0, © Critical Role, LLC. under the terms of the <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming (DPCGL) License</a>. More information can be found at <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Converted to Markdown by OmnisGM, in part from an earlier community conversion; the rules text is unchanged. Not affiliated with or endorsed by Darrington Press.',
+    ru: 'Этот продукт включает материалы из Daggerheart System Reference Document 1.0, © Critical Role, LLC., на условиях <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming License (DPCGL)</a>. Подробности — на <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Текст переведён на русский и конвертирован в Markdown силами OmnisGM, отчасти на основе более ранней сообществной конверсии. Не аффилировано с Darrington Press и не одобрено ей.',
   },
   brp: {
     en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>.',
