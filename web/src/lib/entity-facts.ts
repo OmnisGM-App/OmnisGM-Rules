@@ -251,7 +251,11 @@ export function gearDescription(opts: {
   );
 
   // Хвост — начало описания ровно в остаток бюджета; без него сниппет вышел бы голым перечнем.
-  const tail = excerpt(str(entity.description_md), Math.max(0, LIMIT - head.length - 1));
+  // Но если остатка почти нет, excerpt() вернул бы голое «…» — тогда хвост не добавляем вовсе
+  // (ревью #188). MIN_TAIL — минимальная осмысленная длина куска прозы.
+  const MIN_TAIL = 20;
+  const room = LIMIT - head.length - 1;
+  const tail = room >= MIN_TAIL ? excerpt(str(entity.description_md), room) : '';
   return tail ? `${head} ${tail}` : head;
 }
 
