@@ -1,11 +1,13 @@
 // Бюджет мета-тегов по ВСЕМУ собранному dist — issue #185. В отличие от verify_dist_seo.mjs
 // (фиксированный сэмпл по одному slug на тип страницы, проверка инвариантов <head>), здесь
-// сплошной обход всех страниц и два количественных гейта:
+// сплошной обход всех страниц и три количественных гейта:
 //
 //   1) ДУБЛИ <meta name="description"> — Вебмастер показал 39 дублей; сплошной замер дал
 //      520 страниц в 191 группе. Причина: сущностные страницы брали excerpt() первого
 //      абзаца/черты («Дракон может дышать воздухом и водой.» — 33 страницы).
 //   2) ДЛИННЫЕ <title> — Bing ругался «Title too long» (#172); порог 65 символов.
+//   3) ДУБЛИ <title> — до шаблонов из page-title.ts глава и хаб «all» различались только
+//      разделителем (· против —), то есть были дублями по существу.
 //
 // Гейт — БЮДЖЕТНЫЙ, а не нулевой: чиним разделы волнами (монстры/животные → заклинания →
 // магпредметы → …), и до конца волн нули недостижимы. Скрипт валит CI, если стало ХУЖЕ
@@ -36,6 +38,11 @@ const TITLE_LIMIT = 65;
 // Разрешённая «недобранность»: если фактическое число упало ниже бюджета более чем на
 // SLACK, требуем обновить бюджет — иначе гейт молча перестаёт ловить регрессии.
 const SLACK = 25;
+// Страховка от «гниения» парсера: теги ищутся регекспами, и если шаблон <head> сменит
+// порядок атрибутов или кавычки, они молча перестанут находиться. Тогда «дублей 0» означало
+// бы не порядок, а сломанный парсер, а гейт вместо этого потребовал бы опустить бюджет и
+// увёл бы диагностику не туда. Поэтому требуем покрытия: тег обязан находиться почти везде.
+const MIN_COVERAGE = 0.9;
 
 // Рекурсивный обход dist в поисках index.html.
 function* htmlFiles(dir) {
@@ -57,6 +64,8 @@ const byDescription = new Map(); // description → [страницы]
 const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
 let pages = 0;
+let withDescription = 0;
+let withTitle = 0;
 
 for (const file of htmlFiles(DIST)) {
   const html = readFileSync(file, 'utf8');
@@ -68,6 +77,7 @@ for (const file of htmlFiles(DIST)) {
   if (desc) {
     const key = decode(desc[1]).trim();
     if (key) {
+      withDescription++;
       if (!byDescription.has(key)) byDescription.set(key, []);
       byDescription.get(key).push(page);
     }
@@ -78,6 +88,7 @@ for (const file of htmlFiles(DIST)) {
     const text = decode(title[1]).trim();
     if (text.length > TITLE_LIMIT) longTitles.push({ page, len: text.length });
     if (text) {
+      withTitle++;
       if (!byTitle.has(text)) byTitle.set(text, []);
       byTitle.get(text).push(page);
     }
@@ -103,6 +114,17 @@ console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} �
 console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
 
 const errors = [];
+
+// Сначала — покрытие: без него все числа ниже бессмысленны.
+for (const [what, found] of [['description', withDescription], ['<title>', withTitle]]) {
+  const share = pages ? found / pages : 0;
+  if (share < MIN_COVERAGE) {
+    errors.push(
+      `${what} найден только на ${found} из ${pages} страниц (${Math.round(share * 100)}%) — ` +
+        `похоже, сломался парсер в этом скрипте, а не мета в шаблонах. Числа ниже не читай.`,
+    );
+  }
+}
 
 if (dupPages > BUDGET.dupDescriptionPages) {
   errors.push(`дубли description: ${dupPages} > бюджета ${BUDGET.dupDescriptionPages}`);
