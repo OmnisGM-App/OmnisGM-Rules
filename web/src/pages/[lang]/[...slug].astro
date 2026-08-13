@@ -37,8 +37,8 @@ const trail = findPath(currentId) ?? [];
 const sysLabel = trail.length ? navLabel(trail[0], ref.lang) : ref.game.toUpperCase();
 const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
 // В сниппет идёт только номер документа: nav-подпись с #185 несёт ещё и редакцию
-// («SRD 5.2.1 (D&D 2024)»), а в description редакция уже названа своими словами —
-// «Полные правила SRD 5.2.1 (D&D 2024) на русском» было бы и длинно, и с повтором.
+// («SRD 5.2.1 (5.5e, 2024)»), а в description редакция уже названа своими словами —
+// «Полные правила SRD 5.2.1 (5.5e, 2024) на русском» было бы и длинно, и с повтором.
 const docLabel = verLabel.replace(/\s*\(.*\)$/, '');
 
 const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
