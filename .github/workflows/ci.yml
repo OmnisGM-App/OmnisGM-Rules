@@ -78,3 +78,16 @@ jobs:
       - name: Мета-бюджет по dist (дубли description, длина title)
         working-directory: web
         run: node scripts/verify_dist_meta_budget.mjs
+
+      # Смоук скриптов деплоя (#175/#186): они гоняются только в deploy.yml, где поломка
+      # обнаружилась бы уже после выката. Здесь проверяем, что оба отрабатывают на свежем dist
+      # и находят непустой набор URL. /api/ в CI нет (его делает firebase predeploy) — скрипт
+      # это переживает, поэтому список короче боевого.
+      - name: Смоук скриптов деплоя (манифест IndexNow, purge-список Cloudflare)
+        working-directory: web
+        run: |
+          set -euo pipefail
+          node scripts/indexnow_manifest.mjs --out /tmp/manifest.json
+          node scripts/cf_purge_urls.mjs --out /tmp/purge.txt
+          grep -q 'sitemap-index.xml' /tmp/purge.txt || { echo "❌ purge-список без sitemap — сломан сбор фикс-имён"; exit 1; }
+          test "$(grep -c . /tmp/purge.txt)" -ge 10
