@@ -129,6 +129,7 @@ jobs:
           restore-keys: indexnow-manifest-
 
       - name: IndexNow ping
+        id: indexnow
         if: success()
         env:
           KEY: 94c855220fc93a1e6ccdc3f67fdfbb92
@@ -157,14 +158,24 @@ jobs:
           fi
 
           n=$(grep -c . /tmp/urls.txt || true)
-          if [ "$n" -eq 0 ]; then echo "IndexNow: изменённых URL нет — пинг не нужен."; exit 0; fi
-          if [ "$n" -gt "$MAX" ]; then
+          if [ "$n" -eq 0 ]; then
+            echo "IndexNow: изменённых URL нет — пинг не нужен."
+            echo "pinged=true" >> "$GITHUB_OUTPUT"   # менять нечего — база актуальна, сохраняем
+            exit 0
+          fi
+          # Кап — только для обычного режима. В аварийном (full_ping) он отменял бы саму функцию:
+          # флаг заведён ради смены домена/структуры URL, там нужен именно полный прогон.
+          if [ "${FULL:-false}" != "true" ] && [ "$n" -gt "$MAX" ]; then
             echo "::warning::IndexNow: изменилось $n URL, шлём первые $MAX (короткие пути — хабы и классы). Остальные $((n - MAX)) найдутся обходом по sitemap."
             head -n "$MAX" /tmp/urls.txt > /tmp/urls.capped.txt && mv /tmp/urls.capped.txt /tmp/urls.txt
             n=$MAX
           fi
 
           # Порции по 100 URL с паузой — «streaming» в терминах рекомендации Bing.
+          # Чистим хвосты прошлого прогона: при повторном запуске job (re-run) старые файлы
+          # порций остались бы в /tmp и попали в цикл — счётчик отправленного врал бы, а часть
+          # URL ушла бы дважды. Поймано на локальном стенде.
+          rm -f /tmp/indexnow-batch-*
           split -l 100 /tmp/urls.txt /tmp/indexnow-batch-
           sent=0; failed=0
           for batch in /tmp/indexnow-batch-*; do
@@ -180,13 +191,27 @@ jobs:
             sleep 2
           done
           echo "IndexNow: отправлено $sent из $n URL, неуспешных порций: $failed"
+          # Манифест сохраняем, только если хоть что-то ушло. Шаг всегда завершается exit 0
+          # (best-effort, деплой ронять нельзя), поэтому одного `if: success()` на шаге
+          # сохранения мало: при 403-окне переверификации ключа или аварии API манифест
+          # обновился бы, а изменения не ушли бы НИКОГДА (ревью #190).
+          # Частичный успех сохраняем сознательно: повторно отправить ушедшее дешевле,
+          # чем потерять неушедшее.
+          if [ "$sent" -eq 0 ]; then
+            echo "::warning::IndexNow: не ушла ни одна порция — манифест НЕ сохраняем, следующий деплой отправит эти URL снова."
+            echo "pinged=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "pinged=true" >> "$GITHUB_OUTPUT"
+          fi
           # Пинг — best-effort уведомление ПОСЛЕ успешного деплоя: он не должен ронять ран.
           exit 0
 
-      # Манифест сохраняем ТОЛЬКО после успешного пинга: иначе следующий деплой сравнил бы
-      # свежий манифест с этим же и решил, что менять нечего, — изменения потерялись бы молча.
+      # Манифест сохраняем только когда пинг реально ушёл (steps.indexnow.outputs.pinged):
+      # иначе следующий деплой сравнил бы свежий манифест с этим же и решил, что менять
+      # нечего, — изменения потерялись бы молча. В аварийном full-режиме манифест не пишется
+      # вовсе, поэтому шаг пропускается.
       - name: Сохранить манифест IndexNow
-        if: success() && inputs.full_ping != true
+        if: success() && steps.indexnow.outputs.pinged == 'true' && inputs.full_ping != true
         uses: actions/cache/save@v4
         with:
           path: web/.indexnow/manifest.json
