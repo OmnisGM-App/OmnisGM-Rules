@@ -16,6 +16,7 @@
 // Использование:
 //   node scripts/indexnow_manifest.mjs --out .indexnow/manifest.json
 //   node scripts/indexnow_manifest.mjs --out new.json --prev old.json --changed changed.txt
+//   … --removed removed.txt   — URL, исчезнувшие с прошлой сборки (для purge Cloudflare, #175)
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -110,6 +111,17 @@ if (!existsSync(resolve(prevPath))) {
 const prev = JSON.parse(readFileSync(resolve(prevPath), 'utf8'));
 const changed = Object.keys(manifest).filter((url) => prev[url] !== manifest[url]);
 const added = changed.filter((url) => !(url in prev));
+
+// Исчезнувшие URL (были в прошлом манифесте, в новом их нет: переименован слаг, удалён раздел).
+// В IndexNow они не идут — там пингуют существующие адреса, а не «сходите посмотрите на 404».
+// А вот из edge-кэша Cloudflare их надо выбить, иначе удалённая страница живёт на эдже до
+// истечения TTL (#175). Поэтому список отдаётся отдельным файлом.
+const removed = Object.keys(prev).filter((url) => !(url in manifest));
+const removedPath = arg('removed');
+if (removedPath) {
+  writeFileSync(resolve(removedPath), removed.join('\n') + (removed.length ? '\n' : ''));
+  if (removed.length) console.log(`Исчезло: ${removed.length} URL → ${removedPath}`);
+}
 
 // Порядок отправки: сначала короткие пути. Хабы и страницы классов лежат выше по дереву и
 // стоят дороже длинного хвоста сущностей — если сработает верхний предел, отрежется хвост.

@@ -80,41 +80,10 @@ jobs:
           # Без переменной блок Метрики тихо не грузится (gated в analytics-client.ts).
           PUBLIC_METRIKA_ID: ${{ vars.PUBLIC_METRIKA_ID }}
 
-      # Сброс edge-кэша Cloudflare после деплоя — точечно, фикс-имена на rules.omnisgm.com
-      # (иконки/favicon/manifest/sw/og кэшируются на edge; HTML/хэш-ассеты не трогаем).
-      # Без секретов CLOUDFLARE_* шаг тихо пропускается.
-      - name: Purge Cloudflare cache
-        if: success()
-        env:
-          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
-          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
-        run: |
-          if [ -z "$CF_API_TOKEN" ] || [ -z "$CF_ZONE_ID" ]; then
-            echo "Cloudflare-секреты не заданы — purge пропущен."
-            exit 0
-          fi
-          base="https://rules.omnisgm.com"
-          files=$(printf '"%s",' \
-            "$base/favicon.svg" "$base/favicon.ico" "$base/icon.svg" "$base/maskable.svg" \
-            "$base/robots.txt" "$base/sitemap-index.xml" "$base/sitemap-0.xml" "$base/llms.txt" \
-            "$base/icon-192.png" "$base/icon-512.png" \
-            "$base/maskable-192.png" "$base/maskable-512.png" \
-            "$base/apple-touch-icon.png" "$base/og.png" \
-            "$base/manifest.webmanifest" "$base/sw.js")
-          resp=$(curl -s -X POST \
-            "https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache" \
-            -H "Authorization: Bearer $CF_API_TOKEN" \
-            -H "Content-Type: application/json" \
-            --data "{\"files\":[${files%,}]}")
-          echo "$resp"
-          echo "$resp" | grep -q '"success":true' || { echo "❌ Cloudflare purge не удался"; exit 1; }
-          echo "✔ Cloudflare: edge-кэш фикс-файлов rules.omnisgm.com сброшен"
-
-      # IndexNow — стриминг ТОЛЬКО изменённых URL (#186; заведён в #17).
-      #
-      # Раньше слали весь sitemap на каждом деплое (5975 URL), из-за чего Bing показывал
-      # рекомендацию «IndexNow is in batch mode». Теперь: манифест «URL → сигнатура содержимого»
-      # кладётся в кэш, следующий деплой берёт прошлый манифест и шлёт разницу.
+      # Диффом сборки пользуются ДВА шага ниже — purge Cloudflare (#175) и пинг IndexNow (#186),
+      # поэтому он считается один раз здесь, до них обоих. Порядок именно такой: сначала выбить
+      # старое из edge-кэша, потом звать поисковик — иначе краулер придёт на закэшированную
+      # прошлую версию страницы.
       #
       # Сигнатура — <title> + description + текст страницы без разметки, а не хеш файла: Astro
       # штампует хеши в имена ассетов и классов, побайтовое сравнение показывало бы «изменилось
@@ -128,6 +97,104 @@ jobs:
           key: indexnow-manifest-${{ github.sha }}
           restore-keys: indexnow-manifest-
 
+      - name: Дифф сборки (изменённые и исчезнувшие URL)
+        id: diff
+        if: success()
+        env:
+          FULL: ${{ inputs.full_ping }}
+        run: |
+          set -euo pipefail
+          cd web
+          # Кэш кладёт файл по тому же пути, под которым его сохранили, поэтому прошлый
+          # манифест приезжает как manifest.json — переименовываем, чтобы не перезаписать.
+          mkdir -p .indexnow
+          [ -f .indexnow/manifest.json ] && mv .indexnow/manifest.json .indexnow/prev.json || true
+          # Файлы должны существовать даже когда прошлого манифеста нет: скрипт в этом случае
+          # выходит раньше, а читают их шаги ниже.
+          : > /tmp/urls.txt
+          : > /tmp/removed.txt
+
+          if [ "${FULL:-false}" = "true" ]; then
+            grep -ohE '<loc>[^<]+</loc>' dist/sitemap-[0-9]*.xml | sed -E 's#</?loc>##g' > /tmp/urls.txt
+            echo "::warning::Аварийный режим: шлём ВЕСЬ sitemap ($(wc -l < /tmp/urls.txt) URL)."
+          else
+            node scripts/indexnow_manifest.mjs \
+              --out .indexnow/manifest.json \
+              --prev .indexnow/prev.json \
+              --changed /tmp/urls.txt \
+              --removed /tmp/removed.txt
+          fi
+
+          echo "changed=$(grep -c . /tmp/urls.txt || true)" >> "$GITHUB_OUTPUT"
+          echo "removed=$(grep -c . /tmp/removed.txt || true)" >> "$GITHUB_OUTPUT"
+
+      # Сброс edge-кэша Cloudflare после деплоя (#175). Точечно по URL, а не «purge everything»:
+      # зона одна на весь omnisgm.com, полный сброс выносит заодно кэш News и Table. Purge по
+      # префиксу/хосту в Cloudflare — только на Enterprise, поэтому список URL собираем сами:
+      # изменённые и исчезнувшие страницы + фикс-имена (sitemap/robots/иконки/sw) + JSON API.
+      # Хэш-ассеты не нужны — новая сборка даёт новые имена.
+      #
+      # Порог: purge по URL идёт порциями по 30 (лимит API вне Enterprise). Когда правка задела
+      # столько страниц, что порций стало бы больше PURGE_MAX_BATCHES, дешевле один раз сбросить
+      # зону целиком — соседи прогреются заново, зато не ждём сотню запросов.
+      # Без секретов CLOUDFLARE_* шаг тихо пропускается.
+      - name: Purge Cloudflare cache
+        if: success()
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -uo pipefail
+          if [ -z "${CF_API_TOKEN:-}" ] || [ -z "${CF_ZONE_ID:-}" ]; then
+            echo "Cloudflare-секреты не заданы — purge пропущен."
+            exit 0
+          fi
+          api="https://api.cloudflare.com/client/v4/zones/$CF_ZONE_ID/purge_cache"
+          call() {  # $1 — тело запроса
+            curl -s -X POST "$api" \
+              -H "Authorization: Bearer $CF_API_TOKEN" \
+              -H "Content-Type: application/json" --data "$1"
+          }
+
+          node web/scripts/cf_purge_urls.mjs \
+            --out /tmp/purge.txt --changed /tmp/urls.txt --removed /tmp/removed.txt
+
+          PURGE_MAX_BATCHES=40   # 40 × 30 URL = 1200 адресов, дальше выгоднее сбросить зону
+          total=$(grep -c . /tmp/purge.txt || true)
+          batches=$(( (total + 29) / 30 ))
+
+          if [ "$batches" -gt "$PURGE_MAX_BATCHES" ]; then
+            echo "::warning::Cloudflare: $total URL к сбросу — это $batches порций, сбрасываем зону целиком (заденет кэш News/Table, они прогреются)."
+            resp=$(call '{"purge_everything":true}')
+            echo "$resp" | grep -q '"success":true' \
+              || { echo "❌ Cloudflare purge_everything не удался: $resp"; exit 1; }
+            echo "✔ Cloudflare: зона сброшена целиком"
+            exit 0
+          fi
+
+          rm -f /tmp/cf-purge-batch-*
+          split -l 30 /tmp/purge.txt /tmp/cf-purge-batch-
+          ok=0; bad=0
+          for batch in /tmp/cf-purge-batch-*; do
+            body=$(jq -R . < "$batch" | jq -sc '{files: .}')
+            resp=$(call "$body")
+            if echo "$resp" | grep -q '"success":true'; then
+              ok=$((ok + $(grep -c . "$batch")))
+            else
+              bad=$((bad + 1)); echo "::warning::порция не сброшена: $resp"
+            fi
+          done
+          # Неуспешные порции сами по себе деплой не роняют: страница доживёт до конца TTL (час).
+          # А вот полный отказ — это несвежий сайт на эдже, о нём надо знать сразу.
+          [ "$ok" -gt 0 ] || { echo "❌ Cloudflare: не сброшено ничего ($bad порций с ошибкой)"; exit 1; }
+          echo "✔ Cloudflare: сброшено $ok из $total URL (неуспешных порций: $bad)"
+
+      # IndexNow — стриминг ТОЛЬКО изменённых URL (#186; заведён в #17).
+      #
+      # Раньше слали весь sitemap на каждом деплое (5975 URL), из-за чего Bing показывал
+      # рекомендацию «IndexNow is in batch mode». Теперь: манифест «URL → сигнатура содержимого»
+      # кладётся в кэш, следующий деплой берёт прошлый манифест и шлёт разницу. Сам дифф
+      # посчитан шагом «Дифф сборки» выше, здесь только отправка.
       - name: IndexNow ping
         id: indexnow
         if: success()
@@ -137,25 +204,10 @@ jobs:
         run: |
           set -euo pipefail
           host="rules.omnisgm.com"
-          cd web
-          # Кэш кладёт файл по тому же пути, под которым его сохранили, поэтому прошлый
-          # манифест приезжает как manifest.json — переименовываем, чтобы не перезаписать.
-          mkdir -p .indexnow
-          [ -f .indexnow/manifest.json ] && mv .indexnow/manifest.json .indexnow/prev.json || true
           # Верхний предел на один прогон: массовая правка шаблона меняет сигнатуру у всех
           # страниц, и слать 6000 URL — это ровно тот batch-режим, от которого уходим.
           # Скрипт сортирует изменённые по длине пути, поэтому первыми идут хабы и классы.
           MAX=1000
-
-          if [ "${FULL:-false}" = "true" ]; then
-            grep -ohE '<loc>[^<]+</loc>' dist/sitemap-[0-9]*.xml | sed -E 's#</?loc>##g' > /tmp/urls.txt
-            echo "::warning::Аварийный режим: шлём ВЕСЬ sitemap ($(wc -l < /tmp/urls.txt) URL)."
-          else
-            node scripts/indexnow_manifest.mjs \
-              --out .indexnow/manifest.json \
-              --prev .indexnow/prev.json \
-              --changed /tmp/urls.txt
-          fi
 
           n=$(grep -c . /tmp/urls.txt || true)
           if [ "$n" -eq 0 ]; then
