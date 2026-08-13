@@ -13,8 +13,11 @@
 //   • маркер редакции — человеческий «2024»/«2014», а не машинный «5.2»/«5.1»: спроса на него
 //     почти нет, но он разводит одноимённые страницы SRD 5.1 и 5.2 между собой.
 //
-// Модуль — общий дом для фактовых сниппетов всех типов сущностей; сейчас здесь стат-блоки
-// (монстры/животные), класс-страницы живут в class-facts.ts и берут отсюда редакцию.
+// Модуль — общий дом для фактовых сниппетов всех типов сущностей: стат-блоки (монстры/животные),
+// заклинания, магические предметы. Класс-страницы живут в class-facts.ts и берут отсюда редакцию.
+// Локализованные подписи (школа, редкость) НЕ дублируем — берём из *-hubs.ts, где они уже есть.
+import { schoolLabel } from './spell-hubs';
+import { rarityLabel } from './magic-item-hubs';
 
 // Редакция D&D по ключу версии. Принимаем оба написания, которые ходят по коду: ключ API
 // («srd52», как в VERSION_SLUG) и сегмент URL («srd-5.2», как в catch-all-роуте).
@@ -57,6 +60,21 @@ const KIND_WORD: Record<StatBlockKind, { ru: string; en: string }> = {
 
 const str = (v: unknown) => (typeof v === 'string' ? v.trim() : '');
 const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : null);
+// Значение поля данных в середину предложения: «Мгновенная» → «мгновенная». Только первая
+// буква — внутри могут быть имена собственные («Пояс дварфов»).
+const lower = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
+
+// Предел сниппета: длиннее ~160 символов поисковики обрезают.
+const LIMIT = 160;
+
+/**
+ * Первый вариант сниппета, влезающий в LIMIT; если не влез ни один — последний (самый
+ * короткий). Варианты передаются от самого информативного к самому урезанному; имя сущности
+ * и ключевые факты не режем никогда — ради них сниппет и существует.
+ */
+function fit(variants: string[]): string {
+  return variants.find((v) => v.length <= LIMIT) ?? variants[variants.length - 1];
+}
 
 /**
  * «маленькая фея (гоблиноид)» / «Small Fey (Goblinoid)». В RU размер уже переведён в роде
@@ -112,11 +130,145 @@ export function statBlockDescription(opts: {
     return `${entity.name} — a ${ed} ${word}: ${facts}. ${tail}`;
   };
 
-  // Держим сниппет в пределах ~160 символов: сначала укорачиваем хвост, потом снимаем подтип.
-  // Имя и факты не режем никогда — ради них сниппет и существует.
-  for (const [withSubtype, shortTail] of [[true, false], [true, true], [false, true]] as const) {
-    const out = compose(withSubtype, shortTail);
-    if (out.length <= 160) return out;
-  }
-  return compose(false, true);
+  // Переполнение: сначала укорачиваем хвост, потом снимаем подтип.
+  return fit([compose(true, false), compose(true, true), compose(false, true)]);
+}
+
+// ── Заклинания ───────────────────────────────────────────────────────────────
+
+interface SpellEntity {
+  name: string;
+  level?: unknown;
+  school?: unknown;
+  casting_time?: unknown;
+  range?: unknown;
+  duration?: unknown;
+}
+
+/**
+ * Фактовый <meta description> заклинания: уровень + школа, время накладывания, дистанция,
+ * длительность (с пометкой концентрации). null, если уровня/школы нет — откат к excerpt().
+ */
+export function spellDescription(opts: {
+  entity: SpellEntity;
+  lang: 'en' | 'ru';
+  version: string;
+}): string | null {
+  const { entity, lang, version } = opts;
+
+  const lvl = num(entity.level);
+  const rawSchool = str(entity.school);
+  if (lvl == null || !rawSchool) return null;
+  const school = schoolLabel(rawSchool, lang);
+
+  // В RU значения приходят с заглавной («Действие», «Мгновенная») — снимаем для середины
+  // предложения; в EN это Title Case самого SRD («Action», «Instantaneous»), сохраняем.
+  const val = (s: string) => (lang === 'ru' ? lower(s) : s);
+
+  // Время накладывания: у реакций и бонусных действий value содержит ВЕСЬ триггер («Реакция,
+  // которую вы совершаете, когда видите существо…» — 200+ символов). В сниппет берём голову
+  // до первой запятой: «реакция», «бонусное действие». Запятая в этом поле бывает ТОЛЬКО
+  // перед триггером — проверено по всем 4 наборам данных (5.1/5.2 × en/ru).
+  const castTime = val(str((entity.casting_time as { value?: unknown } | undefined)?.value).split(',')[0]);
+  const range = val(str((entity.range as { value?: unknown } | undefined)?.value));
+  const dur = entity.duration as { value?: unknown; concentration?: unknown } | undefined;
+  const duration = val(str(dur?.value));
+  const concentration = dur?.concentration === true;
+
+  const ed = editionLabel(version);
+
+  const compose = (withDuration: boolean, shortTail: boolean, withRange = true) => {
+    if (lang === 'ru') {
+      const head = lvl === 0 ? `заговор, школа ${school}` : `${lvl}-й уровень, школа ${school}`;
+      const facts = [
+        castTime && `Накладывание: ${castTime}`,
+        withRange && range && `дистанция ${range}`,
+        withDuration && duration && `длительность ${duration}${concentration ? ' (концентрация)' : ''}`,
+      ].filter(Boolean).join(', ');
+      const tail = shortTail ? 'Полное описание SRD.' : 'Полное описание и правила SRD на русском.';
+      return `${entity.name} — заклинание ${ed} (днд): ${head}. ${facts ? `${facts}. ` : ''}${tail}`;
+    }
+    const head = lvl === 0 ? `${school} cantrip` : `level ${lvl} ${school}`;
+    const facts = [
+      castTime && `Casting time: ${castTime}`,
+      withRange && range && `range ${range}`,
+      withDuration && duration && `duration ${duration}${concentration ? ' (concentration)' : ''}`,
+    ].filter(Boolean).join(', ');
+    const tail = shortTail ? 'Full SRD description.' : 'Full description and rules from the SRD.';
+    return `${entity.name} — a ${ed} spell: ${head}. ${facts ? `${facts}. ` : ''}${tail}`;
+  };
+
+  return fit([
+    compose(true, false),
+    compose(true, true),
+    compose(false, true),
+    compose(false, true, false),
+  ]);
+}
+
+// ── Магические предметы ──────────────────────────────────────────────────────
+
+interface MagicItemEntity {
+  name: string;
+  type?: unknown;
+  subtype?: unknown;
+  rarity?: unknown;
+  attunement?: unknown;
+}
+
+/**
+ * Фактовый <meta description> магического предмета: тип, редкость, настройка. Настройка —
+ * самостоятельный кластер спроса («настройка на магический предмет днд»), поэтому она в
+ * сниппете, а условие настройки («…дварфом») — только если влезает. null, если типа и
+ * редкости нет — откат к excerpt().
+ */
+export function magicItemDescription(opts: {
+  entity: MagicItemEntity;
+  lang: 'en' | 'ru';
+  version: string;
+}): string | null {
+  const { entity, lang, version } = opts;
+
+  const type = str(entity.type);
+  const rawRarity = str(entity.rarity);
+  if (!type && !rawRarity) return null;
+  const rarity = rawRarity ? rarityLabel(rawRarity, lang) : '';
+  const subtype = str(entity.subtype);
+
+  const att = entity.attunement as { required?: unknown; condition?: unknown } | undefined;
+  const needsAttunement = att?.required === true;
+  const attCondition = str(att?.condition);
+
+  const ed = editionLabel(version);
+
+  const compose = (withCondition: boolean, shortTail: boolean, bareType = false) => {
+    // В RU тип приходит с заглавной («Чудесный предмет») — снимаем для середины предложения;
+    // в EN это Title Case стат-блока («Wondrous Item»), его сохраняем. bareType срезает
+    // перечисление в скобках («Оружие (боевой топор, большой топор или алебарда)») — последняя
+    // ступень укорачивания перед тем, как сниппет вылезет за предел.
+    const base = bareType ? type.replace(/\s*\(.*$/, '') : type;
+    const rawType = lang === 'ru' ? lower(base) : base;
+    const typeLine = type ? rawType + (!bareType && subtype ? ` (${lang === 'ru' ? lower(subtype) : subtype})` : '') : '';
+    if (lang === 'ru') {
+      const attune = needsAttunement
+        ? `требует настройки${withCondition && attCondition ? ` (${attCondition})` : ''}`
+        : 'настройка не нужна';
+      const facts = [typeLine, rarity, attune].filter(Boolean).join(', ');
+      const tail = shortTail ? 'Полное описание SRD.' : 'Полное описание и правила SRD на русском.';
+      return `${entity.name} — магический предмет ${ed} (днд): ${facts}. ${tail}`;
+    }
+    const attune = needsAttunement
+      ? `requires attunement${withCondition && attCondition ? ` (${lower(attCondition)})` : ''}`
+      : 'no attunement required';
+    const facts = [typeLine, rarity, attune].filter(Boolean).join(', ');
+    const tail = shortTail ? 'Full SRD description.' : 'Full description and rules from the SRD.';
+    return `${entity.name} — a ${ed} magic item: ${facts}. ${tail}`;
+  };
+
+  return fit([
+    compose(true, false),
+    compose(true, true),
+    compose(false, true),
+    compose(false, true, true),
+  ]);
 }
