@@ -1,0 +1,47 @@
+name: Cloudflare Cache Rule
+
+# Кэширование HTML на эдже для rules.omnisgm.com (issue #175). Запускается руками:
+# по умолчанию — dry-run (показывает текущие правила зоны и то, что будет отправлено),
+# с галкой apply — создаёт или обновляет правило.
+#
+# Почему отдельный воркфлоу, а не шаг деплоя: правило ставится один раз и живёт само.
+# Гонять его на каждом деплое — лишний риск переписать зону из-за случайной правки скрипта.
+on:
+  workflow_dispatch:
+    inputs:
+      apply:
+        description: 'Применить правило (без галки — только показать, что будет сделано)'
+        type: boolean
+        default: false
+
+permissions:
+  contents: read
+
+jobs:
+  cache-rule:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: '20'
+
+      - name: Cache Rule
+        env:
+          CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+        run: |
+          set -euo pipefail
+          node .github/scripts/cf_cache_rule.mjs ${{ inputs.apply && '--apply' || '' }}
+
+      # Правило действует сразу, но раскатывается по эджам не мгновенно, а проверка стартует
+      # сразу после apply. Поэтому одна повторная попытка через 20 секунд: без неё зелёный
+      # apply мог бы дать красную джобу просто из-за скорости распространения (ревью #193).
+      - name: Проверить edge-кэш
+        if: ${{ inputs.apply }}
+        run: |
+          bash web/scripts/check_edge_cache.sh && exit 0
+          echo "— первая проверка не прошла, ждём распространения правила и пробуем ещё раз"
+          sleep 20
+          bash web/scripts/check_edge_cache.sh
