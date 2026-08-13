@@ -7,6 +7,7 @@ import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { statBlockDescription } from '../../../../../lib/entity-facts';
 
 // Programmatic-страницы животных (issue #20, Дорожка A) в общем шелле ридера.
 // Стат-блок животного идентичен монстру (тот же парсер monster) — страница зеркалит
@@ -127,9 +128,10 @@ const SECTIONS: { title: string; entries: { name?: string; text_md: string }[] }
   { title: t('Легендарные действия', 'Legendary Actions'), entries: legendary },
 ].filter((s) => s.entries.length > 0);
 
-const description = excerpt(
-  (traits[0]?.text_md || actions[0]?.text_md || '') as string,
-);
+// Сниппет из фактов стат-блока (issue #185) — см. комментарий в monsters-a-z/[slug].astro.
+const description =
+  statBlockDescription({ entity, lang, version: ver, kind: 'animal' }) ??
+  excerpt((traits[0]?.text_md || actions[0]?.text_md || '') as string);
 
 const base = `/${lang}/dnd/${verSlug}/animals`;
 // «Тот же ПО» — до 8 других животных с тем же показателем опасности (внутренняя перелинковка/SEO).

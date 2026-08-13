@@ -5,6 +5,7 @@
 // прогрессии класса — они уже локализованы в контенте, так что перевод не дублируется и
 // не дрейфует. Версия таблиц 5.1 и 5.2 разъехалась (в 5.1 колонка умений последняя, в 5.2 —
 // третья), поэтому колонку ищем по заголовку, а не по фикс-индексу.
+import { editionLabel } from './entity-facts';
 
 // Разбить строку markdown-таблицы в ячейки (без ведущего/замыкающего «|»).
 function cells(line: string): string[] {
@@ -57,9 +58,9 @@ export function level1Features(body: string | undefined, limit = 3): string[] {
   return [];
 }
 
-// Слаг версии → издание для сниппета: 5.2 = «D&D 2024», 5.1 = «D&D 2014». Кириллическая
+// Метка издания («D&D 2024» / «D&D 2014») — общая с сущностными страницами, живёт в
+// entity-facts.ts (issue #185), чтобы редакция не разъезжалась между шаблонами. Кириллическая
 // форма «(днд)» — частотное написание запросов (issue #173, п.2), одна встреча, не стаффинг.
-const EDITION: Record<string, string> = { 'srd-5.2': '2024', 'srd-5.1': '2014' };
 
 /**
  * Содержательный <meta description> класс-страницы. null, если умений не извлекли —
@@ -76,12 +77,12 @@ export function classDescription(opts: {
   const feats = level1Features(body);
   if (feats.length === 0) return null;
 
-  const ed = EDITION[version];
+  const ed = editionLabel(version);
   const compose = (n: number) => {
     const list = feats.slice(0, n).join(', ');
     return lang === 'ru'
-      ? `${name} — класс D&D${ed ? ` ${ed}` : ''} (днд): ${list}. Умения по уровням 1–20, подклассы. Полные правила ${verLabel} на русском.`
-      : `${name} — a D&D${ed ? ` ${ed}` : ''} class: ${list}. Features by level 1–20 with subclasses. Full ${verLabel} rules.`;
+      ? `${name} — класс ${ed} (днд): ${list}. Умения по уровням 1–20, подклассы. Полные правила ${verLabel} на русском.`
+      : `${name} — a ${ed} class: ${list}. Features by level 1–20 with subclasses. Full ${verLabel} rules.`;
   };
 
   // Держим сниппет в пределах ~160 символов: при переполнении срезаем до 2 умений.
