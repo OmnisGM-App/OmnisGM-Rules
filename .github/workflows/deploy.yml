@@ -98,7 +98,6 @@ jobs:
           restore-keys: indexnow-manifest-
 
       - name: Дифф сборки (изменённые и исчезнувшие URL)
-        id: diff
         if: success()
         env:
           FULL: ${{ inputs.full_ping }}
@@ -124,9 +123,6 @@ jobs:
               --changed /tmp/urls.txt \
               --removed /tmp/removed.txt
           fi
-
-          echo "changed=$(grep -c . /tmp/urls.txt || true)" >> "$GITHUB_OUTPUT"
-          echo "removed=$(grep -c . /tmp/removed.txt || true)" >> "$GITHUB_OUTPUT"
 
       # Сброс edge-кэша Cloudflare после деплоя (#175). Точечно по URL, а не «purge everything»:
       # зона одна на весь omnisgm.com, полный сброс выносит заодно кэш News и Table. Purge по
@@ -156,8 +152,12 @@ jobs:
               -H "Content-Type: application/json" --data "$1"
           }
 
+          # Шаг сознательно без `set -e` (ошибки порций разбираем сами), поэтому падение
+          # скрипта проверяем явно: иначе дальше насчитается ok=0 и шаг умрёт с сообщением
+          # «не сброшено ничего» — красный, но с неверным диагнозом (ревью #192).
           node web/scripts/cf_purge_urls.mjs \
-            --out /tmp/purge.txt --changed /tmp/urls.txt --removed /tmp/removed.txt
+            --out /tmp/purge.txt --changed /tmp/urls.txt --removed /tmp/removed.txt \
+            || { echo "❌ cf_purge_urls.mjs не отработал — purge-список не собран"; exit 1; }
 
           PURGE_MAX_BATCHES=40   # 40 × 30 URL = 1200 адресов, дальше выгоднее сбросить зону
           total=$(grep -c . /tmp/purge.txt || true)

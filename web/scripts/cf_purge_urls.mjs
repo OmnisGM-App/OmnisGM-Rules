@@ -77,8 +77,14 @@ if (existsSync(apiDir) && statSync(apiDir).isDirectory()) {
   }
 }
 
-for (const u of lines(arg('changed'))) urls.add(u);
-for (const u of lines(arg('removed'))) urls.add(u);
+// Страницы отдаются по двум адресам: канонический со слэшем и прямой /…/index.html. Firebase
+// второй НЕ редиректит (отдаёт 200 — проверено на проде), значит в кэше это две независимые
+// записи, и purge одной не трогает другую. Ссылок на index.html у нас нет, но краулер мог его
+// однажды дёрнуть — и тогда именно эта версия зависла бы до конца TTL (ревью #192).
+const withIndexHtml = (url) => (url.endsWith('/') ? [url, `${url}index.html`] : [url]);
+
+for (const u of lines(arg('changed'))) withIndexHtml(u).forEach((x) => urls.add(x));
+for (const u of lines(arg('removed'))) withIndexHtml(u).forEach((x) => urls.add(x));
 
 const out = arg('out');
 if (!out) {
