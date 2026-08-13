@@ -36,8 +36,8 @@ const heading = t('Происхождения', 'Ancestries');
 // <title> отличаем их словом «Все …» (H1 не трогаем).
 const title = pageTitle({ name: t('Все происхождения', 'All Ancestries'), lang, game: 'daggerheart', version: ver });
 const description = t(
-  `Все ${items.length} происхождений Daggerheart ${verLabel} со ссылками на страницы: особенности происхождения.`,
-  `All ${items.length} Daggerheart ${verLabel} ancestries with links to each page: ancestry features.`,
+  `Все ${items.length} происхождений Daggerheart SRD ${verLabel} со ссылками на страницы: особенности происхождения.`,
+  `All ${items.length} Daggerheart SRD ${verLabel} ancestries with links to each page: ancestry features.`,
 );
 const upLink = { href: `/${lang}/${GAME}/${verSlug}/05_Ancestries/`, ru: 'Происхождения (глава)', en: 'Ancestries (chapter)' };
 ---
@@ -54,8 +54,8 @@ const upLink = { href: `/${lang}/${GAME}/${verSlug}/05_Ancestries/`, ru: 'Про
   <h1>{heading}</h1>
   <p>
     {t(
-      `${items.length} происхождений Daggerheart ${verLabel}. Нажмите на название, чтобы открыть страницу с особенностями. Общие правила — в главе «Происхождения».`,
-      `${items.length} Daggerheart ${verLabel} ancestries. Select a name to open its page with features. General rules are in the Ancestries chapter.`,
+      `${items.length} происхождений Daggerheart SRD ${verLabel}. Нажмите на название, чтобы открыть страницу с особенностями. Общие правила — в главе «Происхождения».`,
+      `${items.length} Daggerheart SRD ${verLabel} ancestries. Select a name to open its page with features. General rules are in the Ancestries chapter.`,
     )}
   </p>
 

@@ -58,8 +58,8 @@ const base = `/${lang}/${GAME}/${verSlug}/domain-cards`;
 const heading = t(`${domainName} — доменные карты`, `${domainName} — Domain Cards`);
 const title = pageTitle({ name: heading, lang, game: GAME, version: ver });
 const description = t(
-  `Все ${cards.length} карт домена ${domainName} в Daggerheart ${verLabel}: уровень и ссылки на страницы карт.`,
-  `All ${cards.length} ${domainName} domain cards in Daggerheart ${verLabel}: level and links to each card.`,
+  `Все ${cards.length} карт домена ${domainName} в Daggerheart SRD ${verLabel}: уровень и ссылки на страницы карт.`,
+  `All ${cards.length} ${domainName} domain cards in Daggerheart SRD ${verLabel}: level and links to each card.`,
 );
 const otherDomains = DOMAINS.filter((d) => d !== domain_slug);
 const upLink = { href: `${base}/all/`, ru: 'Все доменные карты', en: 'All domain cards' };
@@ -77,8 +77,8 @@ const upLink = { href: `${base}/all/`, ru: 'Все доменные карты',
   <h1>{heading}</h1>
   <p>
     {t(
-      `${cards.length} карт домена ${domainName} в Daggerheart ${verLabel}. В таблице — уровень карты. Нажмите на название, чтобы открыть страницу карты.`,
-      `${cards.length} ${domainName} domain cards in Daggerheart ${verLabel}. The table lists each card's level. Select a name to open the card page.`,
+      `${cards.length} карт домена ${domainName} в Daggerheart SRD ${verLabel}. В таблице — уровень карты. Нажмите на название, чтобы открыть страницу карты.`,
+      `${cards.length} ${domainName} domain cards in Daggerheart SRD ${verLabel}. The table lists each card's level. Select a name to open the card page.`,
     )}
   </p>
 

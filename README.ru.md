@@ -54,7 +54,7 @@
 
 - D&D SRD 5.2 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.2/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.2/LICENSE-RU.md)
 - D&D SRD 5.1 — CC BY 4.0: [LICENSE.md](src/dnd/srd-5.1/LICENSE.md) | [LICENSE-RU.md](src/dnd/srd-5.1/LICENSE-RU.md)
-- Daggerheart SRD 1.0 — DPCGL © Critical Role, LLC (не аффилировано с Darrington Press и не одобрено ими); см. встроенную [страницу Legal](src/daggerheart/srd-1.0/en/00_Legal.md)
+- Daggerheart SRD 1.0 — этот продукт включает материалы из [Daggerheart System Reference Document 1.0](https://www.daggerheart.com), © Critical Role, LLC., на условиях [DPCGL](https://darringtonpress.com/license); конвертировано в Markdown и переведено на русский силами OmnisGM, смысл правил не изменялся; не аффилировано с Darrington Press и не одобрено ими. См. встроенную [страницу Legal](src/daggerheart/srd-1.0/ru/00_Legal.md)
 - Basic Roleplaying SRD 1.0 — BRP OGL v1.0 © Chaosium Inc.: [LICENSE.md](src/brp/srd-1.0/LICENSE.md)
 
 ## Структура репозитория
