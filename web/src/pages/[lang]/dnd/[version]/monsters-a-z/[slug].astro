@@ -6,8 +6,10 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
-import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { enTypeMap, typeLabel, crHubForValue, crHubTitle } from '../../../../../lib/monster-hubs';
+import { statBlockDescription } from '../../../../../lib/entity-facts';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Programmatic-страницы монстров (issue #20, волна 3) в общем шелле ридера.
 // URL вложен под главу-бестиарий: /{lang}/dnd/{version}/monsters-a-z/{slug}/.
@@ -48,7 +50,6 @@ export function getStaticPaths() {
 
 const { entity, ver, lang, siblings, condMap, typeSlug } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
-const verLabel = VERSION_LABEL[ver];
 const verKey = ver; // srd52
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
@@ -127,9 +128,12 @@ const SECTIONS: { title: string; entries: { name?: string; text_md: string }[] }
   { title: t('Легендарные действия', 'Legendary Actions'), entries: legendary },
 ].filter((s) => s.entries.length > 0);
 
-const description = excerpt(
-  (traits[0]?.text_md || actions[0]?.text_md || '') as string,
-);
+// Сниппет из фактов стат-блока, а не из первой черты (issue #185): excerpt() давал дубли
+// («Дракон может дышать воздухом и водой.» — 33 страницы) и текст без имени монстра.
+// Откат к прежнему excerpt() — если ключевых фактов в данных нет.
+const description =
+  statBlockDescription({ entity, lang, version: ver, kind: 'monster' }) ??
+  excerpt((traits[0]?.text_md || actions[0]?.text_md || '') as string);
 
 const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
 // «Тот же тип существа» — до 8 других монстров того же типа (внутренняя перелинковка/SEO).
@@ -139,7 +143,7 @@ const sameType = (siblings as Sib[])
 
 const upLink = { href: `${base}/`, ru: 'Монстры от А до Я', en: 'Monsters A–Z' };
 const kind = t('Монстр', 'Monster');
-const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
 ---
 
 <ReaderShell

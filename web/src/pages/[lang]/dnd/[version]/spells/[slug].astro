@@ -6,8 +6,10 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
-import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { spellClassSlugs, classLabel, levelLabel } from '../../../../../lib/spell-hubs';
+import { spellDescription } from '../../../../../lib/entity-facts';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Programmatic-страницы заклинаний (issue #20, волна 2) в общем шелле ридера.
 // URL: /{lang}/dnd/{version}/spells/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
@@ -52,7 +54,6 @@ export function getStaticPaths() {
 
 const { entity, ver, lang, siblings, aoeNames } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
-const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
 // Тело + «на высоких уровнях» с автоссылками на состояния (issue #20): marked → hast → autolink → html.
@@ -67,7 +68,11 @@ const render = (md: string | undefined | null) => {
 const bodyHtml = render(entity.description_md as string);
 const higherHtml = render(entity.higher_levels_md as string);
 const cantripHtml = render(entity.cantrip_upgrade_md as string);
-const description = excerpt(entity.description_md as string);
+// Сниппет из фактов заклинания (issue #185): уровень/школа/накладывание/дистанция вместо
+// первого абзаца описания. Откат к excerpt(), если уровня или школы в данных нет.
+const description =
+  spellDescription({ entity, lang, version: ver }) ??
+  excerpt(entity.description_md as string);
 
 // Стат-блок
 const lvl = String(entity.level ?? '');
@@ -151,7 +156,7 @@ const upLink = { href: `${base}/`, ru: 'Заклинания', en: 'Spells' };
 const hubClassSlugs = spellClassSlugs(entity as any, lang);
 const spellLevel = entity.level as number;
 const kind = t('Заклинание', 'Spell');
-const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
 ---
 
 <ReaderShell

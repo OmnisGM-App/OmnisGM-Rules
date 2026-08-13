@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Хаб-справочник происхождений (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/ancestries/all/.
 // Сортируемая таблица со ссылками на все страницы происхождений. Статический роут `all` приоритетнее `[slug]`.
@@ -31,7 +32,9 @@ const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/${GAME}/${verSlug}/ancestries`;
 
 const heading = t('Происхождения', 'Ancestries');
-const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+// Хаб — полный список; MD-глава того же раздела зовётся так же, поэтому в
+// <title> отличаем их словом «Все …» (H1 не трогаем).
+const title = pageTitle({ name: t('Все происхождения', 'All Ancestries'), lang, game: 'daggerheart', version: ver });
 const description = t(
   `Все ${items.length} происхождений Daggerheart ${verLabel} со ссылками на страницы: особенности происхождения.`,
   `All ${items.length} Daggerheart ${verLabel} ancestries with links to each page: ancestry features.`,

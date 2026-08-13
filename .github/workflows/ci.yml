@@ -71,3 +71,10 @@ jobs:
       - name: SEO-мета по dist
         working-directory: web
         run: node scripts/verify_dist_seo.mjs
+
+      # Количественный гейт по ВСЕМУ dist (issue #185): дубли description и длинные <title>.
+      # Бюджетный, а не нулевой — разделы чиним волнами; скрипт валит CI и на ухудшении, и на
+      # неопущенном бюджете после улучшения (иначе гейт перестаёт ловить регрессии).
+      - name: Мета-бюджет по dist (дубли description, длина title)
+        working-directory: web
+        run: node scripts/verify_dist_meta_budget.mjs

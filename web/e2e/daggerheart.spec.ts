@@ -92,7 +92,9 @@ test('глоссарий «Способности» = доменные карт�
   // Сама страница-дубль остаётся доступной и держит nav-контекст (не сирота).
   const res = await page.goto('/ru/daggerheart/srd-1.0/glossary/abilities/');
   expect(res?.status()).toBe(200);
-  await expect(page).toHaveTitle(/Daggerheart SRD 1\.0/);
+  // Метка системы в <title> с #185 берётся из VERSION_LABEL («Daggerheart 1.0»), а не из
+  // nav-подписи («Daggerheart SRD 1.0») — проверяем сам факт системного контекста.
+  await expect(page).toHaveTitle(/Daggerheart 1\.0/);
 });
 
 test('автолинк: глава «Домены» линкует доменные карты (grid-режим) + hovercard', async ({ page }) => {

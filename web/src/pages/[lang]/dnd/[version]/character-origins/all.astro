@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Хаб-справочник происхождений (SRD 5.2): /{lang}/dnd/{version}/character-origins/all/.
 // Групповая страница со ссылками на все виды и предыстории. Точка входа в entity-страницы.
@@ -31,7 +32,7 @@ const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
 const heading = t('Виды и предыстории', 'Species & Backgrounds');
-const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = t(
   `Все виды (${species.length}) и предыстории (${backgrounds.length}) D&D ${verLabel} со ссылками на страницы: черты вида, характеристики и умения предыстории.`,
   `All ${species.length} species and ${backgrounds.length} backgrounds of D&D ${verLabel} with links to each page.`,

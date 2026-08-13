@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import { pageTitle } from '../../../../../../lib/page-title';
 import {
   ADVERSARY_TYPES, advTypeBySlug, advTypeSlug, advTypeLabel, byName,
   type Lang, type AdversaryLite,
@@ -43,7 +44,7 @@ const tierLabel = (tier: number) => t(`Ранг ${tier}`, `Tier ${tier}`);
 const typeName = advTypeLabel(tSlug, lang);
 
 const heading = t(`Противники: ${typeName}`, `${typeName} Adversaries`);
-const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
 const description = t(
   `Все ${adversaries.length} противников типа «${typeName}» в Daggerheart ${verLabel} со ссылками на стат-блоки.`,
   `All ${adversaries.length} ${typeName} adversaries in Daggerheart ${verLabel} with links to each stat block.`,

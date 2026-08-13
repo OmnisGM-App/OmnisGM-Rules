@@ -4,6 +4,7 @@ import ReaderShell from '../../components/ReaderShell.astro';
 import { parseId, titleFromBody } from '../../lib/slug';
 import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
 import { classDescription } from '../../lib/class-facts';
+import { pageTitle } from '../../lib/page-title';
 
 export async function getStaticPaths() {
   const all = await getCollection('srd');
@@ -37,12 +38,23 @@ const sysLabel = trail.length ? navLabel(trail[0], ref.lang) : ref.game.toUpperC
 const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
 
 const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
-const title = `${searchTitle} · ${sysLabel} ${verLabel} · OmnisGM Rules`;
 
 // Класс-страницы (напр. /classes/rogue/) — самый крупный кластер кириллического спроса
-// («плут днд»: 513 запросов, issue #173). Даём содержательный сниппет из умений 1-го уровня
-// класса вместо бойлерплейта; если умений не извлекли — откат к общему шаблону ниже.
+// («плут днд»: 513 запросов, issue #173). Отсюда и отдельный тип в <title>, и содержательный
+// сниппет из умений 1-го уровня вместо бойлерплейта.
 const isClass = ref.game === 'dnd' && ref.slug.startsWith('classes/');
+
+// Тип страницы для <title> (issue #185). Прежний шаблон «Плут · D&D SRD 5.2.1 · OmnisGM Rules»
+// не содержал ни типа сущности, ни формы «днд» — а по «плут днд» это ~280 показов/нед при
+// нулевом CTR. Классы называем классами, остальные главы — правилами; лицензию не называем
+// никак (это не правила). Не-D&D системы идут через тот же шаблон, но без «днд» —
+// кириллического кластера у Daggerheart/BRP нет (см. searchForm в page-title.ts).
+const isLegal = /(^|\/)legal(\/|$)/i.test(ref.slug);
+const mdKind = ref.game !== 'dnd' || isLegal ? '' : isClass ? t('класс', 'class') : t('правила', 'rules');
+const title = pageTitle({
+  name: searchTitle, kind: mdKind, lang: ref.lang, game: ref.game, version: ref.version,
+});
+
 const description =
   (isClass
     ? classDescription({ name: searchTitle, body: entry.body, lang: ref.lang, version: ref.version, verLabel })

@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Programmatic-страницы доспехов (issue #20, Дорожка A) — тонкий стат-блок (данные табличные).
 // URL: /{lang}/dnd/{version}/armor/{slug}/. Своей главы нет — доспехи в «Снаряжении», туда и
@@ -84,7 +85,7 @@ const similar = (siblings as Sib[])
 
 const upLink = { href: `/${lang}/dnd/${verSlug}/equipment/`, ru: 'Снаряжение', en: 'Equipment' };
 const kind = isShield ? t('Щит', 'Shield') : t('Доспех', 'Armor');
-const title = `${entity.name} — ${t(`${kind} D&D ${verLabel}`, `D&D ${verLabel} ${kind}`)} · OmnisGM Rules`;
+const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
 ---
 
 <ReaderShell

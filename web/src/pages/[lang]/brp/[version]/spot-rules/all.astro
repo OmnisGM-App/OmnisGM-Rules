@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Хаб-справочник точечных правил (BRP SRD 1.0): /{lang}/brp/{version}/spot-rules/all/.
 const GAME = 'brp';
@@ -30,7 +31,9 @@ const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/${GAME}/${verSlug}/spot-rules`;
 
 const heading = t('Точечные правила', 'Spot Rules');
-const title = `${heading} — Basic Roleplaying ${verLabel} · OmnisGM Rules`;
+// Хаб — полный список; MD-глава того же раздела зовётся так же, поэтому в
+// <title> отличаем их словом «Все …» (H1 не трогаем).
+const title = pageTitle({ name: t('Все точечные правила', 'All Spot Rules'), lang, game: 'brp', version: ver });
 const description = t(
   `Все ${items.length} точечных правил Basic Roleplaying ${verLabel}: засада, укрытие, падение, погоня и другие ситуативные правила.`,
   `All ${items.length} Basic Roleplaying ${verLabel} spot rules: ambush, cover, falling, chases and other situational rules.`,

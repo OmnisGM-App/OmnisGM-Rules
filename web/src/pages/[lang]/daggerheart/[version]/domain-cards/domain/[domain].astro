@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import { pageTitle } from '../../../../../../lib/page-title';
 
 // Фасет доменных карт по домену (Daggerheart SRD 1.0):
 // /{lang}/daggerheart/{version}/domain-cards/domain/{domain}/. 9 доменов, карты отсортированы
@@ -55,7 +56,7 @@ const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/${GAME}/${verSlug}/domain-cards`;
 
 const heading = t(`${domainName} — доменные карты`, `${domainName} — Domain Cards`);
-const title = `${heading} · OmnisGM Rules`;
+const title = pageTitle({ name: heading, lang, game: GAME, version: ver });
 const description = t(
   `Все ${cards.length} карт домена ${domainName} в Daggerheart ${verLabel}: уровень и ссылки на страницы карт.`,
   `All ${cards.length} ${domainName} domain cards in Daggerheart ${verLabel}: level and links to each card.`,
