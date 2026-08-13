@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import { pageTitle } from '../../../../../../lib/page-title';
 import {
   RARITIES, rarityBySlug, raritySlug, rarityHubLabel, byName,
   type Lang, type ItemLite,
@@ -43,7 +44,7 @@ const base = `/${lang}/dnd/${verSlug}/magic-items`;
 const rName = rarityHubLabel(rSlug, lang);
 
 const heading = t(`Магические предметы: ${rName}`, `${rName[0].toUpperCase()}${rName.slice(1)} magic items`);
-const title = `${heading} — D&D ${verLabel} · OmnisGM Rules`;
+const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = t(
   `Все ${items.length} ${rName} магических предметов D&D ${verLabel}: тип и настройка со ссылками на страницы предметов.`,
   `All ${items.length} ${rName} magic items in D&D ${verLabel}: type and attunement with links to each item.`,

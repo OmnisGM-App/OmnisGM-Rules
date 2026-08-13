@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Хаб-справочник доменных карт (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/domain-cards/all/.
 // Единая сортируемая таблица (карта · домен · уровень · стоимость отзыва); «Домен» ведёт на
@@ -47,7 +48,7 @@ const domainList = DOMAINS
   .filter((d): d is { domainSlug: string; domainName: string } => d !== null);
 
 const heading = t('Доменные карты', 'Domain Cards');
-const title = `${heading} — Daggerheart ${verLabel} · OmnisGM Rules`;
+const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
 const description = t(
   `Все ${items.length} доменных карт Daggerheart ${verLabel} в 9 доменах со ссылками на страницы карт.`,
   `All ${items.length} Daggerheart ${verLabel} domain cards across 9 domains with links to each card.`,

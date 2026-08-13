@@ -24,9 +24,13 @@ const BUDGET = {
   // Страниц, чей description не уникален. Было 520 (191 группа) до волн монстров/животных
   // и заклинаний/магпредметов, стало 0 — теперь гейт нулевой: любой дубль валит CI.
   dupDescriptionPages: 0,
-  // Страниц с <title> длиннее LIMIT (сейчас 347). Хвост — длинные имена сущностей;
-  // упадёт вместе с переработкой шаблонов title во второй части #185.
-  longTitlePages: 360,
+  // Страниц с <title> длиннее LIMIT. Было 567 до шаблонов title, стало 13 — хвост из длинных
+  // имён сущностей: имя, тип и редакцию лестница укорачивания в page-title.ts не режет
+  // никогда, так что нулём тут не станет.
+  longTitlePages: 15,
+  // Страниц с неуникальным <title>. Метка редакции («D&D 2024»/«D&D 2014») специально не
+  // выпадает из лестницы — иначе одноимённые страницы 5.1 и 5.2 схлопнутся в дубли.
+  dupTitlePages: 0,
 };
 const TITLE_LIMIT = 65;
 // Разрешённая «недобранность»: если фактическое число упало ниже бюджета более чем на
@@ -50,6 +54,7 @@ const decode = (s) =>
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
 const byDescription = new Map(); // description → [страницы]
+const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
 let pages = 0;
 
@@ -70,13 +75,19 @@ for (const file of htmlFiles(DIST)) {
 
   const title = head.match(/<title>([^<]*)<\/title>/);
   if (title) {
-    const len = decode(title[1]).trim().length;
-    if (len > TITLE_LIMIT) longTitles.push({ page, len });
+    const text = decode(title[1]).trim();
+    if (text.length > TITLE_LIMIT) longTitles.push({ page, len: text.length });
+    if (text) {
+      if (!byTitle.has(text)) byTitle.set(text, []);
+      byTitle.get(text).push(page);
+    }
   }
 }
 
 const dupGroups = [...byDescription.entries()].filter(([, v]) => v.length > 1);
 const dupPages = dupGroups.reduce((n, [, v]) => n + v.length, 0);
+const dupTitleGroups = [...byTitle.entries()].filter(([, v]) => v.length > 1);
+const dupTitlePages = dupTitleGroups.reduce((n, [, v]) => n + v.length, 0);
 
 // Раздел = первые 4 сегмента пути (/ru/dnd/srd-5.2/monsters-a-z) — для внятного отчёта.
 const section = (p) => p.split('/').slice(1, 5).join('/');
@@ -89,6 +100,7 @@ const bySection = (list) => {
 console.log(`Мета-бюджет: обойдено ${pages} страниц dist`);
 console.log(`  дубли description: ${dupPages} страниц в ${dupGroups.length} группах (бюджет ${BUDGET.dupDescriptionPages})`);
 console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} страниц (бюджет ${BUDGET.longTitlePages})`);
+console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
 
 const errors = [];
 
@@ -115,6 +127,18 @@ if (longTitles.length > BUDGET.longTitlePages) {
 } else if (longTitles.length < BUDGET.longTitlePages - SLACK) {
   errors.push(
     `длинных <title> стало ${longTitles.length} при бюджете ${BUDGET.longTitlePages} — опусти BUDGET.longTitlePages`,
+  );
+}
+
+if (dupTitlePages > BUDGET.dupTitlePages) {
+  errors.push(`дубли <title>: ${dupTitlePages} > бюджета ${BUDGET.dupTitlePages}`);
+  console.error('\n  Топ дублирующихся <title>:');
+  for (const [text, list] of dupTitleGroups.sort((a, b) => b[1].length - a[1].length).slice(0, 10)) {
+    console.error(`    ×${list.length} «${text}» — напр. ${list[0]}`);
+  }
+} else if (dupTitlePages < BUDGET.dupTitlePages - SLACK) {
+  errors.push(
+    `дублей <title> стало ${dupTitlePages} при бюджете ${BUDGET.dupTitlePages} — опусти BUDGET.dupTitlePages`,
   );
 }
 

@@ -6,7 +6,8 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
-import { loadEntities, excerpt, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
 
 // Programmatic-страницы навыков (Basic Roleplaying SRD 1.0). URL:
 // /{lang}/brp/{version}/skills/{slug}/. EN/RU делят канонический (англ.) слаг → hreflang.
@@ -39,7 +40,6 @@ const { entity, ver, lang, siblings } = Astro.props as {
   entity: Skill; ver: string; lang: 'en' | 'ru'; siblings: { slug: string; name: string; category_slug?: string }[];
 };
 const verSlug = VERSION_SLUG[ver];
-const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
 const tree = fromHtml(marked.parse(entity.description_md ?? '', { async: false }), { fragment: true });
@@ -55,7 +55,7 @@ const related = siblings.filter((s) => s.slug !== entity.slug && s.category_slug
 const upLink = { href: `${base}/all/`, ru: 'Все навыки', en: 'All skills' };
 
 const kind = t('Навык', 'Skill');
-const title = `${entity.name} — ${t(`${kind} Basic Roleplaying ${verLabel}`, `Basic Roleplaying ${verLabel} ${kind}`)} · OmnisGM Rules`;
+const title = pageTitle({ name: entity.name, kind, lang, game: 'brp', version: ver });
 ---
 
 <ReaderShell

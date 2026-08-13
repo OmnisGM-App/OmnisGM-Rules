@@ -1,6 +1,7 @@
 ---
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
+import { pageTitle } from '../../../../../../lib/page-title';
 import {
   SPELL_CLASSES, LEVELS, SCHOOL_HUBS, classLabel, classHubName, classNameInData, levelLabel,
   schoolLabel, schoolSlug, schoolHubLabel, byName, type Lang, type SpellLite,
@@ -52,7 +53,10 @@ const sections = LEVELS
   .filter((sec) => sec.items.length > 0);
 const headings = sections.map((sec) => ({ depth: 2, slug: `lvl-${sec.n}`, text: levelLabel(sec.n, lang) }));
 
-const title = `${t(`Заклинания ${clsGen}`, `${clsGen} Spells`)} — D&D ${verLabel} · OmnisGM Rules`;
+const title = pageTitle({
+  name: t(`Заклинания ${clsGen}`, `${clsGen} Spells`),
+  lang, game: 'dnd', version: ver,
+});
 const description = t(
   `Все ${spells.length} заклинаний класса ${clsName} в D&D ${verLabel}, сгруппированы по уровню, со школой и ссылками на страницы заклинаний.`,
   `All ${spells.length} ${clsName} spells in D&D ${verLabel}, grouped by level, with school and links to each spell.`,
