@@ -58,7 +58,12 @@ const DH_CLASSES: [string, string, string][] = [
 
 export const NAV: NavNode[] = [
   group('dnd', 'D&D', 'D&D', [
-    group('d52', 'SRD 5.2.1', 'SRD 5.2.1', [
+    // Подпись версии несёт и номер документа, и год редакции (#185): в выдаче title обещает
+    // «D&D 2024», и страница должна это подтверждать, а не показывать только «SRD 5.2.1».
+    // Слово «D&D» в скобки не берём — оно уже стоит родительской крошкой и в шапке дерева,
+    // иначе крошка читалась бы «D&D · SRD 5.2.1 (D&D 2024)». Обе части язык-нейтральны,
+    // поэтому RU и EN совпадают.
+    group('d52', 'SRD 5.2.1 (2024)', 'SRD 5.2.1 (2024)', [
       page('d52-legal', 'Правовая информация', 'Legal', '/dnd/srd-5.2/00_Legal/'),
       page('d52-playing', 'Как играть', 'Playing the Game', '/dnd/srd-5.2/01_PlayingTheGame/'),
       page('d52-charcreation', 'Создание персонажа', 'Character Creation', '/dnd/srd-5.2/02_CharacterCreation/'),
@@ -88,7 +93,7 @@ export const NAV: NavNode[] = [
         page('d52-animals-hub', 'Животные (справочник)', 'Animals (Reference)', '/dnd/srd-5.2/animals/all/'),
       ]),
     ]),
-    group('d51', 'SRD 5.1', 'SRD 5.1', [
+    group('d51', 'SRD 5.1 (2014)', 'SRD 5.1 (2014)', [
       page('d51-legal', 'Правовая информация', 'Legal', '/dnd/srd-5.1/00_Legal/'),
       page('d51-abilities', 'Способности', 'Abilities', '/dnd/srd-5.1/01_Abilities/'),
       page('d51-adventuring', 'Приключения', 'Adventuring', '/dnd/srd-5.1/02_Adventuring/'),
