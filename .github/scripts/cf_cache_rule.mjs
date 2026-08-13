@@ -112,9 +112,15 @@ if (!APPLY) {
 }
 
 // 4. Применяем. PUT на entrypoint ЗАМЕНЯЕТ весь набор правил фазы, поэтому чужие правила
-// переносим как есть, а своё дописываем в конец (правила применяются по порядку — наше
-// не должно перекрывать более специфичные, если такие появятся).
+// переносим как есть — вместе с id, чтобы Cloudflare обновил их на месте, а не пересоздал
+// с новыми идентификаторами (иначе в дашборде теряется история правила).
+//
+// Своё правило ставим ПЕРВЫМ. В фазе cache settings срабатывают ВСЕ совпавшие правила, и
+// каждое следующее переопределяет предыдущее — то есть побеждает последнее. Наше правило
+// самое общее (весь хост), поэтому оно должно стоять раньше: любое более специфичное
+// правило, добавленное позже, окажется ниже и сможет его переопределить (ревью #193).
 const others = existing.filter((r) => r.description !== DESCRIPTION).map((r) => ({
+  ...(r.id ? { id: r.id } : {}),
   description: r.description,
   expression: r.expression,
   action: r.action,
@@ -127,7 +133,7 @@ const others = existing.filter((r) => r.description !== DESCRIPTION).map((r) => 
 for (const variant of [{ all: true }, '*']) {
   const res = await api(`/zones/${ZONE}/rulesets/phases/${PHASE}/entrypoint`, {
     method: 'PUT',
-    body: JSON.stringify({ rules: [...others, rule(variant)] }),
+    body: JSON.stringify({ rules: [rule(variant), ...others] }),
   });
   if (res.status === 200) {
     const saved = (res.body?.result?.rules ?? []).find((r) => r.description === DESCRIPTION);
