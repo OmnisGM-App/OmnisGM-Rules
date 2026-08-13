@@ -16,6 +16,7 @@
 // Модуль — общий дом для фактовых сниппетов всех типов сущностей: стат-блоки (монстры/животные),
 // заклинания, магические предметы. Класс-страницы живут в class-facts.ts и берут отсюда редакцию.
 // Локализованные подписи (школа, редкость) НЕ дублируем — берём из *-hubs.ts, где они уже есть.
+import { excerpt } from './entities';
 import { schoolLabel } from './spell-hubs';
 import { rarityLabel } from './magic-item-hubs';
 
@@ -63,6 +64,12 @@ const num = (v: unknown) => (typeof v === 'number' && Number.isFinite(v) ? v : n
 // Значение поля данных в середину предложения: «Мгновенная» → «мгновенная». Только первая
 // буква — внутри могут быть имена собственные («Пояс дварфов»).
 const lower = (s: string) => (s ? s[0].toLowerCase() + s.slice(1) : s);
+
+/**
+ * Точка в конце предложения без удвоения: значения веса в данных уже сокращения с точкой
+ * («10 фнт.», «10 lb.»), и наивный шаблон давал «вес 10 фнт..».
+ */
+export const endSentence = (s: string) => (s.endsWith('.') ? s : `${s}.`);
 
 // Предел сниппета: длиннее ~160 символов поисковики обрезают.
 const LIMIT = 160;
@@ -204,6 +211,52 @@ export function spellDescription(opts: {
     compose(false, true),
     compose(false, true, false),
   ]);
+}
+
+// ── Снаряжение (обычные предметы) ────────────────────────────────────────────
+
+interface GearEntity {
+  name: string;
+  cost?: unknown;
+  weight?: unknown;
+  description_md?: unknown;
+}
+
+/**
+ * Фактовый <meta description> снаряжения: цена и вес впереди, дальше — начало описания.
+ * Цена и вес это и есть спрос («набор взломщика днд», «сколько стоит…»), а excerpt() первого
+ * абзаца начинал сниппет с прозы и часто обрезал самое полезное. null, если ни цены, ни веса
+ * нет — вызывающий откатывается к чистому excerpt().
+ */
+export function gearDescription(opts: {
+  entity: GearEntity;
+  lang: 'en' | 'ru';
+  version: string;
+}): string | null {
+  const { entity, lang, version } = opts;
+
+  const cost = lower(str(entity.cost));
+  const weight = lower(str(entity.weight));
+  if (!cost && !weight) return null;
+
+  const ed = editionLabel(version);
+  const facts =
+    lang === 'ru'
+      ? [cost && `цена ${cost}`, weight && `вес ${weight}`].filter(Boolean).join(', ')
+      : [cost && `cost ${cost}`, weight && `weight ${weight}`].filter(Boolean).join(', ');
+  const head = endSentence(
+    lang === 'ru'
+      ? `${entity.name} — снаряжение ${ed} (днд): ${facts}`
+      : `${entity.name} — ${ed} equipment: ${facts}`,
+  );
+
+  // Хвост — начало описания ровно в остаток бюджета; без него сниппет вышел бы голым перечнем.
+  // Но если остатка почти нет, excerpt() вернул бы голое «…» — тогда хвост не добавляем вовсе
+  // (ревью #188). MIN_TAIL — минимальная осмысленная длина куска прозы.
+  const MIN_TAIL = 20;
+  const room = LIMIT - head.length - 1;
+  const tail = room >= MIN_TAIL ? excerpt(str(entity.description_md), room) : '';
+  return tail ? `${head} ${tail}` : head;
 }
 
 // ── Магические предметы ──────────────────────────────────────────────────────

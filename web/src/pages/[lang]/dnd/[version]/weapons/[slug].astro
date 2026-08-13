@@ -1,7 +1,8 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
-import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { loadEntities, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import { editionLabel, endSentence } from '../../../../../lib/entity-facts';
 
 // Programmatic-страницы оружия (issue #20, Дорожка A) — тонкий стат-блок (данные табличные,
 // описания нет). URL: /{lang}/dnd/{version}/weapons/{slug}/. Своей главы у оружия нет —
@@ -56,7 +57,6 @@ export function getStaticPaths() {
 const { entity, ver, lang, siblings, propMap, masteryMap } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
 const verKey = ver; // srd52
-const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const loc = (map: Record<string, [string, string]>, key: string) => {
   const p = map[key];
@@ -101,10 +101,15 @@ const subLine = t(
   `${catLabel} ${typeLabel.toLowerCase()} weapon`,
 );
 // «(днд)» — кириллическая форма запросов (issue #173, п.2), одна встреча рядом с «D&D».
-const description = t(
-  `${entity.name} — ${catLabel.toLowerCase()} оружие ${typeLabel}, урон ${damageLine}. D&D ${verLabel} (днд).`,
-  `${entity.name} — ${catLabel.toLowerCase()} ${typeLabel.toLowerCase()} weapon, ${damageLine} damage. D&D ${verLabel}.`,
-);
+// Цена и вес добавлены в #185 (тот же спрос, что и урон), редакция — человеческой формой.
+const gear = [
+  cost && t(`цена ${cost}`, `cost ${cost}`),
+  weight && t(`вес ${weight}`, `weight ${weight}`),
+].filter(Boolean).join(', ');
+const description = endSentence(t(
+  `${entity.name} — ${catLabel.toLowerCase()} оружие ${typeLabel} ${editionLabel(ver)} (днд): урон ${damageLine}${gear ? `, ${gear}` : ''}`,
+  `${entity.name} — a ${editionLabel(ver)} ${catLabel.toLowerCase()} ${typeLabel.toLowerCase()} weapon: ${damageLine} damage${gear ? `, ${gear}` : ''}`,
+));
 
 const base = `/${lang}/dnd/${verSlug}/weapons`;
 // «Похожее оружие» — до 8 той же категории и типа (внутренняя перелинковка/SEO).
