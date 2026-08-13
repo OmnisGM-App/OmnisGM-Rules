@@ -19,9 +19,10 @@
 //     него почти нет, но он разводит одноимённые страницы SRD 5.1 и 5.2. Из лестницы
 //     укорачивания НИКОГДА не выпадает — иначе получим дубли title между редакциями.
 //
-// EN-формы («rogue 5e», «dnd rogue class») выгрузкой не покрыты — Яндекс её не даёт, а /en/
-// от него вообще закрыт (#182). Поэтому EN — зеркало RU-структуры с «5e» вместо «днд»;
-// проверять по Search Console, когда наберётся статистика.
+// EN-формы («rogue 5e», «rogue 5.5e», «dnd rogue class») выгрузкой не покрыты — Яндекс её не
+// даёт, а /en/ от него вообще закрыт (#182). Поэтому EN — зеркало RU-структуры: «(5.5e)» на
+// страницах 2024 (содержит «5e» подстрокой, значит покрывает оба употребления, как «(днд 5)»
+// покрывает «днд») и «(5e)» на 2014. Проверять по Search Console, когда наберётся статистика.
 import { VERSION_LABEL } from './entities';
 import { edition } from './entity-facts';
 
@@ -57,10 +58,18 @@ function systemLabel(game: string, version: string, short: boolean): string {
 }
 
 // Форма спроса в скобках — только у D&D: у Daggerheart и BRP кириллического кластера нет.
-function searchForm(game: string, lang: 'en' | 'ru', level: 'long' | 'short' | 'none'): string {
+function searchForm(
+  game: string,
+  lang: 'en' | 'ru',
+  level: 'long' | 'short' | 'none',
+  version: string,
+): string {
   if (game !== 'dnd' || level === 'none') return '';
   if (lang === 'ru') return level === 'long' ? '(днд 5)' : '(днд)';
-  return '(5e)';
+  // EN: тот же приём, что и с «(днд 5)» — строка «5.5e» СОДЕРЖИТ «5e» как подстроку, поэтому
+  // на страницах редакции 2024 она покрывает оба употребления («rogue 5e» и «rogue 5.5e») за
+  // +2 символа и ничего не теряет. У 5.1 никакой «5.5e» нет — там всегда «(5e)».
+  return level === 'long' && edition(version) === '2024' ? '(5.5e)' : '(5e)';
 }
 
 /**
@@ -76,8 +85,10 @@ function searchForm(game: string, lang: 'en' | 'ru', level: 'long' | 'short' | '
  */
 export function pageTitle(opts: TitleOpts): string {
   const { name, kind = '', lang, game, version } = opts;
-  // Тип идёт в середину фразы — «Магический предмет» → «магический предмет».
-  const type = kind.trim().toLowerCase();
+  // Тип идёт в середину фразы — «Магический предмет» → «магический предмет». Если тип совпал
+  // с самим именем, роняем его: «Щит — щит D&D 2024» читается как заикание.
+  const kindLower = kind.trim().toLowerCase();
+  const type = kindLower === name.trim().toLowerCase() ? '' : kindLower;
 
   const compose = (form: 'long' | 'short' | 'none', brand: boolean, short: boolean) => {
     const sys = systemLabel(game, version, short);
@@ -88,7 +99,7 @@ export function pageTitle(opts: TitleOpts): string {
         : `${sys} ${type}`
       : sys;
     const head = [name, middle].filter(Boolean).join(' — ');
-    const withForm = [head, searchForm(game, lang, form)].filter(Boolean).join(' ');
+    const withForm = [head, searchForm(game, lang, form, version)].filter(Boolean).join(' ');
     return brand ? `${withForm} · ${BRAND}` : withForm;
   };
 

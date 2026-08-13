@@ -1,7 +1,8 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
-import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { loadEntities, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import { editionLabel, endSentence } from '../../../../../lib/entity-facts';
 
 // Programmatic-страницы доспехов (issue #20, Дорожка A) — тонкий стат-блок (данные табличные).
 // URL: /{lang}/dnd/{version}/armor/{slug}/. Своей главы нет — доспехи в «Снаряжении», туда и
@@ -40,7 +41,6 @@ export function getStaticPaths() {
 
 const { entity, ver, lang, siblings } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
-const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
 const category = (entity.category as string) ?? '';
@@ -71,11 +71,18 @@ if (isShield) {
 // Подстрока в шапке: «Средний доспех» / «Medium armor»; для щита — просто «Щит»/«Shield».
 const subLine = isShield ? catLabel : t(`${catLabel} доспех`, `${catLabel} armor`);
 // «(днд)» — кириллическая форма запросов (issue #173, п.2), одна встреча рядом с «D&D».
-const description = isShield
-  ? t(`${entity.name} — щит, +${acBase} к КД. D&D ${verLabel} (днд).`,
-      `${entity.name} — shield, +${acBase} AC. D&D ${verLabel}.`)
-  : t(`${entity.name} — ${catLabel.toLowerCase()} доспех, КД ${acLine}. D&D ${verLabel} (днд).`,
-      `${entity.name} — ${catLabel.toLowerCase()} armor, AC ${acLine}. D&D ${verLabel}.`);
+// Цена и вес добавлены в #185: это тот же спрос, что и КД («сколько кд у…», «сколько стоит…»),
+// а редакция теперь человеческой формой («D&D 2024»), как в остальных шаблонах.
+const gear = [
+  cost && t(`цена ${cost}`, `cost ${cost}`),
+  weight && t(`вес ${weight}`, `weight ${weight}`),
+].filter(Boolean).join(', ');
+const armorKind = isShield ? t('щит', 'shield') : t(`${catLabel.toLowerCase()} доспех`, `${catLabel.toLowerCase()} armor`);
+const acFact = isShield ? t(`+${acBase} к КД`, `+${acBase} AC`) : t(`КД ${acLine}`, `AC ${acLine}`);
+const description = endSentence(t(
+  `${entity.name} — ${armorKind} ${editionLabel(ver)} (днд): ${[acFact, gear].filter(Boolean).join(', ')}`,
+  `${entity.name} — a ${editionLabel(ver)} ${armorKind}: ${[acFact, gear].filter(Boolean).join(', ')}`,
+));
 
 const base = `/${lang}/dnd/${verSlug}/armor`;
 // «Похожие доспехи» — до 8 той же категории (внутренняя перелинковка/SEO).
