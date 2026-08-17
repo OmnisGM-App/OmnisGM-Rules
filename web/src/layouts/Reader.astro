@@ -75,10 +75,12 @@ const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';
     <link rel="preload" href="/fonts/inter-latin.woff2" as="font" type="font/woff2" crossorigin />
 
     <meta name="theme-color" content="#0F1016" />
+    <!-- Растровый ICO ПЕРВЫМ (#199): Google в выдаче SVG-фавиконы не берёт, а первым в <head>
+         должен стоять формат, который он умеет (48×48, квадрат кратный 48). ?v=2 — cache-bust,
+         чтобы краулер сходил за иконкой сразу, а не по своему расписанию. Браузеры при наличии
+         type="image/svg+xml" всё равно предпочтут SVG ниже. -->
+    <link rel="icon" href="/favicon.ico?v=2" sizes="48x48" />
     <link rel="icon" href="/favicon.svg" type="image/svg+xml" />
-    <!-- Растровый ICO для краулеров, плохо понимающих SVG-favicon (Яндекс брал иконку
-         только у Table, где /favicon.ico есть; здесь его не было → /favicon.ico давал 404). -->
-    <link rel="icon" href="/favicon.ico" type="image/x-icon" />
     <link rel="apple-touch-icon" sizes="180x180" href="/apple-touch-icon.png" />
     <link rel="manifest" href="/manifest.webmanifest" />
     <script is:inline>

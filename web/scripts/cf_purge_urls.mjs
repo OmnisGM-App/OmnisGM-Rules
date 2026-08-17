@@ -50,6 +50,12 @@ const FIXED = [
 
 const urls = new Set();
 
+// Корень сбрасываем всегда: сигнатурный дифф считает контент страницы, а правки в <head>
+// (фавикон, мета, скрипты) его не меняют — и главная зависла бы на эдже со старым <head>
+// до конца TTL. Именно с главной Google берёт фавикон (#199).
+urls.add(`${ORIGIN}/`);
+urls.add(`${ORIGIN}/index.html`);
+
 for (const name of FIXED) {
   if (existsSync(resolve(DIST, name))) urls.add(`${ORIGIN}/${name}`);
 }
