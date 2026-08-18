@@ -91,7 +91,7 @@ jobs:
       # правка одного файла контента — ровно 1.
       - name: Восстановить прошлый манифест IndexNow
         if: success()
-        uses: actions/cache/restore@v4
+        uses: actions/cache/restore@v6
         with:
           path: web/.indexnow/manifest.json
           key: indexnow-manifest-${{ github.sha }}
@@ -264,7 +264,7 @@ jobs:
       # вовсе, поэтому шаг пропускается.
       - name: Сохранить манифест IndexNow
         if: success() && steps.indexnow.outputs.pinged == 'true' && inputs.full_ping != true
-        uses: actions/cache/save@v4
+        uses: actions/cache/save@v6
         with:
           path: web/.indexnow/manifest.json
           key: indexnow-manifest-${{ github.sha }}
