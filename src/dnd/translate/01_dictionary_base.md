@@ -537,7 +537,7 @@
 | Hostile | - | Враждебный | srd-5.2 | — |  |
 | Indifferent | - | Безразличный | srd-5.2 | — |  |
 | - | Level | Уровень | — | srd-5.1 | только 5.1 |
-| Long Rest | Long Rest | Продолжительный отдых | srd-5.2 | srd-5.1 |  |
+| Long Rest | Long Rest | Долгий отдых | srd-5.2 | srd-5.1 |  |
 | Nonplayer Character (NPC) | Nonplayer Character (NPC) | Неигровой персонаж (НИП) | srd-5.2 | srd-5.1 |  |
 | Party | - | Отряд | srd-5.2 | — |  |
 | Player Character (PC) | Player Character (PC) | Игровой персонаж (ИП) | srd-5.2 | srd-5.1 |  |
