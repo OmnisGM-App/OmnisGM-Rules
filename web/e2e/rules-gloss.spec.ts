@@ -73,8 +73,8 @@ test('hovercard-эндпоинт: есть карточки терминов я�
   expect(ru['rules-terms/passive-perception']?.effect).toContain('Пассивная Внимательность');
 });
 
-test('термин ядра (батч 2): многословный (Продолжительный отдых) глоссится симметрично EN/RU', async ({ page }) => {
-  // Глава класса «Воин» — «Long Rest» / «Продолжительный отдых» получают глосс на обеих локалях.
+test('термин ядра (батч 2): многословный (Долгий отдых) глоссится симметрично EN/RU', async ({ page }) => {
+  // Глава класса «Воин» — «Long Rest» / «Долгий отдых» получают глосс на обеих локалях.
   await page.goto('/en/dnd/srd-5.2/classes/fighter/');
   await expect(page.locator('.rd-doc .gloss[data-hc*="/rules-terms/long-rest"]').first()).toBeVisible();
   await page.goto('/ru/dnd/srd-5.2/classes/fighter/');

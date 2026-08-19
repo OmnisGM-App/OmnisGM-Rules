@@ -57,7 +57,7 @@ const CORE_TERMS = [
   { slug: 'challenge-rating', en: 'Challenge Rating', ru: 'Показател[а-яё]+\\s+опасност[а-яё]+' },
   { slug: 'unarmed-strike', en: 'Unarmed Strikes?', ru: 'Безоружн[а-яё]+\\s+удар[а-яё]*' },
   { slug: 'short-rest', en: 'Short Rest', ru: 'Коротк[а-яё]+\\s+отдых[а-яё]*' },
-  { slug: 'long-rest', en: 'Long Rest', ru: 'Продолжительн[а-яё]+\\s+отдых[а-яё]*' },
+  { slug: 'long-rest', en: 'Long Rest', ru: 'Долг[а-яё]+\\s+отдых[а-яё]*' },
   { slug: 'bright-light', en: 'Bright Light', ru: 'Ярк[а-яё]+\\s+свет[а-яё]*' },
   { slug: 'dim-light', en: 'Dim Light', ru: 'Тускл[а-яё]+\\s+свет[а-яё]*' },
   { slug: 'experience-points', en: 'Experience Points', ru: 'Очк[а-яё]+\\s+опыт[а-яё]+' },

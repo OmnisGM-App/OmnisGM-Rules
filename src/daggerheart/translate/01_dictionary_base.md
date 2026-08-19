@@ -122,7 +122,7 @@
 | Disadvantage | Помеха | srd-1.0 | −d6 от броска |
 | Damage Thresholds | Пороги Урона | srd-1.0 | Малый / Большой / Критический |
 | Advantage | Преимущество | srd-1.0 | +d6 к броску |
-| Long Rest | Продолжительный Отдых | srd-1.0 | |
+| Long Rest | Долгий Отдых | srd-1.0 | |
 | Ancestry | Происхождение | srd-1.0 | |
 | Failure with Hope | Провал с Надеждой | srd-1.0 | |
 | Failure with Fear | Провал со Страхом | srd-1.0 | |
