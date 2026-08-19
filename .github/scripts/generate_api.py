@@ -443,7 +443,8 @@ def write_index_html(path: Path, title: str, links: list[dict],
 # Файлы лежат в репо статикой: web/public/img/{game}/{dir}/{slug}.webp. Папка ОДНА
 # НА ИГРУ для существ («creatures»), потому что один слаг живёт в нескольких
 # коллекциях (83 существа есть и в monsters 5.1, и в animals 5.2) — иначе у одного
-# существа было бы два разных портрета. Ключ — игра + слаг. Спека: docs/entity-images.md.
+# существа было бы два разных портрета. Ключ — игра + слаг.
+# Спека формата и раскладки: documentation/entity-images.md.
 IMAGE_DIRS = {
     "dnd": {
         "monsters": "creatures",
