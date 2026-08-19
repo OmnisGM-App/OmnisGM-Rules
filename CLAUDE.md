@@ -59,7 +59,7 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 ### Картинки сущностей и генератор (#201, #202)
 Портреты существ и иконки заклинаний/магпредметов лежат в репо статикой (`web/public/img/{game}/{kind}/`),
 показываются на странице сущности и уходят в поле `image` JSON API. Формат и раскладка —
-`docs/entity-images.md`, промты — `docs/image-prompts.md`. Генератор: `scripts/gen-images.mjs`
+`documentation/entity-images.md`, промты — `documentation/image-prompts.md`. Генератор: `scripts/gen-images.mjs`
 + `.github/workflows/gen-images.yml` (codex на подписке, очередь от данных Rules, ветка `images-queue`
 → draft-PR без автомёржа).
 

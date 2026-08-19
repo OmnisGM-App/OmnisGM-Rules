@@ -142,7 +142,7 @@ jobs:
           if ! gh pr view images-queue --json number >/dev/null 2>&1; then
             gh pr create --draft --base main --head images-queue \
               --title "chore(images): очередь картинок сущностей (#202)" \
-              --body "Авто-накопление картинок сущностей (воркер gen-images.yml, #202). Очередь строится от данных Rules (JSON API), картинки коммитятся по одной. Без автомёржа: ревью порциями ~30, мёрж по команде владельца. После мёржа порции — удалить ветку images-queue (воркер пересоздаст от свежего main). Формат и раскладка — docs/entity-images.md, промты — docs/image-prompts.md."
+              --body "Авто-накопление картинок сущностей (воркер gen-images.yml, #202). Очередь строится от данных Rules (JSON API), картинки коммитятся по одной. Без автомёржа: ревью порциями ~30, мёрж по команде владельца. После мёржа порции — удалить ветку images-queue (воркер пересоздаст от свежего main). Формат и раскладка — documentation/entity-images.md, промты — documentation/image-prompts.md."
           fi
 
       # Токен не должен пережить джобу ни при каком исходе.
