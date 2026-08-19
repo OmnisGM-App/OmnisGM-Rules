@@ -290,13 +290,13 @@ const searchUi = {
               )}
               <span set:html={t(attribution.ru, attribution.en)} />{' '}
               <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>
-              {/* Портреты существ (#201) — наши, а не часть SRD: лицензия выше относится к тексту
-                  правил, поэтому авторство картинок стоит отдельной строкой и только там, где
-                  картинка есть. */}
+              {/* Картинки сущностей (#201, #202) — наши, а не часть SRD: лицензия выше относится
+                  к тексту правил, поэтому авторство картинок стоит отдельной строкой и только
+                  там, где картинка есть. */}
               {image && (
                 <div class="rd-attrib-img">
-                  {t('Изображения существ — © OmnisGM; не входят в SRD и не покрываются его лицензией.',
-                     'Creature images © OmnisGM — not part of the SRD and not covered by its license.')}
+                  {t('Изображения — © OmnisGM; не входят в SRD и не покрываются его лицензией.',
+                     'Images © OmnisGM — not part of the SRD and not covered by its license.')}
                 </div>
               )}
             </div>

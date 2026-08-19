@@ -56,6 +56,25 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 - **Деплой:** заменить `pages.yml` (GitHub Pages) на `astro build` + `firebase deploy --only hosting`
   (проект `omnisgm-rules`). JSON API (`generate_api.py`) и release-воркфлоу — решить отдельно при сборке.
 
+### Картинки сущностей и генератор (#201, #202)
+Портреты существ и иконки заклинаний/магпредметов лежат в репо статикой (`web/public/img/{game}/{kind}/`),
+показываются на странице сущности и уходят в поле `image` JSON API. Формат и раскладка —
+`docs/entity-images.md`, промты — `docs/image-prompts.md`. Генератор: `scripts/gen-images.mjs`
++ `.github/workflows/gen-images.yml` (codex на подписке, очередь от данных Rules, ветка `images-queue`
+→ draft-PR без автомёржа).
+
+**Ранбук токена codex.** Токен один на три репо-держателя (локальный `~/.codex/auth.json` → CI News
+→ CI Table → CI Rules). Прогон падает с `refresh_token_reused` / `token_revoked` / `401` — значит
+локальный перелогин обесценил токен в CI. Починка: `codex login` локально, затем обновить секрет ВЕЗДЕ:
+
+```bash
+for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Table OmnisGM-App/OmnisGM-Rules; do
+  gh secret set CODEX_AUTH_JSON --repo $r < ~/.codex/auth.json
+done
+```
+
+Значение секрета не читать и не печатать — только перенаправлением из файла.
+
 ### План сборки (статус 2026-06-29)
 Первый шаг (согласован): каркас Astro в `web/` на ветке + **вертикальный срез D&D SRD 5.2** от и до
 (скин дизайнера, реальный рендер MD, PWA, поиск) → визуальная сверка с дизайном → масштаб на 5.1/Daggerheart/BRP.

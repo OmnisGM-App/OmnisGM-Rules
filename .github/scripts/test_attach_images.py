@@ -32,24 +32,33 @@ with tempfile.TemporaryDirectory() as tmp:
     (root / "daggerheart" / "creatures").mkdir(parents=True)
     (root / "daggerheart" / "creatures" / "acid-burrower.webp").write_bytes(b"webp")
 
+    # Заклинания (#202) — своя папка на коллекцию.
+    (root / "dnd" / "spells").mkdir(parents=True)
+    (root / "dnd" / "spells" / "acid-arrow.webp").write_bytes(b"webp")
+
     # D&D: монстр с файлом, монстр без файла, животное с файлом (та же папка creatures),
-    # заклинание (коллекция вне IMAGE_DIRS — картинок пока нет).
+    # заклинание с файлом и без, магпредмет (папки нет вовсе).
     with_file = {"slug": "aboleth"}
     without_file = {"slug": "brand-new-monster"}
     animal = {"slug": "aboleth"}
-    spell = {"slug": "fireball"}
+    spell_with = {"slug": "acid-arrow"}
+    spell_without = {"slug": "fireball"}
+    magic_item = {"slug": "amulet-of-health"}
     dnd = {
         ("srd52", "ru", "monsters"): [with_file, without_file],
         ("srd52", "ru", "animals"): [animal],
-        ("srd52", "ru", "spells"): [spell],
+        ("srd52", "ru", "spells"): [spell_with, spell_without],
+        ("srd52", "ru", "magic-items"): [magic_item],
     }
     count = attach_images(dnd, "dnd", root, ORIGIN)
 
     check("монстр с файлом", with_file.get("image"), f"{ORIGIN}/img/dnd/creatures/aboleth.webp")
     check("монстр БЕЗ файла не получает поля", "image" in without_file, False)
     check("животное берёт из общей папки", animal.get("image"), f"{ORIGIN}/img/dnd/creatures/aboleth.webp")
-    check("коллекция вне карты не трогается", "image" in spell, False)
-    check("счётчик", count, 2)
+    check("заклинание берёт из своей папки", spell_with.get("image"), f"{ORIGIN}/img/dnd/spells/acid-arrow.webp")
+    check("заклинание БЕЗ файла не получает поля", "image" in spell_without, False)
+    check("магпредмет: папки нет вовсе — поля нет", "image" in magic_item, False)
+    check("счётчик", count, 3)
 
     # Daggerheart: своя игра — свой префикс пути.
     adversary = {"slug": "acid-burrower"}

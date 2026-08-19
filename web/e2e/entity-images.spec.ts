@@ -1,8 +1,9 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 
-// Портреты существ (issue #201): картинка живёт в Rules, показывается на странице существа,
-// уходит в og:image и в поле `image` JSON API. Страница без портрета не должна регрессировать.
+// Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов):
+// картинка живёт в Rules, показывается на странице сущности, уходит в og:image и в поле
+// `image` JSON API. Страница без картинки не должна регрессировать.
 
 test('страница монстра: портрет виден, размеры заданы, alt = имя', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/aboleth/');
@@ -64,7 +65,9 @@ test('JSON API: image есть у существ с файлом и отсутс
   const aboleth = monsters.find((m: { slug: string }) => m.slug === 'aboleth');
   expect(aboleth.image).toBe('https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp');
   // Поля нет вовсе, а не пустая строка/null — потребитель проверяет наличие ключа.
-  expect(api('dnd/srd52/ru/spells/all.json')[0]).not.toHaveProperty('image');
+  // Берём заклинание, которого генератор ещё не касался (первое по алфавиту уже с иконкой).
+  const spells = api('dnd/srd52/ru/spells/all.json');
+  expect(spells.find((s: { slug: string }) => s.slug === 'fireball')).not.toHaveProperty('image');
   // Окружения Daggerheart делят схему с противниками, но картинок у них нет.
   expect(api('daggerheart/srd10/ru/environments/all.json')[0]).not.toHaveProperty('image');
   expect(api('daggerheart/srd10/ru/adversaries/all.json')[0].image).toContain('/img/daggerheart/creatures/');
@@ -97,4 +100,39 @@ test('обратная сторона: у каждого файла есть с�
     .map((f) => f.slice(0, -5))
     .filter((slug) => !slugs.has(slug));
   expect(orphans, `картинки без сущности: ${orphans.join(', ')}`).toEqual([]);
+});
+
+test('заклинание и магпредмет с иконкой — тот же механизм, что у существ (#202)', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/spells/acid-arrow/');
+  await expect(page.locator('.ent-portrait')).toHaveAttribute('src', '/img/dnd/spells/acid-arrow.webp');
+  await expect(page.locator('head meta[property="og:image"]')).toHaveAttribute(
+    'content', 'https://rules.omnisgm.com/img/dnd/spells/acid-arrow.webp',
+  );
+  await expect(page.locator('.rd-attrib-img')).toContainText('© OmnisGM');
+
+  await page.goto('/ru/dnd/srd-5.2/magic-items/amulet-of-health/');
+  await expect(page.locator('.ent-portrait')).toHaveAttribute(
+    'src', '/img/dnd/magic-items/amulet-of-health.webp',
+  );
+});
+
+test('сущность без картинки: страница как раньше', async ({ page }) => {
+  // Огненный шар в очереди генератора — иконки пока нет.
+  await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
+  await expect(page.locator('img.ent-portrait')).toHaveCount(0);
+  await expect(page.locator('head meta[property="og:image"]')).toHaveAttribute(
+    'content', 'https://rules.omnisgm.com/og.png',
+  );
+  await expect(page.locator('.rd-attrib-img')).toHaveCount(0);
+});
+
+test('очередь генератора: поле image ровно у тех, чей файл лежит', () => {
+  // Тот же расчёт, что делает scripts/gen-images.mjs: сущности API минус лежащие webp.
+  const spells = api('dnd/srd52/en/spells/all.json');
+  const done = fs.readdirSync('public/img/dnd/spells').filter((f) => f.endsWith('.webp'));
+  expect(done.length).toBeGreaterThan(0);
+  const withImage = spells.filter((s: { image?: string }) => s.image).length;
+  expect(withImage).toBe(
+    spells.filter((s: { slug: string }) => done.includes(`${s.slug}.webp`)).length,
+  );
 });

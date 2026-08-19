@@ -145,6 +145,8 @@ SPELL_SCHEMA = {
         "higher_levels_md": {"type": ["string", "null"]},
         "cantrip_upgrade_md": {"type": ["string", "null"]},
         "has_stat_block": {"type": "boolean"},
+        # Иконка (#202) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "level", "school", "classes",
@@ -310,6 +312,8 @@ MAGIC_ITEM_SCHEMA = {
         },
         "description_md": {"type": "string"},
         "spells": {"type": "array", "items": {"type": "string"}},
+        # Иконка (#202) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "type", "subtype", "rarity",

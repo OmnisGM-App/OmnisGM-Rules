@@ -445,7 +445,13 @@ def write_index_html(path: Path, title: str, links: list[dict],
 # коллекциях (83 существа есть и в monsters 5.1, и в animals 5.2) — иначе у одного
 # существа было бы два разных портрета. Ключ — игра + слаг. Спека: docs/entity-images.md.
 IMAGE_DIRS = {
-    "dnd": {"monsters": "creatures", "animals": "creatures"},
+    "dnd": {
+        "monsters": "creatures",
+        "animals": "creatures",
+        # Заклинания и магпредметы (#202) — свои папки: их слаги ни с чем не пересекаются.
+        "spells": "spells",
+        "magic-items": "magic-items",
+    },
     "daggerheart": {"adversaries": "creatures"},
 }
 DEFAULT_IMAGES_ROOT = Path(__file__).resolve().parents[2] / "web" / "public" / "img"
