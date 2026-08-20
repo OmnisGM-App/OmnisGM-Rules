@@ -1,5 +1,6 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
+import { execFileSync } from 'node:child_process';
 
 // Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов):
 // картинка живёт в Rules, показывается на странице сущности, уходит в og:image и в поле
@@ -135,4 +136,48 @@ test('очередь генератора: поле image ровно у тех, 
   expect(withImage).toBe(
     spells.filter((s: { slug: string }) => done.includes(`${s.slug}.webp`)).length,
   );
+});
+
+// Очередь генератора берёт снаряжение и предметы Daggerheart/BRP прямо из markdown-таблиц
+// (в JSON API этих коллекций пока нет) и сама считает слаг. Если её формула разойдётся
+// с parsers/base.py, картинки лягут под именами, которых сущности никогда не получат —
+// молча, без единой ошибки. Поэтому сверяем обе реализации на реальных именах.
+test('слаг в генераторе и в парсерах считается одинаково', () => {
+  const FILES = [
+    'src/daggerheart/srd-1.0/en/17_Glossary/03_Weapons.md',
+    'src/daggerheart/srd-1.0/en/17_Glossary/04_Armor.md',
+    'src/daggerheart/srd-1.0/en/17_Glossary/06_Items.md',
+    'src/daggerheart/srd-1.0/en/17_Glossary/07_Consumables.md',
+    'src/brp/srd-1.0/en/09_Glossary/02_Weapons.md',
+    'src/brp/srd-1.0/en/09_Glossary/03_Armor.md',
+  ];
+  // Та же формула, что в scripts/gen-images.mjs.
+  const slugify = (n: string) => n.toLowerCase().normalize('NFKD')
+    .replace(/[^\w\s-]/g, ' ').replace(/[-\s]+/g, '-').replace(/^-+|-+$/g, '');
+
+  const names: string[] = [];
+  for (const rel of FILES) {
+    let header = true;
+    for (const line of fs.readFileSync(`../${rel}`, 'utf-8').split('\n')) {
+      const t = line.trim();
+      if (!t.startsWith('|')) { header = true; continue; }
+      if (/^\|[\s:-]+\|/.test(t)) continue;
+      if (header) { header = false; continue; }
+      const first = t.split('|').slice(1, -1).map((c) => c.trim())[0];
+      if (first && first !== '—') names.push(first);
+    }
+  }
+  expect(names.length).toBeGreaterThan(400);
+
+  const py = execFileSync('python3', ['-c', `
+import json, sys
+sys.path.insert(0, '../.github/scripts')
+from parsers.base import slugify
+print(json.dumps([slugify(n) for n in json.load(sys.stdin)]))
+`], { input: JSON.stringify(names), encoding: 'utf-8' });
+  const fromPython: string[] = JSON.parse(py);
+  const mismatched = names
+    .map((n, i) => ({ n, js: slugify(n), py: fromPython[i] }))
+    .filter((r) => r.js !== r.py);
+  expect(mismatched, `расходятся: ${mismatched.slice(0, 5).map((r) => r.n).join(', ')}`).toEqual([]);
 });

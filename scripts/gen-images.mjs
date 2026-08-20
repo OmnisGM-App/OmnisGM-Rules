@@ -6,7 +6,7 @@
 // списка имён. Список неизбежно разъезжался с контентом; здесь источник — тот же JSON API, что
 // питает страницы, поэтому новая сущность в SRD автоматически попадает в очередь без ручных правок.
 //
-// Очередь = (сущности коллекции по всем версиям, дедуп по слагу) МИНУС уже лежащие webp.
+// Очередь = (сущности вида по всем версиям и источникам, дедуп по слагу) МИНУС уже лежащие webp.
 // Выход — web/public/img/{game}/{dir}/{slug}.webp; раскладка описана
 // в documentation/entity-images.md.
 //
@@ -20,7 +20,7 @@
 // Каждая готовая картинка коммитится и пушится СРАЗУ (PUSH_EACH=1) — протухший на середине
 // токен не теряет уже сгенерённое.
 //
-// env: KIND (creatures|spells|magic-items), COUNT, ONLY=slug1,slug2, CHECK_ONLY=1, DESC_ONLY=1,
+// env: KIND (creatures|spells|domain-cards|magic-items|gear), COUNT, ONLY=slug1,slug2, CHECK_ONLY=1, DESC_ONLY=1,
 //      DUMP_PROMPT=1, PUSH_EACH=1, GIT_BRANCH, API_ROOT.
 // Требует: codex CLI + CODEX_HOME, cwebp, git.
 
@@ -38,16 +38,62 @@ const ONLY = (process.env.ONLY || '').split(',').map((s) => s.trim()).filter(Boo
 const PUSH_EACH = process.env.PUSH_EACH === '1';
 const GIT_BRANCH = process.env.GIT_BRANCH || 'images-queue';
 
-// Вид картинки → из каких коллекций API берём очередь и в какую папку кладём.
-// Папка существ — общая на игру (слаг живёт в нескольких коллекциях), см. docs/entity-images.md.
+// Вид картинки → откуда берём очередь и в какую папку кладём.
+//
+// Источников два, и это не прихоть: `api` — коллекции JSON API (канонические слаги, по ним
+// картинку найдёт страница), `md` — таблицы прямо из src/*.md для того, чего в API ещё нет
+// (снаряжение и предметы Daggerheart и BRP не выведены в коллекции — им нужен парсер, а
+// картинки нужны уже сейчас). Слаг в md-режиме считается ТОЙ ЖЕ функцией, что в парсерах
+// (parsers/base.py slugify), поэтому, когда коллекция появится в API, файлы совпадут по имени.
+//
+// Папка существ — общая на игру (слаг живёт в нескольких коллекциях), см. documentation/entity-images.md.
 const KINDS = {
   creatures: {
     dir: 'creatures',
     label: 'существа',
-    sources: { dnd: ['monsters', 'animals'], daggerheart: ['adversaries'] },
+    prompt: 'creatures',
+    api: { dnd: ['monsters', 'animals'], daggerheart: ['adversaries'] },
   },
-  spells: { dir: 'spells', label: 'заклинания', sources: { dnd: ['spells'] } },
-  'magic-items': { dir: 'magic-items', label: 'магические предметы', sources: { dnd: ['magic-items'] } },
+  spells: { dir: 'spells', label: 'заклинания', prompt: 'spells', api: { dnd: ['spells'] } },
+  'domain-cards': {
+    // Карты доменов — «заклинания» Daggerheart: те же способности, тот же промт-шаблон знака.
+    dir: 'domain-cards',
+    label: 'карты доменов',
+    prompt: 'spells',
+    api: { daggerheart: ['domain-cards'] },
+  },
+  'magic-items': {
+    // Магические/особые предметы. У D&D — коллекция API; у Daggerheart Items и Consumables
+    // живут таблицами глоссария и в API не выведены.
+    dir: 'magic-items',
+    label: 'магические предметы',
+    prompt: 'magic-items',
+    api: { dnd: ['magic-items'] },
+    md: {
+      daggerheart: [
+        'src/daggerheart/srd-1.0/en/17_Glossary/06_Items.md',
+        'src/daggerheart/srd-1.0/en/17_Glossary/07_Consumables.md',
+      ],
+    },
+  },
+  gear: {
+    // Обычное снаряжение — верёвка, рюкзак, меч, кожаный доспех. У D&D три коллекции API,
+    // у Daggerheart и BRP — таблицы оружия и брони.
+    dir: 'gear',
+    label: 'снаряжение',
+    prompt: 'magic-items',
+    api: { dnd: ['equipment', 'weapons', 'armor'] },
+    md: {
+      daggerheart: [
+        'src/daggerheart/srd-1.0/en/17_Glossary/03_Weapons.md',
+        'src/daggerheart/srd-1.0/en/17_Glossary/04_Armor.md',
+      ],
+      brp: [
+        'src/brp/srd-1.0/en/09_Glossary/02_Weapons.md',
+        'src/brp/srd-1.0/en/09_Glossary/03_Armor.md',
+      ],
+    },
+  },
 };
 
 const KIND = process.env.KIND || 'creatures';
@@ -184,7 +230,7 @@ function runCodexText(instruction) {
 
 // codex exec подмешивает служебные строки (таймстемпы, «tokens used») — оставляем содержательные.
 function describe(entity) {
-  const raw = runCodexText(DESCRIBE[KIND](entity));
+  const raw = runCodexText(DESCRIBE[KINDS[KIND].prompt](entity));
   const desc = raw
     .split('\n')
     .map((l) => l.trim())
@@ -242,12 +288,22 @@ function commitAndPush(rel, name) {
   }
 }
 
-// ── Очередь из данных Rules ────────────────────────────────────────────────────
-// EN-срез: имена для промта нужны английские (промт англоязычный), а слаги в EN и RU одни.
-function loadQueue() {
-  const { sources } = KINDS[KIND];
-  const bySlug = new Map();
-  for (const [game, resources] of Object.entries(sources)) {
+// ── Очередь ────────────────────────────────────────────────────────────────────
+// Слаг — той же формулы, что в парсерах (`.github/scripts/parsers/base.py`, slugify):
+// нижний регистр, NFKD, всё кроме букв/цифр/подчёркивания/пробела/дефиса → пробел,
+// пробелы и дефисы схлопываются в один дефис. Иначе картинка легла бы под именем,
+// которого сущность в API никогда не получит.
+const slugify = (name) =>
+  name
+    .toLowerCase()
+    .normalize('NFKD')
+    .replace(/[^\w\s-]/g, ' ')
+    .replace(/[-\s]+/g, '-')
+    .replace(/^-+|-+$/g, '');
+
+// Источник 1 — коллекции JSON API. EN-срез: промт англоязычный, а слаги в EN и RU одни.
+function fromApi(sources, add) {
+  for (const [game, resources] of Object.entries(sources || {})) {
     const gameDir = resolve(API_ROOT, game);
     if (!existsSync(gameDir)) continue;
     for (const ver of readdirSync(gameDir)) {
@@ -255,9 +311,8 @@ function loadQueue() {
         const file = resolve(gameDir, ver, 'en', resource, 'all.json');
         if (!existsSync(file)) continue;
         for (const e of JSON.parse(readFileSync(file, 'utf8'))) {
-          // Слаг уникален внутри игры; версии дедуплицируем — портрет один на существо.
-          if (!e.slug || bySlug.has(`${game}/${e.slug}`)) continue;
-          bySlug.set(`${game}/${e.slug}`, {
+          if (!e.slug) continue;
+          add({
             game,
             slug: e.slug,
             name: e.name_en || e.name,
@@ -271,6 +326,43 @@ function loadQueue() {
       }
     }
   }
+}
+
+// Источник 2 — markdown-таблицы для того, чего в API ещё нет (снаряжение и предметы
+// Daggerheart и BRP). Формат везде один: первая строка блока — заголовок колонок,
+// вторая — разделитель, дальше строки, где ПЕРВАЯ ячейка это имя, а вторая обычно
+// тип/категория. Файлы берём английские — по ним же строится слаг.
+function fromMarkdown(sources, add) {
+  for (const [game, files] of Object.entries(sources || {})) {
+    for (const rel of files) {
+      const abs = resolve(REPO, rel);
+      if (!existsSync(abs)) {
+        console.error(`  таблица не найдена, пропуск: ${rel}`);
+        continue;
+      }
+      const lines = readFileSync(abs, 'utf8').split('\n');
+      let header = true;
+      for (const line of lines) {
+        const t = line.trim();
+        if (!t.startsWith('|')) { header = true; continue; }   // конец блока таблицы
+        if (/^\|[\s:-]+\|/.test(t)) continue;                  // строка-разделитель
+        if (header) { header = false; continue; }              // строка заголовка колонок
+        const cells = t.split('|').slice(1, -1).map((c) => c.trim());
+        const name = cells[0];
+        if (!name || name === '—' || name === '-') continue;
+        add({ game, slug: slugify(name), name, type: cells[1] || '', rarity: '' });
+      }
+    }
+  }
+}
+
+function loadQueue() {
+  const { api, md } = KINDS[KIND];
+  const bySlug = new Map();
+  // Слаг уникален внутри игры; версии и источники дедуплицируем — картинка одна на сущность.
+  const add = (e) => { if (e.slug && !bySlug.has(`${e.game}/${e.slug}`)) bySlug.set(`${e.game}/${e.slug}`, e); };
+  fromApi(api, add);
+  fromMarkdown(md, add);
   return [...bySlug.values()].sort((a, b) => (a.game + a.slug).localeCompare(b.game + b.slug));
 }
 
@@ -325,7 +417,7 @@ async function main() {
       console.log(`  → ${description}`);
       if (process.env.DESC_ONLY) { generated.push({ ...e, description }); continue; }
 
-      const prompt = PROMPTS[KIND](description);
+      const prompt = PROMPTS[KINDS[KIND].prompt](description);
       if (process.env.DUMP_PROMPT) {
         console.log(`\n--- FULL codex image instruction ---\n${codexInstruction(prompt)}\n`);
         continue;

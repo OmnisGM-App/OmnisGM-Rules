@@ -1,5 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
+import EntityHead from '../../../../../components/EntityHead.astro';
+import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
 import { loadEntities, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { editionLabel, endSentence } from '../../../../../lib/entity-facts';
@@ -120,6 +122,8 @@ const similar = (siblings as Sib[])
 const upLink = { href: `/${lang}/dnd/${verSlug}/equipment/`, ru: 'Снаряжение', en: 'Equipment' };
 const kind = t('Оружие', 'Weapon');
 const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
+// Картинка сущности (#202): она же og:image страницы — вместо общего og.png.
+const icon = entityImage('dnd', 'gear', entity.slug);
 ---
 
 <ReaderShell
@@ -129,15 +133,20 @@ const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: v
   searchTitle={entity.name}
   description={description}
   headings={[]}
+  image={icon ?? undefined}
+  imageWidth={icon ? ENTITY_IMAGE_SIZE : undefined}
+  imageHeight={icon ? ENTITY_IMAGE_SIZE : undefined}
   upLink={upLink}
 >
-  <h1>
-    {entity.name}
-    <span class="ent-head-sub">
-      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
-      <span class="item-meta-line">{subLine}</span>
-    </span>
-  </h1>
+  <EntityHead image={icon} alt={entity.name} size={ENTITY_IMAGE_SIZE}>
+    <h1>
+      {entity.name}
+      <span class="ent-head-sub">
+        {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+        <span class="item-meta-line">{subLine}</span>
+      </span>
+    </h1>
+  </EntityHead>
 
   <dl class="item-stat">
     {damageLine && (

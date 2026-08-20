@@ -342,6 +342,8 @@ WEAPON_SCHEMA = {
         "range_long": {"type": ["integer", "null"]},
         "weight": {"type": ["string", "null"]},
         "cost": {"type": "string"},
+        # Картинка (#202) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "category", "type",
@@ -372,6 +374,8 @@ ARMOR_SCHEMA = {
         "stealth_disadvantage": {"type": "boolean"},
         "weight": {"type": ["string", "null"]},
         "cost": {"type": "string"},
+        # Картинка (#202) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "category",
@@ -399,6 +403,8 @@ EQUIPMENT_SCHEMA = {
         "craft": {"type": "array", "items": {"type": "string"}},
         "variants": {"type": ["string", "null"]},
         "description_md": {"type": "string"},
+        # Картинка (#202) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "section", "cost", "weight",
@@ -484,6 +490,8 @@ DH_DOMAIN_CARD_SCHEMA = {
         "recall_cost": {"type": "integer", "minimum": 0},
         "card_type": {"type": ["string", "null"]},
         "description_md": {"type": "string"},
+        # Картинка (#202) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "domain", "domain_en", "domain_slug",

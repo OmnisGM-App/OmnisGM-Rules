@@ -449,11 +449,19 @@ IMAGE_DIRS = {
     "dnd": {
         "monsters": "creatures",
         "animals": "creatures",
-        # Заклинания и магпредметы (#202) — свои папки: их слаги ни с чем не пересекаются.
+        # Заклинания, магпредметы и обычное снаряжение (#202) — свои папки: их слаги
+        # ни с чем не пересекаются. Снаряжение трёх коллекций делит одну папку «gear».
         "spells": "spells",
         "magic-items": "magic-items",
+        "equipment": "gear",
+        "weapons": "gear",
+        "armor": "gear",
     },
-    "daggerheart": {"adversaries": "creatures"},
+    "daggerheart": {
+        "adversaries": "creatures",
+        # Карты доменов — «заклинания» Daggerheart.
+        "domain-cards": "domain-cards",
+    },
 }
 DEFAULT_IMAGES_ROOT = Path(__file__).resolve().parents[2] / "web" / "public" / "img"
 DEFAULT_SITE_ORIGIN = "https://rules.omnisgm.com"
