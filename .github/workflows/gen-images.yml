@@ -130,7 +130,7 @@ jobs:
       - name: Explain auth failure
         if: ${{ failure() && steps.gen.outcome == 'failure' }}
         run: |
-          echo "::error::Если в summary «codex auth протух» — перелогинься (codex login) и обнови секрет во всех трёх репо: for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Table OmnisGM-App/OmnisGM-Rules; do gh secret set CODEX_AUTH_JSON --repo \$r < ~/.codex/auth.json; done"
+          echo "::error::Если в summary «codex auth протух» — перелогинься (codex login) и обнови секрет в обоих репо: for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Rules; do gh secret set CODEX_AUTH_JSON --repo \$r < ~/.codex/auth.json; done"
 
       # Пуш в images-queue — главное; PR лишь удобная обёртка. По умолчанию Actions не имеет
       # права создавать PR (org-настройка) → шаг некритичный.

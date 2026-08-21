@@ -63,12 +63,14 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 + `.github/workflows/gen-images.yml` (codex на подписке, очередь от данных Rules, ветка `images-queue`
 → draft-PR без автомёржа).
 
-**Ранбук токена codex.** Токен один на три репо-держателя (локальный `~/.codex/auth.json` → CI News
-→ CI Table → CI Rules). Прогон падает с `refresh_token_reused` / `token_revoked` / `401` — значит
-локальный перелогин обесценил токен в CI. Починка: `codex login` локально, затем обновить секрет ВЕЗДЕ:
+**Ранбук токена codex.** Держателей токена **двое** — CI News и CI Rules, оба от одного
+локального `~/.codex/auth.json`. (Третьим был CI Table, пока там жил свой генератор портретов;
+он снесён вместе с ним — Table#403.) Прогон падает с `refresh_token_reused` / `token_revoked` /
+`401` — значит локальный перелогин обесценил токен в CI. Починка: `codex login` локально,
+затем обновить секрет в ОБОИХ репозиториях:
 
 ```bash
-for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Table OmnisGM-App/OmnisGM-Rules; do
+for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Rules; do
   gh secret set CODEX_AUTH_JSON --repo $r < ~/.codex/auth.json
 done
 ```
