@@ -21,7 +21,7 @@ on:
         required: true
         default: spells
         type: choice
-        options: [spells, magic-items, creatures]
+        options: [spells, magic-items, gear, domain-cards, creatures]
       count:
         description: 'Сколько картинок за прогон'
         required: false
@@ -62,8 +62,9 @@ jobs:
 
       # Ветка-очередь: продолжаем images-queue, если есть; иначе заводим от main.
       # Генерация должна видеть УЖЕ накопленные webp (очередь их исключает).
-      # ВАЖНО: исполняемый код берём всегда СВЕЖИЙ из main — иначе воркер гонял бы версию
-      # скрипта, замороженную на момент создания ветки-очереди.
+      # ВАЖНО: весь исполняемый код берём СВЕЖИЙ из main — иначе воркер гонял бы версии,
+      # замороженные на момент создания ветки-очереди. Это касается и web/scripts/: там
+      # gen-entity-data.mjs, который строит данные для очереди.
       - name: Checkout images-queue branch (fresh code from main)
         run: |
           git config user.name "github-actions[bot]"
@@ -73,8 +74,8 @@ jobs:
           else
             git checkout -B images-queue origin/main
           fi
-          git checkout origin/main -- scripts/ .github/scripts/
-          git restore --staged scripts/ .github/scripts/ 2>/dev/null || true
+          git checkout origin/main -- scripts/ .github/scripts/ web/scripts/
+          git restore --staged scripts/ .github/scripts/ web/scripts/ 2>/dev/null || true
 
       # Данные для очереди (web/src/data/api — gitignored, генерятся из тех же парсеров).
       # Зависимостей не требует: gen-entity-data.mjs — только node builtins + python3.

@@ -111,7 +111,8 @@ function summary(md) {
   console.log(md);
 }
 
-// Держателей токена три (локальный codex → News-CI → Rules-CI) — синкать все разом.
+// Держателей три: News-CI, Table-CI (до Table#403) и Rules-CI, все от одного локального
+// ~/.codex/auth.json — перелогин обесценивает токен во всех, синкать разом.
 const AUTH_FIX = [
   '### ❌ codex auth протух (`refresh_token_reused` / `token_revoked`)',
   'Перелогинься локально (`codex login`) и обнови секрет во ВСЕХ репозиториях-держателях:',
