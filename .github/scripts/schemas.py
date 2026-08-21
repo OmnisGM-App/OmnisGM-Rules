@@ -261,6 +261,9 @@ MONSTER_SCHEMA = {
         "lair_actions_md": {"type": ["string", "null"]},
         "spells": {"type": "array", "items": {"type": "string"}},
         "group": {"type": "string"},
+        # Портрет существа (#201) — абсолютный URL. Поля НЕТ у сущностей без
+        # картинки: генератор ставит его, только если файл реально лежит в репо.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "size", "type", "subtype", "alignment",
@@ -498,6 +501,8 @@ DH_STATBLOCK_SCHEMA = {
         # Тип противника (Solo/Bruiser/Minion/…) — локализованное слово; только у adversaries.
         "type": {"type": ["string", "null"]},
         "description_md": {"type": "string"},
+        # Портрет противника (#201) — абсолютный URL; только у сущностей с файлом.
+        "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "tier", "description_md"],
     "additionalProperties": False,

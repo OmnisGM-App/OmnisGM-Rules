@@ -22,8 +22,11 @@ export interface Props {
   bilingual?: boolean;        // корень «/»: рендерим обе подписи, язык — по локали (без редиректа)
   titleRu?: string;           // RU-заголовок (своп document.title при bilingual)
   upLink?: { href: string; ru: string; en: string }; // центр. кнопка «в раздел» в ряду prev/next
+  image?: string;        // og:image страницы (портрет существа, #201); по умолчанию общий og.png
+  imageWidth?: number;
+  imageHeight?: number;
 }
-const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
@@ -162,7 +165,7 @@ const searchUi = {
   },
 };
 ---
-<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd} alternates={alternates}>
+<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd} alternates={alternates} image={image} imageWidth={imageWidth} imageHeight={imageHeight}>
   <div class="rd-root">
     {/* Мобильные тогглы на CSS-радио (без JS): якоря первыми в .rd-root. Общий name="rd-panel"
         делает панели взаимоисключающими; rd-panel-none — закрытое состояние (по умолчанию).
@@ -287,6 +290,15 @@ const searchUi = {
               )}
               <span set:html={t(attribution.ru, attribution.en)} />{' '}
               <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>
+              {/* Портреты существ (#201) — наши, а не часть SRD: лицензия выше относится к тексту
+                  правил, поэтому авторство картинок стоит отдельной строкой и только там, где
+                  картинка есть. */}
+              {image && (
+                <div class="rd-attrib-img">
+                  {t('Изображения существ — © OmnisGM; не входят в SRD и не покрываются его лицензией.',
+                     'Creature images © OmnisGM — not part of the SRD and not covered by its license.')}
+                </div>
+              )}
             </div>
           )}
 

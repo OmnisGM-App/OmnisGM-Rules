@@ -296,6 +296,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* Логотип «Powered by BRP» (§15 BRP OGL, только BRP-раздел): слева от строки-кредита */
 .rd-attrib-logo { float: left; margin: 2px 12px 4px 0; border-bottom: none !important; }
 .rd-attrib-logo img { display: block; width: 56px; height: 56px; border-radius: 6px; }
+/* Авторство картинок (#201) — отдельной строкой под лицензией текста. */
+.rd-attrib-img { margin-top: 6px; }
 
 .rd-prevnext { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .rd-prevnext.rd-has-up { grid-template-columns: 1fr auto 1fr; }

@@ -30,6 +30,11 @@ jobs:
         with:
           python-version: '3.12'
 
+      # Инвариант «поле image ставим ТОЛЬКО при наличии файла» (#201). На живых данных
+      # его не поймать — портрет пока есть у всех существ, поэтому проверка на синтетике.
+      - name: Unit — attach_images
+        run: python3 .github/scripts/test_attach_images.py
+
       - name: Validate JSON API schema
         run: |
           pip install jsonschema

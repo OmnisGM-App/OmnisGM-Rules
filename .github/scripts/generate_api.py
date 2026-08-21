@@ -438,6 +438,45 @@ def write_index_html(path: Path, title: str, links: list[dict],
         f.write(html)
 
 
+
+# --- Картинки сущностей (#201) ---------------------------------------------
+# Файлы лежат в репо статикой: web/public/img/{game}/{dir}/{slug}.webp. Папка ОДНА
+# НА ИГРУ для существ («creatures»), потому что один слаг живёт в нескольких
+# коллекциях (83 существа есть и в monsters 5.1, и в animals 5.2) — иначе у одного
+# существа было бы два разных портрета. Ключ — игра + слаг.
+# Спека формата и раскладки: documentation/entity-images.md.
+IMAGE_DIRS = {
+    "dnd": {"monsters": "creatures", "animals": "creatures"},
+    "daggerheart": {"adversaries": "creatures"},
+}
+DEFAULT_IMAGES_ROOT = Path(__file__).resolve().parents[2] / "web" / "public" / "img"
+DEFAULT_SITE_ORIGIN = "https://rules.omnisgm.com"
+
+
+def attach_images(all_data: dict, system: str, images_root: Path, origin: str) -> int:
+    """Проставить `image` тем сущностям, у которых файл РЕАЛЬНО есть.
+
+    Ссылку вслепую не пишем: сущность без картинки поля не имеет вовсе, иначе
+    потребитель (компендиум Table, og:image) получил бы битый URL. Инвариант
+    проверяется test_attach_images.py — на живых данных его не поймать, там
+    портрет пока есть у всех существ.
+    """
+    dirs = IMAGE_DIRS.get(system, {})
+    if not dirs:
+        return 0
+    count = 0
+    for (ver, lang, resource), entities in all_data.items():
+        sub = dirs.get(resource)
+        if not sub:
+            continue
+        folder = images_root / system / sub
+        for e in entities:
+            if (folder / f"{e['slug']}.webp").is_file():
+                e["image"] = f"{origin}/img/{system}/{sub}/{e['slug']}.webp"
+                count += 1
+    return count
+
+
 def main():
     parser = argparse.ArgumentParser(description="Generate D&D SRD JSON API")
     parser.add_argument("--src-root", required=True, help="Root directory of SRD markdown sources")
@@ -448,6 +487,10 @@ def main():
                         help="Skip JSON Schema validation (for build-time data generation without jsonschema)")
     parser.add_argument("--game", default="dnd",
                         help="Game system to build (dnd, daggerheart, …) — selects config module")
+    parser.add_argument("--images-root", default=str(DEFAULT_IMAGES_ROOT),
+                        help="Root of entity images (web/public/img) — presence decides the `image` field")
+    parser.add_argument("--site-origin", default=DEFAULT_SITE_ORIGIN,
+                        help="Origin for absolute image URLs")
     args = parser.parse_args()
 
     src_root = Path(args.src_root)
@@ -624,6 +667,11 @@ def main():
             for msg in type_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)
+
+    # Картинки сущностей (#201): проставляем ДО валидации, чтобы схема проверила и их.
+    img_count = attach_images(all_data, SYSTEM, Path(args.images_root), args.site_origin.rstrip("/"))
+    if img_count:
+        print(f"  images: {img_count} entities got `image`")
 
     # Write files and collect hierarchy info
     file_count = 0

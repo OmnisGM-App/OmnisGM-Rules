@@ -4,6 +4,9 @@ __pycache__/
 .DS_Store
 DND-SRD-5.2.1-RU.md
 /site/
+# /docs/ — АРТЕФАКТ сборки MkDocs (prepare_docs.sh собирает его из src/ и сносит
+# по --clean через rm -rf). Документацию репозитория сюда не класть: git add её
+# молча проигнорирует, а очистка удалит. Наши доки живут в documentation/.
 /docs/
 /mkdocs.yml
 /overrides/
