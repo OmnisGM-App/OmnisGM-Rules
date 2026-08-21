@@ -70,7 +70,21 @@ curl -sI https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp | grep -i cach
 
 Ожидается `no-cache`. Если пришло `max-age=86400` — приоритет обратный, правило нужно поднять выше общего.
 
-Отдельно живёт edge-кэш Cloudflare (#175) — см. `web/scripts/check_edge_cache.sh`. При **замене** существующего файла (не добавлении нового) нужен точечный purge, иначе на эдже останется старый портрет.
+### Edge-кэш Cloudflare
+
+Правило #175 (`web/scripts/check_edge_cache.sh`) висит на всём хосте `rules.omnisgm.com` с `edge_ttl = respect_origin`, поэтому `no-cache` меняет и поведение эджа: копию он держит, но **ревалидирует её при каждом запросе** — новый файл подхватывается сам.
+
+Значит **точечный purge для картинок не нужен** — ни при добавлении, ни при замене. (В более раннем варианте этой спеки, когда на `/img/**` стоял месячный TTL, purge при замене был обязателен; с переходом на `no-cache` требование отпало.)
+
+Проверяется тем же способом, что и на Table, где эта схема работает с #252:
+
+```bash
+curl -sI https://omnisgm.com/monster-avatars/aboleth.webp | grep -iE 'cache-control|cf-cache-status'
+# cache-control: no-cache
+# cf-cache-status: EXPIRED   ← объект в кэше есть, но каждый раз ревалидируется
+```
+
+Purge по-прежнему нужен для HTML и прочего, что эдж кэширует по-настоящему.
 
 ## Кто это генерирует
 
