@@ -111,13 +111,14 @@ function summary(md) {
   console.log(md);
 }
 
-// Держателей три: News-CI, Table-CI (до Table#403) и Rules-CI, все от одного локального
-// ~/.codex/auth.json — перелогин обесценивает токен во всех, синкать разом.
+// Держателей двое: News-CI и Rules-CI, оба от одного локального ~/.codex/auth.json —
+// перелогин обесценивает токен в обоих, синкать разом. (Table был третьим, пока там жил
+// свой генератор портретов; снесён вместе с ним — Table#403.)
 const AUTH_FIX = [
   '### ❌ codex auth протух (`refresh_token_reused` / `token_revoked`)',
   'Перелогинься локально (`codex login`) и обнови секрет во ВСЕХ репозиториях-держателях:',
   '```',
-  'for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Table OmnisGM-App/OmnisGM-Rules; do',
+  'for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Rules; do',
   '  gh secret set CODEX_AUTH_JSON --repo $r < ~/.codex/auth.json',
   'done',
   '```',
