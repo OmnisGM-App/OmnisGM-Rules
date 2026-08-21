@@ -129,8 +129,10 @@ export default defineConfig({
             handler: 'StaleWhileRevalidate',
             options: {
               cacheName: 'entity-images',
-              // Очередь генератора — около 1400 картинок на все системы; cap с запасом.
-              expiration: { maxEntries: 1500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              // Cap НЕ на весь набор (их около 1400 на все системы): 800 записей ≈ 10 МБ на
+              // устройстве, и этого с запасом хватает на реально просмотренное. Вытесненная
+              // по LRU картинка не теряется — подтянется из сети при следующем показе.
+              expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 30 },
               cacheableResponse: { statuses: [0, 200] },
             },
           },
