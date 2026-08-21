@@ -89,7 +89,9 @@ export default defineConfig({
       workbox: {
         // Прекэшим только лёгкие ассеты (не 228 HTML); страницы и pagefind — рантайм-кэш.
         globPatterns: ['**/*.{js,css,svg,woff2}'],
-        globIgnores: ['**/og*.png', '**/screenshot-*.png', '**/pagefind/**'],
+        // img/** — картинки сущностей (#201/#202): их сотни, в precache раздули бы установку
+        // PWA. webp и так вне globPatterns, но фиксируем явно на случай их добавления туда.
+        globIgnores: ['**/og*.png', '**/screenshot-*.png', '**/pagefind/**', '**/img/**'],
         navigateFallback: null,
         cleanupOutdatedCaches: true,
         skipWaiting: true,
@@ -114,6 +116,23 @@ export default defineConfig({
             urlPattern: ({ url }) => url.pathname.startsWith('/pagefind/'),
             handler: 'StaleWhileRevalidate',
             options: { cacheName: 'pagefind' },
+          },
+          // Картинки сущностей (#201/#202) — перенос решения Table#252. НЕ в precache, но
+          // кэшируются рантаймом по StaleWhileRevalidate: мгновенная отдача из кэша + фоновая
+          // ревалидация (устаревание максимум на один показ), офлайн работает.
+          // Связка с firebase.json обязательна: там этим файлам стоит Cache-Control: no-cache,
+          // иначе фоновая ревалидация упёрлась бы в HTTP-кэш и до пользователя не доехала бы
+          // перегенерированная картинка. no-cache не запрещает кэш — он требует ревалидации,
+          // а она дешёвая: ETag → 304, тело повторно не качается.
+          {
+            urlPattern: ({ url }) => url.pathname.startsWith('/img/'),
+            handler: 'StaleWhileRevalidate',
+            options: {
+              cacheName: 'entity-images',
+              // Очередь генератора — около 1400 картинок на все системы; cap с запасом.
+              expiration: { maxEntries: 1500, maxAgeSeconds: 60 * 60 * 24 * 30 },
+              cacheableResponse: { statuses: [0, 200] },
+            },
           },
         ],
       },

@@ -181,3 +181,12 @@ print(json.dumps([slugify(n) for n in json.load(sys.stdin)]))
     .filter((r) => r.js !== r.py);
   expect(mismatched, `расходятся: ${mismatched.slice(0, 5).map((r) => r.n).join(', ')}`).toEqual([]);
 });
+
+// Кэш картинок — связка из двух частей (перенос Table#252), и обе тихие: сломайся любая,
+// пользователь просто не увидит перегенерированную картинку. Стережём обе.
+test('картинки вне precache, но с рантайм-кэшем SWR', () => {
+  const sw = fs.readFileSync('dist/sw.js', 'utf-8');
+  expect(sw).toContain('entity-images');
+  // Ни одна картинка не утекла в precache-манифест (их сотни — раздули бы установку PWA).
+  expect(sw).not.toMatch(/img\/(dnd|daggerheart|brp)\//);
+});
