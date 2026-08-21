@@ -446,8 +446,22 @@ def write_index_html(path: Path, title: str, links: list[dict],
 # существа было бы два разных портрета. Ключ — игра + слаг.
 # Спека формата и раскладки: documentation/entity-images.md.
 IMAGE_DIRS = {
-    "dnd": {"monsters": "creatures", "animals": "creatures"},
-    "daggerheart": {"adversaries": "creatures"},
+    "dnd": {
+        "monsters": "creatures",
+        "animals": "creatures",
+        # Заклинания, магпредметы и обычное снаряжение (#202) — свои папки: их слаги
+        # ни с чем не пересекаются. Снаряжение трёх коллекций делит одну папку «gear».
+        "spells": "spells",
+        "magic-items": "magic-items",
+        "equipment": "gear",
+        "weapons": "gear",
+        "armor": "gear",
+    },
+    "daggerheart": {
+        "adversaries": "creatures",
+        # Карты доменов — «заклинания» Daggerheart.
+        "domain-cards": "domain-cards",
+    },
 }
 DEFAULT_IMAGES_ROOT = Path(__file__).resolve().parents[2] / "web" / "public" / "img"
 DEFAULT_SITE_ORIGIN = "https://rules.omnisgm.com"

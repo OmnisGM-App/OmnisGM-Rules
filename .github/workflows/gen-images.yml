@@ -1,0 +1,152 @@
+name: Generate images
+
+# Генератор картинок сущностей (#202): codex на подписке (секрет CODEX_AUTH_JSON — тот же
+# паттерн, что в News _collector.yml и в Table gen-avatars.yml, откуда воркер и переехал).
+#
+# Очередь строится ОТ ДАННЫХ RULES (JSON API), а не от коммиченного списка имён: новая сущность
+# в SRD попадает в очередь сама. Полный промт собирает скрипт, агент только исполняет.
+# Картинки коммитятся ПО ОДНОЙ в ветку images-queue + draft-PR в main; БЕЗ автомёржа —
+# владелец смотрит порциями и мёржит командой. Крон работает только на дефолтной ветке.
+
+on:
+  # Пилот одобрен владельцем (#202) — крон включён. Порядок видов не автоматический:
+  # по крону идёт KIND по умолчанию (заклинания); когда очередь опустеет, скрипт
+  # отрапортует «нечего генерировать», и вид переключается вручную через dispatch.
+  schedule:
+    - cron: '0 */6 * * *' # каждые 6 часов, ~5 картинок за прогон
+  workflow_dispatch:
+    inputs:
+      kind:
+        description: 'Что генерим'
+        required: true
+        default: spells
+        type: choice
+        options: [spells, magic-items, gear, domain-cards, creatures]
+      count:
+        description: 'Сколько картинок за прогон'
+        required: false
+        default: '5'
+
+concurrency:
+  group: gen-images
+  cancel-in-progress: false
+
+permissions:
+  contents: write
+  pull-requests: write
+
+jobs:
+  generate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 40
+    env:
+      # По крону вида нет — берём заклинания (самая длинная очередь); когда она опустеет,
+      # скрипт сам отрапортует «нечего генерировать», и вид переключается вручную.
+      KIND: ${{ inputs.kind || 'spells' }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v7
+        with:
+          node-version: 22
+
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+
+      # runner.temp недоступен в job-level env → задаём CODEX_HOME шагом.
+      - name: Set CODEX_HOME
+        run: echo "CODEX_HOME=$RUNNER_TEMP/codex" >> "$GITHUB_ENV"
+
+      # Ветка-очередь: продолжаем images-queue, если есть; иначе заводим от main.
+      # Генерация должна видеть УЖЕ накопленные webp (очередь их исключает).
+      # ВАЖНО: весь исполняемый код берём СВЕЖИЙ из main — иначе воркер гонял бы версии,
+      # замороженные на момент создания ветки-очереди. Это касается и web/scripts/: там
+      # gen-entity-data.mjs, который строит данные для очереди.
+      - name: Checkout images-queue branch (fresh code from main)
+        run: |
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          if git ls-remote --exit-code --heads origin images-queue >/dev/null 2>&1; then
+            git checkout -B images-queue origin/images-queue
+          else
+            git checkout -B images-queue origin/main
+          fi
+          git checkout origin/main -- scripts/ .github/scripts/ web/scripts/
+          git restore --staged scripts/ .github/scripts/ web/scripts/ 2>/dev/null || true
+
+      # Данные для очереди (web/src/data/api — gitignored, генерятся из тех же парсеров).
+      # Зависимостей не требует: gen-entity-data.mjs — только node builtins + python3.
+      - name: Build entity data
+        run: node web/scripts/gen-entity-data.mjs
+
+      # Дешёвая проверка очереди — codex/webp ставим только при непустой.
+      - name: Check queue
+        id: check
+        run: CHECK_ONLY=1 node scripts/gen-images.mjs
+
+      - name: Install Codex CLI
+        if: ${{ steps.check.outputs.has_work == '1' }}
+        run: |
+          npm install -g @openai/codex
+          codex --version
+
+      - name: Install webp (cwebp)
+        if: ${{ steps.check.outputs.has_work == '1' }}
+        run: sudo apt-get update && sudo apt-get install -y webp
+
+      # Codex auth из секрета. Ничего из auth.json не печатаем: значение приходит через env,
+      # пишется в файл одной командой и не попадает ни в echo, ни в set -x.
+      - name: Provision Codex auth
+        if: ${{ steps.check.outputs.has_work == '1' }}
+        env:
+          CODEX_AUTH_JSON: ${{ secrets.CODEX_AUTH_JSON }}
+        run: |
+          if [ -z "$CODEX_AUTH_JSON" ]; then
+            echo "::error::Секрет CODEX_AUTH_JSON пуст. Заведи: gh secret set CODEX_AUTH_JSON --repo ${{ github.repository }} < ~/.codex/auth.json"
+            exit 1
+          fi
+          mkdir -p "$CODEX_HOME"
+          printf '%s' "$CODEX_AUTH_JSON" > "$CODEX_HOME/auth.json"
+          printf 'cli_auth_credentials_store = "file"\n' > "$CODEX_HOME/config.toml"
+          chmod 600 "$CODEX_HOME/auth.json"
+
+      # Генерим и коммитим ПО ОДНОЙ: скрипт после каждой готовой webp сам делает
+      # git add/commit/push в images-queue (PUSH_EACH=1). Протухший на середине токен
+      # не теряет уже сгенерённые картинки.
+      - name: Generate & push images (one by one)
+        id: gen
+        if: ${{ steps.check.outputs.has_work == '1' }}
+        env:
+          COUNT: ${{ inputs.count || '5' }}
+          PUSH_EACH: '1'
+          GIT_BRANCH: images-queue
+        run: node scripts/gen-images.mjs
+
+      # Токен протух → отдельный код выхода 78, скрипт уже написал в summary команду починки.
+      # Здесь дублируем её в ::error, чтобы было видно в списке прогонов без захода в summary.
+      - name: Explain auth failure
+        if: ${{ failure() && steps.gen.outcome == 'failure' }}
+        run: |
+          echo "::error::Если в summary «codex auth протух» — перелогинься (codex login) и обнови секрет во всех трёх репо: for r in OmnisGM-App/OmnisGM-News OmnisGM-App/OmnisGM-Table OmnisGM-App/OmnisGM-Rules; do gh secret set CODEX_AUTH_JSON --repo \$r < ~/.codex/auth.json; done"
+
+      # Пуш в images-queue — главное; PR лишь удобная обёртка. По умолчанию Actions не имеет
+      # права создавать PR (org-настройка) → шаг некритичный.
+      - name: Ensure draft PR images-queue → main
+        if: ${{ steps.gen.outputs.generated_count && steps.gen.outputs.generated_count != '0' }}
+        continue-on-error: true
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          if ! gh pr view images-queue --json number >/dev/null 2>&1; then
+            gh pr create --draft --base main --head images-queue \
+              --title "chore(images): очередь картинок сущностей (#202)" \
+              --body "Авто-накопление картинок сущностей (воркер gen-images.yml, #202). Очередь строится от данных Rules (JSON API), картинки коммитятся по одной. Без автомёржа: ревью порциями ~30, мёрж по команде владельца. После мёржа порции — удалить ветку images-queue (воркер пересоздаст от свежего main). Формат и раскладка — documentation/entity-images.md, промты — documentation/image-prompts.md."
+          fi
+
+      # Токен не должен пережить джобу ни при каком исходе.
+      - name: Cleanup secrets
+        if: always()
+        run: rm -rf "$CODEX_HOME"

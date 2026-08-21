@@ -3,6 +3,8 @@ import { marked } from 'marked';
 import { fromHtml } from 'hast-util-from-html';
 import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../components/ReaderShell.astro';
+import EntityHead from '../../../../../components/EntityHead.astro';
+import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
@@ -157,6 +159,8 @@ const hubClassSlugs = spellClassSlugs(entity as any, lang);
 const spellLevel = entity.level as number;
 const kind = t('Заклинание', 'Spell');
 const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
+// Иконка сущности (#202): она же og:image страницы — вместо общего og.png.
+const icon = entityImage('dnd', 'spells', entity.slug);
 ---
 
 <ReaderShell
@@ -166,15 +170,20 @@ const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: v
   searchTitle={entity.name}
   description={description}
   headings={[]}
+  image={icon ?? undefined}
+  imageWidth={icon ? ENTITY_IMAGE_SIZE : undefined}
+  imageHeight={icon ? ENTITY_IMAGE_SIZE : undefined}
   upLink={upLink}
 >
-  <h1>
-    {entity.name}
-    <span class="spell-sub">
-      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
-      <span class="spell-lvl">{levelLine}</span>
-    </span>
-  </h1>
+  <EntityHead image={icon} alt={entity.name} size={ENTITY_IMAGE_SIZE}>
+    <h1>
+      {entity.name}
+      <span class="spell-sub">
+        {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+        <span class="spell-lvl">{levelLine}</span>
+      </span>
+    </h1>
+  </EntityHead>
 
   <dl class="spell-meta">
     {castVal && (
