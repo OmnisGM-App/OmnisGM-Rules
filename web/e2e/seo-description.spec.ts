@@ -91,3 +91,14 @@ test('навык BRP: базовый шанс и категория вперед
   expect(d).toContain('base chance');
   expect(d.startsWith('Stealth —'), `начинается не с имени навыка: ${d}`).toBe(true);
 });
+
+test('навык BRP по-русски: та же формула, русские подписи', async ({ page }) => {
+  // RU-ветка шаблона отдельная (падежи и кавычки-ёлочки), и её формулировку общий гейт по
+  // dist не проверяет — он считает только длины. Отсюда отдельный тест на язык.
+  const d = await facts(page, '/ru/brp/srd-1.0/skills/appraise/');
+  expect(d.startsWith('Оценка — навык Basic Roleplaying:'), `не тот заход: ${d}`).toBe(true);
+  expect(d).toContain('базовый шанс 15%');
+  expect(d).toContain('категория «Ментальный»');
+  // Английские подписи в русский сниппет не протекают.
+  expect(d).not.toContain('base chance');
+});
