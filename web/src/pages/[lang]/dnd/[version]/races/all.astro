@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник рас (SRD 5.1): /{lang}/dnd/{version}/races/all/. Сортируемая таблица со ссылками
 // на все страницы рас — точка входа в entity-страницы (имена рас в главе не автолинкуются, в
@@ -37,8 +38,8 @@ const heading = t('Расы', 'Races');
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${races.length} рас D&D ${verLabel} со ссылками на страницы: особенности, подрасы и расовые черты.`,
-    `All ${races.length} D&D ${verLabel} races with links to each page: traits, subraces and racial features.`,
+    `${countPhrase(races.length, lang, ["раса", "расы", "рас"], ["race", "races"])} D&D ${verLabel} со ссылками на страницы: особенности, подрасы и расовые черты.`,
+    `${countLeadEn(races.length)} D&D ${verLabel} ${pluralEn(races.length, ["race", "races"])} with links to each page: traits, subraces and racial features.`,
   ),
   names: races.map((e: any) => e.name as string),
   lang,

@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
 import { hubDescription } from '../../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../../lib/plural.mjs';
 
 // Хаб окружений по рангу (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/environments/tier/{n}/.
 // Все окружения ранга n (1..4) со ссылками на страницы. EN/RU делят числовой слаг → каноникал + hreflang.
@@ -46,8 +47,8 @@ const heading = `${tierLabel}${t(' — окружения', ' — Environments')
 const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${items.length} окружений ${tierLabel} в Daggerheart SRD ${verLabel} со ссылками на страницы: сложность, импульсы, противники, особенности.`,
-    `All ${items.length} ${tierLabel} environments in Daggerheart SRD ${verLabel} with links to each page: difficulty, impulses, adversaries, features.`,
+    `${countPhrase(items.length, lang, ["окружение", "окружения", "окружений"], ["environment", "environments"])} ${tierLabel} в Daggerheart SRD ${verLabel} со ссылками на страницы: сложность, импульсы, противники, особенности.`,
+    `${countLeadEn(items.length)} ${tierLabel} ${pluralEn(items.length, ["environment", "environments"])} in Daggerheart SRD ${verLabel} with links to each page: difficulty, impulses, adversaries, features.`,
   ),
   names: items.map((e: any) => e.name as string),
   lang,

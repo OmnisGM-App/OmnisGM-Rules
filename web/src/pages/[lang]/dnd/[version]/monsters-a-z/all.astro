@@ -4,6 +4,7 @@ import { VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { monstersWithFacets, typeLabel, crHubForValue, crOrder, type Lang, type MonsterLite } from '../../../../../lib/monster-hubs';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник всех монстров (issue #20): /{lang}/dnd/{version}/monsters-a-z/all/.
 // Алфавитный индекс со ссылками на страницы монстров + колонка типа (ссылка на type-хаб).
@@ -33,8 +34,8 @@ const heading = t('Все монстры', 'All Monsters');
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${monsters.length} монстров D&D ${verLabel} по алфавиту: тип, размер, ПО и хиты со ссылками на страницы монстров.`,
-    `All ${monsters.length} D&D ${verLabel} monsters alphabetically: type, size, CR and HP with links to each monster page.`,
+    `${countPhrase(monsters.length, lang, ["монстр", "монстра", "монстров"], ["monster", "monsters"])} D&D ${verLabel} по алфавиту: тип, размер, ПО и хиты со ссылками на страницы монстров.`,
+    `${countLeadEn(monsters.length)} D&D ${verLabel} ${pluralEn(monsters.length, ["monster", "monsters"])} alphabetically: type, size, CR and HP with links to each monster page.`,
   ),
   names: monsters.map((e: any) => e.name as string),
   lang,

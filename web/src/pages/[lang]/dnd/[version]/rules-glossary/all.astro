@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-индекс Глоссария правил (issue #106): /{lang}/dnd/{version}/rules-glossary/all/.
 // Сортируемая таблица ВСЕХ терминов главы 08_RulesGlossary (термины/действия/области
@@ -48,8 +49,8 @@ const heading = t('Глоссарий правил: все термины', 'Rul
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${rows.length} терминов Глоссария правил D&D ${verLabel} (термины, действия, области эффекта, состояния) — таблица со ссылками на каждую страницу и переходом в главу-источник.`,
-    `All ${rows.length} D&D ${verLabel} Rules Glossary terms (terms, actions, areas of effect, conditions) — a table linking every page, each with a link to its source chapter.`,
+    `${countPhrase(rows.length, lang, ["термин", "термина", "терминов"], ["term", "terms"])} Глоссария правил D&D ${verLabel} (термины, действия, области эффекта, состояния) — таблица со ссылками на каждую страницу и переходом в главу-источник.`,
+    `${countLeadEn(rows.length)} D&D ${verLabel} Rules Glossary ${pluralEn(rows.length, ["term", "terms"])} (terms, actions, areas of effect, conditions) — a table linking every page, each with a link to its source chapter.`,
   ),
   names: rows.map((e: any) => e.name as string),
   lang,

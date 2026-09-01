@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
 import { hubDescription } from '../../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../../lib/plural.mjs';
 import {
   ADVERSARY_TYPES, advTypeBySlug, advTypeSlug, advTypeLabel, byName,
   type Lang, type AdversaryLite,
@@ -48,8 +49,8 @@ const heading = t(`Противники: ${typeName}`, `${typeName} Adversaries`
 const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${adversaries.length} противников типа «${typeName}» в Daggerheart SRD ${verLabel} со ссылками на стат-блоки.`,
-    `All ${adversaries.length} ${typeName} adversaries in Daggerheart SRD ${verLabel} with links to each stat block.`,
+    `${countPhrase(adversaries.length, lang, ["противник", "противника", "противников"], ["adversary", "adversaries"])} типа «${typeName}» в Daggerheart SRD ${verLabel} со ссылками на стат-блоки.`,
+    `${countLeadEn(adversaries.length)} ${typeName} ${pluralEn(adversaries.length, ["adversary", "adversaries"])} in Daggerheart SRD ${verLabel} with links to each stat block.`,
   ),
   names: adversaries.map((e: any) => e.name as string),
   lang,

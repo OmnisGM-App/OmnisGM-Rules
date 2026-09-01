@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник сообществ (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/communities/all/.
 // Сортируемая таблица со ссылками на все страницы сообществ. Статический роут `all` приоритетнее `[slug]`.
@@ -38,8 +39,8 @@ const heading = t('Сообщества', 'Communities');
 const title = pageTitle({ name: t('Все сообщества', 'All Communities'), lang, game: 'daggerheart', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${items.length} сообществ Daggerheart SRD ${verLabel} со ссылками на страницы: особенность сообщества.`,
-    `All ${items.length} Daggerheart SRD ${verLabel} communities with links to each page: community feature.`,
+    `${countPhrase(items.length, lang, ["сообщество", "сообщества", "сообществ"], ["community", "communities"])} Daggerheart SRD ${verLabel} со ссылками на страницы: особенность сообщества.`,
+    `${countLeadEn(items.length)} Daggerheart SRD ${verLabel} ${pluralEn(items.length, ["community", "communities"])} with links to each page: community feature.`,
   ),
   names: items.map((e: any) => e.name as string),
   lang,

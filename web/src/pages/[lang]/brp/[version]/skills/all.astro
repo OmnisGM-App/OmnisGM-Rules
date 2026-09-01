@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник навыков (BRP SRD 1.0): /{lang}/brp/{version}/skills/all/.
 // Единая сортируемая таблица (навык · категория · базовый шанс); «Категория» → фасет. `all` > `[slug]`.
@@ -48,8 +49,8 @@ const heading = t('Навыки', 'Skills');
 const title = pageTitle({ name: t('Все навыки', 'All Skills'), lang, game: 'brp', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${skills.length} навыков Basic Roleplaying ${verLabel} по 6 категориям: базовый шанс и описание каждого.`,
-    `All ${skills.length} Basic Roleplaying ${verLabel} skills across 6 categories with base chance and description.`,
+    `${countPhrase(skills.length, lang, ["навык", "навыка", "навыков"], ["skill", "skills"])} Basic Roleplaying ${verLabel} по 6 категориям: базовый шанс и описание каждого.`,
+    `${countLeadEn(skills.length)} Basic Roleplaying ${verLabel} ${pluralEn(skills.length, ["skill", "skills"])} across 6 categories with base chance and description.`,
   ),
   names: skills.map((e: any) => e.name as string),
   lang,

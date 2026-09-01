@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник профессий (BRP SRD 1.0): /{lang}/brp/{version}/professions/all/.
 const GAME = 'brp';
@@ -37,8 +38,8 @@ const heading = t('Профессии', 'Professions');
 const title = pageTitle({ name: t('Все профессии', 'All Professions'), lang, game: 'brp', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${items.length} профессий Basic Roleplaying ${verLabel}: основные характеристики и профессиональные навыки.`,
-    `All ${items.length} Basic Roleplaying ${verLabel} professions with primary characteristics and professional skills.`,
+    `${countPhrase(items.length, lang, ["профессия", "профессии", "профессий"], ["profession", "professions"])} Basic Roleplaying ${verLabel}: основные характеристики и профессиональные навыки.`,
+    `${countLeadEn(items.length)} Basic Roleplaying ${verLabel} ${pluralEn(items.length, ["profession", "professions"])} with primary characteristics and professional skills.`,
   ),
   names: items.map((e: any) => e.name as string),
   lang,

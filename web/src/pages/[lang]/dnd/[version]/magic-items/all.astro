@@ -4,6 +4,7 @@ import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/en
 import { RARITIES, raritySlug, rarityLabel, rarityRank, rarityHubLabel, type ItemLite as Item } from '../../../../../lib/magic-item-hubs';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник всех магических предметов (issue #20): /{lang}/dnd/{version}/magic-items/all/.
 // Алфавитный индекс со ссылками на страницы предметов + колонка редкости (ссылка на rarity-хаб).
@@ -34,8 +35,8 @@ const heading = t('Все магические предметы', 'All Magic Ite
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${items.length} магических предметов D&D ${verLabel} по алфавиту: тип, редкость и настройка со ссылками на страницы предметов.`,
-    `All ${items.length} D&D ${verLabel} magic items alphabetically: type, rarity and attunement with links to each item page.`,
+    `${countPhrase(items.length, lang, ["магический предмет", "магических предмета", "магических предметов"], ["magic item", "magic items"])} D&D ${verLabel} по алфавиту: тип, редкость и настройка со ссылками на страницы предметов.`,
+    `${countLeadEn(items.length)} D&D ${verLabel} ${pluralEn(items.length, ["magic item", "magic items"])} alphabetically: type, rarity and attunement with links to each item page.`,
   ),
   names: items.map((e: any) => e.name as string),
   lang,

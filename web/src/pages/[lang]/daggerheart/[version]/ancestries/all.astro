@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник происхождений (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/ancestries/all/.
 // Сортируемая таблица со ссылками на все страницы происхождений. Статический роут `all` приоритетнее `[slug]`.
@@ -38,8 +39,8 @@ const heading = t('Происхождения', 'Ancestries');
 const title = pageTitle({ name: t('Все происхождения', 'All Ancestries'), lang, game: 'daggerheart', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${items.length} происхождений Daggerheart SRD ${verLabel} со ссылками на страницы: особенности происхождения.`,
-    `All ${items.length} Daggerheart SRD ${verLabel} ancestries with links to each page: ancestry features.`,
+    `${countPhrase(items.length, lang, ["происхождение", "происхождения", "происхождений"], ["ancestry", "ancestries"])} Daggerheart SRD ${verLabel} со ссылками на страницы: особенности происхождения.`,
+    `${countLeadEn(items.length)} Daggerheart SRD ${verLabel} ${pluralEn(items.length, ["ancestry", "ancestries"])} with links to each page: ancestry features.`,
   ),
   names: items.map((e: any) => e.name as string),
   lang,
