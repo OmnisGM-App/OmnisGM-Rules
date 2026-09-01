@@ -61,6 +61,13 @@ jobs:
           NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'   # e2e в CI не гоняем — браузеры не качаем
 
+      # Инварианты сборки <meta description> markdown-страниц (#213): сниппет берётся из
+      # вступления/структуры страницы, а не из служебной таблицы или куска CSS. На живом
+      # контенте это не различить (у всех глав сегодня есть вступление) — проверка на синтетике.
+      - name: Unit — page-description
+        working-directory: web
+        run: node scripts/test_page_description.mjs
+
       - name: Type-check (astro check)
         working-directory: web
         run: npm run check
