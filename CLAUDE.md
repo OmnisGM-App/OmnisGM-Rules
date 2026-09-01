@@ -69,6 +69,13 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 разом». Поэтому в `ci.yml` и `deploy.yml` стоит `fetch-depth: 0` + `filter: blob:none`, а гейт
 `verify_dist_meta_budget.mjs` валит сборку, если Article остался без обязательных полей.
 
+### lastmod в sitemap (#221)
+Проставляется postbuild-скриптом `web/scripts/add_sitemap_lastmod.mjs`: он читает `dateModified`
+из JSON-LD уже собранных страниц (#219) и вписывает `<lastmod>` в `dist/sitemap-N.xml`. Так
+маршрутизация и карта «URL → исходный файл» нигде не дублируются — sitemap и разметка страницы
+согласованы по построению. Скрипт идемпотентен и валит сборку, если дат нет вовсе или они
+пропали больше чем у 1% URL (без даты законно только языковые хабы — у них нет `Article`).
+
 ### Security-заголовки (#218)
 `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, HSTS и CSP (пока Report-Only)
 ставятся в `firebase.json` — правило `hosting.headers` с `source: "**"`, первым в списке, а НЕ

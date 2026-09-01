@@ -230,6 +230,18 @@ jobs:
             n=$MAX
           fi
 
+          # Оба URL sitemap — в тот же пинг (#221). В карте теперь есть lastmod, и смысл его
+          # появляется только когда поисковик карту перечитал: Bing сам делает это месяцами
+          # (шрам #28 — приходилось жать Re-submit руками). Ставим ПЕРВЫМИ: порции уходят по
+          # порядку, и карта уедет даже если сработает кап MAX.
+          ls web/dist/sitemap-*.xml 2>/dev/null | sed "s|web/dist/|https://$host/|" > /tmp/sitemaps.txt || true
+          if [ -s /tmp/sitemaps.txt ]; then
+            cat /tmp/sitemaps.txt /tmp/urls.txt > /tmp/urls.with-sitemaps.txt
+            mv /tmp/urls.with-sitemaps.txt /tmp/urls.txt
+            n=$(grep -c . /tmp/urls.txt)
+            echo "IndexNow: добавлены $(grep -c . /tmp/sitemaps.txt) URL sitemap — итого $n"
+          fi
+
           # Порции по 100 URL с паузой — «streaming» в терминах рекомендации Bing.
           # Чистим хвосты прошлого прогона: при повторном запуске job (re-run) старые файлы
           # порций остались бы в /tmp и попали в цикл — счётчик отправленного врал бы, а часть

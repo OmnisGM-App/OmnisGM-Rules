@@ -40,15 +40,17 @@ test('страница без портрета: image — общий og.png, а 
   expect(article.datePublished).toMatch(ISO);
 });
 
-test('дата изменения — из контента, а не из даты сборки', async ({ page }) => {
+test('дата изменения — настоящая: ISO, не в будущем, не раньше публикации', async ({ page }) => {
   await page.goto('/en/dnd/srd-5.2/spells/fireball/');
   const article = node(await graphOf(page), 'Article');
-  // Дата не «сегодня»: контент правился раньше сборки. Сравнивать даты ДВУХ конкретных глав
-  // здесь нельзя — один общий коммит по обеим (прогон форматера, массовая правка терминов)
-  // сделал бы их равными при полностью исправном механизме. Инвариант «дат в сборке больше
-  // одной» проверяется по всему dist в scripts/verify_dist_meta_budget.mjs.
-  const today = new Date().toISOString().slice(0, 10);
-  expect(article.dateModified.slice(0, 10)).not.toBe(today);
+  expect(article.dateModified).toMatch(ISO);
+  expect(new Date(article.dateModified).getTime()).toBeLessThanOrEqual(Date.now());
+  expect(new Date(article.dateModified).getTime()).toBeGreaterThanOrEqual(
+    new Date(article.datePublished).getTime(),
+  );
+  // Инвариант «дата не из сборки» здесь НЕ проверяется по одной странице: в день правки главы
+  // её дата законно сегодняшняя. Он живёт там, где виден целиком — по всему dist в
+  // scripts/verify_dist_meta_budget.mjs («различных dateModified > 1»).
 });
 
 test('Organization.sameAs связывает ресурсы экосистемы и репозиторий', async ({ page }) => {
