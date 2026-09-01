@@ -41,3 +41,85 @@ test('страница сущности (состояние) не прыгает
 
   expect(Math.abs(withToc!.width - entity!.width)).toBeLessThanOrEqual(1);
 });
+
+// ── CLS на страницах с картинкой (#201) ────────────────────────────────────────────────
+// Картинка — главный источник сдвига: пока она не пришла, место под неё либо зарезервировано,
+// либо контент прыгнет, когда она приедет. Место резервируют два независимых слоя — колонка
+// грида в EntityHead.astro (168 px десктоп / 92 px мобилка) и атрибуты width/height, — и тест
+// проверяет результат обоих: сумму layout-shift, как её считают Core Web Vitals.
+//
+// Троттлинг обязателен: с localhost картинка приезжает раньше первой отрисовки, сдвигу неоткуда
+// взяться и тест зеленеет по построению, ничего не проверив.
+
+const CLS_BUDGET = 0.1; // «Good» по Core Web Vitals; у статичной читалки любой сдвиг — дефект
+
+// Layout Instability API не описан в lib.dom — объявляем ровно те два поля, что читаем.
+interface LayoutShiftEntry extends PerformanceEntry { value: number; hadRecentInput: boolean }
+declare global {
+  interface Window { __cls: number }
+}
+
+const observeCls = () => {
+  window.__cls = 0;
+  new PerformanceObserver((list) => {
+    for (const entry of list.getEntries() as unknown as LayoutShiftEntry[]) {
+      // hadRecentInput — сдвиг как реакция на действие пользователя, в CLS не входит.
+      if (!entry.hadRecentInput) window.__cls += entry.value;
+    }
+  }).observe({ type: 'layout-shift', buffered: true });
+};
+
+async function clsOf(page: import('@playwright/test').Page, url: string) {
+  const cdp = await page.context().newCDPSession(page);
+  await cdp.send('Network.enable');
+  // Fast 3G: картинка гарантированно приходит после первой отрисовки.
+  await cdp.send('Network.emulateNetworkConditions', {
+    offline: false, latency: 150,
+    downloadThroughput: (1.6 * 1024 * 1024) / 8, uploadThroughput: (750 * 1024) / 8,
+  });
+  await page.addInitScript(observeCls);
+  await page.goto(url, { waitUntil: 'load' });
+  // Сдвиги случаются и после load — шрифты, поздние картинки; даём им произойти.
+  await page.waitForTimeout(1500);
+  return page.evaluate(() => window.__cls);
+}
+
+const WITH_IMAGE = [
+  { url: '/ru/dnd/srd-5.2/monsters-a-z/aboleth/', what: 'существо' },
+  { url: '/en/dnd/srd-5.2/spells/fireball/', what: 'заклинание с иконкой' },
+  { url: '/ru/daggerheart/srd-1.0/adversaries/acid-burrower/', what: 'противник Daggerheart' },
+];
+
+for (const { url, what } of WITH_IMAGE) {
+  test(`CLS в бюджете на странице «${what}» — десктоп`, async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    expect(await clsOf(page, url)).toBeLessThanOrEqual(CLS_BUDGET);
+  });
+
+  test(`CLS в бюджете на странице «${what}» — мобилка`, async ({ page }) => {
+    // Мобильная раскладка — своя колонка (92 px) и свой размер портрета: отдельный риск сдвига.
+    await page.setViewportSize({ width: 390, height: 844 });
+    expect(await clsOf(page, url)).toBeLessThanOrEqual(CLS_BUDGET);
+  });
+}
+
+test('контроль: измеритель ловит сдвиг, а не зеленеет по построению', async ({ page }) => {
+  // Синтетическая страница того же класса, что и наша: текст, под ним картинка БЕЗ резерва
+  // места — ни атрибутов width/height, ни размеров в CSS. Когда картинка приезжает, она
+  // раздвигает содержимое, и CLS обязан вылезти за бюджет. Проверяем именно измеритель:
+  // если он этого не увидит, зелёные проверки выше ничего не стоят.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.route('**/__cls-control/', (route) =>
+    route.fulfill({
+      contentType: 'text/html',
+      // Текста под картинкой на целый экран: CLS считается как доля затронутой площади,
+      // умноженная на дистанцию, и на паре строк сдвиг вышел бы 0.02 — ниже бюджета,
+      // хотя контент честно прыгнул на пол-экрана.
+      body: `<!doctype html><meta charset="utf-8"><body style="margin:0;font:16px/1.6 system-ui">
+        <p>Текст над картинкой.</p>
+        <img src="/img/dnd/creatures/aboleth.webp">
+        ${'<p>Текст под картинкой, заполняющий экран.</p>'.repeat(30)}</body>`,
+    }));
+  const cls = await clsOf(page, '/__cls-control/');
+  expect(cls, 'без резерва места картинка обязана двигать контент').toBeGreaterThan(CLS_BUDGET);
+});
