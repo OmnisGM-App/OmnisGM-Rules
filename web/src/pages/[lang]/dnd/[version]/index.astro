@@ -1,0 +1,26 @@
+---
+// Хаб редакции D&D (issue #230): /{lang}/dnd/{version}/. Разметка и логика — в DocHub.astro,
+// здесь только маршруты: NAV-узел редакции и ключ API для счётчиков компендиумов.
+import DocHub from '../../../../components/DocHub.astro';
+import type { Lang } from '../../../../lib/nav';
+
+export function getStaticPaths() {
+  // Список внутри функции намеренно: Astro выносит getStaticPaths в отдельный модуль,
+  // и константы из области компонента там не видны (сборка падает «DOCS is not defined»).
+  const DOCS = [
+  { version: 'srd-5.2', groupId: 'd52', api: 'srd52' },
+  { version: 'srd-5.1', groupId: 'd51', api: 'srd51' },
+];
+  const paths = [];
+  for (const lang of ['en', 'ru'] as const) {
+    for (const doc of DOCS) {
+      paths.push({ params: { lang, version: doc.version }, props: { groupId: doc.groupId, api: doc.api } });
+    }
+  }
+  return paths;
+}
+
+const { groupId, api } = Astro.props;
+const lang = Astro.params.lang as Lang;
+---
+<DocHub lang={lang} game="dnd" groupId={groupId} version={api} />

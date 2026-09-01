@@ -1,0 +1,145 @@
+---
+// Хаб уровня документа (issue #230): /{lang}/{game}/{version}/ — страница самой редакции.
+//
+// Зачем: по полному SEO-аудиту 2026-09-01 главный дефицит сайта не техника, а КРАУЛИНГ —
+// «обнаружена, не проиндексирована» у 5 807 URL из 5 975. Лечится это структурой и ссылочным
+// весом сверху, а верхнего узла у нас не было вовсе: URL уровня документа не существовал,
+// и путь от главной к 6000 страниц шёл через одну случайную «первую страницу» (Legal).
+// Хаб — и посадочная под «система + редакция» («D&D SRD 5.2.1», «Daggerheart SRD»), и точка,
+// из которой краулер видит ВСЕ разделы и компендиумы документа за один переход.
+//
+// Ссылки строятся из того же NAV-дерева, что и сайдбар: второго источника правды не заводим —
+// иначе хаб начнёт расходиться с навигацией ровно в тот день, когда кто-то добавит главу.
+import ReaderShell from './ReaderShell.astro';
+import {
+  NAV, findPath, isGroup, label, routeOf, flattenPages,
+  type Lang, type NavGroup, type NavNode, type NavPage,
+} from '../lib/nav';
+import { pageTitle } from '../lib/page-title';
+import { resourceTotal } from '../lib/entity-counts.mjs';
+import { isIndexableGlossary } from '../lib/glossary-seo.mjs';
+
+interface Props {
+  lang: Lang;
+  game: string;      // 'dnd' | 'daggerheart' | 'brp'
+  groupId: string;   // id узла-редакции в NAV: 'd52', 'd51', 'dh', 'brp10'
+  version: string;   // ключ API: 'srd52' | 'srd51' | 'srd10'
+}
+const { lang, game, groupId, version } = Astro.props;
+const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
+
+const trail = findPath(groupId) ?? [];
+const docGroup = trail[trail.length - 1] as NavGroup;
+const sysLabel = label(trail[0], lang);
+const verLabel = label(docGroup, lang);
+// Слаг документа берём из первой же страницы внутри: он и есть «game/version».
+const docSlug = flattenPages(docGroup.kids)[0].slug.split('/').slice(0, 2).join('/');
+
+// Разделы: прямые дети редакции. Группа «Классы» разворачивается списком классов — это
+// 9–12 внутренних ссылок на страницы, до которых иначе два перехода. Группа «Глоссарий»
+// показывается отдельным блоком компендиумов ниже, здесь пропускается.
+// ГРУППА «Глоссарий», а не одноимённая глава: в D&D 5.2 рядом живёт страница «Глоссарий
+// правил» (id d52-rulesglossary) — по проверке «id кончается на glossary» она попадала первой,
+// find возвращал страницу вместо группы, компендиумы исчезали, а сама глава выпадала из
+// оглавления. Отсюда и isGroup, и дефис в суффиксе.
+const isGlossary = (n: NavNode) => isGroup(n) && n.id.endsWith('-glossary');
+const chapters = docGroup.kids.filter((n) => !isGlossary(n));
+const compendiumNodes = (docGroup.kids.find(isGlossary) as NavGroup | undefined)?.kids ?? [];
+// Компендиумы — наши /all/-хабы плюс содержательные глоссарные справочники (#106). Из списка
+// выпадают скрытые узлы и noindex-страницы: вести с хаба на страницу, закрытую от индекса, —
+// это ровно та трата краул-бюджета, ради экономии которой её и закрыли. Признак noindex берём
+// из того же isIndexableGlossary, что и <meta robots> в Reader.astro, а не заводим второй.
+const indexable = (page: NavPage) => {
+  const route = routeOf(page.slug, lang);
+  return !route.includes('/glossary/') || isIndexableGlossary(route);
+};
+const compendiums = compendiumNodes.filter(
+  (n): n is NavPage => !isGroup(n) && !n.hidden && indexable(n),
+);
+
+// Счётчик сущностей у компендиума: /{game}/{ver}/{segment}/all → ресурс API. Число берём из
+// meta.json того же API, что кормит сами страницы сущностей, — не пересчитываем ничего заново.
+// Сегмент URL и имя ресурса почти всегда совпадают; две пары, где они разошлись исторически,
+// перечислены явно. Ресурса может не быть вовсе (напр. «Виды и предыстории» — это два ресурса
+// на одной странице) — тогда число просто не печатается.
+const RESOURCE_OF_SEGMENT: Record<string, string> = {
+  'monsters-a-z': 'monsters',
+  'rules-glossary': 'rules-terms',
+};
+const totalOf = (page: NavPage) => {
+  const [, , segment, tail] = page.slug.split('/');
+  if (!tail) return null;
+  return resourceTotal(game, version, lang, RESOURCE_OF_SEGMENT[segment] ?? segment);
+};
+
+const heading = `${sysLabel} ${verLabel}`;
+// pageTitle сам приписывает метку системы и редакции по правилам #185 и #166 (у Daggerheart
+// это «Daggerheart SRD» — требование DPCGL §2.5), поэтому именем страницы её дублировать
+// нельзя: «SRD 1.0 — Daggerheart SRD 1.0» и вдобавок совпало бы у EN и RU (метка версии
+// язык-нейтральная), то есть дало бы дубли title между языками — их гейт по dist ловит.
+const title = pageTitle({ name: t('Правила и справочники', 'Rules and reference'), lang, game, version });
+
+const chapterCount = chapters.reduce((n, c) => n + (isGroup(c) ? c.kids.length : 1), 0);
+const entityCount = compendiums.reduce((n, c) => n + (totalOf(c) ?? 0), 0);
+const description = t(
+  `${sysLabel} ${verLabel} на русском: ${chapterCount} разделов правил и справочники — ${entityCount} страниц заклинаний, монстров, предметов и других сущностей со ссылками на каждую.`,
+  `${sysLabel} ${verLabel} in full: ${chapterCount} rules sections plus reference compendiums — ${entityCount} pages of spells, monsters, items and other entities, each linked.`,
+);
+
+const headings = [
+  { depth: 2, slug: 'sections', text: t('Разделы', 'Sections') },
+  { depth: 2, slug: 'reference', text: t('Справочники', 'Reference') },
+];
+---
+<ReaderShell
+  lang={lang}
+  currentId={groupId}
+  title={title}
+  searchTitle={`${sysLabel} ${verLabel}`}
+  description={description}
+  headings={headings}
+  docSource={{ game, version: docSlug.split('/')[1], lang }}
+>
+  <h1>{heading}</h1>
+  <p>{t(
+    `Полный текст документа: правила по разделам и справочники сущностей — каждая страница отдельным адресом. Ниже — оглавление ${verLabel}.`,
+    `The full document: rules by section plus entity reference compendiums, each entity on its own page. Below is the table of contents for ${verLabel}.`,
+  )}</p>
+
+  <h2 id="sections">{t('Разделы', 'Sections')}</h2>
+  <ul>
+    {chapters.map((node) => isGroup(node) ? (
+      <li>
+        <strong>{label(node, lang)}</strong>
+        <ul>
+          {node.kids.filter((k): k is NavPage => !isGroup(k) && !k.hidden).map((k) => (
+            <li><a href={routeOf(k.slug, lang)}>{label(k, lang)}</a></li>
+          ))}
+        </ul>
+      </li>
+    ) : (
+      <li><a href={routeOf((node as NavPage).slug, lang)}>{label(node, lang)}</a></li>
+    ))}
+  </ul>
+
+  {compendiums.length > 0 && (
+    <Fragment>
+      <h2 id="reference">{t('Справочники', 'Reference')}</h2>
+      <p>{t(
+        'Каждая сущность — отдельная страница с фактами из SRD; хаб справочника даёт список целиком и фасеты.',
+        'Every entity has its own page with the facts from the SRD; each compendium hub lists them all, with facets.',
+      )}</p>
+      <ul>
+        {compendiums.map((page) => {
+          const total = totalOf(page);
+          return (
+            <li>
+              <a href={routeOf(page.slug, lang)}>{label(page, lang)}</a>
+              {total ? <span> — {total}</span> : null}
+            </li>
+          );
+        })}
+      </ul>
+    </Fragment>
+  )}
+</ReaderShell>

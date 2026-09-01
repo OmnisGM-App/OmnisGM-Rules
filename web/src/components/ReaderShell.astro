@@ -29,8 +29,11 @@ export interface Props {
   // Откуда собран контент сущностной страницы (#219) — чтобы взять даты изменения из git.
   // У markdown-глав источник известен из sourceId, здесь его передавать не надо.
   contentSource?: { game: string; ver: string; lang: string; resource: string };
+  // Хаб редакции (#230) своего markdown-файла не имеет — он и есть документ целиком.
+  // Даты берутся по всем его файлам: появился с первым разделом, изменён с последним.
+  docSource?: { game: string; version: string; lang: string };
 }
-const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource, docSource } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
@@ -101,13 +104,16 @@ const pathSlug = currentPath.replace(/^\/(en|ru)\//, '').replace(/\/+$/, '');
 //  • у группы БЕЗ собственной страницы («Классы», «Глоссарий») ссылки нет: она остаётся
 //    видимым текстом, но из разметки выпадает. Раньше ей подставлялась первая страница-лист —
 //    отсюда «Классы» → /classes/barbarian/ и «Глоссарий» → noindex /glossary/glossary/.
-// Крошка документа ведёт на первую содержательную страницу редакции. Настоящие хабы документов
-// (/ru/dnd/srd-5.2/) заведены отдельно в #230 — когда приедут, здесь меняется только docEntry.
+// Крошка документа с #230 ведёт на ХАБ редакции (/ru/dnd/srd-5.2/) — настоящий адрес уровня
+// документа. До него крошка вела на «первую содержательную страницу», что было компромиссом
+// варианта 2 из #220; теперь компромисс снят.
 type Crumb = { name: string; url: string | null };
-// Legal пропускаем намеренно: это выходные данные, а не вход в документ.
-const docEntry = (g: NavGroup) => {
-  const pages = flattenPages(g.kids).filter((p) => !p.hidden);
-  return pages.find((p) => !p.id.endsWith('-legal')) ?? pages[0];
+// Слаг документа — первые два сегмента слага любой страницы внутри («dnd/srd-5.2/legal» →
+// «dnd/srd-5.2»). Отдельного поля в NAV для этого не заводим: слаг и есть источник правды,
+// а лишнее поле разъехалось бы с ним при первой же правке дерева.
+const docRoute = (g: NavGroup) => {
+  const first = flattenPages(g.kids)[0];
+  return first ? routeOf(first.slug.split('/').slice(0, 2).join('/'), lang) : null;
 };
 const crumbs: Crumb[] = [];
 if (currentId !== 'home' && trail.length) {
@@ -116,8 +122,8 @@ if (currentId !== 'home' && trail.length) {
     // игра, за которой идёт редакция → уровень схлопнут: метку и ссылку даёт редакция
     if (i === 0 && isGroup(n) && trail[1] && isGroup(trail[1])) return;
     if (!isGroup(n)) { crumbs.push({ name: label(n, lang), url: routeOf(n.slug, lang) }); return; }
-    const entry = i === 1 && isGroup(trail[0]) ? docEntry(n) : undefined;
-    crumbs.push({ name: label(n, lang), url: entry ? routeOf(entry.slug, lang) : null });
+    const isDoc = i === 1 && isGroup(trail[0]);
+    crumbs.push({ name: label(n, lang), url: isDoc ? docRoute(n) : null });
   });
   // Сущностные страницы, хабы и фасеты живут вне NAV: их currentId — глава-родитель, сами они
   // в trail не попадают. Дописываем текущую страницу, чтобы конец трейла был единообразен по
@@ -190,7 +196,7 @@ if (currentId !== 'home' && trail.length) {
   // image — портрет сущности, если он есть, иначе общий og.png (у обоих абсолютный URL).
   // Даты — из git по исходному markdown; на сборке без истории их не будет, и это лучше,
   // чем дата билда у всех 6000 страниц разом (см. lib/content-dates.mjs).
-  const dates = pageDates({ sourceId, contentSource });
+  const dates = pageDates({ sourceId, contentSource, docSource });
   graph.push({
     '@type': 'Article', '@id': pageUrl + '#article',
     headline: searchTitle ?? title, url: pageUrl, inLanguage: lang,

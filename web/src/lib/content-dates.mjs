@@ -58,11 +58,23 @@ export function datesForResource(game, ver, lang, resource) {
 }
 
 /**
+ * Даты всего документа (#230): самая ранняя публикация и самое позднее изменение среди ВСЕХ
+ * его markdown-файлов. Хаб редакции своего файла не имеет — он и есть документ целиком,
+ * поэтому «когда он появился» = когда появился первый его раздел, «когда изменён» = когда
+ * тронули последний. Ключи карты идут от src/, то есть «dnd/srd-5.2/ru/07_Spells.md».
+ */
+export function datesForDoc(game, version, lang) {
+  const prefix = `${game}/${version}/${lang}/`;
+  return datesForFiles(Object.keys(dates.files ?? {}).filter((f) => f.startsWith(prefix)));
+}
+
+/**
  * Единая точка для шаблона: что бы страница ни знала о себе — sourceId (глава) или
  * контентный ресурс (сущность), — отсюда выходит одна пара дат или null.
  */
-export function pageDates({ sourceId, contentSource } = {}) {
+export function pageDates({ sourceId, contentSource, docSource } = {}) {
   if (sourceId) return datesForFile(sourceId);
+  if (docSource) return datesForDoc(docSource.game, docSource.version, docSource.lang);
   if (contentSource) {
     const { game, ver, lang, resource } = contentSource;
     return datesForResource(game, ver, lang, resource);

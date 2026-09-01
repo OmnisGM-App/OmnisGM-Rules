@@ -12,6 +12,22 @@
     "trailingSlash": true,
     "redirects": [
       {
+        "_comment": "Уровень системы (#230): собственной страницы у него нет — D&D объединяет две редакции плюс конверсионный документ, и честного содержимого для такой страницы нет. Но обрезанный вручную URL не должен упираться в 404, поэтому ведём на свежую редакцию. Заводить страницу системы имеет смысл только когда редакций станет больше двух.",
+        "source": "/:lang(en|ru)/dnd",
+        "destination": "/:lang/dnd/srd-5.2/",
+        "type": 301
+      },
+      {
+        "source": "/:lang(en|ru)/daggerheart",
+        "destination": "/:lang/daggerheart/srd-1.0/",
+        "type": 301
+      },
+      {
+        "source": "/:lang(en|ru)/brp",
+        "destination": "/:lang/brp/srd-1.0/",
+        "type": 301
+      },
+      {
         "source": "/sitemap.xml",
         "destination": "/sitemap-index.xml",
         "type": 301
