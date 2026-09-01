@@ -63,6 +63,15 @@ const title = pageTitle({
 // Фолбэк для всех прочих глав (issue #213): вместо бойлерплейта «… Tabletop RPG System
 // Reference Document in the OmnisGM ecosystem.» (95–102 символа, уникальны только первые
 // три слова) собираем сниппет из содержимого страницы — вводной прозы или её структуры.
+// Заголовок раздела, если его нет в самом markdown (issue #228). Глоссарные хабы —
+// единственный шаблон сайта без H1: их .md начинается сразу с таблицы, потому что заголовок
+// раздела в исходном SRD стоит в оглавлении документа, а не в теле. Для поисковика страница
+// без H1 теряет главный он-пейдж-сигнал темы, поэтому дорисовываем его сами — той же
+// nav-подписью, что идёт в <title>, а не выдумывая второе название.
+// Правим в шаблоне, а не в 30 markdown-файлах: контент — импорт SRD, и своя правка в нём
+// пережила бы переимпорт только до следующего раза.
+const needsHeading = !headings.some((h) => h.depth === 1);
+
 const description =
   (isClass
     ? classDescription({ name: searchTitle, body: entry.body, lang: ref.lang, version: ref.version, verLabel: docLabel })
@@ -78,5 +87,6 @@ const description =
   headings={headings}
   sourceId={entry.id}
 >
+  {needsHeading && <h1>{searchTitle}</h1>}
   <Content />
 </ReaderShell>
