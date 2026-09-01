@@ -154,3 +154,23 @@ test('доспех: требование Силы и помеха Скрытно
   expect(d).toContain('требование Силы 15');
   expect(d).toContain('помеха Скрытности');
 });
+
+// ── Согласование числительных на хабах (issue #240) ──────────────────────────
+// Правила счёта проверяет юнит-тест на числах (scripts/test_plural.mjs); здесь — что хаб
+// с ОДНОЙ сущностью действительно попадает в singular-ветку на живой странице.
+
+test('хаб с одной сущностью не пишет «Все 1 животных»', async ({ page }) => {
+  const d = await facts(page, '/ru/dnd/srd-5.2/animals/cr/6/');
+  expect(d.startsWith('1 животное'), `плохое начало сниппета: ${d}`).toBe(true);
+  expect(d).not.toContain('Все 1');
+  const en = await facts(page, '/en/dnd/srd-5.2/animals/cr/6/');
+  expect(en.startsWith('1 animal'), `плохое начало сниппета: ${en}`).toBe(true);
+  expect(en).not.toContain('All 1 ');
+});
+
+test('множественные хабы согласованы по последней цифре', async ({ page }) => {
+  // 27 заговоров → «Все 27 заговоров», 339 заклинаний → «Все 339 заклинаний»:
+  // формы 2–4 и 5+ различаются, и обе должны выбираться правильно.
+  expect(await facts(page, '/ru/dnd/srd-5.2/spells/level/0/')).toContain('Все 27 заговоров');
+  expect(await facts(page, '/ru/dnd/srd-5.2/spells/all/')).toContain('Все 339 заклинаний');
+});

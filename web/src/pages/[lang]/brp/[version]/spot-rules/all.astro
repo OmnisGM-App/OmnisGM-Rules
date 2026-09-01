@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник точечных правил (BRP SRD 1.0): /{lang}/brp/{version}/spot-rules/all/.
 const GAME = 'brp';
@@ -37,8 +38,8 @@ const heading = t('Точечные правила', 'Spot Rules');
 const title = pageTitle({ name: t('Все точечные правила', 'All Spot Rules'), lang, game: 'brp', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${items.length} точечных правил Basic Roleplaying ${verLabel}: засада, укрытие, падение, погоня и другие ситуативные правила.`,
-    `All ${items.length} Basic Roleplaying ${verLabel} spot rules: ambush, cover, falling, chases and other situational rules.`,
+    `${countPhrase(items.length, lang, ["точечное правило", "точечных правила", "точечных правил"], ["spot rule", "spot rules"])} Basic Roleplaying ${verLabel}: засада, укрытие, падение, погоня и другие ситуативные правила.`,
+    `${countLeadEn(items.length)} Basic Roleplaying ${verLabel} ${pluralEn(items.length, ["spot rule", "spot rules"])}: ambush, cover, falling, chases and other situational rules.`,
   ),
   names: items.map((e: any) => e.name as string),
   lang,

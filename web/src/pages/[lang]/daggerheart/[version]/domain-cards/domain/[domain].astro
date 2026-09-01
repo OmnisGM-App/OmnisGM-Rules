@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
 import { hubDescription } from '../../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../../lib/plural.mjs';
 
 // Фасет доменных карт по домену (Daggerheart SRD 1.0):
 // /{lang}/daggerheart/{version}/domain-cards/domain/{domain}/. 9 доменов, карты отсортированы
@@ -60,8 +61,8 @@ const heading = t(`${domainName} — доменные карты`, `${domainName
 const title = pageTitle({ name: heading, lang, game: GAME, version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${cards.length} карт домена ${domainName} в Daggerheart SRD ${verLabel}: уровень и ссылки на страницы карт.`,
-    `All ${cards.length} ${domainName} domain cards in Daggerheart SRD ${verLabel}: level and links to each card.`,
+    `${countPhrase(cards.length, lang, ["карта домена", "карты домена", "карт домена"], ["domain card", "domain cards"])} ${domainName} в Daggerheart SRD ${verLabel}: уровень и ссылки на страницы карт.`,
+    `${countLeadEn(cards.length)} ${domainName} ${pluralEn(cards.length, ["domain card", "domain cards"])} in Daggerheart SRD ${verLabel}: level and links to each card.`,
   ),
   names: cards.map((e: any) => e.name as string),
   lang,

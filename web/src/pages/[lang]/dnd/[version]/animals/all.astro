@@ -4,6 +4,7 @@ import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/en
 import { crHubForValue, crOrder } from '../../../../../lib/monster-hubs';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
 
 // Хаб-справочник всех животных (issue #20, только 5.2): /{lang}/dnd/{version}/animals/all/.
 // Алфавитный индекс со ссылками на страницы животных. Заменяет плоский глоссарий-список.
@@ -33,8 +34,8 @@ const heading = t('Все животные', 'All Animals');
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
 const description = hubDescription({
   base: t(
-    `Все ${animals.length} животных D&D ${verLabel} по алфавиту: размер, тип, ПО и хиты со ссылками на страницы животных.`,
-    `All ${animals.length} D&D ${verLabel} animals alphabetically: size, type, CR and HP with links to each animal page.`,
+    `${countPhrase(animals.length, lang, ["животное", "животных", "животных"], ["animal", "animals"])} D&D ${verLabel} по алфавиту: размер, тип, ПО и хиты со ссылками на страницы животных.`,
+    `${countLeadEn(animals.length)} D&D ${verLabel} ${pluralEn(animals.length, ["animal", "animals"])} alphabetically: size, type, CR and HP with links to each animal page.`,
   ),
   names: animals.map((e: any) => e.name as string),
   lang,

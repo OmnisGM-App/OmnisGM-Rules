@@ -75,6 +75,12 @@ jobs:
         working-directory: web
         run: node scripts/test_page_description.mjs
 
+      # Правила русского счёта проверяются на числах, а не на страницах: 11, 21 и 24 в сборке
+      # просто не встречаются, а сломать их правкой хелпера легко (#240).
+      - name: Unit — склонение числительных
+        working-directory: web
+        run: node scripts/test_plural.mjs
+
       - name: Type-check (astro check)
         working-directory: web
         run: npm run check
