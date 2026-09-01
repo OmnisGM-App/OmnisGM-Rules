@@ -79,6 +79,9 @@ const shortDescriptions = []; // { page, len }
 const ARTICLE_REQUIRED = ['image', 'datePublished', 'dateModified', 'author', 'publisher'];
 const brokenArticles = []; // { page, why }
 let withArticle = 0;
+// Инвариант «даты из контента, а не из сборки»: у 6000 страниц не может быть одной даты
+// изменения. Ровно один dateModified на весь dist = источником дат стал момент билда.
+const modifiedDates = new Set();
 const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
 let pages = 0;
@@ -121,6 +124,7 @@ for (const file of htmlFiles(DIST)) {
       withArticle++;
       const missing = ARTICLE_REQUIRED.filter((k) => !article[k]);
       if (missing.length) brokenArticles.push({ page, why: `Article без ${missing.join(', ')}` });
+      if (article.dateModified) modifiedDates.add(article.dateModified);
     }
   }
 
@@ -154,7 +158,7 @@ console.log(`  дубли description: ${dupPages} страниц в ${dupGroups
 console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} страниц (бюджет ${BUDGET.longTitlePages})`);
 console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
 console.log(`  description < ${DESCRIPTION_MIN} символов: ${shortDescriptions.length} страниц (бюджет ${BUDGET.shortDescriptionPages})`);
-console.log(`  Article в JSON-LD: ${withArticle} страниц, неполных ${brokenArticles.length} (бюджет 0)`);
+console.log(`  Article в JSON-LD: ${withArticle} страниц, неполных ${brokenArticles.length} (бюджет 0); различных dateModified: ${modifiedDates.size}`);
 
 const errors = [];
 
@@ -230,11 +234,22 @@ if (brokenArticles.length) {
   const noDates = brokenArticles.filter((b) => b.why.includes('datePublished')).length;
   if (noDates) {
     console.error(
-      '\n  Похоже на сборку без git-истории: даты берутся из коммитов по контентным .md ' +
-        '(scripts/gen-content-dates.mjs). В CI нужен actions/checkout с fetch-depth: 0.',
+      '\n  Даты берутся из коммитов по контентным .md (scripts/gen-content-dates.mjs). Две причины:\n' +
+        '   • сборка без git-истории — в CI нужен actions/checkout с fetch-depth: 0;\n' +
+        '   • разъехались ключи _sources.json (от generate_api.py --emit-sources) и content-dates.json —\n' +
+        '     оба считают путь от src/, и src-root игры обязан лежать прямо в src/{game}.',
     );
   }
 }
+// Одна-единственная дата изменения на весь dist означала бы, что источником стал момент
+// сборки, а не история контента (см. #219). Порог мягкий: важно «не одна», а не «сколько».
+if (withArticle > 100 && modifiedDates.size < 2) {
+  errors.push(
+    `dateModified одинаковый на всех ${withArticle} страницах (${[...modifiedDates][0]}) — ` +
+      `похоже, даты приехали из сборки, а не из истории контента`,
+  );
+}
+
 // Покрытие Article: если он вдруг исчез со всех страниц, гейт выше промолчит (нечего ломать).
 if (withArticle < pages * 0.9) {
   errors.push(`Article найден только на ${withArticle} из ${pages} страниц — шаблон JSON-LD сломан`);

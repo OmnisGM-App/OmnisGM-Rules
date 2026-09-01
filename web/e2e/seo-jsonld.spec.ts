@@ -40,18 +40,15 @@ test('страница без портрета: image — общий og.png, а 
   expect(article.datePublished).toMatch(ISO);
 });
 
-test('даты берутся из контента, а не из даты сборки', async ({ page }) => {
-  // Две страницы из разных SRD обязаны иметь разные даты изменения: одинаковые означали бы,
-  // что источник дат — момент билда, а не история правок контента.
+test('дата изменения — из контента, а не из даты сборки', async ({ page }) => {
   await page.goto('/en/dnd/srd-5.2/spells/fireball/');
-  const spells = node(await graphOf(page), 'Article');
-  await page.goto('/en/daggerheart/srd-1.0/classes/druid/');
-  const druid = node(await graphOf(page), 'Article');
-
-  expect(spells.dateModified).not.toBe(druid.dateModified);
-  // И ни одна из дат не «сегодня»: контент правился раньше сборки.
+  const article = node(await graphOf(page), 'Article');
+  // Дата не «сегодня»: контент правился раньше сборки. Сравнивать даты ДВУХ конкретных глав
+  // здесь нельзя — один общий коммит по обеим (прогон форматера, массовая правка терминов)
+  // сделал бы их равными при полностью исправном механизме. Инвариант «дат в сборке больше
+  // одной» проверяется по всему dist в scripts/verify_dist_meta_budget.mjs.
   const today = new Date().toISOString().slice(0, 10);
-  expect(spells.dateModified.slice(0, 10)).not.toBe(today);
+  expect(article.dateModified.slice(0, 10)).not.toBe(today);
 });
 
 test('Organization.sameAs связывает ресурсы экосистемы и репозиторий', async ({ page }) => {
