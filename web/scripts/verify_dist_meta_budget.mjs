@@ -10,6 +10,10 @@
 //      разделителем (· против —), то есть были дублями по существу.
 //   4) КОРОТКИЕ description — Bing (правило 118 «Meta descriptions too short», #213) ругался
 //      на сниппеты 95–102 символа; нижняя граница комфорта — 110.
+//   7) СТРАНИЦА БЕЗ <h1> (#228) — глоссарные хабы начинались сразу с таблицы, потому что
+//      заголовок раздела в исходном SRD живёт в оглавлении, а не в теле файла. Страница без
+//      H1 теряет главный он-пейдж-сигнал темы. Гейт нулевой: заголовок дорисовывает шаблон,
+//      так что «ноль» — это работающий фолбэк, а не удача.
 //   6) БИТЫЙ BreadcrumbList (#220) — уровни строятся из NAV-дерева, и раньше группе без
 //      собственной страницы подставлялась «первая страница-лист внутри»: игра и её первая
 //      редакция давали ОДИН URL (дубль позиций 2–3), «Классы» вели на варвара. Гейт нулевой:
@@ -89,6 +93,8 @@ const modifiedDates = new Set();
 // Крошки (#220): собираем трейлы, проверяем после обхода — «ведёт ли URL на страницу» можно
 // сказать, только когда известен полный список собранных страниц.
 const crumbTrails = []; // { page, urls }
+const noHeading = []; // страницы без <h1> (#228)
+const manyHeadings = []; // и с несколькими — второй H1 размывает тему не меньше, чем его отсутствие
 const pagePaths = new Set(); // '/ru/dnd/...' → страница существует в dist
 const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
@@ -141,6 +147,11 @@ for (const file of htmlFiles(DIST)) {
     }
   }
 
+  // <h1> ищем по всему документу, а не по <head>: он в теле страницы.
+  const h1count = (html.match(/<h1[\s>]/g) ?? []).length;
+  if (h1count === 0) noHeading.push(page);
+  else if (h1count > 1) manyHeadings.push({ page, n: h1count });
+
   const title = head.match(/<title>([^<]*)<\/title>/);
   if (title) {
     const text = decode(title[1]).trim();
@@ -183,6 +194,7 @@ console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} �
 console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
 console.log(`  description < ${DESCRIPTION_MIN} символов: ${shortDescriptions.length} страниц (бюджет ${BUDGET.shortDescriptionPages})`);
 console.log(`  Article в JSON-LD: ${withArticle} страниц, неполных ${brokenArticles.length} (бюджет 0); различных dateModified: ${modifiedDates.size}`);
+console.log(`  <h1>: без заголовка ${noHeading.length}, с несколькими ${manyHeadings.length} (бюджет 0/0)`);
 console.log(`  BreadcrumbList: ${crumbTrails.length} страниц, дублей URL в трейле ${crumbDup.length}, ссылок в никуда ${crumbDead.length} (бюджет 0/0)`);
 
 const errors = [];
@@ -273,6 +285,18 @@ if (withArticle > 100 && modifiedDates.size < 2) {
     `dateModified одинаковый на всех ${withArticle} страницах (${[...modifiedDates][0]}) — ` +
       `похоже, даты приехали из сборки, а не из истории контента`,
   );
+}
+
+// H1 — гейт нулевой: заголовок дорисовывается шаблоном, когда его нет в markdown (#228),
+// поэтому «ноль без заголовка» держится само. Ненулевое значение = фолбэк отвалился.
+if (noHeading.length) {
+  errors.push(`страниц без <h1>: ${noHeading.length}`);
+  console.error('\n  Примеры:');
+  for (const p of noHeading.slice(0, 10)) console.error(`    ${p}`);
+}
+if (manyHeadings.length) {
+  errors.push(`страниц с несколькими <h1>: ${manyHeadings.length}`);
+  for (const { page, n } of manyHeadings.slice(0, 10)) console.error(`    ${n}×h1 — ${page}`);
 }
 
 // Крошки — гейт нулевой: дубль URL и ссылка в никуда это всегда баг генерации трейла, а не

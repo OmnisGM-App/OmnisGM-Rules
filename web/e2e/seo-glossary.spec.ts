@@ -47,3 +47,22 @@ test('sitemap: содержит справочники без хаба (#106), �
   expect(xml).not.toContain('/glossary/glossary/');
   expect(xml).not.toContain('/dnd/srd-5.2/glossary/');
 });
+
+test('индексируемый справочник имеет ровно один H1 с названием раздела (#228)', async ({ page }) => {
+  // Их markdown начинается сразу с таблицы: заголовок раздела в исходном SRD стоит в
+  // оглавлении документа, а не в теле файла. H1 дорисовывает шаблон nav-подписью — той же,
+  // что идёт в <title>, поэтому проверяем не текст-константу, а согласованность с <title>.
+  await page.goto(GLOSSARY_INDEXED);
+  const h1 = page.locator('h1');
+  await expect(h1).toHaveCount(1);
+  const heading = (await h1.textContent())!.trim();
+  expect(heading).toBe('Weapons (Reference)');
+  expect(await page.title()).toContain(heading);
+});
+
+test('страница с собственным H1 второго не получает', async ({ page }) => {
+  // Иначе фолбэк дорисовывал бы заголовок всем подряд, и на обычных главах стало бы два H1 —
+  // это размывает тему не меньше, чем отсутствие заголовка.
+  await page.goto(CONTENT);
+  await expect(page.locator('h1')).toHaveCount(1);
+});
