@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import { hubDescription } from '../../../../../lib/entity-facts';
 
 // Хаб-справочник профессий (BRP SRD 1.0): /{lang}/brp/{version}/professions/all/.
 const GAME = 'brp';
@@ -34,10 +35,14 @@ const heading = t('Профессии', 'Professions');
 // Хаб — полный список; MD-глава того же раздела зовётся так же, поэтому в
 // <title> отличаем их словом «Все …» (H1 не трогаем).
 const title = pageTitle({ name: t('Все профессии', 'All Professions'), lang, game: 'brp', version: ver });
-const description = t(
-  `Все ${items.length} профессий Basic Roleplaying ${verLabel}: основные характеристики и профессиональные навыки.`,
-  `All ${items.length} Basic Roleplaying ${verLabel} professions with primary characteristics and professional skills.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${items.length} профессий Basic Roleplaying ${verLabel}: основные характеристики и профессиональные навыки.`,
+    `All ${items.length} Basic Roleplaying ${verLabel} professions with primary characteristics and professional skills.`,
+  ),
+  names: items.map((e: any) => e.name as string),
+  lang,
+});
 const upLink = { href: `/${lang}/${GAME}/${verSlug}/09_Glossary/04_Professions/`, ru: 'Профессии (глава)', en: 'Professions (chapter)' };
 ---
 

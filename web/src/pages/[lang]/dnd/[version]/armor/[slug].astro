@@ -4,7 +4,7 @@ import EntityHead from '../../../../../components/EntityHead.astro';
 import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
 import { loadEntities, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
-import { editionLabel, endSentence } from '../../../../../lib/entity-facts';
+import { armorDescription } from '../../../../../lib/entity-facts';
 
 // Programmatic-страницы доспехов (issue #20, Дорожка A) — тонкий стат-блок (данные табличные).
 // URL: /{lang}/dnd/{version}/armor/{slug}/. Своей главы нет — доспехи в «Снаряжении», туда и
@@ -81,10 +81,13 @@ const gear = [
 ].filter(Boolean).join(', ');
 const armorKind = isShield ? t('щит', 'shield') : t(`${catLabel.toLowerCase()} доспех`, `${catLabel.toLowerCase()} armor`);
 const acFact = isShield ? t(`+${acBase} к КД`, `+${acBase} AC`) : t(`КД ${acLine}`, `AC ${acLine}`);
-const description = endSentence(t(
-  `${entity.name} — ${armorKind} ${editionLabel(ver)} (днд): ${[acFact, gear].filter(Boolean).join(', ')}`,
-  `${entity.name} — a ${editionLabel(ver)} ${armorKind}: ${[acFact, gear].filter(Boolean).join(', ')}`,
-));
+// Сниппет собирается в entity-facts.ts (#214): туда же уехали требование Силы и помеха
+// Скрытности — факты, по которым доспехи и выбирают.
+const description = armorDescription({
+  name: entity.name, lang, version: ver, armorKind, acFact, gear,
+  strengthReq: (entity.strength_req as number | null) ?? null,
+  stealthDisadvantage: entity.stealth_disadvantage === true,
+});
 
 const base = `/${lang}/dnd/${verSlug}/armor`;
 // «Похожие доспехи» — до 8 той же категории (внутренняя перелинковка/SEO).

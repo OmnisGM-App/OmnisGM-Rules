@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import { hubDescription } from '../../../../../lib/entity-facts';
 
 // Хаб-справочник навыков (BRP SRD 1.0): /{lang}/brp/{version}/skills/all/.
 // Единая сортируемая таблица (навык · категория · базовый шанс); «Категория» → фасет. `all` > `[slug]`.
@@ -45,10 +46,14 @@ const heading = t('Навыки', 'Skills');
 // Хаб — полный список; MD-глава того же раздела зовётся так же, поэтому в
 // <title> отличаем их словом «Все …» (H1 не трогаем).
 const title = pageTitle({ name: t('Все навыки', 'All Skills'), lang, game: 'brp', version: ver });
-const description = t(
-  `Все ${skills.length} навыков Basic Roleplaying ${verLabel} по 6 категориям: базовый шанс и описание каждого.`,
-  `All ${skills.length} Basic Roleplaying ${verLabel} skills across 6 categories with base chance and description.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${skills.length} навыков Basic Roleplaying ${verLabel} по 6 категориям: базовый шанс и описание каждого.`,
+    `All ${skills.length} Basic Roleplaying ${verLabel} skills across 6 categories with base chance and description.`,
+  ),
+  names: skills.map((e: any) => e.name as string),
+  lang,
+});
 const upLink = { href: `/${lang}/${GAME}/${verSlug}/09_Glossary/01_Skills/`, ru: 'Навыки (глава)', en: 'Skills (chapter)' };
 ---
 

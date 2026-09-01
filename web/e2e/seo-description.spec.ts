@@ -102,3 +102,55 @@ test('навык BRP по-русски: та же формула, русские
   // Английские подписи в русский сниппет не протекают.
   expect(d).not.toContain('base chance');
 });
+
+// ── Хабы, глоссарий и остальные шаблоны (issue #214, волна 2) ─────────────────
+
+test('хаб перечисляет, что внутри, а не только считает', async ({ page }) => {
+  // Соседние фасеты («монстры ПО 0» и «ПО 1») отличались только числом и значением фасета —
+  // сниппеты выходили почти одинаковыми. Имена делают их и длиннее, и по-настоящему разными.
+  const d = await facts(page, '/ru/dnd/srd-5.2/monsters-a-z/cr/0/');
+  expect(d.length).toBeGreaterThanOrEqual(MIN);
+  expect(d).toContain('Среди них:');
+  const other = await facts(page, '/ru/dnd/srd-5.2/monsters-a-z/cr/1/');
+  expect(d).not.toBe(other);
+});
+
+test('список в сниппете хаба режется по границе имени, а не посреди слова', async ({ page }) => {
+  const d = await facts(page, '/en/dnd/srd-5.2/spells/level/0/');
+  expect(d).toContain('Includes:');
+  const list = d.split('Includes: ')[1];
+  // Факт обрезки виден многоточием, целый список — точкой.
+  expect(list.endsWith('…') || list.endsWith('.')).toBe(true);
+  // Обрубленное имя в выдаче читается как ошибка вёрстки, поэтому режем по границе элемента.
+  // Проверяем это по существу: последнее имя в сниппете должно быть настоящим именем со
+  // страницы, а не его началом. Сравнение с текстом ссылки, а не с регекспом «похоже на слово».
+  const names = list.replace(/[.…]$/, '').split(', ');
+  const onPage = await page.locator('main a').allTextContents();
+  expect(onPage.map((s) => s.trim())).toContain(names[names.length - 1]);
+});
+
+test('термин глоссария: определение целое, хвост добавлен только если влез', async ({ page }) => {
+  const d = await facts(page, '/en/dnd/srd-5.1/rules-glossary/conditions/deafened/');
+  // Главное: определение не обрезано ради служебной фразы — «…requires… A D&D 2014 Rules
+  // Glossary condition» было бы обрубленным ответом ради хвоста.
+  expect(d).toContain("can't hear and automatically fails any ability check that requires hearing.");
+  expect(d).toContain('Rules Glossary condition');
+});
+
+test('маркер списка не уезжает в сниппет', async ({ page }) => {
+  // Определения состояний в SRD оформлены списком, и сниппет начинался с «- A deafened…».
+  for (const url of [
+    '/en/dnd/srd-5.1/rules-glossary/conditions/deafened/',
+    '/ru/dnd/srd-5.1/rules-glossary/conditions/incapacitated/',
+  ]) {
+    const d = await facts(page, url);
+    expect(d.startsWith('-'), `сниппет начинается с маркера списка: ${d}`).toBe(false);
+  }
+});
+
+test('доспех: требование Силы и помеха Скрытности в сниппете', async ({ page }) => {
+  const d = await facts(page, '/ru/dnd/srd-5.2/armor/plate-armor/');
+  expect(d.length).toBeGreaterThanOrEqual(MIN);
+  expect(d).toContain('требование Силы 15');
+  expect(d).toContain('помеха Скрытности');
+});

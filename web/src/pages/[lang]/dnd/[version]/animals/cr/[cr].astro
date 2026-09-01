@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { CR_HUBS, crHubBySlug, crHubTitle, crOrder, type Lang } from '../../../../../../lib/monster-hubs';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 
 // Хаб животных по ПО (issue #20, только 5.2): /{lang}/dnd/{version}/animals/cr/{cr}/.
 // Переиспользуем CR-шкалу монстров (одиночные 0–10 + диапазоны). Животные — почти все звери
@@ -46,10 +47,14 @@ const crName = crHubTitle(hub, lang);
 
 const heading = t(`Животные с ${crName}`, `${crName} Animals`);
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
-const description = t(
-  `Все ${animals.length} животных с ${crName} в D&D ${verLabel}: размер, тип и хиты, со ссылками на страницы животных.`,
-  `All ${animals.length} animals of ${crName} in D&D ${verLabel}: size, type and HP, with links to each animal.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${animals.length} животных с ${crName} в D&D ${verLabel}: размер, тип и хиты, со ссылками на страницы животных.`,
+    `All ${animals.length} animals of ${crName} in D&D ${verLabel}: size, type and HP, with links to each animal.`,
+  ),
+  names: animals.map((e: any) => e.name as string),
+  lang,
+});
 // Другие ПО — только реально присутствующие среди животных (страхуемся от битых ссылок на пустые хабы).
 const presentCr = new Set(
   (loadEntities(ver, 'en', 'animals') as unknown as Animal[]).map((a) => a.cr?.value).filter(Boolean) as string[],

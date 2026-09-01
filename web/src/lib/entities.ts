@@ -42,6 +42,11 @@ export function loadEntities(ver: string, lang: string, resource: string, game =
 export function excerpt(md: string | undefined, limit = 155): string {
   if (!md) return '';
   const plain = md
+    // Маркер списка в начале строки (#214): определения состояний в SRD оформлены списком,
+    // и сниппет начинался с «- A deafened creature…» — дефис прямо в выдаче Google. Снимаем
+    // маркеры до остальной чистки, иначе `-` неотличим от дефиса внутри предложения.
+    .replace(/^[ \t]*[-*+][ \t]+/gm, '')
+    .replace(/^[ \t]*\d+\.[ \t]+/gm, '')
     .replace(/\*\*_?([^*]+?)_?\*\*/g, '$1') // bold / bold-italic
     .replace(/[*_`>#]/g, '')
     .replace(/\[([^\]]+)\]\([^)]*\)/g, '$1') // ссылки → текст

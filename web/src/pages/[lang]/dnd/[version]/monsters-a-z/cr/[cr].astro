@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 import {
   CR_HUBS, typeLabel, crHubTitle, crHubBySlug, byCrThenName, crOrder, monstersWithFacets, activeMonsterTypes,
   type Lang, type MonsterLite,
@@ -48,10 +49,14 @@ const crName = crHubTitle(hub, lang);
 
 const heading = t(`Монстры с ${crName}`, `${crName} Monsters`);
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
-const description = t(
-  `Все ${monsters.length} монстров с ${crName} в D&D ${verLabel}: тип, размер и хиты, со ссылками на страницы монстров.`,
-  `All ${monsters.length} monsters of ${crName} in D&D ${verLabel}: type, size and HP, with links to each monster.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${monsters.length} монстров с ${crName} в D&D ${verLabel}: тип, размер и хиты, со ссылками на страницы монстров.`,
+    `All ${monsters.length} monsters of ${crName} in D&D ${verLabel}: type, size and HP, with links to each monster.`,
+  ),
+  names: monsters.map((e: any) => e.name as string),
+  lang,
+});
 const otherCr = CR_HUBS.filter((h) => h.slug !== crHubSlug);
 ---
 

@@ -17,6 +17,7 @@
 // заклинания, магические предметы. Класс-страницы живут в class-facts.ts и берут отсюда редакцию.
 // Локализованные подписи (школа, редкость) НЕ дублируем — берём из *-hubs.ts, где они уже есть.
 import { excerpt } from './entities';
+import { listFit } from './page-description.mjs';
 import { schoolLabel } from './spell-hubs';
 import { rarityLabel } from './magic-item-hubs';
 
@@ -205,9 +206,14 @@ export function spellDescription(opts: {
     return `${entity.name} — a ${ed} spell: ${head}. ${facts ? `${facts}. ` : ''}${tail}`;
   };
 
+  // Порядок каскада — по ценности факта, но хвост дешевле длительности только до тех пор,
+  // пока длительность влезает. Вариант «без длительности, но с полным хвостом» (#214) стоит
+  // выше короткого хвоста: у половины заклинаний длительность длинная («Концентрация, до
+  // 1 часа»), и без этой ступени сниппет проваливался со 130 до 109 символов.
   return fit([
     compose(true, false),
     compose(true, true),
+    compose(false, false),
     compose(false, true),
     compose(false, true, false),
   ]);
@@ -256,7 +262,15 @@ export function gearDescription(opts: {
   const MIN_TAIL = 20;
   const room = LIMIT - head.length - 1;
   const tail = room >= MIN_TAIL ? excerpt(str(entity.description_md), room) : '';
-  return tail ? `${head} ${tail}` : head;
+  const withProse = tail ? `${head} ${tail}` : head;
+
+  // У части снаряжения описание в одну строку («A Basket holds up to 40 pounds»), и сниппет
+  // оставался 83–91 символа. Тогда добираем служебным хвостом — но только если он влезает
+  // целиком: обрубленная служебная фраза хуже, чем её отсутствие (#214).
+  const SHORT = 110;
+  if (withProse.length >= SHORT) return withProse;
+  const rules = lang === 'ru' ? 'Полные правила снаряжения SRD на русском.' : 'Full equipment rules from the SRD.';
+  return fit([`${withProse} ${rules}`, withProse]);
 }
 
 // ── Магические предметы ──────────────────────────────────────────────────────
@@ -437,4 +451,116 @@ export function brpSkillDescription(opts: {
   const room = LIMIT - head.length - 1;
   const tail = room >= MIN_TAIL ? excerpt(descriptionMd, room) : '';
   return tail ? `${head} ${tail}` : head;
+}
+
+// ── Хабы и фасеты ────────────────────────────────────────────────────────────
+
+/**
+ * Достройка сниппета хаба именами того, что внутри (issue #214).
+ *
+ * У хабов и фасетов описание было одной фразой на 72–101 символ («Все 5 монстров с ПО 0
+ * в D&D 5.2: тип, размер и хиты, со ссылками на страницы монстров.») — коротко и, что хуже,
+ * почти одинаково у соседних фасетов: отличались только число и значение фасета. Имена
+ * делают сниппет и длиннее, и по-настоящему разным, а заодно это ровно та информация, за
+ * которой человек в такой хаб и заходит («какие бывают монстры опасности 5»).
+ *
+ * Список режется по границе элемента (общий listFit со сборщиком сниппетов markdown-страниц):
+ * обрубленное на середине имя в выдаче выглядит как ошибка, а не как «список продолжается».
+ */
+export function hubDescription(opts: { base: string; names: string[]; lang: 'en' | 'ru' }): string {
+  const { base, names, lang } = opts;
+  const lead = lang === 'ru' ? 'Среди них: ' : 'Includes: ';
+  // Меньше двух имён смысла не имеет: «Среди них: Аболет.» звучит как обрывок, а не как обзор.
+  const MIN_NAMES = 2;
+  const room = LIMIT - base.length - 1 - lead.length;
+  if (room <= 0) return base;
+  const list = listFit(names, room);
+  if (!list) return base;
+  const shown = list.replace(/[.…]$/, '').split(', ').length;
+  return shown >= MIN_NAMES ? `${base} ${lead}${list}` : base;
+}
+
+// ── Доспехи ──────────────────────────────────────────────────────────────────
+
+/**
+ * Фактовый <meta description> доспеха (issue #214). Раньше — КД, цена и вес, 72–97 символов.
+ * Добавлены требование Силы и помеха Скрытности: это то, из-за чего доспех выбирают или не
+ * берут («тяжёлые доспехи помеха скрытности»), и то, чем соседние строки таблицы различаются.
+ * У лёгких доспехов обоих полей нет — там сниппет добирает хвостом, как у стат-блоков.
+ */
+export function armorDescription(opts: {
+  name: string;
+  lang: 'en' | 'ru';
+  version: string;
+  armorKind: string;  // «средний доспех» / «medium armor» / «щит» — локализовано в шаблоне
+  acFact: string;     // «КД 14 + мод. Ловкости (макс. 2)» / «AC 14 + Dex modifier (max 2)»
+  gear: string;       // «цена 400 зм, вес 20 фнт.»
+  strengthReq: number | null;
+  stealthDisadvantage: boolean;
+}): string {
+  const { name, lang, version, armorKind, acFact, gear, strengthReq, stealthDisadvantage } = opts;
+  const ed = editionLabel(version);
+
+  const compose = (withTail: boolean, shortTail: boolean) => {
+    if (lang === 'ru') {
+      const facts = [
+        acFact,
+        strengthReq ? `требование Силы ${strengthReq}` : '',
+        stealthDisadvantage ? 'помеха Скрытности' : '',
+        gear,
+      ].filter(Boolean).join(', ');
+      const tail = !withTail ? '' : shortTail ? ' Полные правила SRD.' : ' Полные правила доспехов SRD на русском.';
+      return endSentence(`${name} — ${armorKind} ${ed} (днд): ${facts}`) + tail;
+    }
+    const facts = [
+      acFact,
+      strengthReq ? `Strength ${strengthReq} required` : '',
+      stealthDisadvantage ? 'Stealth disadvantage' : '',
+      gear,
+    ].filter(Boolean).join(', ');
+    const tail = !withTail ? '' : shortTail ? ' Full SRD rules.' : ' Full armor rules from the SRD.';
+    return endSentence(`${name} — a ${ed} ${armorKind}: ${facts}`) + tail;
+  };
+
+  return fit([compose(true, false), compose(true, true), compose(false, false)]);
+}
+
+// ── Термины глоссария правил ─────────────────────────────────────────────────
+
+/**
+ * Сниппет термина «Глоссария правил» (issue #214). Определения там короткие по своей природе
+ * («Кампания — это серия приключений. См. также «Приключение».» — 58 символов), и дописать
+ * фактов неоткуда: у термина нет ни цены, ни урона. Поэтому добавляем контекст — какой это
+ * раздел и какая редакция: он же и различает одноимённые термины 5.1 и 5.2.
+ *
+ * Хвост добавляется ТОЛЬКО коротким определениям: приклеивать его к определению на 150
+ * символов значило бы обрезать сам ответ ради служебной фразы.
+ */
+export function glossaryTermDescription(opts: {
+  definitionMd: string;
+  lang: 'en' | 'ru';
+  version: string;
+  kindRu: string; // «термин», «состояние», «действие», «область эффекта»
+  kindEn: string;
+}): string {
+  const { definitionMd, lang, version, kindRu, kindEn } = opts;
+  const ed = editionLabel(version);
+  const kind = lang === 'ru' ? `${kindRu[0].toUpperCase()}${kindRu.slice(1)}` : kindEn;
+  const tailLong =
+    lang === 'ru'
+      ? `${kind} из глоссария правил ${ed} (днд) — определение и правила SRD на русском.`
+      : `A ${ed} Rules Glossary ${kindEn} — definition and rules from the SRD.`;
+  const tailShort =
+    lang === 'ru' ? `${kind} из глоссария правил ${ed} (днд).` : `A ${ed} Rules Glossary ${kindEn}.`;
+
+  // Ниже этой длины сниппет считается коротким (тот же порог, что у гейта по dist).
+  const SHORT = 110;
+  const full = excerpt(definitionMd, LIMIT);
+  if (!full) return tailLong;
+  if (full.length >= SHORT) return full;
+
+  // Определение НЕ режем ради хвоста: «…requires… A D&D 2014 Rules Glossary condition» —
+  // это обрубленный ответ ради служебной фразы, хуже короткого, но целого. Поэтому хвост
+  // подбираем под остаток: длинный, короткий, либо никакого.
+  return fit([`${full} ${tailLong}`, `${full} ${tailShort}`, full]);
 }
