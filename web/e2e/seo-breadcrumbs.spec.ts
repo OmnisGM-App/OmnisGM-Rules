@@ -7,7 +7,8 @@ import { test, expect, type Page } from '@playwright/test';
 // Решение по #220 — вариант 2: игра и редакция схлопнуты в один уровень документа, группы без
 // собственной страницы («Классы», «Глоссарий») остаются видимым текстом, но в разметку не идут.
 
-const trail = async (page: Page) => {
+type Crumb = { name: string; url: string };
+const trail = async (page: Page): Promise<Crumb[]> => {
   const raw = await page.locator('head script[type="application/ld+json"]').first().textContent();
   const graph = JSON.parse(raw!)['@graph'] as any[];
   const list = graph.find((n) => n['@type'] === 'BreadcrumbList');
