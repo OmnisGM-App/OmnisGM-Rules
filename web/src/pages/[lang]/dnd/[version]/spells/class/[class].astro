@@ -65,6 +65,7 @@ const otherClasses = SPELL_CLASSES.filter((c) => c.slug !== classSlug);
 ---
 
 <ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'spells' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}

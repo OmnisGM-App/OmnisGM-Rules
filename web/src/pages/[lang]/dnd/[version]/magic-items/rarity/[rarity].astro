@@ -57,6 +57,7 @@ const otherRarities = RARITIES.filter((r) => r.slug !== rSlug && present.has(r.s
 ---
 
 <ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'magic-items' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}

@@ -65,6 +65,7 @@ const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: v
 ---
 
 <ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'conditions' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}

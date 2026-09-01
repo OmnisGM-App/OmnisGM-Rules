@@ -58,6 +58,7 @@ const tiers = [...new Set(adversaries.map((a) => a.tier))].sort((a, b) => a - b)
 ---
 
 <ReaderShell
+  contentSource={{ game: 'daggerheart', ver, lang, resource: 'adversaries' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}

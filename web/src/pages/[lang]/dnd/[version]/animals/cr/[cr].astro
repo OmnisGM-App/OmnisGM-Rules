@@ -58,6 +58,7 @@ const otherCr = CR_HUBS.filter((h) => h.slug !== crHubSlug && h.values.some((v) 
 ---
 
 <ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'animals' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}

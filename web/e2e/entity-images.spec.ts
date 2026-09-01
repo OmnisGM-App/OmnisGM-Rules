@@ -66,9 +66,13 @@ test('JSON API: image есть у существ с файлом и отсутс
   const aboleth = monsters.find((m: { slug: string }) => m.slug === 'aboleth');
   expect(aboleth.image).toBe('https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp');
   // Поля нет вовсе, а не пустая строка/null — потребитель проверяет наличие ключа.
-  // Берём заклинание, которого генератор ещё не касался (первое по алфавиту уже с иконкой).
+  // Заклинание без иконки выбираем ПО ФАКТУ, а не по имени: очередь генератора доливает
+  // картинки порциями, и любой зафиксированный слаг рано или поздно её получает (на fireball
+  // так и вышло — тест покраснел от мёржа очереди, а не от поломки).
   const spells = api('dnd/srd52/ru/spells/all.json');
-  expect(spells.find((s: { slug: string }) => s.slug === 'fireball')).not.toHaveProperty('image');
+  const pending = spells.find((s: { image?: string }) => !s.image);
+  expect(pending, 'все заклинания уже с иконками — возьми другой раздел для этой проверки').toBeTruthy();
+  expect(pending).not.toHaveProperty('image');
   // Окружения Daggerheart делят схему с противниками, но картинок у них нет.
   expect(api('daggerheart/srd10/ru/environments/all.json')[0]).not.toHaveProperty('image');
   expect(api('daggerheart/srd10/ru/adversaries/all.json')[0].image).toContain('/img/daggerheart/creatures/');
@@ -118,8 +122,11 @@ test('заклинание и магпредмет с иконкой — тот 
 });
 
 test('сущность без картинки: страница как раньше', async ({ page }) => {
-  // Огненный шар в очереди генератора — иконки пока нет.
-  await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
+  // Слаг берём из данных, а не из головы: очередь генератора доливает иконки порциями,
+  // и захардкоженное заклинание однажды перестаёт быть «без картинки».
+  const pending = api('dnd/srd52/ru/spells/all.json').find((s: { image?: string }) => !s.image);
+  expect(pending, 'все заклинания уже с иконками — возьми другой раздел для этой проверки').toBeTruthy();
+  await page.goto(`/ru/dnd/srd-5.2/spells/${pending.slug}/`);
   await expect(page.locator('img.ent-portrait')).toHaveCount(0);
   await expect(page.locator('head meta[property="og:image"]')).toHaveAttribute(
     'content', 'https://rules.omnisgm.com/og.png',

@@ -53,6 +53,7 @@ const otherTypes = activeMonsterTypes(ver).filter((x) => x.slug !== typeSlug);
 ---
 
 <ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'monsters' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}
