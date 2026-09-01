@@ -12,19 +12,34 @@
     "trailingSlash": true,
     "redirects": [
       {
-        "_comment": "Уровень системы (#230): собственной страницы у него нет — D&D объединяет две редакции плюс конверсионный документ, и честного содержимого для такой страницы нет. Но обрезанный вручную URL не должен упираться в 404, поэтому ведём на свежую редакцию. Заводить страницу системы имеет смысл только когда редакций станет больше двух.",
-        "source": "/:lang(en|ru)/dnd",
-        "destination": "/:lang/dnd/srd-5.2/",
+        "_comment": "Уровень системы (#230): собственной страницы у него нет — D&D объединяет две редакции плюс конверсионный документ, и честного содержимого для такой страницы нет. Но обрезанный вручную URL не должен упираться в 404, поэтому ведём на свежую редакцию. Правила расписаны по языкам явно: синтаксис ограничения /:lang(en|ru) понимает эмулятор, но НЕ прод — первый заход уехал в релиз и дал 404 (см. CLAUDE.md).",
+        "source": "/en/dnd",
+        "destination": "/en/dnd/srd-5.2/",
         "type": 301
       },
       {
-        "source": "/:lang(en|ru)/daggerheart",
-        "destination": "/:lang/daggerheart/srd-1.0/",
+        "source": "/ru/dnd",
+        "destination": "/ru/dnd/srd-5.2/",
         "type": 301
       },
       {
-        "source": "/:lang(en|ru)/brp",
-        "destination": "/:lang/brp/srd-1.0/",
+        "source": "/en/daggerheart",
+        "destination": "/en/daggerheart/srd-1.0/",
+        "type": 301
+      },
+      {
+        "source": "/ru/daggerheart",
+        "destination": "/ru/daggerheart/srd-1.0/",
+        "type": 301
+      },
+      {
+        "source": "/en/brp",
+        "destination": "/en/brp/srd-1.0/",
+        "type": 301
+      },
+      {
+        "source": "/ru/brp",
+        "destination": "/ru/brp/srd-1.0/",
         "type": 301
       },
       {
