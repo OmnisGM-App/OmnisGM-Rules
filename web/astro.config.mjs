@@ -97,16 +97,11 @@ export default defineConfig({
         skipWaiting: true,
         clientsClaim: true,
         runtimeCaching: [
-          {
-            urlPattern: /^https:\/\/fonts\.googleapis\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-stylesheets', expiration: { maxEntries: 10, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } },
-          },
-          {
-            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
-            handler: 'CacheFirst',
-            options: { cacheName: 'google-fonts-webfonts', expiration: { maxEntries: 30, maxAgeSeconds: 31536000 }, cacheableResponse: { statuses: [0, 200] } },
-          },
+          // Правил для Google Fonts здесь нет и быть не должно (#224): шрифты self-hosted
+          // (public/fonts/*.woff2, они же в precache), ни одна страница к Google не ходит.
+          // Дефолтные роуты шаблона vite-pwa стояли тут мёртвым кодом и читались как рабочая
+          // политика — будущий читатель искал бы несуществующую зависимость. С #225 они ещё и
+          // заведомо нерабочие: CSP не разрешает fonts.googleapis.com / fonts.gstatic.com.
           {
             urlPattern: ({ request }) => request.destination === 'document',
             handler: 'NetworkFirst',
