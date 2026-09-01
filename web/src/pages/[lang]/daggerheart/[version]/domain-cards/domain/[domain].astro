@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 
 // Фасет доменных карт по домену (Daggerheart SRD 1.0):
 // /{lang}/daggerheart/{version}/domain-cards/domain/{domain}/. 9 доменов, карты отсортированы
@@ -57,10 +58,14 @@ const base = `/${lang}/${GAME}/${verSlug}/domain-cards`;
 
 const heading = t(`${domainName} — доменные карты`, `${domainName} — Domain Cards`);
 const title = pageTitle({ name: heading, lang, game: GAME, version: ver });
-const description = t(
-  `Все ${cards.length} карт домена ${domainName} в Daggerheart SRD ${verLabel}: уровень и ссылки на страницы карт.`,
-  `All ${cards.length} ${domainName} domain cards in Daggerheart SRD ${verLabel}: level and links to each card.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${cards.length} карт домена ${domainName} в Daggerheart SRD ${verLabel}: уровень и ссылки на страницы карт.`,
+    `All ${cards.length} ${domainName} domain cards in Daggerheart SRD ${verLabel}: level and links to each card.`,
+  ),
+  names: cards.map((e: any) => e.name as string),
+  lang,
+});
 const otherDomains = DOMAINS.filter((d) => d !== domain_slug);
 const upLink = { href: `${base}/all/`, ru: 'Все доменные карты', en: 'All domain cards' };
 ---

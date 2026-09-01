@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 import {
   MONSTER_TYPES, CR_HUBS, typeLabel, crHubTitle, byCrThenName, crOrder, monstersWithFacets, activeMonsterTypes,
   type Lang, type MonsterLite,
@@ -45,10 +46,14 @@ const tp = typeLabel(typeSlug, lang);
 
 const heading = t(`Монстры типа «${tp}»`, `${tp} Monsters`);
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
-const description = t(
-  `Все ${monsters.length} монстров типа «${tp}» в D&D ${verLabel}: показатель опасности, размер, хиты и КД, со ссылками на страницы монстров.`,
-  `All ${monsters.length} ${tp} monsters in D&D ${verLabel}: challenge rating, size, HP and AC, with links to each monster.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${monsters.length} монстров типа «${tp}» в D&D ${verLabel}: показатель опасности, размер, хиты и КД, со ссылками на страницы монстров.`,
+    `All ${monsters.length} ${tp} monsters in D&D ${verLabel}: challenge rating, size, HP and AC, with links to each monster.`,
+  ),
+  names: monsters.map((e: any) => e.name as string),
+  lang,
+});
 const otherTypes = activeMonsterTypes(ver).filter((x) => x.slug !== typeSlug);
 ---
 

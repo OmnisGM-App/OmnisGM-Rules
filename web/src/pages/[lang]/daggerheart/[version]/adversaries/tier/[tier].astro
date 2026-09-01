@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 
 // Фасет противников по рангу (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/adversaries/tier/{n}/.
 // Ловит «tier 1 adversaries daggerheart» / «противники ранга 1». EN/RU делят числовой слаг →
@@ -43,10 +44,14 @@ const tierLabel = t(`Ранг ${tier}`, `Tier ${tier}`);
 
 const heading = `${tierLabel}${t(' — противники', ' — Adversaries')}`;
 const title = pageTitle({ name: heading, lang, game: 'daggerheart', version: ver });
-const description = t(
-  `Все ${items.length} противников ${tierLabel} в Daggerheart SRD ${verLabel} со ссылками на стат-блоки: мотивы, сложность, атаки и способности.`,
-  `All ${items.length} ${tierLabel} adversaries in Daggerheart SRD ${verLabel} with links to each stat block: motives, difficulty, attacks and features.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${items.length} противников ${tierLabel} в Daggerheart SRD ${verLabel} со ссылками на стат-блоки: мотивы, сложность, атаки и способности.`,
+    `All ${items.length} ${tierLabel} adversaries in Daggerheart SRD ${verLabel} with links to each stat block: motives, difficulty, attacks and features.`,
+  ),
+  names: items.map((e: any) => e.name as string),
+  lang,
+});
 const otherTiers = TIERS.filter((n) => n !== tier);
 const upLink = { href: `${base}/all/`, ru: 'Все противники', en: 'All adversaries' };
 ---

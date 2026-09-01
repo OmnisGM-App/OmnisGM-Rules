@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 
 // Фасет навыков по категории (BRP): /{lang}/brp/{version}/skills/category/{slug}/.
 // EN/RU делят слаг категории → каноникал + hreflang. Родитель nav — хаб навыков.
@@ -44,10 +45,14 @@ const otherCats = Object.keys(catNames).filter((c) => c !== categorySlug).sort()
 
 const heading = t(`${categoryName} — навыки`, `${categoryName} — Skills`);
 const title = pageTitle({ name: heading, lang, game: 'brp', version: ver });
-const description = t(
-  `Навыки категории «${categoryName}» (${items.length}) в Basic Roleplaying ${verLabel}: базовый шанс и ссылки на страницы.`,
-  `${items.length} ${categoryName} skills in Basic Roleplaying ${verLabel} with base chance and links to each page.`,
-);
+const description = hubDescription({
+  base: t(
+    `Навыки категории «${categoryName}» (${items.length}) в Basic Roleplaying ${verLabel}: базовый шанс и ссылки на страницы.`,
+    `${items.length} ${categoryName} skills in Basic Roleplaying ${verLabel} with base chance and links to each page.`,
+  ),
+  names: items.map((e: any) => e.name as string),
+  lang,
+});
 ---
 
 <ReaderShell

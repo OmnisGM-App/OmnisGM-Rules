@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { crHubForValue, crOrder } from '../../../../../lib/monster-hubs';
 import { pageTitle } from '../../../../../lib/page-title';
+import { hubDescription } from '../../../../../lib/entity-facts';
 
 // Хаб-справочник всех животных (issue #20, только 5.2): /{lang}/dnd/{version}/animals/all/.
 // Алфавитный индекс со ссылками на страницы животных. Заменяет плоский глоссарий-список.
@@ -30,10 +31,14 @@ const base = `/${lang}/dnd/${verSlug}/animals`;
 
 const heading = t('Все животные', 'All Animals');
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
-const description = t(
-  `Все ${animals.length} животных D&D ${verLabel} по алфавиту: размер, тип, ПО и хиты со ссылками на страницы животных.`,
-  `All ${animals.length} D&D ${verLabel} animals alphabetically: size, type, CR and HP with links to each animal page.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${animals.length} животных D&D ${verLabel} по алфавиту: размер, тип, ПО и хиты со ссылками на страницы животных.`,
+    `All ${animals.length} D&D ${verLabel} animals alphabetically: size, type, CR and HP with links to each animal page.`,
+  ),
+  names: animals.map((e: any) => e.name as string),
+  lang,
+});
 ---
 
 <ReaderShell

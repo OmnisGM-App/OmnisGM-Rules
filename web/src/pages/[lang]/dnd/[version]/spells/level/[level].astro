@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 import {
   SPELL_CLASSES, LEVELS, SCHOOL_HUBS, classLabel, levelLabel, schoolLabel, schoolSlug, schoolHubLabel,
   spellClassSlugs, byName, type Lang, type SpellLite,
@@ -47,10 +48,14 @@ const heading = level === 0
   ? t('Заговоры', 'Cantrips')
   : t(`Заклинания ${level} уровня`, `Level ${level} Spells`);
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
-const description = t(
-  `Все ${spells.length} ${level === 0 ? 'заговоров' : `заклинаний ${level} уровня`} в D&D ${verLabel}: школа, классы и ссылки на страницы заклинаний.`,
-  `All ${spells.length} ${level === 0 ? 'cantrips' : `level ${level} spells`} in D&D ${verLabel}: school, classes and links to each spell.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${spells.length} ${level === 0 ? 'заговоров' : `заклинаний ${level} уровня`} в D&D ${verLabel}: школа, классы и ссылки на страницы заклинаний.`,
+    `All ${spells.length} ${level === 0 ? 'cantrips' : `level ${level} spells`} in D&D ${verLabel}: school, classes and links to each spell.`,
+  ),
+  names: spells.map((e: any) => e.name as string),
+  lang,
+});
 const otherLevels = LEVELS.filter((n) => n !== level);
 ---
 

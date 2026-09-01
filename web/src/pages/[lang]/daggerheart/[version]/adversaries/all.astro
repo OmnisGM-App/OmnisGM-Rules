@@ -3,6 +3,7 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { ADVERSARY_TYPES, advTypeSlug, advTypeLabel } from '../../../../../lib/adversary-hubs';
 import { pageTitle } from '../../../../../lib/page-title';
+import { hubDescription } from '../../../../../lib/entity-facts';
 
 // Хаб-справочник противников (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/adversaries/all/.
 // Сортируемая таблица со ссылками на все страницы противников; «Тип» и «Ранг» ведут на фасеты.
@@ -41,10 +42,14 @@ const heading = t('Противники', 'Adversaries');
 // Хаб — полный список; MD-глава того же раздела зовётся так же, поэтому в
 // <title> отличаем их словом «Все …» (H1 не трогаем).
 const title = pageTitle({ name: t('Все противники', 'All Adversaries'), lang, game: 'daggerheart', version: ver });
-const description = t(
-  `Все ${items.length} противников Daggerheart SRD ${verLabel} по 4 рангам сложности со ссылками на страницы: мотивы, сложность, атаки и способности.`,
-  `All ${items.length} Daggerheart SRD ${verLabel} adversaries across 4 tiers with links to each page: motives, difficulty, attacks and features.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${items.length} противников Daggerheart SRD ${verLabel} по 4 рангам сложности со ссылками на страницы: мотивы, сложность, атаки и способности.`,
+    `All ${items.length} Daggerheart SRD ${verLabel} adversaries across 4 tiers with links to each page: motives, difficulty, attacks and features.`,
+  ),
+  names: items.map((e: any) => e.name as string),
+  lang,
+});
 const upLink = { href: `/${lang}/${GAME}/${verSlug}/13_Adversaries/`, ru: 'Противники (глава)', en: 'Adversaries (chapter)' };
 ---
 

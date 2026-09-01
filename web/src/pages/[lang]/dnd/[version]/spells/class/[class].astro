@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
+import { hubDescription } from '../../../../../../lib/entity-facts';
 import {
   SPELL_CLASSES, LEVELS, SCHOOL_HUBS, classLabel, classHubName, classNameInData, levelLabel,
   schoolLabel, schoolSlug, schoolHubLabel, byName, type Lang, type SpellLite,
@@ -57,10 +58,14 @@ const title = pageTitle({
   name: t(`Заклинания ${clsGen}`, `${clsGen} Spells`),
   lang, game: 'dnd', version: ver,
 });
-const description = t(
-  `Все ${spells.length} заклинаний класса ${clsName} в D&D ${verLabel}, сгруппированы по уровню, со школой и ссылками на страницы заклинаний.`,
-  `All ${spells.length} ${clsName} spells in D&D ${verLabel}, grouped by level, with school and links to each spell.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${spells.length} заклинаний класса ${clsName} в D&D ${verLabel}, сгруппированы по уровню, со школой и ссылками на страницы заклинаний.`,
+    `All ${spells.length} ${clsName} spells in D&D ${verLabel}, grouped by level, with school and links to each spell.`,
+  ),
+  names: spells.map((e: any) => e.name as string),
+  lang,
+});
 const otherClasses = SPELL_CLASSES.filter((c) => c.slug !== classSlug);
 ---
 

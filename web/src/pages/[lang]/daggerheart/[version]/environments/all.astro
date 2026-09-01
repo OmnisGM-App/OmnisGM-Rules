@@ -2,6 +2,7 @@
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import { hubDescription } from '../../../../../lib/entity-facts';
 
 // Хаб-справочник окружений (Daggerheart SRD 1.0): /{lang}/daggerheart/{version}/environments/all/.
 // Сортируемая таблица со ссылками на все страницы окружений; «Ранг» ведёт на фасет по рангу.
@@ -38,10 +39,14 @@ const heading = t('Окружения', 'Environments');
 // Хаб — полный список; MD-глава того же раздела зовётся так же, поэтому в
 // <title> отличаем их словом «Все …» (H1 не трогаем).
 const title = pageTitle({ name: t('Все окружения', 'All Environments'), lang, game: 'daggerheart', version: ver });
-const description = t(
-  `Все ${items.length} окружений Daggerheart SRD ${verLabel} по рангам (1–4) со ссылками на страницы: сложность, импульсы, противники, особенности.`,
-  `All ${items.length} Daggerheart SRD ${verLabel} environments by tier (1–4) with links to each page: difficulty, impulses, adversaries, features.`,
-);
+const description = hubDescription({
+  base: t(
+    `Все ${items.length} окружений Daggerheart SRD ${verLabel} по рангам (1–4) со ссылками на страницы: сложность, импульсы, противники, особенности.`,
+    `All ${items.length} Daggerheart SRD ${verLabel} environments by tier (1–4) with links to each page: difficulty, impulses, adversaries, features.`,
+  ),
+  names: items.map((e: any) => e.name as string),
+  lang,
+});
 const upLink = { href: `/${lang}/${GAME}/${verSlug}/14_Environments/`, ru: 'Окружения (глава)', en: 'Environments (chapter)' };
 ---
 
