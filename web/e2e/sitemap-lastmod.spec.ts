@@ -43,8 +43,8 @@ test('lastmod совпадает с dateModified самой страницы', a
 
 test('даты не схлопнуты в одну — это был бы признак даты сборки', async ({ request }) => {
   const dates = new Set(entries(await sitemap(request)).map((e) => e.lastmod).filter(Boolean));
+  // Подмена датой сборки схлопывает множество в один элемент — это и ловим. Проверять
+  // «ни одна дата не сегодняшняя» нельзя: в день правки контента у свежей главы дата и есть
+  // сегодняшняя, и тест краснел бы на исправном механизме прямо в рабочем цикле.
   expect(dates.size).toBeGreaterThan(1);
-  // И ни одна страница не помечена «сегодня»: контент правился раньше этой сборки.
-  const today = new Date().toISOString().slice(0, 10);
-  expect([...dates].filter((d) => d!.slice(0, 10) === today)).toEqual([]);
 });
