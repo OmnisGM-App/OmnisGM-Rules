@@ -19,7 +19,14 @@ jobs:
     name: Check & Build
     runs-on: ubuntu-latest
     steps:
+      # fetch-depth: 0 — сборке нужны даты коммитов по контентным .md (#219): из них
+      # datePublished/dateModified в JSON-LD. На мелком клоне истории нет, и страницы
+      # остались бы без дат (дату билда вместо настоящей мы намеренно не подставляем).
+      # filter: blob:none — история приезжает без старых блобов, клон остаётся быстрым.
       - uses: actions/checkout@v7
+        with:
+          fetch-depth: 0
+          filter: blob:none
 
       # Валидация JSON API по схеме — тем же generate_api.py, что гоняет firebase predeploy
       # при деплое (schemas.py, additionalProperties:False). Локальный prebuild зовёт генератор

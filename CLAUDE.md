@@ -56,6 +56,19 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 - **Деплой:** заменить `pages.yml` (GitHub Pages) на `astro build` + `firebase deploy --only hosting`
   (проект `omnisgm-rules`). JSON API (`generate_api.py`) и release-воркфлоу — решить отдельно при сборке.
 
+### Даты контента для JSON-LD (#219)
+`datePublished`/`dateModified` у `Article` берутся из **истории git** по исходному markdown:
+`web/scripts/gen-content-dates.mjs` (prebuild) делает один проход `git log --name-only` по `src/`
+и пишет карту в `web/src/data/content-dates.json` (gitignored), а `web/src/lib/content-dates.mjs`
+отдаёт даты странице. Сущностная страница знает свой ресурс и передаёт `contentSource` в
+`ReaderShell`; какие `.md` стоят за ресурсом — говорит `_sources.json` от парсера
+(`generate_api.py --emit-sources`), чтобы это знание не дублировалось в JS.
+
+**Мелкий клон дат не даёт.** `actions/checkout` без `fetch-depth: 0` не привозит историю, и
+страницы остаются БЕЗ дат — намеренно: дата билда на 6000 страницах означала бы «всё обновилось
+разом». Поэтому в `ci.yml` и `deploy.yml` стоит `fetch-depth: 0` + `filter: blob:none`, а гейт
+`verify_dist_meta_budget.mjs` валит сборку, если Article остался без обязательных полей.
+
 ### Security-заголовки (#218)
 `X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, HSTS и CSP (пока Report-Only)
 ставятся в `firebase.json` — правило `hosting.headers` с `source: "**"`, первым в списке, а НЕ

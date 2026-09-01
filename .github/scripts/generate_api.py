@@ -505,6 +505,11 @@ def main():
                         help="Root of entity images (web/public/img) — presence decides the `image` field")
     parser.add_argument("--site-origin", default=DEFAULT_SITE_ORIGIN,
                         help="Origin for absolute image URLs")
+    # Карта «ресурс → исходные markdown-файлы» (#219): из неё сборка сайта берёт даты
+    # изменения контента для JSON-LD (и дальше для lastmod в sitemap). Знание о том, из
+    # какого файла собрана коллекция, живёт здесь, в SOURCES, — дублировать его в JS нельзя.
+    parser.add_argument("--emit-sources", default=None,
+                        help="Path to write {ver/lang/resource: [source .md paths]} JSON")
     args = parser.parse_args()
 
     src_root = Path(args.src_root)
@@ -528,6 +533,9 @@ def main():
 
     # Parse all sources
     all_data: dict[tuple[str, str, str], list[dict]] = {}
+    # (ver, lang, resource) → исходные файлы; у ресурса их может быть несколько
+    # (оружие и доспехи собираются из той же главы «Снаряжение»).
+    sources_map: dict[tuple[str, str, str], list[str]] = {}
     total_entities = 0
 
     for source in SOURCES:
@@ -621,6 +629,9 @@ def main():
             continue
 
         key = (ver, lang, resource)
+        rel = str(Path(src_root.name) / source["file"])  # dnd/srd-5.2/ru/07_Spells.md
+        if rel not in sources_map.setdefault(key, []):
+            sources_map[key].append(rel)
         if key in all_data:
             all_data[key].extend(entities)
         else:
@@ -821,6 +832,23 @@ def main():
             sys_links.append({"href": f"{d.name}/", "label": system_labels.get(d.name, d.name)})
     write_index_html(output_dir / "index.html", "TTRPG SRD API", sys_links)
     file_count += 1
+
+    # Карта исходников (#219). Ключ — «ver/lang/resource», значение — пути от src/.
+    # Мультиигровой билд зовёт генератор несколько раз в один файл, поэтому дописываем
+    # к уже существующему содержимому, а не перезаписываем его.
+    if args.emit_sources:
+        out = Path(args.emit_sources)
+        out.parent.mkdir(parents=True, exist_ok=True)
+        existing = {}
+        if out.is_file():
+            try:
+                existing = json.loads(out.read_text(encoding="utf-8"))
+            except json.JSONDecodeError:
+                existing = {}
+        for (ver, lang, resource), files in sources_map.items():
+            existing[f"{SYSTEM}/{ver}/{lang}/{resource}"] = files
+        out.write_text(json.dumps(existing, ensure_ascii=False, indent=2, sort_keys=True), encoding="utf-8")
+        print(f"  sources map: {len(sources_map)} resources → {out}")
 
     print(f"\nDone: {file_count} files written ({total_entities} entities)")
 

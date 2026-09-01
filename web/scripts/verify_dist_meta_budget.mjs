@@ -10,6 +10,8 @@
 //      разделителем (· против —), то есть были дублями по существу.
 //   4) КОРОТКИЕ description — Bing (правило 118 «Meta descriptions too short», #213) ругался
 //      на сниппеты 95–102 символа; нижняя граница комфорта — 110.
+//   5) НЕПОЛНЫЙ Article в JSON-LD (#219) — без image и дат Google не выдаёт rich-результат
+//      вовсе, а даты у нас приезжают из git и на мелком клоне молча исчезают. Гейт нулевой.
 //
 // Гейт — БЮДЖЕТНЫЙ, а не нулевой: чиним разделы волнами (монстры/животные → заклинания →
 // магпредметы → …), и до конца волн нули недостижимы. Скрипт валит CI, если стало ХУЖЕ
@@ -73,6 +75,13 @@ const decode = (s) =>
 
 const byDescription = new Map(); // description → [страницы]
 const shortDescriptions = []; // { page, len }
+// Article без обязательных полей (#219) и страницы, где JSON-LD вовсе не разобрался.
+const ARTICLE_REQUIRED = ['image', 'datePublished', 'dateModified', 'author', 'publisher'];
+const brokenArticles = []; // { page, why }
+let withArticle = 0;
+// Инвариант «даты из контента, а не из сборки»: у 6000 страниц не может быть одной даты
+// изменения. Ровно один dateModified на весь dist = источником дат стал момент билда.
+const modifiedDates = new Set();
 const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
 let pages = 0;
@@ -93,6 +102,29 @@ for (const file of htmlFiles(DIST)) {
       if (key.length < DESCRIPTION_MIN) shortDescriptions.push({ page, len: key.length });
       if (!byDescription.has(key)) byDescription.set(key, []);
       byDescription.get(key).push(page);
+    }
+  }
+
+  // JSON-LD: сам граф — в <head>, но регексп по нему целиком дешевле, чем резать скрипты.
+  const ld = head.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
+  if (ld) {
+    let graph = null;
+    try {
+      graph = JSON.parse(ld[1]);
+    } catch {
+      brokenArticles.push({ page, why: 'JSON-LD не парсится' });
+    }
+    const nodes = graph?.['@graph'] ?? [];
+    const article = nodes.find((n) => n['@type'] === 'Article');
+    const org = nodes.find((n) => n['@type'] === 'Organization');
+    if (org && !(Array.isArray(org.sameAs) && org.sameAs.length)) {
+      brokenArticles.push({ page, why: 'Organization без sameAs' });
+    }
+    if (article) {
+      withArticle++;
+      const missing = ARTICLE_REQUIRED.filter((k) => !article[k]);
+      if (missing.length) brokenArticles.push({ page, why: `Article без ${missing.join(', ')}` });
+      if (article.dateModified) modifiedDates.add(article.dateModified);
     }
   }
 
@@ -126,6 +158,7 @@ console.log(`  дубли description: ${dupPages} страниц в ${dupGroups
 console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} страниц (бюджет ${BUDGET.longTitlePages})`);
 console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
 console.log(`  description < ${DESCRIPTION_MIN} символов: ${shortDescriptions.length} страниц (бюджет ${BUDGET.shortDescriptionPages})`);
+console.log(`  Article в JSON-LD: ${withArticle} страниц, неполных ${brokenArticles.length} (бюджет 0); различных dateModified: ${modifiedDates.size}`);
 
 const errors = [];
 
@@ -190,6 +223,36 @@ if (shortDescriptions.length > BUDGET.shortDescriptionPages) {
   errors.push(
     `коротких description стало ${shortDescriptions.length} при бюджете ${BUDGET.shortDescriptionPages} — опусти BUDGET.shortDescriptionPages`,
   );
+}
+
+// Article — гейт нулевой: поля либо есть у всех, либо сломался источник (напр. мелкий клон
+// без git-истории → нет дат). Половинчатого состояния здесь не бывает.
+if (brokenArticles.length) {
+  errors.push(`неполный JSON-LD: ${brokenArticles.length} страниц`);
+  console.error('\n  Примеры:');
+  for (const { page, why } of brokenArticles.slice(0, 10)) console.error(`    ${why} — ${page}`);
+  const noDates = brokenArticles.filter((b) => b.why.includes('datePublished')).length;
+  if (noDates) {
+    console.error(
+      '\n  Даты берутся из коммитов по контентным .md (scripts/gen-content-dates.mjs). Две причины:\n' +
+        '   • сборка без git-истории — в CI нужен actions/checkout с fetch-depth: 0;\n' +
+        '   • разъехались ключи _sources.json (от generate_api.py --emit-sources) и content-dates.json —\n' +
+        '     оба считают путь от src/, и src-root игры обязан лежать прямо в src/{game}.',
+    );
+  }
+}
+// Одна-единственная дата изменения на весь dist означала бы, что источником стал момент
+// сборки, а не история контента (см. #219). Порог мягкий: важно «не одна», а не «сколько».
+if (withArticle > 100 && modifiedDates.size < 2) {
+  errors.push(
+    `dateModified одинаковый на всех ${withArticle} страницах (${[...modifiedDates][0]}) — ` +
+      `похоже, даты приехали из сборки, а не из истории контента`,
+  );
+}
+
+// Покрытие Article: если он вдруг исчез со всех страниц, гейт выше промолчит (нечего ломать).
+if (withArticle < pages * 0.9) {
+  errors.push(`Article найден только на ${withArticle} из ${pages} страниц — шаблон JSON-LD сломан`);
 }
 
 if (errors.length) {

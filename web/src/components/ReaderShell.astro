@@ -10,6 +10,7 @@ import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, isGroup, flattenPages,
   label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup, type NavNode,
 } from '../lib/nav';
+import { pageDates } from '../lib/content-dates.mjs';
 
 export interface Props {
   lang: Lang;
@@ -25,8 +26,11 @@ export interface Props {
   image?: string;        // og:image страницы (портрет существа, #201); по умолчанию общий og.png
   imageWidth?: number;
   imageHeight?: number;
+  // Откуда собран контент сущностной страницы (#219) — чтобы взять даты изменения из git.
+  // У markdown-глав источник известен из sourceId, здесь его передавать не надо.
+  contentSource?: { game: string; ver: string; lang: string; resource: string };
 }
-const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
@@ -121,9 +125,13 @@ const pageUrl = SITE + currentPath; // currentPath с trailing slash (trailingSl
 const nodeRoute = (n: NavNode): string =>
   isGroup(n) ? (flattenPages(n.kids)[0] ? routeOf(flattenPages(n.kids)[0].slug, lang) : homeRoute(lang))
              : routeOf(n.slug, lang);
+// sameAs — брендовый сигнал: связывает три наших ресурса и репозиторий в одну сущность.
+// Практический смысл именно здесь: в выдаче по «OmnisGM» соседствует научная статья
+// «OmniSGM», и без явных связей поисковику не за что зацепиться (#219).
 const org = {
   '@type': 'Organization', '@id': SITE + '/#org', name: 'OmnisGM', url: MAIN,
   logo: { '@type': 'ImageObject', url: SITE + '/icon-512.png', width: 512, height: 512 },
+  sameAs: [MAIN + '/', 'https://news.omnisgm.com/', SITE + '/', REPO],
 };
 const webSite = {
   '@type': 'WebSite', '@id': SITE + '/#website', url: SITE + '/',
@@ -136,11 +144,20 @@ if (currentId !== 'home' && trail.length) {
     '@type': 'BreadcrumbList',
     itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: SITE + c.url })),
   });
+  // Article без image и без дат Google не показывает rich-результатом вовсе (#219).
+  // image — портрет сущности, если он есть, иначе общий og.png (у обоих абсолютный URL).
+  // Даты — из git по исходному markdown; на сборке без истории их не будет, и это лучше,
+  // чем дата билда у всех 6000 страниц разом (см. lib/content-dates.mjs).
+  const dates = pageDates({ sourceId, contentSource });
   graph.push({
     '@type': 'Article', '@id': pageUrl + '#article',
     headline: searchTitle ?? title, url: pageUrl, inLanguage: lang,
     ...(description ? { description } : {}),
+    image: SITE + (image ?? '/og.png'),
+    ...(dates ? { datePublished: dates.published, dateModified: dates.modified } : {}),
+    author: { '@id': SITE + '/#org' },
     isPartOf: { '@id': SITE + '/#website' }, publisher: { '@id': SITE + '/#org' },
+    mainEntityOfPage: { '@type': 'WebPage', '@id': pageUrl },
   });
 }
 const jsonLd = { '@context': 'https://schema.org', '@graph': graph };

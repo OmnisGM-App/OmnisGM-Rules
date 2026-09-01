@@ -14,6 +14,9 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..'); // .../OmnisGM-Rules
 const script = resolve(repoRoot, '.github/scripts/generate_api.py');
 const outDir = resolve(here, '../src/data/api');
+// Карта «ресурс → исходные .md» (#219): нужна сборке, чтобы проставить сущностным страницам
+// datePublished/dateModified. Знание живёт в SOURCES генератора, здесь его не дублируем.
+const sourcesFile = resolve(outDir, '_sources.json');
 const python = process.env.PYTHON || 'python3';
 
 // Каждая игра — свой конфиг (config.py / config_{game}.py) и src-root; общий output-dir
@@ -33,7 +36,8 @@ for (const { game, srcRoot } of GAMES) {
   try {
     execFileSync(
       python,
-      [script, '--game', game, '--src-root', srcRoot, '--output-dir', outDir, '--no-validate'],
+      [script, '--game', game, '--src-root', srcRoot, '--output-dir', outDir, '--no-validate',
+       '--emit-sources', sourcesFile],
       { stdio: 'inherit' },
     );
   } catch (err) {

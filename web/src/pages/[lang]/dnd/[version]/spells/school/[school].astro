@@ -55,6 +55,7 @@ const otherSchools = SCHOOL_HUBS.filter((s) => s.slug !== sSlug);
 ---
 
 <ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'spells' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}
