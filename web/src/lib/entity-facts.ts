@@ -325,3 +325,116 @@ export function magicItemDescription(opts: {
     compose(false, true, true),
   ]);
 }
+
+// ── Оружие ───────────────────────────────────────────────────────────────────
+
+/**
+ * Фактовый <meta description> оружия (issue #214). Раньше строился прямо в шаблоне страницы и
+ * состоял из урона, цены и веса — 74–90 символов, то есть заметно короче того, что поисковик
+ * готов показать. Добавлены свойства, мастерство и дистанция: это ровно те факты, которыми
+ * оружие и отличается друг от друга («какое оружие универсальное», «мастерство оглушение»).
+ *
+ * Свойства берём БЕЗ скобочных уточнений: «Боеприпас (дистанция 30/120; снаряд)» съело бы пол
+ * сниппета, а дистанция и так стоит отдельным фактом.
+ *
+ * Урон есть не у всего: у Сети его нет вовсе, и прежний шаблон печатал «урон , цена 1 зм» —
+ * с висящей запятой и пустым местом. Пустые факты просто не попадают в строку.
+ */
+export function weaponDescription(opts: {
+  name: string;
+  lang: 'en' | 'ru';
+  version: string;
+  catLabel: string;   // «Простое» / «Simple» — локализовано в шаблоне страницы
+  typeLabel: string;  // «ближнего боя» / «Melee»
+  damageLine: string; // «1d8 рубящий» / «1d8 Slashing»
+  rangeLine: string;  // «30/120 фт» / «30/120 ft»
+  properties: string[];
+  mastery: string;
+  cost: string;
+  weight: string;
+}): string {
+  const { name, lang, version, catLabel, typeLabel, damageLine, rangeLine, mastery, cost, weight } = opts;
+  const ed = editionLabel(version);
+  // «Универсальное (1d10)» → «универсальное»: скобки повторяют то, что уже сказано фактами.
+  const props = opts.properties
+    .map((p) => p.replace(/\s*\(.*$/, '').trim())
+    .filter(Boolean)
+    .map((p) => (lang === 'ru' ? lower(p) : p));
+
+  const compose = (withProps: boolean, withMastery: boolean, withGear: boolean) => {
+    const gear = withGear
+      ? [cost && (lang === 'ru' ? `цена ${cost}` : `cost ${cost}`),
+         weight && (lang === 'ru' ? `вес ${weight}` : `weight ${weight}`)].filter(Boolean).join(', ')
+      : '';
+    if (lang === 'ru') {
+      // Свойства и мастерство отделяем точкой с запятой: внутри перечня свойств уже есть
+      // запятые, и «свойства: боеприпас, мастерство «Замедление»» читалось бы как одно
+      // перечисление из трёх свойств.
+      const kit = [
+        withProps && props.length && `свойства: ${props.join(', ')}`,
+        withMastery && mastery && `мастерство «${mastery}»`,
+      ].filter(Boolean).join('; ');
+      const facts = [
+        damageLine && `урон ${damageLine}`,
+        rangeLine && `дистанция ${rangeLine}`,
+        kit,
+        gear,
+      ].filter(Boolean).join(', ');
+      return endSentence(`${name} — ${catLabel.toLowerCase()} оружие ${typeLabel} ${ed} (днд): ${facts}`);
+    }
+    const kit = [
+      withProps && props.length && `properties: ${props.join(', ')}`,
+      withMastery && mastery && `${mastery} mastery`,
+    ].filter(Boolean).join('; ');
+    const facts = [
+      damageLine && `${damageLine} damage`,
+      rangeLine && `range ${rangeLine}`,
+      kit,
+      gear,
+    ].filter(Boolean).join(', ');
+    return endSentence(`${name} — a ${ed} ${catLabel.toLowerCase()} ${typeLabel.toLowerCase()} weapon: ${facts}`);
+  };
+
+  // От самого полного к самому урезанному: первым уходит мастерство (одно слово), затем
+  // свойства (самая длинная часть). Цена и вес остаются всегда — это отдельный кластер спроса.
+  return fit([
+    compose(true, true, true),
+    compose(true, false, true),
+    compose(false, false, true),
+  ]);
+}
+
+// ── Навыки BRP ───────────────────────────────────────────────────────────────
+
+/**
+ * Фактовый <meta description> навыка BRP (issue #214). Раньше шёл голый excerpt() описания —
+ * одна строка на 46–62 символа («Move quietly and remain unseen while in motion»), без имени
+ * навыка, без системы и без базового шанса, а базовый шанс — это и есть то, что ищут.
+ * Описание идёт хвостом ровно в остаток бюджета, как у снаряжения.
+ */
+export function brpSkillDescription(opts: {
+  name: string;
+  lang: 'en' | 'ru';
+  baseChance: string;
+  category: string;
+  descriptionMd: string;
+}): string | null {
+  const { name, lang, baseChance, category, descriptionMd } = opts;
+  if (!baseChance && !category) return null;
+
+  const facts =
+    lang === 'ru'
+      ? [baseChance && `базовый шанс ${baseChance}`, category && `категория «${category}»`]
+      : [baseChance && `base chance ${baseChance}`, category && `${category.toLowerCase()} category`];
+  const head = endSentence(
+    lang === 'ru'
+      ? `${name} — навык Basic Roleplaying: ${facts.filter(Boolean).join(', ')}`
+      : `${name} — a Basic Roleplaying skill: ${facts.filter(Boolean).join(', ')}`,
+  );
+
+  // Тот же порог, что у снаряжения: обрезок короче 20 символов превратился бы в голое «…».
+  const MIN_TAIL = 20;
+  const room = LIMIT - head.length - 1;
+  const tail = room >= MIN_TAIL ? excerpt(descriptionMd, room) : '';
+  return tail ? `${head} ${tail}` : head;
+}
