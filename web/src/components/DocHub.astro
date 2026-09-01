@@ -18,6 +18,7 @@ import {
 import { pageTitle } from '../lib/page-title';
 import { resourceTotal } from '../lib/entity-counts.mjs';
 import { isIndexableGlossary } from '../lib/glossary-seo.mjs';
+import { pluralRu } from '../lib/plural.mjs';
 
 interface Props {
   lang: Lang;
@@ -81,8 +82,12 @@ const title = pageTitle({ name: t('Правила и справочники', 'R
 
 const chapterCount = chapters.reduce((n, c) => n + (isGroup(c) ? c.kids.length : 1), 0);
 const entityCount = compendiums.reduce((n, c) => n + (totalOf(c) ?? 0), 0);
+// Числа тут произвольные (884 страницы, 1042 страницы, 25 разделов) — форму существительного
+// без pluralRu не угадать: захардкоженное «страниц» давало «884 страниц» в сниппете выдачи.
+const sections = pluralRu(chapterCount, ['раздел', 'раздела', 'разделов']);
+const pages = pluralRu(entityCount, ['страница', 'страницы', 'страниц']);
 const description = t(
-  `${sysLabel} ${verLabel} на русском: ${chapterCount} разделов правил и справочники — ${entityCount} страниц заклинаний, монстров, предметов и других сущностей со ссылками на каждую.`,
+  `${sysLabel} ${verLabel} на русском: ${chapterCount} ${sections} правил и справочники — ${entityCount} ${pages} заклинаний, монстров, предметов и других сущностей со ссылками на каждую.`,
   `${sysLabel} ${verLabel} in full: ${chapterCount} rules sections plus reference compendiums — ${entityCount} pages of spells, monsters, items and other entities, each linked.`,
 );
 

@@ -31,6 +31,15 @@ eq(countPhrase(2, 'ru', ANIMAL, ['animal', 'animals']), 'Все 2 животны
 eq(countPhrase(24, 'ru', MONSTER, ['monster', 'monsters']), 'Все 24 монстра', 'countPhrase(24)');
 eq(countPhrase(5, 'ru', MONSTER, ['monster', 'monsters']), 'Все 5 монстров', 'countPhrase(5)');
 
+// Хабы документов (#245): числа там произвольные и крупные — «884 страниц» вместо «страницы»
+// висело на проде, потому что форма была захардкожена. Реальные значения четырёх хабов.
+const PAGE = ['страница', 'страницы', 'страниц'];
+eq(pluralRu(884, PAGE), 'страницы', 'pluralRu(884) — D&D 5.1');
+eq(pluralRu(1042, PAGE), 'страницы', 'pluralRu(1042) — D&D 5.2');
+eq(pluralRu(364, PAGE), 'страницы', 'pluralRu(364) — Daggerheart');
+eq(pluralRu(78, PAGE), 'страниц', 'pluralRu(78) — BRP');
+eq(pluralRu(25, ['раздел', 'раздела', 'разделов']), 'разделов', 'pluralRu(25) — разделы хаба');
+
 // Английский: форм две, «All» уходит при единице.
 eq(countPhrase(1, 'en', ANIMAL, ['animal', 'animals']), '1 animal', 'countPhrase(1, en)');
 eq(countPhrase(3, 'en', ANIMAL, ['animal', 'animals']), 'All 3 animals', 'countPhrase(3, en)');
