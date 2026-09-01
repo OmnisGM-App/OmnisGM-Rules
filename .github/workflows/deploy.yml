@@ -21,6 +21,10 @@ on:
         description: 'IndexNow: пингануть ВЕСЬ sitemap (только при смене домена/структуры URL)'
         type: boolean
         default: false
+      purge_all:
+        description: 'Cloudflare: сбросить зону целиком (правка заголовков/конфига без правки контента)'
+        type: boolean
+        default: false
 
 permissions:
   contents: read
@@ -146,6 +150,8 @@ jobs:
         env:
           CF_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
           CF_ZONE_ID: ${{ secrets.CLOUDFLARE_ZONE_ID }}
+          BEFORE: ${{ github.event.before }}
+          PURGE_ALL: ${{ inputs.purge_all }}
         run: |
           set -uo pipefail
           if [ -z "${CF_API_TOKEN:-}" ] || [ -z "${CF_ZONE_ID:-}" ]; then
@@ -166,12 +172,36 @@ jobs:
             --out /tmp/purge.txt --changed /tmp/urls.txt --removed /tmp/removed.txt \
             || { echo "❌ cf_purge_urls.mjs не отработал — purge-список не собран"; exit 1; }
 
+          # Правка ТОЛЬКО заголовков (firebase.json) не меняет тела страниц: дифф сборки пуст,
+          # адресный purge чистить нечего — и это не «нечего делать», а самый опасный случай.
+          # Cloudflare при истечении TTL ревалидирует запись по ETag, получает 304, тело то же —
+          # и ОСТАВЛЯЕТ у себя ранее сохранённые заголовки, сбрасывая возраст записи. Ждать TTL
+          # бесполезно: горячая страница держит старый набор сколько угодно (#227, поймано на
+          # security-заголовках #218 — часть прода была с ними, часть без, само не сходилось).
+          # Лекарство одно — сброс зоны: списку purge взяться неоткуда, он пуст по построению.
+          force_all=false
+          why=""
+          if [ "${PURGE_ALL:-false}" = "true" ]; then
+            force_all=true; why="полный сброс запрошен вручную"
+          elif [ -n "${BEFORE:-}" ] && git cat-file -e "$BEFORE^{commit}" 2>/dev/null; then
+            if git diff --name-only "$BEFORE" "$GITHUB_SHA" | grep -qx 'firebase.json'; then
+              force_all=true; why="в деплое менялся firebase.json — заголовки ответа новые"
+            fi
+          else
+            # Первый пуш ветки или force-push: диапазона нет, судить не о чем — обычный путь.
+            echo "Диапазон коммитов недоступен (before=${BEFORE:-—}) — правку firebase.json не проверяем."
+          fi
+
           PURGE_MAX_BATCHES=40   # 40 × 30 URL = 1200 адресов, дальше выгоднее сбросить зону
           total=$(grep -c . /tmp/purge.txt || true)
           batches=$(( (total + 29) / 30 ))
 
-          if [ "$batches" -gt "$PURGE_MAX_BATCHES" ]; then
-            echo "::warning::Cloudflare: $total URL к сбросу — это $batches порций, сбрасываем зону целиком (заденет кэш News/Table, они прогреются)."
+          # Цена сброса зоны: зона одна на весь omnisgm.com, вместе с Rules прогреются заново
+          # News и Table. Правка заголовков редка, а частичное состояние прода — хуже.
+          if [ "$force_all" = true ] || [ "$batches" -gt "$PURGE_MAX_BATCHES" ]; then
+            [ "$force_all" = true ] \
+              && echo "::warning::Cloudflare: $why — сбрасываем зону целиком (заденет кэш News/Table, они прогреются)." \
+              || echo "::warning::Cloudflare: $total URL к сбросу — это $batches порций, сбрасываем зону целиком (заденет кэш News/Table, они прогреются)."
             resp=$(call '{"purge_everything":true}')
             echo "$resp" | grep -q '"success":true' \
               || { echo "❌ Cloudflare purge_everything не удался: $resp"; exit 1; }
