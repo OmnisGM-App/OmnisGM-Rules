@@ -4,6 +4,7 @@ import ReaderShell from '../../components/ReaderShell.astro';
 import { parseId, titleFromBody } from '../../lib/slug';
 import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
 import { classDescription } from '../../lib/class-facts';
+import { pageDescription } from '../../lib/page-description.mjs';
 import { pageTitle } from '../../lib/page-title';
 
 export async function getStaticPaths() {
@@ -59,14 +60,14 @@ const title = pageTitle({
   name: searchTitle, kind: mdKind, lang: ref.lang, game: ref.game, version: ref.version,
 });
 
+// Фолбэк для всех прочих глав (issue #213): вместо бойлерплейта «… Tabletop RPG System
+// Reference Document in the OmnisGM ecosystem.» (95–102 символа, уникальны только первые
+// три слова) собираем сниппет из содержимого страницы — вводной прозы или её структуры.
 const description =
   (isClass
     ? classDescription({ name: searchTitle, body: entry.body, lang: ref.lang, version: ref.version, verLabel: docLabel })
     : null) ??
-  t(
-    `${searchTitle} — ${sysLabel} ${docLabel} на русском. SRD настольных ролевых игр в экосистеме OmnisGM.`,
-    `${searchTitle} — ${sysLabel} ${docLabel}. Tabletop RPG System Reference Document in the OmnisGM ecosystem.`,
-  );
+  pageDescription({ name: searchTitle, body: entry.body, lang: ref.lang, sysLabel, docLabel });
 ---
 <ReaderShell
   lang={ref.lang}

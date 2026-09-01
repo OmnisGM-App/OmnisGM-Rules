@@ -8,6 +8,8 @@
 //   2) ДЛИННЫЕ <title> — Bing ругался «Title too long» (#172); порог 65 символов.
 //   3) ДУБЛИ <title> — до шаблонов из page-title.ts глава и хаб «all» различались только
 //      разделителем (· против —), то есть были дублями по существу.
+//   4) КОРОТКИЕ description — Bing (правило 118 «Meta descriptions too short», #213) ругался
+//      на сниппеты 95–102 символа; нижняя граница комфорта — 110.
 //
 // Гейт — БЮДЖЕТНЫЙ, а не нулевой: чиним разделы волнами (монстры/животные → заклинания →
 // магпредметы → …), и до конца волн нули недостижимы. Скрипт валит CI, если стало ХУЖЕ
@@ -35,7 +37,14 @@ const BUDGET = {
   // Страниц с неуникальным <title>. Метка редакции («D&D 2024»/«D&D 2014») специально не
   // выпадает из лестницы — иначе одноимённые страницы 5.1 и 5.2 схлопнутся в дубли.
   dupTitlePages: 0,
+  // Страниц с description короче DESCRIPTION_MIN. Было 936 до #213, стало 774: волна накрыла
+  // фолбэк markdown-страниц (164 коротких → 3). Остаток — сущностные страницы, чьи описания
+  // строятся из короткого контента (навык BRP в одну строку, заклинание без описания
+  // в шапке); это отдельная волна, до неё нулём число не станет.
+  shortDescriptionPages: 776,
 };
+// Нижняя граница комфортного сниппета: короче — Bing считает description «too short».
+const DESCRIPTION_MIN = 110;
 const TITLE_LIMIT = 65;
 // Разрешённая «недобранность»: если фактическое число упало ниже бюджета более чем на
 // SLACK, требуем обновить бюджет — иначе гейт молча перестаёт ловить регрессии.
@@ -63,6 +72,7 @@ const decode = (s) =>
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
 const byDescription = new Map(); // description → [страницы]
+const shortDescriptions = []; // { page, len }
 const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
 let pages = 0;
@@ -80,6 +90,7 @@ for (const file of htmlFiles(DIST)) {
     const key = decode(desc[1]).trim();
     if (key) {
       withDescription++;
+      if (key.length < DESCRIPTION_MIN) shortDescriptions.push({ page, len: key.length });
       if (!byDescription.has(key)) byDescription.set(key, []);
       byDescription.get(key).push(page);
     }
@@ -114,6 +125,7 @@ console.log(`Мета-бюджет: обойдено ${pages} страниц dis
 console.log(`  дубли description: ${dupPages} страниц в ${dupGroups.length} группах (бюджет ${BUDGET.dupDescriptionPages})`);
 console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} страниц (бюджет ${BUDGET.longTitlePages})`);
 console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
+console.log(`  description < ${DESCRIPTION_MIN} символов: ${shortDescriptions.length} страниц (бюджет ${BUDGET.shortDescriptionPages})`);
 
 const errors = [];
 
@@ -163,6 +175,20 @@ if (dupTitlePages > BUDGET.dupTitlePages) {
 } else if (dupTitlePages < BUDGET.dupTitlePages - SLACK) {
   errors.push(
     `дублей <title> стало ${dupTitlePages} при бюджете ${BUDGET.dupTitlePages} — опусти BUDGET.dupTitlePages`,
+  );
+}
+
+if (shortDescriptions.length > BUDGET.shortDescriptionPages) {
+  errors.push(`коротких description: ${shortDescriptions.length} > бюджета ${BUDGET.shortDescriptionPages}`);
+  console.error('\n  Самые короткие description:');
+  for (const { page, len } of shortDescriptions.slice().sort((a, b) => a.len - b.len).slice(0, 10)) {
+    console.error(`    ${len}\t${page}`);
+  }
+  console.error('\n  По разделам:');
+  for (const [s, n] of bySection(shortDescriptions.map((x) => x.page)).slice(0, 10)) console.error(`    ${n}\t${s}`);
+} else if (shortDescriptions.length < BUDGET.shortDescriptionPages - SLACK) {
+  errors.push(
+    `коротких description стало ${shortDescriptions.length} при бюджете ${BUDGET.shortDescriptionPages} — опусти BUDGET.shortDescriptionPages`,
   );
 }
 
