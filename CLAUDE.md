@@ -56,6 +56,15 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 - **Деплой:** заменить `pages.yml` (GitHub Pages) на `astro build` + `firebase deploy --only hosting`
   (проект `omnisgm-rules`). JSON API (`generate_api.py`) и release-воркфлоу — решить отдельно при сборке.
 
+### Security-заголовки (#218)
+`X-Content-Type-Options`, `Referrer-Policy`, `X-Frame-Options`, HSTS и CSP (пока Report-Only)
+ставятся в `firebase.json` — правило `hosting.headers` с `source: "**"`, первым в списке, а НЕ
+в Cloudflare Transform Rules: конфиг в репозитории виден в ревью и едет вместе с деплоем.
+Firebase мержит правила по ключам, поэтому точечные `Cache-Control` (`/img/**`, `sw.js`) живы —
+это и проверяет `bash web/scripts/check_security_headers.sh` (без аргумента — прод, с URL —
+эмулятор). HSTS без `preload`: список принимает апекс `omnisgm.com` и накрывает ВСЕ поддомены,
+так что preload — отдельное решение владельца на лендинге, не отсюда.
+
 ### Картинки сущностей и генератор (#201, #202)
 Портреты существ и иконки заклинаний/магпредметов лежат в репо статикой (`web/public/img/{game}/{kind}/`),
 показываются на странице сущности и уходят в поле `image` JSON API. Формат и раскладка —
