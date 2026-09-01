@@ -8,7 +8,7 @@ import markRaw from '@omnisgm-app/brand/assets/mark.svg?raw';
 const BRAND_MARK = markRaw.replace(/\s(width|height)="[^"]*"/g, '').replace('<svg ', '<svg style="display:block;width:100%;height:100%" ');
 import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, isGroup, flattenPages,
-  label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup, type NavNode,
+  label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup,
 } from '../lib/nav';
 import { pageDates } from '../lib/content-dates.mjs';
 
@@ -80,8 +80,6 @@ const trail = findPath(currentId) ?? [];
 const openIds = new Set(trail.map((n) => n.id));
 if (currentId === 'home') { openIds.add('dnd'); openIds.add('d52'); }
 
-const crumb = trail.slice(0, -1).map((n) => label(n, lang)).join('  ·  ');
-
 const other: Lang = lang === 'en' ? 'ru' : 'en';
 // Слаг из URL, а НЕ из nav-дерева: у страниц вне nav (обзор группы вроде classes/classes)
 // nodeBySlug ничего не находит, из-за чего пара строилась как у хаба — переключатель языка
@@ -90,6 +88,52 @@ const other: Lang = lang === 'en' ? 'ru' : 'en';
 // Для хабов /en/·/ru/ и корня pathSlug пуст.
 const currentPath = Astro.url.pathname;
 const pathSlug = currentPath.replace(/^\/(en|ru)\//, '').replace(/\/+$/, '');
+
+// ── Хлебные крошки: ОДИН источник для разметки BreadcrumbList и видимой строки ──────────
+// Требование Google — разметка описывает то, что видно на странице; раньше это были два
+// независимых куска, и видимая строка была текстом без ссылок при живой разметке (#220).
+//
+// Уровни берутся из NAV-дерева, но не один-в-один (решение по #220, вариант 2):
+//  • игра и редакция схлопываются в ОДИН уровень документа («SRD 5.2.1»). Раньше URL обоих
+//    вычислялся как «первая страница-лист внутри», а у игры и у её первой редакции она одна и
+//    та же (Legal) — отсюда дубли URL на позициях 2–3, а на страницах 5.1 крошка «D&D» уезжала
+//    в 5.2, потому что бралась первая страница всей игры, а не текущей редакции;
+//  • у группы БЕЗ собственной страницы («Классы», «Глоссарий») ссылки нет: она остаётся
+//    видимым текстом, но из разметки выпадает. Раньше ей подставлялась первая страница-лист —
+//    отсюда «Классы» → /classes/barbarian/ и «Глоссарий» → noindex /glossary/glossary/.
+// Крошка документа ведёт на первую содержательную страницу редакции. Настоящие хабы документов
+// (/ru/dnd/srd-5.2/) заведены отдельно в #230 — когда приедут, здесь меняется только docEntry.
+type Crumb = { name: string; url: string | null };
+// Legal пропускаем намеренно: это выходные данные, а не вход в документ.
+const docEntry = (g: NavGroup) => {
+  const pages = flattenPages(g.kids).filter((p) => !p.hidden);
+  return pages.find((p) => !p.id.endsWith('-legal')) ?? pages[0];
+};
+const crumbs: Crumb[] = [];
+if (currentId !== 'home' && trail.length) {
+  crumbs.push({ name: t('Главная', 'Home'), url: homeRoute(lang) });
+  trail.forEach((n, i) => {
+    // игра, за которой идёт редакция → уровень схлопнут: метку и ссылку даёт редакция
+    if (i === 0 && isGroup(n) && trail[1] && isGroup(trail[1])) return;
+    if (!isGroup(n)) { crumbs.push({ name: label(n, lang), url: routeOf(n.slug, lang) }); return; }
+    const entry = i === 1 && isGroup(trail[0]) ? docEntry(n) : undefined;
+    crumbs.push({ name: label(n, lang), url: entry ? routeOf(entry.slug, lang) : null });
+  });
+  // Сущностные страницы, хабы и фасеты живут вне NAV: их currentId — глава-родитель, сами они
+  // в trail не попадают. Дописываем текущую страницу, чтобы конец трейла был единообразен по
+  // шаблонам (раньше у заклинания трейл обрывался на разделе, а у класса включал сам класс).
+  if (crumbs[crumbs.length - 1].url !== currentPath) {
+    crumbs.push({ name: searchTitle ?? title, url: currentPath });
+  }
+  // На самой странице-входе документа («Как играть») крошка документа и крошка страницы — один
+  // и тот же адрес. Дубль URL в BreadcrumbList — ровно то, из-за чего заведён #220, поэтому
+  // схлопываем соседей с одинаковым URL, оставляя нижний (конкретный) уровень.
+  for (let i = crumbs.length - 1; i > 0; i--) {
+    if (crumbs[i].url && crumbs[i].url === crumbs[i - 1].url) crumbs.splice(i - 1, 1);
+  }
+}
+// Видимая строка — без последнего элемента: он и так стоит заголовком H1 прямо под ней.
+const visibleCrumbs = crumbs.slice(0, -1);
 const counterpart = pathSlug ? `/${other}/${pathSlug}/` : `/${other}/`;
 // URL каждого языка (для мобильного <select>): текущий язык → текущий путь, другой → counterpart
 const enUrl = lang === 'en' ? currentPath : counterpart;
@@ -121,10 +165,6 @@ const next = idx >= 0 ? visibleFrom(idx + 1, 1) : null;
 // ── JSON-LD (schema.org) — для rich-результатов и хлебных крошек в выдаче ───────
 const SITE = 'https://rules.omnisgm.com';
 const pageUrl = SITE + currentPath; // currentPath с trailing slash (trailingSlash:'always')
-// URL узла: страница → её маршрут, группа → первая страница-лист под ней.
-const nodeRoute = (n: NavNode): string =>
-  isGroup(n) ? (flattenPages(n.kids)[0] ? routeOf(flattenPages(n.kids)[0].slug, lang) : homeRoute(lang))
-             : routeOf(n.slug, lang);
 // sameAs — брендовый сигнал: связывает три наших ресурса и репозиторий в одну сущность.
 // Практический смысл именно здесь: в выдаче по «OmnisGM» соседствует научная статья
 // «OmniSGM», и без явных связей поисковику не за что зацепиться (#219).
@@ -139,10 +179,12 @@ const webSite = {
 };
 const graph: object[] = [org, webSite];
 if (currentId !== 'home' && trail.length) {
-  const crumbs = [{ name: t('Главная', 'Home'), url: homeRoute(lang) }, ...trail.map((n) => ({ name: label(n, lang), url: nodeRoute(n) }))];
-  graph.push({
+  // В разметку идут только уровни с собственным адресом (см. блок крошек выше);
+  // группы без страницы остаются видимым текстом, но ListItem без item был бы мусором.
+  const linked = crumbs.filter((c) => c.url);
+  if (linked.length > 1) graph.push({
     '@type': 'BreadcrumbList',
-    itemListElement: crumbs.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: SITE + c.url })),
+    itemListElement: linked.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: SITE + c.url })),
   });
   // Article без image и без дат Google не показывает rich-результатом вовсе (#219).
   // image — портрет сущности, если он есть, иначе общий og.png (у обоих абсолютный URL).
@@ -267,7 +309,16 @@ const searchUi = {
 
       <main class="rd-content og-scroll">
         <div class="rd-content-inner">
-          {crumb && <div class="rd-crumb">{crumb}</div>}
+          {visibleCrumbs.length > 0 && (
+            <nav class="rd-crumb" aria-label={t('Хлебные крошки', 'Breadcrumb')}>
+              {visibleCrumbs.map((c, i) => (
+                <Fragment>
+                  {i > 0 && <span class="rd-crumb-sep" aria-hidden="true">·</span>}
+                  {c.url ? <a href={c.url}>{c.name}</a> : <span>{c.name}</span>}
+                </Fragment>
+              ))}
+            </nav>
+          )}
           <article class="rd-doc" data-pagefind-body={bilingual ? undefined : true} data-pagefind-ignore={bilingual ? true : undefined} data-pagefind-meta={!bilingual && searchTitle ? `title:${searchTitle}` : undefined}>
             <slot />
           </article>

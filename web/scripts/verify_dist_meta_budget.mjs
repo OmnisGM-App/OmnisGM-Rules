@@ -10,6 +10,10 @@
 //      разделителем (· против —), то есть были дублями по существу.
 //   4) КОРОТКИЕ description — Bing (правило 118 «Meta descriptions too short», #213) ругался
 //      на сниппеты 95–102 символа; нижняя граница комфорта — 110.
+//   6) БИТЫЙ BreadcrumbList (#220) — уровни строятся из NAV-дерева, и раньше группе без
+//      собственной страницы подставлялась «первая страница-лист внутри»: игра и её первая
+//      редакция давали ОДИН URL (дубль позиций 2–3), «Классы» вели на варвара. Гейт нулевой:
+//      внутри трейла все URL различны и каждый ведёт на существующую страницу dist.
 //   5) НЕПОЛНЫЙ Article в JSON-LD (#219) — без image и дат Google не выдаёт rich-результат
 //      вовсе, а даты у нас приезжают из git и на мелком клоне молча исчезают. Гейт нулевой.
 //
@@ -82,6 +86,10 @@ let withArticle = 0;
 // Инвариант «даты из контента, а не из сборки»: у 6000 страниц не может быть одной даты
 // изменения. Ровно один dateModified на весь dist = источником дат стал момент билда.
 const modifiedDates = new Set();
+// Крошки (#220): собираем трейлы, проверяем после обхода — «ведёт ли URL на страницу» можно
+// сказать, только когда известен полный список собранных страниц.
+const crumbTrails = []; // { page, urls }
+const pagePaths = new Set(); // '/ru/dnd/...' → страница существует в dist
 const byTitle = new Map(); // title → [страницы]
 const longTitles = []; // { page, len }
 let pages = 0;
@@ -93,6 +101,7 @@ for (const file of htmlFiles(DIST)) {
   const head = html.slice(0, html.indexOf('</head>'));
   const page = '/' + relative(DIST, file).split(sep).join('/');
   pages++;
+  if (page.endsWith('/index.html')) pagePaths.add(page.slice(0, -'index.html'.length));
 
   const desc = head.match(/<meta\s+name="description"\s+content="([^"]*)"/);
   if (desc) {
@@ -120,6 +129,10 @@ for (const file of htmlFiles(DIST)) {
     if (org && !(Array.isArray(org.sameAs) && org.sameAs.length)) {
       brokenArticles.push({ page, why: 'Organization без sameAs' });
     }
+    const crumbs = nodes.find((n) => n['@type'] === 'BreadcrumbList');
+    if (crumbs) {
+      crumbTrails.push({ page, urls: (crumbs.itemListElement ?? []).map((i) => i.item) });
+    }
     if (article) {
       withArticle++;
       const missing = ARTICLE_REQUIRED.filter((k) => !article[k]);
@@ -137,6 +150,17 @@ for (const file of htmlFiles(DIST)) {
       if (!byTitle.has(text)) byTitle.set(text, []);
       byTitle.get(text).push(page);
     }
+  }
+}
+
+// Разбор крошек: дубли URL внутри одного трейла и ссылки на несуществующие страницы.
+const SITE = 'https://rules.omnisgm.com';
+const crumbDup = crumbTrails.filter((t) => new Set(t.urls).size !== t.urls.length);
+const crumbDead = [];
+for (const t of crumbTrails) {
+  for (const u of t.urls) {
+    const path = u.startsWith(SITE) ? u.slice(SITE.length) : null;
+    if (!path || !pagePaths.has(path)) crumbDead.push({ page: t.page, url: u });
   }
 }
 
@@ -159,6 +183,7 @@ console.log(`  <title> > ${TITLE_LIMIT} символов: ${longTitles.length} �
 console.log(`  дубли <title>: ${dupTitlePages} страниц в ${dupTitleGroups.length} группах (бюджет ${BUDGET.dupTitlePages})`);
 console.log(`  description < ${DESCRIPTION_MIN} символов: ${shortDescriptions.length} страниц (бюджет ${BUDGET.shortDescriptionPages})`);
 console.log(`  Article в JSON-LD: ${withArticle} страниц, неполных ${brokenArticles.length} (бюджет 0); различных dateModified: ${modifiedDates.size}`);
+console.log(`  BreadcrumbList: ${crumbTrails.length} страниц, дублей URL в трейле ${crumbDup.length}, ссылок в никуда ${crumbDead.length} (бюджет 0/0)`);
 
 const errors = [];
 
@@ -247,6 +272,25 @@ if (withArticle > 100 && modifiedDates.size < 2) {
   errors.push(
     `dateModified одинаковый на всех ${withArticle} страницах (${[...modifiedDates][0]}) — ` +
       `похоже, даты приехали из сборки, а не из истории контента`,
+  );
+}
+
+// Крошки — гейт нулевой: дубль URL и ссылка в никуда это всегда баг генерации трейла, а не
+// «хвост незакрытой волны». Покрытие меряем отдельно: BreadcrumbList есть у всех страниц,
+// у которых есть Article (оба живут в одном блоке шаблона).
+if (crumbDup.length) {
+  errors.push(`BreadcrumbList с дублями URL: ${crumbDup.length} страниц`);
+  console.error('\n  Примеры трейлов с дублем:');
+  for (const t of crumbDup.slice(0, 5)) console.error(`    ${t.page}\n      ${t.urls.join('\n      ')}`);
+}
+if (crumbDead.length) {
+  errors.push(`крошек, ведущих на несобранную страницу: ${crumbDead.length}`);
+  for (const { page, url } of crumbDead.slice(0, 5)) console.error(`    ${url} ← ${page}`);
+}
+if (withArticle > 100 && crumbTrails.length < withArticle) {
+  errors.push(
+    `BreadcrumbList есть на ${crumbTrails.length} страницах против ${withArticle} с Article — ` +
+      `часть страниц осталась без трейла`,
   );
 }
 
