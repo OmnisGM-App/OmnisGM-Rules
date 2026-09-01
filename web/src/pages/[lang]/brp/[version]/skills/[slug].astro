@@ -8,6 +8,7 @@ import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import { brpSkillDescription } from '../../../../../lib/entity-facts';
 
 // Programmatic-страницы навыков (Basic Roleplaying SRD 1.0). URL:
 // /{lang}/brp/{version}/skills/{slug}/. EN/RU делят канонический (англ.) слаг → hreflang.
@@ -47,7 +48,15 @@ autolinkTree(tree, { game: GAME, version: verSlug, lang, selfSlug: entity.slug }
 highlightKeywords(tree, { lang, game: 'brp' });
 glossRules(tree, { game: GAME, version: verSlug, lang });
 const bodyHtml = toHtml(tree);
-const description = excerpt(entity.description_md as string);
+// Фактовый сниппет (#214): базовый шанс и категория впереди, описание — хвостом в остаток
+// бюджета. Прежний голый excerpt() давал 46–62 символа без имени навыка и без системы.
+const description =
+  brpSkillDescription({
+    name: entity.name, lang,
+    baseChance: entity.base_chance ?? '',
+    category: entity.category ?? '',
+    descriptionMd: (entity.description_md as string) ?? '',
+  }) ?? excerpt(entity.description_md as string);
 
 const base = `/${lang}/${GAME}/${verSlug}/skills`;
 const categoryHref = `${base}/category/${entity.category_slug}/`;

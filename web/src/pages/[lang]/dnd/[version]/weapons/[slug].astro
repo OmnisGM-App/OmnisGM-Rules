@@ -4,7 +4,7 @@ import EntityHead from '../../../../../components/EntityHead.astro';
 import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
 import { loadEntities, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
-import { editionLabel, endSentence } from '../../../../../lib/entity-facts';
+import { endSentence, weaponDescription } from '../../../../../lib/entity-facts';
 
 // Programmatic-страницы оружия (issue #20, Дорожка A) — тонкий стат-блок (данные табличные,
 // описания нет). URL: /{lang}/dnd/{version}/weapons/{slug}/. Своей главы у оружия нет —
@@ -102,16 +102,13 @@ const subLine = t(
   `${catLabel} оружие ${typeLabel}`,
   `${catLabel} ${typeLabel.toLowerCase()} weapon`,
 );
-// «(днд)» — кириллическая форма запросов (issue #173, п.2), одна встреча рядом с «D&D».
-// Цена и вес добавлены в #185 (тот же спрос, что и урон), редакция — человеческой формой.
-const gear = [
-  cost && t(`цена ${cost}`, `cost ${cost}`),
-  weight && t(`вес ${weight}`, `weight ${weight}`),
-].filter(Boolean).join(', ');
-const description = endSentence(t(
-  `${entity.name} — ${catLabel.toLowerCase()} оружие ${typeLabel} ${editionLabel(ver)} (днд): урон ${damageLine}${gear ? `, ${gear}` : ''}`,
-  `${entity.name} — a ${editionLabel(ver)} ${catLabel.toLowerCase()} ${typeLabel.toLowerCase()} weapon: ${damageLine} damage${gear ? `, ${gear}` : ''}`,
-));
+// Сниппет собирается в entity-facts.ts вместе с остальными фактовыми шаблонами (#214):
+// сюда приходят уже локализованные подписи, туда — каскад укорачивания и общий предел.
+const description = weaponDescription({
+  name: entity.name, lang, version: ver,
+  catLabel, typeLabel, damageLine, rangeLine,
+  properties, mastery, cost, weight,
+});
 
 const base = `/${lang}/dnd/${verSlug}/weapons`;
 // «Похожее оружие» — до 8 той же категории и типа (внутренняя перелинковка/SEO).
