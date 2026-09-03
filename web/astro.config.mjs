@@ -138,6 +138,14 @@ export default defineConfig({
   build: {
     format: 'directory',
   },
+  vite: {
+    // Занятый порт — ошибка, а не тихий переезд на соседний (Table#469). Без этого preview
+    // при занятом порту молча уедет на +1, а Playwright продолжит ждать заданный и упадёт
+    // по таймауту — с сообщением, по которому причину не угадать. Слоты разводят порты
+    // параллельных прогонов, strictPort делает нарушение слышимым.
+    preview: { strictPort: true },
+    server: { strictPort: true },
+  },
   markdown: {
     // Нормализуем уровни заголовков ДО сбора TOC (headings) Astro — чтобы titled h1 не попадал в TOC.
     // Порядок важен (issue #20): rehypeEntityAutolink оборачивает имена сущностей в <a>, затем

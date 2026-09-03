@@ -1,13 +1,14 @@
 import { defineConfig, devices } from '@playwright/test';
+// Порт — от слота (Table#469): соседний worktree берёт OMNISGM_SLOT=1 и не мешает этому.
+import { PORT, BASE_URL as BASE } from './e2e/ports';
 
 // E2E гоняются ЛОКАЛЬНО (npm run test:e2e), в CI не тащим — там только astro check + build.
 // Тестируем прод-вывод: собираем бандл и поднимаем `astro preview` (ровно то, что уедет
 // на хостинг), а не dev-сервер.
-const PORT = 4321;
-const BASE = `http://localhost:${PORT}`;
-
 export default defineConfig({
   testDir: './e2e',
+  // Страж чужого preview на нашем порту — см. комментарий в самом файле.
+  globalSetup: './e2e/global-setup.ts',
   fullyParallel: true,
   forbidOnly: !!process.env.CI,
   retries: 0,

@@ -56,6 +56,18 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
 - **Деплой:** заменить `pages.yml` (GitHub Pages) на `astro build` + `firebase deploy --only hosting`
   (проект `omnisgm-rules`). JSON API (`generate_api.py`) и release-воркфлоу — решить отдельно при сборке.
 
+### Параллельные прогоны: слот портов (Table#469)
+`npm run test:e2e` поднимает `astro preview` на порту **4321 + слот × 10**. Слот — переменная
+`OMNISGM_SLOT` (целое 0–3, дефолт 0), вся арифметика живёт в `web/e2e/ports.ts`. Основной
+каталог остаётся на привычном 4321; соседнему worktree довольно `OMNISGM_SLOT=1` — и два
+прогона идут одновременно, не мешая друг другу.
+
+Зачем: `reuseExistingServer` здесь ценен (команда сервера — полная пересборка сайта), но без
+развода портов Playwright молча цепляется к preview соседнего каталога, и матрица идёт против
+чужой ветки — зелёное по чужой сборке. Страховок две: `web/e2e/global-setup.ts` сверяет
+каталог владельца порта и падает внятной строкой до первого теста, а `vite.preview.strictPort`
+в `astro.config.mjs` не даёт preview тихо уехать на соседний порт.
+
 ### Даты контента для JSON-LD (#219)
 `datePublished`/`dateModified` у `Article` берутся из **истории git** по исходному markdown:
 `web/scripts/gen-content-dates.mjs` (prebuild) делает один проход `git log --name-only` по `src/`
