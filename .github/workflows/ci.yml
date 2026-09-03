@@ -88,6 +88,14 @@ jobs:
         working-directory: web
         run: node scripts/test_build_fingerprint.mjs
 
+      # Литеральный адрес или порт сервера в e2e (#252): порт зависит от слота (Table#469), и
+      # такой литерал молча перестаёт совпадать — `replace` возвращает исходную строку, а
+      # `expect` вырождается в тавтологию. Проверка текстовая, e2e для неё не нужны (в CI они
+      # и не гоняются).
+      - name: Гейт — литеральные адреса в e2e
+        working-directory: web
+        run: node scripts/verify_no_hardcoded_urls.mjs
+
       - name: Type-check (astro check)
         working-directory: web
         run: npm run check
