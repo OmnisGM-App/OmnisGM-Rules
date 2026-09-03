@@ -1,6 +1,6 @@
 import { defineConfig, devices } from '@playwright/test';
 // Порт — от слота (Table#469): соседний worktree берёт OMNISGM_SLOT=1 и не мешает этому.
-import { PORT, BASE_URL as BASE } from './e2e/ports';
+import { E2E_PORT as PORT, BASE_URL as BASE } from './e2e/ports';
 
 // E2E гоняются ЛОКАЛЬНО (npm run test:e2e), в CI не тащим — там только astro check + build.
 // Тестируем прод-вывод: собираем бандл и поднимаем `astro preview` (ровно то, что уедет

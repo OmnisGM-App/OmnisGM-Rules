@@ -2,7 +2,7 @@ import { execFileSync } from 'node:child_process';
 import fs from 'node:fs';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
-import { PORT } from './ports';
+import { E2E_PORT } from './ports';
 
 /**
  * Проверка, что на порту прогона висит НАШ preview (Table#469, приём из Table#345).
@@ -18,14 +18,23 @@ import { PORT } from './ports';
  *
  * Поэтому: не совпал каталог — падаем одной внятной строкой ещё до первого теста.
  *
- * Порядок с `webServer` не важен: если сервер поднимет сам Playwright, владельцем порта
- * окажется наш же каталог, и проверка пройдёт в любом случае.
+ * Чего страж НЕ различает: серверы из ОДНОГО каталога. Если в `web/` поднят `npm run dev`, а
+ * его порт совпал с нашим, Playwright переиспользует его без пересборки (при живом HTTP-ответе
+ * раннер возвращается ДО запуска команды `webServer`), и матрица молча пойдёт против
+ * dev-сервера вопреки шапке конфига «тестируем прод-вывод». Сегодня это закрыто разведением
+ * портов — у dev своя база (`DEV_PORT`), — но не самим стражем: отличать свежую сборку от
+ * устаревшей он сможет только по отпечатку `dist`, и это отдельная задача.
+ *
+ * О порядке: `globalSetup` запускается ПОСЛЕ `webServer`, не раньше. Для нашего сценария это
+ * ничего не меняет — чужой preview отвечает по HTTP, Playwright его переиспользует и сразу
+ * отдаёт управление сюда, так что падаем мы до первого теста. Но если порт занял НЕ-HTTP
+ * сквоттер, первым придёт таймаут ожидания сервера, и страж не скажет ничего.
  */
 
 /**
- * Реальный путь без симлинков. `lsof` отдаёт каталог уже разрешённым (`/private/tmp/…`), а
- * относительный путь — тот, через который открыли (`/tmp/…`); на macOS `/tmp → /private/tmp`,
- * и без выравнивания worktree под `/tmp` получил бы ложное «чужой сервер».
+ * Реальный путь без симлинков: `lsof` отдаёт каталог уже разрешённым (`/private/tmp/…`), а
+ * путь из конфига — тот, через который открыли (`/tmp/…`). На macOS `/tmp → /private/tmp`, и
+ * без выравнивания worktree, живущий под `/tmp`, получил бы ложное «чужой сервер».
  */
 function real(dir: string): string {
   try {
@@ -37,8 +46,8 @@ function real(dir: string): string {
 
 /**
  * Каталог сайта: `webServer` запускается из каталога конфига (`web/`), с ним и сверяемся.
- * Отсчитываем от файла конфига, который даёт сам Playwright, а не от `import.meta.url`:
- * прогон запускают откуда угодно, и `cwd` тут не показатель.
+ * Отсчитываем от пути конфига, который даёт сам Playwright, а не от `process.cwd()`: прогон
+ * запускают откуда угодно.
  */
 function webDir(config: FullConfig): string {
   return real(config.configFile ? path.dirname(config.configFile) : process.cwd());
@@ -46,9 +55,19 @@ function webDir(config: FullConfig): string {
 
 function sh(file: string, args: string[]): string | null {
   try {
-    return execFileSync(file, args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'ignore'] }).trim();
-  } catch {
-    // Ненулевой код у `lsof` означает «никто не слушает», у `git` — «не репозиторий».
+    return execFileSync(file, args, {
+      encoding: 'utf8',
+      stdio: ['ignore', 'pipe', 'ignore'],
+      // Зависший `lsof` иначе подвесил бы прогон ещё до первого теста.
+      timeout: 10_000,
+    }).trim();
+  } catch (err) {
+    // Ненулевой код у `lsof` означает «никто не слушает», у `git` — «не репозиторий»: штатные
+    // ответы. А вот отсутствующий инструмент — не ответ, а слепота: страж молча сказал бы
+    // «порт свободен», не проверив ничего. Про такое говорим вслух.
+    if ((err as NodeJS.ErrnoException)?.code === 'ENOENT') {
+      console.warn(`[global-setup] ${file} недоступен — проверка владельца порта пропущена`);
+    }
     return null;
   }
 }
@@ -79,15 +98,15 @@ export default function globalSetup(config: FullConfig): void {
   if (process.env.CI) return;
 
   const ours = webDir(config);
-  const foreign = listenerDirs(PORT).filter((dir) => real(dir) !== ours);
+  const foreign = listenerDirs(E2E_PORT).filter((dir) => real(dir) !== ours);
   if (foreign.length === 0) return;
 
   throw new Error(
     [
-      `На порту ${PORT} висит ЧУЖОЙ preview — прогон пошёл бы против чужой сборки.`,
+      `На порту ${E2E_PORT} висит сервер из ЧУЖОГО каталога — прогон пошёл бы против чужой сборки.`,
       `  слушает: ${foreign.map(describe).join(', ')}`,
       `  ожидалось: ${ours}`,
-      'Разведи каталоги слотами (в соседнем worktree — OMNISGM_SLOT=1) либо останови тот preview.',
+      'Разведи каталоги слотами (в соседнем worktree — OMNISGM_SLOT=1) либо останови тот сервер.',
     ].join('\n'),
   );
 }

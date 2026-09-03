@@ -66,7 +66,8 @@ test('видимые крошки — рабочие ссылки на те же
   const links = page.locator('.rd-crumb a');
   expect(await links.count()).toBeGreaterThan(1);
   for (const href of await links.evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).href))) {
-    // Порт preview зависит от слота (Table#469) — берём его из baseURL, а не литералом.
+    // Порт preview зависит от слота (Table#469) — берём адрес из `BASE_URL` (`e2e/ports.ts`),
+    // того же модуля, из которого собран `use.baseURL`, а не литералом.
     expect(marked, `видимая крошка ${href} отсутствует в разметке`).toContain(href.replace(BASE_URL, SITE));
   }
   await page.locator('.rd-crumb a', { hasText: 'Заклинания' }).click();

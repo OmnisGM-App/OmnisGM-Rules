@@ -11,6 +11,7 @@
 //
 //   node scripts/check_csp.mjs                      # прод
 //   node scripts/check_csp.mjs http://localhost:4321 # локальная сборка (CSP подставим сами)
+//   4321 — порт слота 0; при OMNISGM_SLOT=N preview слушает 4321 + N*10 (см. e2e/ports.ts)
 //
 // Выход 1, если нашлись нарушения, не покрытые политикой.
 import { readFileSync } from 'node:fs';
