@@ -38,7 +38,7 @@ import { createHash } from 'node:crypto';
 import { readdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
 import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { dirname, join, relative, resolve } from 'node:path';
+import { basename, dirname, join, relative, resolve } from 'node:path';
 
 const DEFAULT_WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -119,7 +119,11 @@ export async function fingerprint(web = DEFAULT_WEB) {
  */
 export const stashPath = (web = DEFAULT_WEB) => join(web, '.build-fingerprint');
 
-if (process.argv[1]?.endsWith('build_fingerprint.mjs')) {
+// Сравнение по ИМЕНИ ФАЙЛА, а не `endsWith`: `test_build_fingerprint.mjs` тоже заканчивается
+// на `build_fingerprint.mjs`, и при импорте из теста запускалась CLI-ветка — она писала в
+// настоящий `dist`, которого в CI на этом шаге ещё нет. Локально дефект прятался за тем, что
+// `dist` уже был собран.
+if (basename(process.argv[1] ?? '') === 'build_fingerprint.mjs') {
   // `--web=<путь>` нужен тесту (`test_build_fingerprint.mjs`): он гоняет обе фазы на игрушечном
   // дереве во временном каталоге, а не на рабочем — иначе проверка переписывала бы настоящий
   // `dist/build-id.txt` и зависела бы от того, была ли уже сборка.
