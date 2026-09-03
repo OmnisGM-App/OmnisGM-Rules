@@ -19,6 +19,19 @@ const csp = (() => {
   return h as { key: string; value: string };
 })();
 
+/**
+ * Снять перехват до конца теста (#249).
+ *
+ * `arm` вешает route на ВЕСЬ трафик, а страница продолжает грузить ассеты и после проверок:
+ * service worker дотягивает css/js в фоне (в логе видно `referer: /sw.js`). Когда тест
+ * заканчивается раньше этих запросов, колбэк route падает уже вне теста — «route.fetch: Test
+ * ended», и Playwright засчитывает прогону ошибку вне теста, а один тест остаётся
+ * незапущенным. Гонка тайминговая: проявляется тем чаще, чем быстрее идут соседние тесты.
+ */
+const disarm = async (context: BrowserContext) => {
+  await context.unrouteAll({ behavior: 'ignoreErrors' });
+};
+
 const arm = async (context: BrowserContext) => {
   await context.addInitScript(() => {
     (window as any).__csp = [];
@@ -47,6 +60,7 @@ test('политика не ломает главу, сущность и пои�
   await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 });
 
   expect(await page.evaluate(() => (window as any).__csp)).toEqual([]);
+  await disarm(context);
 });
 
 test('политика запрещает чужие источники (иначе гейт выше ничего не значит)', async ({ context }) => {
@@ -64,4 +78,5 @@ test('политика запрещает чужие источники (ина�
   expect(await page.evaluate(() => (window as any).__csp)).toContain(
     'script-src-elem ← https://cdn.example.com/evil.js',
   );
+  await disarm(context);
 });
