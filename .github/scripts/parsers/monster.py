@@ -17,6 +17,25 @@ SIZES_RU_TO_EN = {
 }
 
 
+def _split_size(words: list, lang: str) -> tuple:
+    """Split '['Medium', 'or', 'Small', 'Humanoid']' into ('Medium or Small', 'Humanoid').
+
+    SRD 5.2 writes a choice of size for shape-shifters and playable-species NPCs
+    ('Medium or Small Humanoid', RU 'Средний или Маленький гуманоид'). Taking only
+    the first word would leave a dangling 'or Small' inside the creature type.
+    """
+    sizes = SIZES_EN if lang == "en" else SIZES_RU_TO_EN
+    conj = "or" if lang == "en" else "или"
+    if (
+        len(words) > 3
+        and words[0].lower() in sizes
+        and words[1].lower() == conj
+        and words[2].lower() in sizes
+    ):
+        return " ".join(words[:3]), " ".join(words[3:])
+    return (words[0] if words else ""), " ".join(words[1:])
+
+
 def _parse_type_line(line: str, lang: str) -> dict:
     """Parse the type/alignment line: '*Large Aberration, Lawful Evil*'."""
     text = line.strip().strip("*").strip()
@@ -35,12 +54,7 @@ def _parse_type_line(line: str, lang: str) -> dict:
     subtype = None
 
     if lang == "en":
-        if words and words[0].lower() in SIZES_EN:
-            size = words[0]
-            rest = " ".join(words[1:])
-        else:
-            size = words[0] if words else ""
-            rest = " ".join(words[1:])
+        size, rest = _split_size(words, "en")
 
         # Check for subtype in parentheses
         m = re.match(r"(.+?)\s*\((.+)\)", rest)
@@ -51,13 +65,7 @@ def _parse_type_line(line: str, lang: str) -> dict:
             creature_type = rest
     else:
         if words:
-            w0 = words[0].lower()
-            if w0 in SIZES_RU_TO_EN:
-                size = words[0]
-                rest = " ".join(words[1:])
-            else:
-                size = words[0]
-                rest = " ".join(words[1:])
+            size, rest = _split_size(words, "ru")
 
             m = re.match(r"(.+?)\s*\((.+)\)", rest)
             if m:

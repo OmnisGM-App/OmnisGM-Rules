@@ -82,7 +82,7 @@ The target repeats the save whenever it takes damage as well as after every 24 h
 
 ### Assassin
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 16
 - **Hit Points:** 97 (15d8 + 30)
@@ -569,7 +569,7 @@ If the behir takes 30 damage or more on a single turn from the swallowed creatur
 
 ### Bandit
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 12
 - **Hit Points:** 11 (2d8 + 2)
@@ -595,7 +595,7 @@ If the behir takes 30 damage or more on a single turn from the swallowed creatur
 
 ### Bandit Captain
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 15
 - **Hit Points:** 52 (8d8 + 16)
@@ -859,7 +859,7 @@ The cloaker can detach itself by spending 5 feet of movement. The target or a cr
 
 ### Commoner
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 10
 - **Hit Points:** 4 (1d8)
@@ -929,7 +929,7 @@ The cloaker can detach itself by spending 5 feet of movement. The target or a cr
 
 ### Cultist
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 12
 - **Hit Points:** 9 (2d8)
@@ -954,7 +954,7 @@ The cloaker can detach itself by spending 5 feet of movement. The target or a cr
 
 ### Cultist Fanatic
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 44 (8d8 + 8)
@@ -1044,7 +1044,7 @@ A creature can take an action to try to detach the darkmantle from itself, doing
 
 ### Djinni
 
-*Large Elemental (Genie), Chaotic Good*
+*Large Elemental (Genie), Neutral*
 
 - **Armor Class:** 17
 - **Hit Points:** 218 (19d10 + 114)
@@ -1477,7 +1477,7 @@ Whenever the whirlwind enters a creature's space or a creature enters the whirlw
 
 ### Quasit
 
-*Small Fiend (Demon), Chaotic Evil*
+*Tiny Fiend (Demon), Chaotic Evil*
 
 - **Armor Class:** 13
 - **Hit Points:** 25 (10d4)
@@ -1811,7 +1811,7 @@ Whenever the whirlwind enters a creature's space or a creature enters the whirlw
 
 ### Imp
 
-*Small Fiend (Devil), Lawful Evil*
+*Tiny Fiend (Devil), Lawful Evil*
 
 - **Armor Class:** 13
 - **Hit Points:** 21 (6d4 + 6)
@@ -4566,7 +4566,7 @@ The golem's creator, if within 60 feet of the berserk golem, can try to calm it 
 
 ### Guard
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 16
 - **Hit Points:** 11 (2d8 + 2)
@@ -4591,7 +4591,7 @@ The golem's creator, if within 60 feet of the berserk golem, can try to calm it 
 
 ### Guard Captain
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 18
 - **Hit Points:** 75 (10d8 + 30)
@@ -4746,7 +4746,7 @@ The golem's creator, if within 60 feet of the berserk golem, can try to calm it 
 
 ### Homunculus
 
-*Small Construct, Neutral*
+*Tiny Construct, Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 4 (1d4 + 2)
@@ -5248,7 +5248,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Werebear
 
-*Small Monstrosity, Neutral Good*
+*Medium or Small Monstrosity (Lycanthrope), Neutral Good*
 
 - **Armor Class:** 15
 - **Hit Points:** 135 (18d8 + 54)
@@ -5283,7 +5283,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Wereboar
 
-*Small Monstrosity, Neutral Evil*
+*Medium or Small Monstrosity (Lycanthrope), Neutral Evil*
 
 - **Armor Class:** 15
 - **Hit Points:** 97 (15d8 + 30)
@@ -5318,7 +5318,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Wererat
 
-*Small Monstrosity, Lawful Evil*
+*Medium or Small Monstrosity (Lycanthrope), Lawful Evil*
 
 - **Armor Class:** 13
 - **Hit Points:** 60 (11d8 + 11)
@@ -5353,7 +5353,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Weretiger
 
-*Small Monstrosity, Neutral*
+*Medium or Small Monstrosity (Lycanthrope), Neutral*
 
 - **Armor Class:** 12
 - **Hit Points:** 120 (16d8 + 48)
@@ -5390,7 +5390,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Werewolf
 
-*Small Monstrosity, Chaotic Evil*
+*Medium or Small Monstrosity (Lycanthrope), Chaotic Evil*
 
 - **Armor Class:** 15
 - **Hit Points:** 71 (11d8 + 22)
@@ -5646,7 +5646,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Archmage
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid (Wizard), Neutral*
 
 - **Armor Class:** 17
 - **Hit Points:** 170 (31d8 + 31)
@@ -5692,7 +5692,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Druid
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid (Druid), Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 44 (8d8 + 8)
@@ -5727,7 +5727,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Mage
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid (Wizard), Neutral*
 
 - **Armor Class:** 15
 - **Hit Points:** 81 (18d8)
@@ -5911,7 +5911,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Mummy
 
-*Small Undead, Lawful Evil*
+*Medium or Small Undead, Lawful Evil*
 
 - **Armor Class:** 11
 - **Hit Points:** 58 (9d8 + 18)
@@ -5940,7 +5940,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Mummy Lord
 
-*Small Undead, Lawful Evil*
+*Medium or Small Undead (Cleric), Lawful Evil*
 
 - **Armor Class:** 17
 - **Hit Points:** 187 (25d8 + 75)
@@ -6027,7 +6027,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 ### Noble
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 15
 - **Hit Points:** 9 (2d8)
@@ -6447,7 +6447,7 @@ The ooze can eat through 2-inch-thick, nonmagical metal or wood in 1 round.
 
 ### Pseudodragon
 
-*Small Dragon, Neutral Good*
+*Tiny Dragon, Neutral Good*
 
 - **Armor Class:** 14
 - **Hit Points:** 10 (3d4 + 3)
@@ -6516,7 +6516,7 @@ If the worm takes 30 damage or more on a single turn from a creature inside it, 
 
 ### Pirate
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 14
 - **Hit Points:** 33 (6d8 + 6)
@@ -6544,7 +6544,7 @@ If the worm takes 30 damage or more on a single turn from a creature inside it, 
 
 ### Pirate Captain
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 17
 - **Hit Points:** 84 (13d8 + 26)
@@ -6579,7 +6579,7 @@ If the worm takes 30 damage or more on a single turn from a creature inside it, 
 
 ### Priest
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid (Cleric), Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 38 (7d8 + 7)
@@ -6617,7 +6617,7 @@ If the worm takes 30 damage or more on a single turn from a creature inside it, 
 
 ### Priest Acolyte
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid (Cleric), Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 11 (2d8 + 2)
@@ -6928,7 +6928,7 @@ The tentacle can be damaged, freeing a creature it has Grappled when destroyed (
 
 ### Scout
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 16 (3d8 + 3)
@@ -7091,7 +7091,7 @@ The tentacle can be damaged, freeing a creature it has Grappled when destroyed (
 
 ### Sprite
 
-*Small Fey, Neutral Good*
+*Tiny Fey, Neutral Good*
 
 - **Armor Class:** 15
 - **Hit Points:** 10 (4d4)
@@ -7123,7 +7123,7 @@ The tentacle can be damaged, freeing a creature it has Grappled when destroyed (
 
 ### Spy
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 12
 - **Hit Points:** 27 (6d8)
@@ -7154,7 +7154,7 @@ The tentacle can be damaged, freeing a creature it has Grappled when destroyed (
 
 ### Stirge
 
-*Small Monstrosity, Unaligned*
+*Tiny Monstrosity, Unaligned*
 
 - **Armor Class:** 13
 - **Hit Points:** 5 (2d4)
@@ -7216,7 +7216,7 @@ The stirge can detach itself by spending 5 feet of its movement. The target or a
 
 ### Swarm of Crawling Claws
 
-*Medium Undead, Neutral Evil*
+*Medium Swarm of Tiny Undead, Neutral Evil*
 
 - **Armor Class:** 12
 - **Hit Points:** 49 (11d8)
@@ -7426,7 +7426,7 @@ The stirge can detach itself by spending 5 feet of its movement. The target or a
 
 ### Sphinx of Wonder
 
-*Small Celestial, Lawful Good*
+*Tiny Celestial, Lawful Good*
 
 - **Armor Class:** 13
 - **Hit Points:** 24 (7d4 + 7)
@@ -7548,7 +7548,7 @@ If the tarrasque takes 60 damage or more on a single turn from a creature inside
 
 ### Tough
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 12
 - **Hit Points:** 32 (5d8 + 10)
@@ -7578,7 +7578,7 @@ If the tarrasque takes 60 damage or more on a single turn from a creature inside
 
 ### Tough Boss
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 16
 - **Hit Points:** 82 (11d8 + 33)
@@ -7729,7 +7729,7 @@ If the tarrasque takes 60 damage or more on a single turn from a creature inside
 
 ### Vampire
 
-*Small Undead, Lawful Evil*
+*Medium or Small Undead, Lawful Evil*
 
 - **Armor Class:** 16
 - **Hit Points:** 195 (23d8 + 92)
@@ -7788,7 +7788,7 @@ While in mist form, the vampire can't take any actions, speak, or manipulate obj
 
 ### Vampire Familiar
 
-*Small Humanoid, Neutral Evil*
+*Medium or Small Humanoid, Neutral Evil*
 
 - **Armor Class:** 15
 - **Hit Points:** 65 (10d8 + 20)
@@ -7825,7 +7825,7 @@ While in mist form, the vampire can't take any actions, speak, or manipulate obj
 
 ### Vampire Spawn
 
-*Small Undead, Neutral Evil*
+*Medium or Small Undead, Neutral Evil*
 
 - **Armor Class:** 16
 - **Hit Points:** 90 (12d8 + 36)
@@ -7909,7 +7909,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Will-o'-Wisp
 
-*Small Undead, Chaotic Evil*
+*Tiny Undead, Chaotic Evil*
 
 - **Armor Class:** 19
 - **Hit Points:** 27 (11d4)
@@ -8003,7 +8003,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Wraith
 
-*Small Undead, Neutral Evil*
+*Medium or Small Undead, Neutral Evil*
 
 - **Armor Class:** 13
 - **Hit Points:** 67 (9d8 + 27)
@@ -8065,7 +8065,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Berserker
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 67 (9d8 + 27)
@@ -8093,7 +8093,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Gladiator
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 16
 - **Hit Points:** 112 (15d8 + 45)
@@ -8122,7 +8122,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Knight
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 18
 - **Hit Points:** 52 (8d8 + 16)
@@ -8151,7 +8151,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Warrior Infantry
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 13
 - **Hit Points:** 9 (2d8)
@@ -8179,7 +8179,7 @@ A Humanoid slain by this attack rises 24 hours later as a Zombie under the wight
 
 ### Warrior Veteran
 
-*Small Humanoid, Neutral*
+*Medium or Small Humanoid, Neutral*
 
 - **Armor Class:** 17
 - **Hit Points:** 65 (10d8 + 20)

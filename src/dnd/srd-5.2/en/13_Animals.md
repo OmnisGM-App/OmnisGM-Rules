@@ -92,7 +92,7 @@
 
 ### Badger
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 11
 - **Hit Points:** 5 (1d4 + 3)
@@ -142,7 +142,7 @@
 
 ### Bat
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 1 (1d4 - 1)
@@ -186,7 +186,7 @@
 
 ### Swarm of Bats
 
-*Large Beast, Unaligned*
+*Large Swarm of Tiny Beasts, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 11 (2d10)
@@ -372,7 +372,7 @@
 
 ### Cat
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 2 (1d4)
@@ -401,7 +401,7 @@
 
 ### Crab
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 11
 - **Hit Points:** 3 (1d4 + 1)
@@ -891,7 +891,7 @@
 
 ### Frog
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 11
 - **Hit Points:** 1 (1d4 - 1)
@@ -1167,7 +1167,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Hawk
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 13
 - **Hit Points:** 1 (1d4 - 1)
@@ -1479,7 +1479,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Lizard
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 10
 - **Hit Points:** 2 (1d4)
@@ -1629,7 +1629,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Owl
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 11
 - **Hit Points:** 1 (1d4 - 1)
@@ -1687,7 +1687,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Piranha
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 13
 - **Hit Points:** 1 (1d4 - 1)
@@ -1713,7 +1713,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Swarm of Piranhas
 
-*Medium Beast, Unaligned*
+*Medium Swarm of Tiny Beasts, Unaligned*
 
 - **Armor Class:** 13
 - **Hit Points:** 28 (8d8 - 8)
@@ -1796,7 +1796,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Rat
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 10
 - **Hit Points:** 1 (1d4 - 1)
@@ -1823,7 +1823,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Swarm of Rats
 
-*Medium Beast, Unaligned*
+*Medium Swarm of Tiny Beasts, Unaligned*
 
 - **Armor Class:** 10
 - **Hit Points:** 14 (4d8 - 4)
@@ -1853,7 +1853,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Raven
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 2 (1d4)
@@ -1880,7 +1880,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Swarm of Ravens
 
-*Medium Beast, Unaligned*
+*Medium Swarm of Tiny Beasts, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 11 (2d8 + 2)
@@ -1913,7 +1913,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Swarm of Insects
 
-*Medium Beast, Unaligned*
+*Medium Swarm of Tiny Beasts, Unaligned*
 
 - **Armor Class:** 11
 - **Hit Points:** 19 (3d8 + 6)
@@ -1971,7 +1971,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Scorpion
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 11
 - **Hit Points:** 1 (1d4 - 1)
@@ -2025,7 +2025,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Seahorse
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 1 (1d4 - 1)
@@ -2166,7 +2166,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Flying Snake
 
-*Small Monstrosity, Unaligned*
+*Tiny Monstrosity, Unaligned*
 
 - **Armor Class:** 14
 - **Hit Points:** 5 (2d4)
@@ -2242,7 +2242,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Swarm of Venomous Snakes
 
-*Medium Beast, Unaligned*
+*Medium Swarm of Tiny Beasts, Unaligned*
 
 - **Armor Class:** 14
 - **Hit Points:** 36 (8d8)
@@ -2270,7 +2270,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Venomous Snake
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 5 (2d4)
@@ -2352,7 +2352,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Spider
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 12
 - **Hit Points:** 1 (1d4 - 1)
@@ -2526,7 +2526,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 
 ### Weasel
 
-*Small Beast, Unaligned*
+*Tiny Beast, Unaligned*
 
 - **Armor Class:** 13
 - **Hit Points:** 1 (1d4 - 1)
