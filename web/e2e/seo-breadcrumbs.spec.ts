@@ -1,4 +1,5 @@
 import { test, expect, type Page } from '@playwright/test';
+import { BASE_URL } from './ports';
 
 // Хлебные крошки (issue #220). Сплошной счёт по dist делает verify_dist_meta_budget.mjs
 // (гейты «дублей URL в трейле» и «ссылок в никуда» — оба нулевые); здесь — смысловые проверки
@@ -65,7 +66,9 @@ test('видимые крошки — рабочие ссылки на те же
   const links = page.locator('.rd-crumb a');
   expect(await links.count()).toBeGreaterThan(1);
   for (const href of await links.evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).href))) {
-    expect(marked, `видимая крошка ${href} отсутствует в разметке`).toContain(href.replace('http://localhost:4321', SITE));
+    // Порт preview зависит от слота (Table#469) — берём адрес из `BASE_URL` (`e2e/ports.ts`),
+    // того же модуля, из которого собран `use.baseURL`, а не литералом.
+    expect(marked, `видимая крошка ${href} отсутствует в разметке`).toContain(href.replace(BASE_URL, SITE));
   }
   await page.locator('.rd-crumb a', { hasText: 'Заклинания' }).click();
   await expect(page).toHaveURL(/\/ru\/dnd\/srd-5\.2\/spells\/$/);
