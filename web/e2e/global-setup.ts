@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 import { E2E_PORT } from './ports';
+import { FINGERPRINT_FILE, fingerprint } from '../scripts/build_fingerprint.mjs';
 
 /**
  * Проверка, что на порту прогона висит НАШ preview (Table#469, приём из Table#345).
@@ -18,12 +19,12 @@ import { E2E_PORT } from './ports';
  *
  * Поэтому: не совпал каталог — падаем одной внятной строкой ещё до первого теста.
  *
- * Чего страж НЕ различает: серверы из ОДНОГО каталога. Если в `web/` поднят `npm run dev`, а
- * его порт совпал с нашим, Playwright переиспользует его без пересборки (при живом HTTP-ответе
- * раннер возвращается ДО запуска команды `webServer`), и матрица молча пойдёт против
- * dev-сервера вопреки шапке конфига «тестируем прод-вывод». Сегодня это закрыто разведением
- * портов — у dev своя база (`DEV_PORT`), — но не самим стражем: отличать свежую сборку от
- * устаревшей он сможет только по отпечатку `dist`, и это отдельная задача.
+ * ВТОРАЯ проверка — свежесть сборки (#251). Каталога мало: при `reuseExistingServer`
+ * Playwright, получив ответ по HTTP, возвращается ДО запуска команды `webServer`, то есть
+ * `npm run build` не выполняется. Поднятый час назад preview продолжает отдавать `dist`,
+ * собранный из кода, которого в дереве уже нет, — и матрица идёт против него, показывая
+ * зелёное. Сверяем отпечаток исходников: записанный при сборке против сегодняшнего
+ * (`scripts/build_fingerprint.mjs`).
  *
  * О порядке: `globalSetup` запускается ПОСЛЕ `webServer`, не раньше. Для нашего сценария это
  * ничего не меняет — чужой preview отвечает по HTTP, Playwright его переиспользует и сразу
@@ -92,14 +93,58 @@ function describe(dir: string): string {
   return branch ? `${dir} (ветка ${branch})` : dir;
 }
 
-export default function globalSetup(config: FullConfig): void {
+/**
+ * Сверка: `dist`, из которого отвечает сервер, собран из ТЕКУЩИХ исходников.
+ *
+ * Проверяем всегда, без условий. `globalSetup` идёт ПОСЛЕ `webServer`, поэтому к этому моменту
+ * сборка либо только что прошла (сервер поднял Playwright), либо не проводилась вовсе (сервер
+ * переиспользован) — в обоих случаях `dist` на месте и отпечаток в нём есть.
+ *
+ * Отпечатка нет — падаем, а не молчим. Это ровно то состояние, в котором проверка бесполезна:
+ * `dist` из сборки до #251 или собранный мимо `npm run build` (например, голым `astro build`).
+ * Тихий пропуск здесь означал бы, что в день мёржа у всех, у кого поднят старый preview,
+ * страж молча пропускает прогон против устаревшей сборки — то есть сценарий #251 переживает
+ * собственный фикс.
+ */
+async function checkBuildFreshness(web: string): Promise<void> {
+  const file = path.join(web, 'dist', FINGERPRINT_FILE);
+  if (!fs.existsSync(file)) {
+    throw new Error(
+      [
+        `В сборке нет отпечатка (${path.relative(web, file)}) — свежесть проверить нечем.`,
+        'Так выглядит `dist` из сборки до #251 или собранный мимо `npm run build`.',
+        'Останови сервер на порту прогона и запусти заново: `npm run build` положит отпечаток.',
+      ].join('\n'),
+    );
+  }
+
+  const built = fs.readFileSync(file, 'utf8').trim();
+  const current = await fingerprint();
+  if (built === current) return;
+
+  throw new Error(
+    [
+      'Сборка в `dist` СТАРШЕ рабочего дерева — прогон проверял бы код, которого уже нет.',
+      `  собрано из исходников: ${built}`,
+      `  сейчас в рабочем дереве: ${current}`,
+      'Обычная причина: preview поднят давно, Playwright переиспользует живой сервер и',
+      '`npm run build` при этом НЕ выполняет, поэтому поздние правки в прогон не попадают.',
+      'Останови сервер на порту прогона — он соберёт и поднимет свой.',
+    ].join('\n'),
+  );
+}
+
+export default async function globalSetup(config: FullConfig): Promise<void> {
   // На CI e2e не гоняются вовсе (там только `astro check` + `build`), но если однажды поедут —
   // сервер там поднимается с нуля в свежем раннере: проверять нечего, а `lsof` может и не быть.
   if (process.env.CI) return;
 
   const ours = webDir(config);
   const foreign = listenerDirs(E2E_PORT).filter((dir) => real(dir) !== ours);
-  if (foreign.length === 0) return;
+  if (foreign.length === 0) {
+    await checkBuildFreshness(ours);
+    return;
+  }
 
   throw new Error(
     [

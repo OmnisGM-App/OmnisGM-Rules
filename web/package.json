@@ -7,9 +7,9 @@
   "scripts": {
     "predev": "node scripts/copy-brand-assets.mjs && node scripts/gen-entity-data.mjs && node scripts/gen-content-dates.mjs",
     "dev": "astro dev",
-    "prebuild": "node scripts/copy-brand-assets.mjs && node scripts/gen-entity-data.mjs && node scripts/gen-content-dates.mjs",
+    "prebuild": "node scripts/copy-brand-assets.mjs && node scripts/gen-entity-data.mjs && node scripts/gen-content-dates.mjs && node scripts/build_fingerprint.mjs --stash",
     "build": "astro build",
-    "postbuild": "node scripts/add_sitemap_lastmod.mjs",
+    "postbuild": "node scripts/add_sitemap_lastmod.mjs && node scripts/build_fingerprint.mjs --commit",
     "preview": "astro preview",
     "check": "astro check",
     "test:e2e": "playwright test",
