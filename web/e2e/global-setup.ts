@@ -3,6 +3,7 @@ import fs from 'node:fs';
 import path from 'node:path';
 import type { FullConfig } from '@playwright/test';
 import { E2E_PORT } from './ports';
+import { FINGERPRINT_FILE, fingerprint } from '../scripts/build_fingerprint.mjs';
 
 /**
  * Проверка, что на порту прогона висит НАШ preview (Table#469, приём из Table#345).
@@ -18,12 +19,12 @@ import { E2E_PORT } from './ports';
  *
  * Поэтому: не совпал каталог — падаем одной внятной строкой ещё до первого теста.
  *
- * Чего страж НЕ различает: серверы из ОДНОГО каталога. Если в `web/` поднят `npm run dev`, а
- * его порт совпал с нашим, Playwright переиспользует его без пересборки (при живом HTTP-ответе
- * раннер возвращается ДО запуска команды `webServer`), и матрица молча пойдёт против
- * dev-сервера вопреки шапке конфига «тестируем прод-вывод». Сегодня это закрыто разведением
- * портов — у dev своя база (`DEV_PORT`), — но не самим стражем: отличать свежую сборку от
- * устаревшей он сможет только по отпечатку `dist`, и это отдельная задача.
+ * ВТОРАЯ проверка — свежесть сборки (#251). Каталога мало: при `reuseExistingServer`
+ * Playwright, получив ответ по HTTP, возвращается ДО запуска команды `webServer`, то есть
+ * `npm run build` не выполняется. Поднятый час назад preview продолжает отдавать `dist`,
+ * собранный из кода, которого в дереве уже нет, — и матрица идёт против него, показывая
+ * зелёное. Сверяем отпечаток исходников: записанный при сборке против сегодняшнего
+ * (`scripts/build_fingerprint.mjs`).
  *
  * О порядке: `globalSetup` запускается ПОСЛЕ `webServer`, не раньше. Для нашего сценария это
  * ничего не меняет — чужой preview отвечает по HTTP, Playwright его переиспользует и сразу
@@ -92,14 +93,47 @@ function describe(dir: string): string {
   return branch ? `${dir} (ветка ${branch})` : dir;
 }
 
-export default function globalSetup(config: FullConfig): void {
+/**
+ * Сверка: `dist`, который отдаёт живой сервер, собран из ТЕКУЩИХ исходников.
+ *
+ * Проверяем, только если сервер переиспользован. Если его поднял сам Playwright, сборка была
+ * только что, и сверять нечего. Признак переиспользования простой: `dist` уже существовал до
+ * старта — иначе никакого сервера на порту быть не могло.
+ *
+ * Нет отпечатка в `dist` — это сборка до #251 либо `dist`, собранный не нашим `npm run build`.
+ * Молчать нельзя: именно в этом состоянии проверка и не сработала бы.
+ */
+async function checkBuildFreshness(web: string): Promise<void> {
+  const file = path.join(web, 'dist', FINGERPRINT_FILE);
+  if (!fs.existsSync(file)) return;
+
+  const built = fs.readFileSync(file, 'utf8').trim();
+  const current = await fingerprint();
+  if (built === current) return;
+
+  throw new Error(
+    [
+      'На порту висит preview УСТАРЕВШЕЙ сборки — прогон проверял бы код, которого уже нет.',
+      `  собрано из исходников: ${built}`,
+      `  сейчас в рабочем дереве: ${current}`,
+      'Playwright переиспользует живой сервер и команду `npm run build` при этом НЕ выполняет,',
+      'поэтому правки в код после запуска preview в прогон не попадают.',
+      'Останови тот preview — прогон соберёт и поднимет свой.',
+    ].join('\n'),
+  );
+}
+
+export default async function globalSetup(config: FullConfig): Promise<void> {
   // На CI e2e не гоняются вовсе (там только `astro check` + `build`), но если однажды поедут —
   // сервер там поднимается с нуля в свежем раннере: проверять нечего, а `lsof` может и не быть.
   if (process.env.CI) return;
 
   const ours = webDir(config);
   const foreign = listenerDirs(E2E_PORT).filter((dir) => real(dir) !== ours);
-  if (foreign.length === 0) return;
+  if (foreign.length === 0) {
+    await checkBuildFreshness(ours);
+    return;
+  }
 
   throw new Error(
     [

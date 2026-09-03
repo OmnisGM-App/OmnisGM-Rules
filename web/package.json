@@ -9,7 +9,7 @@
     "dev": "astro dev",
     "prebuild": "node scripts/copy-brand-assets.mjs && node scripts/gen-entity-data.mjs && node scripts/gen-content-dates.mjs",
     "build": "astro build",
-    "postbuild": "node scripts/add_sitemap_lastmod.mjs",
+    "postbuild": "node scripts/add_sitemap_lastmod.mjs && node scripts/build_fingerprint.mjs",
     "preview": "astro preview",
     "check": "astro check",
     "test:e2e": "playwright test",
