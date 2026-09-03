@@ -400,9 +400,12 @@
 | Fiend | Fiend | Исчадие | srd-5.2 | srd-5.1 |  |
 | Giant | Giant | Великан | srd-5.2 | srd-5.1 |  |
 | Humanoid | Humanoid | Гуманоид | srd-5.2 | srd-5.1 |  |
+| Lycanthrope | - | Ликантроп | srd-5.2 | — | подтип в скобках: Monstrosity (Lycanthrope) |
 | Monstrosity | Monstrosity | Чудовище | srd-5.2 | srd-5.1 |  |
 | Ooze | Ooze | Слизь | srd-5.2 | srd-5.1 |  |
 | Plant | Plant | Растение | srd-5.2 | srd-5.1 |  |
+| Swarm of Tiny Beasts | Swarm of Tiny Beasts | Рой Крошечных зверей | srd-5.2 | srd-5.1 | тип роя целиком, не «Зверь» |
+| Swarm of Tiny Undead | - | Рой Крошечной нежити | srd-5.2 | — |  |
 | Undead | Undead | Нежить | srd-5.2 | srd-5.1 |  |
 
 ---
@@ -417,6 +420,7 @@
 | Medium | Medium | Средний | srd-5.2 | srd-5.1 | 5x5 фт. |
 | Small | Small | Маленький | srd-5.2 | srd-5.1 | 5x5 фт. |
 | Tiny | Tiny | Крошечный | srd-5.2 | srd-5.1 | 2,5x2,5 фт. |
+| Medium or Small | - | Средний или Маленький | srd-5.2 | — | составной размер шапки; прилагательные согласуются с родом типа существа |
 
 ---
 

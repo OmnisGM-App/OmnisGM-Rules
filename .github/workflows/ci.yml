@@ -42,6 +42,13 @@ jobs:
       - name: Unit — attach_images
         run: python3 .github/scripts/test_attach_images.py
 
+      # Шапка статблока («размер тип, мировоззрение») — единственная строка, которую
+      # импорт 5.2 растерял целиком (#196): пропал Tiny, схлопнулся «Medium or Small»,
+      # у роёв исчез тип. Ни markdown-валидация, ни схема JSON API этого не видят —
+      # файл остаётся корректным. Поэтому сверка с эталоном, выпиленным из PDF.
+      - name: Unit — шапки статблоков SRD 5.2
+        run: python3 .github/scripts/test_statblock_headers.py
+
       - name: Validate JSON API schema
         run: |
           pip install jsonschema
