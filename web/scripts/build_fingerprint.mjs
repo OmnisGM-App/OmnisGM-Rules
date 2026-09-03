@@ -40,32 +40,34 @@ import { existsSync } from 'node:fs';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
 
-const web = resolve(dirname(fileURLToPath(import.meta.url)), '..');
-const repoRoot = resolve(web, '..');
+const DEFAULT_WEB = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 
 export const FINGERPRINT_FILE = 'build-id.txt';
 
-/** Входы, учитываемые как «путь + размер»: контент и ассеты, где правка меняет размер. */
-const INPUT_DIRS = [
-  join(web, 'src'),
-  join(web, 'public'),
-  join(repoRoot, 'src'),
-];
+/**
+ * Наборы входов считаются от корня `web`, а не берутся из констант модуля: так тест
+ * (`test_build_fingerprint.mjs`) собирает игрушечное дерево во временном каталоге и проверяет
+ * инварианты, не трогая рабочее. Поведение по умолчанию при этом прежнее.
+ */
+function inputsOf(web) {
+  const repoRoot = resolve(web, '..');
 
-/** Каталоги, читаемые целиком: код, где правка «символ на символ» меняет вывод сборки. */
-const INPUT_DIRS_FULL = [
-  join(web, 'src', 'lib'),
-  join(web, 'scripts'),
-];
-
-/** Файлы, читаемые целиком: конфиги и окружение сборки. */
-const INPUT_FILES = [
-  join(web, 'astro.config.mjs'),
-  join(web, 'package.json'),
-  join(web, 'package-lock.json'),
-  join(web, 'tsconfig.json'),
-  join(web, '.env'),
-];
+  return {
+    repoRoot,
+    /** Учитываются как «путь + размер»: контент и ассеты, где правка меняет размер. */
+    dirs: [join(web, 'src'), join(web, 'public'), join(repoRoot, 'src')],
+    /** Читаются целиком: код, где правка «символ на символ» меняет вывод сборки. */
+    dirsFull: [join(web, 'src', 'lib'), join(web, 'scripts')],
+    /** Читаются целиком: конфиги и окружение сборки. */
+    files: [
+      join(web, 'astro.config.mjs'),
+      join(web, 'package.json'),
+      join(web, 'package-lock.json'),
+      join(web, 'tsconfig.json'),
+      join(web, '.env'),
+    ],
+  };
+}
 
 /**
  * Мусор файловых менеджеров: к сборке отношения не имеет, а открытая в Finder папка `public`
@@ -85,22 +87,23 @@ async function walk(dir, out = []) {
 }
 
 /** Отпечаток входов сборки. Те же исходники — тот же отпечаток. */
-export async function fingerprint() {
+export async function fingerprint(web = DEFAULT_WEB) {
+  const { repoRoot, dirs, dirsFull, files } = inputsOf(web);
   const hash = createHash('sha256');
 
-  for (const dir of INPUT_DIRS) {
+  for (const dir of dirs) {
     if (!existsSync(dir)) continue;
     for (const file of (await walk(dir)).sort()) {
       hash.update(`${relative(repoRoot, file)}:${(await stat(file)).size}\n`);
     }
   }
-  for (const dir of INPUT_DIRS_FULL) {
+  for (const dir of dirsFull) {
     if (!existsSync(dir)) continue;
     for (const file of (await walk(dir)).sort()) {
       hash.update(await readFile(file));
     }
   }
-  for (const file of INPUT_FILES) {
+  for (const file of files) {
     if (existsSync(file)) hash.update(await readFile(file));
   }
 
@@ -114,18 +117,24 @@ export async function fingerprint() {
  * бы открыто окно: файл, сохранённый в эти секунды, попал бы в отпечаток, но не в `dist`.
  * Страж потом вечно видел бы совпадение и молчал про правку, которой в сборке нет.
  */
-const STASH = join(web, '.build-fingerprint');
+export const stashPath = (web = DEFAULT_WEB) => join(web, '.build-fingerprint');
 
 if (process.argv[1]?.endsWith('build_fingerprint.mjs')) {
+  // `--web=<путь>` нужен тесту (`test_build_fingerprint.mjs`): он гоняет обе фазы на игрушечном
+  // дереве во временном каталоге, а не на рабочем — иначе проверка переписывала бы настоящий
+  // `dist/build-id.txt` и зависела бы от того, была ли уже сборка.
+  const web = process.argv.find((arg) => arg.startsWith('--web='))?.slice('--web='.length) ?? DEFAULT_WEB;
+  const stash = stashPath(web);
+
   if (process.argv.includes('--stash')) {
-    const id = await fingerprint();
-    await writeFile(STASH, `${id}\n`);
+    const id = await fingerprint(web);
+    await writeFile(stash, `${id}\n`);
     console.log(`✔ отпечаток исходников снят до сборки: ${id}`);
   } else {
     // `--commit` (и запуск без флагов — ручной пересчёт): кладём снимок в dist.
-    const id = existsSync(STASH) ? (await readFile(STASH, 'utf8')).trim() : await fingerprint();
+    const id = existsSync(stash) ? (await readFile(stash, 'utf8')).trim() : await fingerprint(web);
     await writeFile(join(web, 'dist', FINGERPRINT_FILE), `${id}\n`);
-    if (existsSync(STASH)) await rm(STASH);
+    if (existsSync(stash)) await rm(stash);
     console.log(`✔ отпечаток исходников: ${id} → dist/${FINGERPRINT_FILE}`);
   }
 }

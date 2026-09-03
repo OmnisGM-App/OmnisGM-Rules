@@ -81,6 +81,13 @@ jobs:
         working-directory: web
         run: node scripts/test_plural.mjs
 
+      # Отпечаток сборки (#255): страж свежести — единственное, что мешает прогону идти против
+      # dist, собранного из кода, которого в дереве уже нет. Проверяется на игрушечном дереве
+      # во временном каталоге, рабочее не трогается; сборка для теста не нужна.
+      - name: Unit — отпечаток сборки
+        working-directory: web
+        run: node scripts/test_build_fingerprint.mjs
+
       - name: Type-check (astro check)
         working-directory: web
         run: npm run check
