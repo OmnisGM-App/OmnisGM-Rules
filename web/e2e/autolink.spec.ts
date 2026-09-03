@@ -267,12 +267,18 @@ test('EN/RU: набор слинкованных состояний совпад
 
   const usedExceptions = new Set<string>();
   const failures: string[] = [];
+  // Страниц, где ссылки на состояния реально нашлись. Тест сравнивает EN и RU между собой,
+  // поэтому вырождение парсера (пустые множества везде) выглядело бы как «расхождений нет» —
+  // зелёный тест, не проверивший ничего. Порог ниже ловит именно это.
+  let pagesWithLinks = 0;
   for (const en of chapters) {
     const ru = en.replace('/en/', '/ru/');
     const [enSet, ruSet] = await Promise.all([
       linkedConditions(request, en),
       linkedConditions(request, ru),
     ]);
+    if (enSet.size) pagesWithLinks++;
+    if (ruSet.size) pagesWithLinks++;
     const diff = [...new Set([...enSet, ...ruSet])].filter((s) => enSet.has(s) !== ruSet.has(s));
     const allow = new Set(EXCEPTIONS[en] || []);
     for (const s of diff) {
@@ -280,6 +286,10 @@ test('EN/RU: набор слинкованных состояний совпад
       else failures.push(`${en}: '${s}' (EN=${enSet.has(s)} RU=${ruSet.has(s)}) — вне allowlist`);
     }
   }
+  // Фактических страниц со слинкованными состояниями — 50 (замер по всему корпусу); порог
+  // взят с запасом вниз, чтобы не ломаться от правок контента, но ловить обнуление.
+  expect(pagesWithLinks, 'ссылки на состояния не найдены нигде — парсер вырожден').toBeGreaterThan(30);
+
   expect(failures, `новые EN/RU-расхождения:\n${failures.join('\n')}`).toEqual([]);
 
   // Протухшие исключения: каждая запись allowlist должна реально срабатывать (иначе — убрать).

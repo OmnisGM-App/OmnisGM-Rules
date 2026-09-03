@@ -27,10 +27,16 @@ const csp = (() => {
  * заканчивается раньше этих запросов, колбэк route падает уже вне теста — «route.fetch: Test
  * ended», и Playwright засчитывает прогону ошибку вне теста, а один тест остаётся
  * незапущенным. Гонка тайминговая: проявляется тем чаще, чем быстрее идут соседние тесты.
+ *
+ * Именно ХУК, а не строка в конце каждого теста: первый упавший `expect` обрывает тело, и
+ * перехват остался бы висеть ровно в том случае, ради которого этот файл написан, — при
+ * настоящей регрессии CSP. Тогда поверх честного падения легла бы ещё и «route.fetch: Test
+ * ended» с незапущенным тестом. `afterEach` выполняется и после упавшего тела, и после
+ * таймаута, и покрывает будущие тесты файла даром.
  */
-const disarm = async (context: BrowserContext) => {
+test.afterEach(async ({ context }) => {
   await context.unrouteAll({ behavior: 'ignoreErrors' });
-};
+});
 
 const arm = async (context: BrowserContext) => {
   await context.addInitScript(() => {
@@ -60,7 +66,6 @@ test('политика не ломает главу, сущность и пои�
   await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 });
 
   expect(await page.evaluate(() => (window as any).__csp)).toEqual([]);
-  await disarm(context);
 });
 
 test('политика запрещает чужие источники (иначе гейт выше ничего не значит)', async ({ context }) => {
@@ -78,5 +83,4 @@ test('политика запрещает чужие источники (ина�
   expect(await page.evaluate(() => (window as any).__csp)).toContain(
     'script-src-elem ← https://cdn.example.com/evil.js',
   );
-  await disarm(context);
 });
