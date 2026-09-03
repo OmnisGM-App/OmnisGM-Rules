@@ -26,3 +26,4 @@ src/data/api/
 # Даты контента из git для JSON-LD (#219) — генерятся в prebuild, как и src/data/api/.
 src/data/content-dates.json
 .indexnow/
+.build-fingerprint
