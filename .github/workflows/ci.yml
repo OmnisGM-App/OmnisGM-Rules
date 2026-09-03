@@ -81,6 +81,13 @@ jobs:
         working-directory: web
         run: node scripts/test_plural.mjs
 
+      # Литеральный адрес сервера в e2e (#252): порт зависит от слота (#469), и такой литерал
+      # молча перестаёт совпадать — `replace` возвращает исходную строку, а `expect` вырождается
+      # в тавтологию. Класс ловится грепом, e2e для этого не нужны (в CI они и не гоняются).
+      - name: Гейт — литеральные адреса в e2e
+        working-directory: web
+        run: node scripts/verify_no_hardcoded_urls.mjs
+
       - name: Type-check (astro check)
         working-directory: web
         run: npm run check
