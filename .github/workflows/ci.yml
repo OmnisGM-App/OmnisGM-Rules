@@ -49,6 +49,12 @@ jobs:
       - name: Unit — шапки статблоков SRD 5.2
         run: python3 .github/scripts/test_statblock_headers.py
 
+      # Переименование, схлопнувшееся в тождество («Ядовитая змея (ранее «Ядовитая
+      # змея»)»), — следствие того, что различие EN в русском отсутствует (#197).
+      # Пройдёт любую структурную проверку: строка валидна, просто бессмысленна.
+      - name: Unit — переименования в конверсионных документах
+        run: python3 .github/scripts/test_conversion_renames.py
+
       - name: Validate JSON API schema
         run: |
           pip install jsonschema
