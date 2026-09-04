@@ -30,6 +30,7 @@ JSON API: файл валиден, таблицы на месте, и все п�
 """
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -50,8 +51,9 @@ SIZES_RU = {
     "громадный": "Gargantuan", "громадная": "Gargantuan", "громадное": "Gargantuan",
 }
 # Мировоззрение RU → EN. Две формы среднего рода ниже — не про 5.1, а про живые данные 5.2
-# (вермедведь и вертигр), где согласование поехало точечно; лечится в #256, до тех пор
-# принимаем обе. Прочий средний род разрешён только версиям с опцией (см. GENDER_DRIFT).
+# (Древень «нейтрально-доброе» и Вермедведь «хаотично-доброе»), где согласование поехало
+# точечно; лечится в #256, до тех пор принимаем обе. Прочий средний род разрешён только
+# версиям с опцией (см. GENDER_DRIFT).
 ALIGN_RU = {
     "без мировоззрения": "Unaligned",
     "нейтральный": "Neutral",
@@ -86,6 +88,10 @@ failures = []
 # у одного значения). Послабление объявляется В ФИКСТУРЕ, а не в коде: 5.2 переведён
 # согласованно, и молча разрешить ему «нейтральное» значило бы снять с него проверку.
 GENDER_DRIFT: set = set()
+# Сколько раз послабление реально спасло разбор. Ноль у версии, объявившей опцию, — это
+# либо опция, скопированная в фикстуру, которой она не нужна (и тогда версия молча теряет
+# строгость), либо перевод, уже починенный в #256. Оба случая требуют снять строку.
+GENDER_USED: Counter = Counter()
 
 
 def align_to_en(text: str, version: str):
@@ -115,6 +121,7 @@ def align_to_en(text: str, version: str):
     if version in GENDER_DRIFT and t.endswith("ое"):
         for ending in ("ый", "ой"):
             if t[:-2] + ending in ALIGN_RU:
+                GENDER_USED[version] += 1
                 return ALIGN_RU[t[:-2] + ending]
     return None
 
@@ -173,6 +180,19 @@ def en_name_from_ru_heading(heading: str) -> str:
     return STRIP_TAIL.sub("", en_group_from_ru_heading(heading)).strip()
 
 
+def ru_part_from_heading(heading: str) -> str:
+    """RU-имя из заголовка: всё до последней группы скобок с латиницей.
+
+    «Взрослый золотой дракон (Металлический) (Adult Gold Dragon (Metallic))» →
+    «Взрослый золотой дракон (Металлический)».
+    """
+    latin = [g for g in paren_groups(heading) if re.search(r"[A-Za-z]", g)]
+    if not latin:
+        return heading.strip()
+    idx = heading.rfind("(" + latin[-1])
+    return heading[:idx].strip() if idx > 0 else heading.strip()
+
+
 def headers(path: Path, lang: str):
     """({ключ → шапка}, {как написано в заголовке → ключ}).
 
@@ -194,8 +214,18 @@ def headers(path: Path, lang: str):
         m = re.match(rf"^\*([{first_letter}][^*]*)\*$", s)
         if m and name and not s.startswith("**"):
             out.setdefault(name, m.group(1))
+            # Только ПОЛНОЕ имя заголовка. Короткий ключ («Deva» рядом с «Deva (Angel)»)
+            # не нужен ни одной из 1294 строк указателей и делает карту односторонней:
+            # с ним и снятие хвоста из строки указателя, и его дописывание проходят молча.
             alias.setdefault(full, name)
-            alias.setdefault(name, name)
+            if lang == "ru":
+                # Колонка «Монстр» RU-указателя несёт RU-имя — по конвенции указателя без
+                # таксономического хвоста («Взрослый золотой дракон» против «… (Металлический)»
+                # в заголовке), поэтому в карту кладём обе формы. ДОПИСАННЫЙ хвост ключа
+                # не найдёт и останется красным.
+                ru_part = ru_part_from_heading(full)
+                alias.setdefault(ru_part, name)
+                alias.setdefault(STRIP_TAIL.sub("", ru_part).strip(), name)
             name = None
     return out, alias
 
@@ -275,8 +305,9 @@ def check_version(version: str, fixture: Path) -> None:
             continue
         if not line.strip():
             continue
-        # Колонок минимум две; третья (сырая строка PDF) — для глаз рецензента, не для сверки.
-        # Разбор битой строки не роняем трейсбеком: фикстура правится руками.
+        # Колонок минимум две; третья (сырая строка PDF) не обязательна, но если она есть
+        # у одной строки — обязана быть у всех (см. сверку ниже). Разбор битой строки
+        # не роняем трейсбеком: фикстура правится руками.
         parts = line.split("\t")
         if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
             failures.append(f"{version}: строка {number} фикстуры не разбирается: {line!r}")
@@ -290,8 +321,14 @@ def check_version(version: str, fixture: Path) -> None:
         if len(parts) > 2 and parts[2].strip():
             raw_pdf[parts[0]] = parts[2]
 
-    # Третья колонка — сырая строка PDF. Она не «для глаз»: вторая колонка обязана быть
-    # ею же, приведённой к нашему регистру, иначе эталон разъедется с источником молча.
+    # Третья колонка — сырая строка PDF. Вторая обязана быть ею же, приведённой к нашему
+    # регистру, иначе эталон разъедется с источником молча. Инвариант применяется построчно,
+    # поэтому удаление колонки у одной строки его просто выключало бы — требуем «у всех
+    # или ни у одной».
+    if raw_pdf and len(raw_pdf) != len(expected):
+        failures.append(
+            f"{version}: третья колонка (строка PDF) есть у {len(raw_pdf)} строк "
+            f"из {len(expected)} — она либо у всех, либо ни у одной")
     for name, raw in raw_pdf.items():
         if titlecase_header(raw) != expected[name]:
             failures.append(
@@ -341,6 +378,16 @@ def check_version(version: str, fixture: Path) -> None:
             if path is None:
                 continue
             rows = index_rows(path)
+            # Подпись под таблицей — тоже данные: пока её никто не сверял, «Total: 277»
+            # под 317 строками жило в репозитории и уехало на прод.
+            total = re.search(r"^(?:Total|Всего):\s*(\d+)\s", path.read_text(encoding="utf-8"),
+                              re.MULTILINE)
+            if total is None:
+                failures.append(f"{version} {lang}-указатель {index}: нет подписи с числом строк")
+            elif int(total.group(1)) != len(rows):
+                failures.append(
+                    f"{version} {lang}-указатель {index}: подпись обещает {total.group(1)}, "
+                    f"строк в таблице {len(rows)}")
             for cells in rows:
                 # Имя строки: в EN-указателе первая колонка, в RU — вторая («Оригинал (EN)»).
                 listed = cells[0] if lang == "en" else (cells[1] if len(cells) > 1 else cells[0])
@@ -360,7 +407,18 @@ def check_version(version: str, fixture: Path) -> None:
                     failures.append(f"{version} {lang}-указатель {index}: строка «{listed}» без шапки")
                     continue
                 if lang == "ru":
-                    continue  # колонки RU-указателя сверяются размером ниже, отдельным блоком
+                    # Колонка «Монстр» до сих пор не сверялась ничем: подмена RU-имени и
+                    # рассинхрон пары «Монстр»/«Оригинал (EN)» проходили молча.
+                    ru_key = alias["ru"].get(cells[0])
+                    if ru_key is None:
+                        failures.append(
+                            f"{version} ru-указатель {index}: имя «{cells[0]}» не совпадает "
+                            f"ни с одним RU-заголовком статблока")
+                    elif ru_key != key:
+                        failures.append(
+                            f"{version} ru-указатель {index}: «{cells[0]}» — это статблок "
+                            f"«{ru_key}», а в колонке «Оригинал (EN)» стоит «{listed}»")
+                    continue  # размер и мировоззрение сверяются ниже, отдельным блоком
                 want = parts_en(header)
                 if want is None:
                     failures.append(f"{version} EN «{key}»: шапка «{header}» не разбирается")
@@ -387,8 +445,11 @@ def check_version(version: str, fixture: Path) -> None:
             failures.append(f"{version} RU: статблок «{name}» не найден")
             continue
         want = parts_en(header)
+        if want is None:
+            failures.append(f"{version} эталон «{name}»: шапка «{header}» не разбирается")
+            continue
         ru = parts_ru(got, version)
-        if want is None or ru is None:
+        if ru is None:
             failures.append(f"{version} RU «{name}»: шапка «{got}» не разбирается")
             continue
         want_size, want_type, want_sub, want_align = want
@@ -409,6 +470,12 @@ def check_version(version: str, fixture: Path) -> None:
     # --- RU-указатели: размер и мировоззрение (термин типа ждёт #256) -------------------
     # Мировоззрение здесь — не украшение: именно этой колонкой в 5.1 проехала форма
     # «Принципиально-злый», которой в русском нет, — значение при этом «узнаваемое».
+    # Послабление, которым никто не пользуется, — это снятая строгость без причины.
+    if version in GENDER_DRIFT and not GENDER_USED[version]:
+        failures.append(
+            f"{version}: опция «род-мировоззрения-несогласован» ни разу не понадобилась — "
+            f"удалите её из фикстуры")
+
     for index, align_col in (("04_Monsters.md", 4), ("05_Animals.md", None)):
         path = next(iter(ru_dir.glob(f"*Glossary/{index}")), None)
         if path is None:
@@ -426,7 +493,10 @@ def check_version(version: str, fixture: Path) -> None:
                 failures.append(
                     f"{version} RU-указатель {index}, «{key}»: размер «{cells[2]}» ≠ {want[0]}")
             if align_col is not None and len(cells) > align_col:
-                got = align_to_en(cells[align_col], version)
+                # Версия намеренно пустая: послабление по роду объявлено для ШАПОК
+                # статблоков, а в колонках указателей средних форм нет ни одной —
+                # гасить их здесь значило бы расширить опцию за пределы обоснования.
+                got = align_to_en(cells[align_col], "")
                 if got is None:
                     failures.append(
                         f"{version} RU-указатель {index}, «{key}»: мировоззрение "

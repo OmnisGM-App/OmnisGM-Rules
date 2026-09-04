@@ -158,6 +158,51 @@ def test_word_per_line_dice_tail_rejoined():
                  "**Hit Points** 135 (18d10 + 36)" in out, True)
 
 
+def test_word_per_line_heading_completed():
+    # Ради этого функция и писалась: «### Adult\n Red Dragon» — имя, разорванное по словам.
+    # Тест держит МНОГОСЛОВНЫЙ заголовок: на односложном («## Bandit») правило не видно.
+    text = ("### Adult \n Red \n Dragon\n\n*Huge \n dragon*\n\n"
+            "Текст \n продолжение \n ещё \n слово\n")
+    out = run(lr.fix_word_per_line, text)
+    ok = "### Adult Red Dragon" in out and "*Huge dragon*" in out
+    return check("word-per-line: heading completed", ok, True)
+
+
+def test_word_per_line_statblock_header_not_glued_to_heading():
+    # Обратная сторона того же правила: шапка статблока к заголовку не приклеивается
+    text = ("### Adult \n Red \n Dragon\n *Huge \n dragon*\n\n"
+            "Текст \n продолжение \n ещё \n слово\n")
+    out = run(lr.fix_word_per_line, text)
+    ok = "### Adult Red Dragon\n *Huge dragon*" in out
+    return check("word-per-line: statblock header kept off heading", ok, True)
+
+
+def test_word_per_line_minus_tail_keeps_space():
+    # «(14d10\n -\n 28)» — минус формулы, а не перенос по дефису: пробел обязан остаться
+    text = ("*Large \n beast*\n\n**Hit \n Points** 77 \n (14d10 \n - \n 28)\n\n"
+            "Текст \n продолжение \n ещё \n слово\n")
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: minus tail keeps space",
+                 "**Hit Points** 77 (14d10 - 28)" in out, True)
+
+
+def test_word_per_line_unpaired_fence_does_not_disable():
+    # Одинокий открывающий фенс не должен уводить остаток файла в «не трогать»
+    text = ("```\nfragment\n\nТекст \n продолжение \n ещё \n слово \n здесь \n длинный\n")
+    out = run(lr.fix_word_per_line, text)
+    ok = "Текст продолжение ещё слово здесь длинный" in out
+    return check("word-per-line: unpaired fence does not disable", ok, True)
+
+
+def test_word_per_line_table_and_setext_not_receivers():
+    # Две оставшиеся ветки NO_APPEND_RE: строка таблицы и подчёркивание setext
+    text = ("| ячейка | таблицы |\n продолжение\n\nЗаголовок\n===\n хвост\n"
+            "Текст \n дальше \n ещё \n слово\n")
+    out = run(lr.fix_word_per_line, text)
+    ok = ("| ячейка | таблицы |\n продолжение" in out and "===\n хвост" in out)
+    return check("word-per-line: table and setext are not receivers", ok, True)
+
+
 def main():
     tests = [
         test_br_prose_word_split,
@@ -177,6 +222,11 @@ def main():
         test_word_per_line_list_item_with_number_kept,
         test_word_per_line_keeps_lists_and_tables,
         test_word_per_line_dice_tail_rejoined,
+        test_word_per_line_heading_completed,
+        test_word_per_line_statblock_header_not_glued_to_heading,
+        test_word_per_line_minus_tail_keeps_space,
+        test_word_per_line_unpaired_fence_does_not_disable,
+        test_word_per_line_table_and_setext_not_receivers,
     ]
     results = [t() for t in tests]
     passed = sum(results)

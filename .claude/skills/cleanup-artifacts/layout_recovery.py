@@ -30,13 +30,19 @@ WORD_PER_LINE_RATIO = 0.30
 # Продолжение строки — ровно один ведущий пробел и не разметка: список, таблица, заголовок
 # или цитата с отступом остаются на своих строках, иначе схлопнется вложенность.
 CONTINUATION_RE = re.compile(r"^ (?![ \t])(?![-*+] )(?!\d+[.)] )(?![|#>`])(\S.*)$")
-# Хвост формулы кубов — «(18d10\n + \n 36)»: по виду маркер списка, по смыслу продолжение.
-# Строка целиком должна выглядеть арифметикой: знак, знак с числом, число со скобкой.
-# «- 3 очка действия» под это не подходит и остаётся пунктом списка.
-ARITHMETIC_RE = re.compile(r"^ ([-+](?:\s*\d[\d\s]*\)?)?)\s*$")
-# Приёмник склейки: к заголовку, строке таблицы, подчёркиванию setext и фенсу не клеим —
-# продолжение туда не относится, а разметку это ломает.
-NO_APPEND_RE = re.compile(r"^\s*(?:#{1,6}\s|\||```|~~~|=+\s*$|-{3,}\s*$)")
+# Хвост формулы кубов — «(18d10\n + \n 36)» и «(4d8\n + \n 1d6)»: по виду маркер списка,
+# по смыслу продолжение. Строка целиком должна выглядеть арифметикой: знак, число, кости,
+# закрывающая скобка. «- 3 очка действия» под это не подходит и остаётся пунктом списка.
+ARITHMETIC_RE = re.compile(r"^ ([-+](?:\s*\d[\dd\s]*\)?)?)\s*$")
+# Приёмник склейки: к строке таблицы, подчёркиванию setext и фенсу не клеим — продолжение
+# туда не относится, а разметку это ломает. Заголовок сюда НЕ входит: он в разорванном
+# выводе сам разорван («### Adult» + «Red Dragon»), и запрет приёмника оставлял бы
+# 61% заголовков обрубками — см. HEADING_RE ниже.
+NO_APPEND_RE = re.compile(r"^\s*(?:\||```|~~~|=+\s*$|-{3,}\s*$)")
+# Заголовок достраиваем именем, но НЕ шапкой статблока: «*Large aberration…*» — уже
+# следующий блок, приклеенный к заголовку он ломает и заголовок, и разбор шапки.
+HEADING_RE = re.compile(r"^\s*#{1,6}\s")
+STATBLOCK_TAIL_RE = re.compile(r"^[*_]")
 
 
 def fix_word_per_line(text):
@@ -58,19 +64,34 @@ def fix_word_per_line(text):
     if broken / len(nonempty) < WORD_PER_LINE_RATIO:
         return text
 
+    # Непарный открывающий фенс — штатный артефакт такого вывода. Тумблер по нему увёл бы
+    # весь остаток файла в «не трогать», и отказ был бы неотличим от «нечего чинить»,
+    # поэтому при нечётном числе фенсов их не учитываем вовсе и говорим об этом в stats.
+    fence_re = re.compile(r"^\s*(?:```|~~~)")
+    track_fences = sum(1 for l in lines if fence_re.match(l)) % 2 == 0
+    if not track_fences:
+        stats["word_per_line_unpaired_fence"] += 1
+
     out, in_fence = [], False
     for line in lines:
-        if re.match(r"^\s*(?:```|~~~)", line):
-            in_fence = not in_fence
+        if fence_re.match(line):
+            if track_fences:
+                in_fence = not in_fence
             out.append(line)
             continue
         m = None if in_fence else (CONTINUATION_RE.match(line) or ARITHMETIC_RE.match(line))
         if m and out and out[-1].strip() and not NO_APPEND_RE.match(out[-1]):
             prev, tail = out[-1].rstrip(), m.group(1).strip()
+            if HEADING_RE.match(prev) and STATBLOCK_TAIL_RE.match(tail):
+                out.append(line)
+                continue
             # Перенос по дефису склеиваем без пробела: иначе «any non-\n lawful» станет
             # «any non- lawful» — слово так и останется битым, но уже внутри строки, где
-            # ни глазами, ни fix_hyphen_breaks его больше не найти.
-            out[-1] = prev + tail if prev.endswith("-") else prev + " " + tail
+            # ни глазами, ни fix_hyphen_breaks его больше не найти. Дефис засчитываем
+            # только после буквы или цифры: одинокий «-» — это минус формулы («14d10 - 28»)
+            # или маркер списка, там пробел нужен.
+            glue = "" if re.search(r"\w-$", prev) else " "
+            out[-1] = prev + glue + tail
             stats["word_per_line"] += 1
         else:
             out.append(line)
