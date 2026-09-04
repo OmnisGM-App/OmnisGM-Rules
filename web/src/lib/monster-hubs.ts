@@ -19,9 +19,10 @@ export interface MonsterLite {
 }
 
 // Канонические типы. slug = EN-тип в lowercase. ru — единая подпись (без разнобоя данных).
-// beast/swarm есть только в 5.1 (в 5.2 звери вынесены в отдельный ресурс animals). Набор
-// «активных» типов версии выводится из данных (activeTypeSlugs) — 5.2 не покажет пустые
-// beast/swarm-хабы и не даст на них битых ссылок.
+// beast есть только в 5.1 (в 5.2 звери вынесены в отдельный ресурс animals); swarm — в
+// обеих версиях: в 5.2 это рой ползучих когтей, тип которого («Swarm of Tiny Undead»)
+// восстановлен по PDF в #196. Набор «активных» типов версии выводится из данных
+// (activeTypeSlugs) — пустых хабов и битых ссылок на них не будет.
 export const MONSTER_TYPES: { slug: string; en: string; ru: string }[] = [
   { slug: 'aberration', en: 'Aberration', ru: 'Аберрация' },
   { slug: 'beast', en: 'Beast', ru: 'Зверь' },
@@ -53,6 +54,17 @@ export const canonTypeSlug = (rawType: string): string => {
   return t;
 };
 
+// Базовый тип роя: «Swarm of Tiny Beasts» → 'beast', «Swarm of Tiny Undead» → 'undead'.
+// Нужен для соседей по типу: в 5.2 рой ровно один (ползучие когти), и по слагу 'swarm'
+// соседей у него нет вовсе — а по смыслу его семья это нежить. Для хабов такое сведение
+// не годится: там все рои — одна группа, и это правильно.
+export const swarmBaseTypeSlug = (rawType: string): string | null => {
+  const m = /^swarm of \w+ (\w+)$/.exec(String(rawType || '').toLowerCase().trim());
+  if (!m) return null;
+  const base = m[1].replace(/s$/, '');            // beasts → beast; undead уже без -s
+  return MONSTER_TYPES.some((t) => t.slug === base) ? base : null;
+};
+
 // CR-хабы: одиночные для частых 0–10 (все ≥5 монстров), редкий тяжёлый хвост — в диапазоны.
 const CR_SINGLES = ['0', '1/8', '1/4', '1/2', '1', '2', '3', '4', '5', '6', '7', '8', '9', '10'];
 const RANGE = (a: number, b: number) => Array.from({ length: b - a + 1 }, (_, i) => String(a + i));
@@ -70,6 +82,17 @@ export const crHubTitle = (h: CrHub, lang: Lang) => (lang === 'ru' ? `ПО ${h.l
 
 // Карта slug → канонический слаг типа (из EN-данных) — чтобы страница монстра любого языка
 // сослалась на верный type-хаб, не завися от непоследовательного RU-поля type.
+// Слаг базового типа роя по EN-данным: slug монстра → 'undead'/'beast'. Считается по EN,
+// потому что RU-строка типа своя («рой Крошечной нежити»), а решение должно быть общим.
+export function swarmBaseMap(ver: string): Map<string, string> {
+  const out = new Map<string, string>();
+  for (const m of loadEntities(ver, 'en', 'monsters') as any[]) {
+    const base = swarmBaseTypeSlug(m.type as string);
+    if (base) out.set(m.slug, base);
+  }
+  return out;
+}
+
 export function enTypeMap(ver: string): Map<string, string> {
   return new Map(
     (loadEntities(ver, 'en', 'monsters') as any[]).map((m) => [m.slug, canonTypeSlug(m.type as string)]),
@@ -77,7 +100,7 @@ export function enTypeMap(ver: string): Map<string, string> {
 }
 
 // Слаги типов, реально присутствующих в версии (из EN-данных) — для фасетной навигации,
-// чтобы не показывать/не линковать пустые хабы (напр. beast/swarm в 5.2 отсутствуют).
+// чтобы не показывать/не линковать пустые хабы (напр. beast в 5.2 отсутствует).
 export function activeTypeSlugs(ver: string): Set<string> {
   return new Set((loadEntities(ver, 'en', 'monsters') as any[]).map((m) => canonTypeSlug(m.type as string)));
 }

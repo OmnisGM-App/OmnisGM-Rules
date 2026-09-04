@@ -9,7 +9,7 @@ import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
-import { enTypeMap, typeLabel, crHubForValue, crHubTitle } from '../../../../../lib/monster-hubs';
+import { enTypeMap, canonTypeSlug, swarmBaseMap, typeLabel, crHubForValue, crHubTitle } from '../../../../../lib/monster-hubs';
 import { statBlockDescription } from '../../../../../lib/entity-facts';
 import { pageTitle } from '../../../../../lib/page-title';
 
@@ -18,7 +18,7 @@ import { pageTitle } from '../../../../../lib/page-title';
 // EN и RU делят канонический (англ.) слаг → корректный hreflang.
 const PARENT_NAV: Record<string, string> = { srd52: 'd52-monstersaz', srd51: 'd51-monstersaz' };
 
-interface Sib { slug: string; name: string; type: string; cr: string }
+interface Sib { slug: string; name: string; type: string; typeSlug: string; cr: string }
 
 export function getStaticPaths() {
   const BUILDS = [
@@ -31,9 +31,15 @@ export function getStaticPaths() {
   for (const { ver, lang } of BUILDS) {
     const monsters = loadEntities(ver, lang, 'monsters');
     const typeMap = enTypeMap(ver); // slug → канонический typeSlug (из EN), для ссылки в type-хаб
+    const swarmBases = swarmBaseMap(ver); // slug роя → базовый тип ('undead'), для соседей
     const siblings: Sib[] = monsters.map((m) => ({
       slug: m.slug, name: m.name,
-      type: (m.type as string) ?? '', cr: (m.cr as { value?: string })?.value ?? '',
+      type: (m.type as string) ?? '',
+      // Канонический слаг (из EN-данных) — по нему и группируем «тот же тип». Сырое поле
+      // `type` для этого негодно: в RU оно переведено непоследовательно, а у роя это вообще
+      // не базовый тип, а вся конструкция («Swarm of Tiny Undead» / «рой Крошечной нежити»).
+      typeSlug: typeMap.get(m.slug) ?? canonTypeSlug((m.type as string) ?? ''),
+      cr: (m.cr as { value?: string })?.value ?? '',
     }));
     // Карта имя-состояния → slug для линковки иммунитетов к состояниям в стат-блоке.
     const condMap: Record<string, string> = {};
@@ -43,14 +49,18 @@ export function getStaticPaths() {
     for (const entity of monsters) {
       paths.push({
         params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
-        props: { entity, ver, lang, siblings, condMap, typeSlug: typeMap.get(entity.slug) ?? 'monstrosity' },
+        props: {
+          entity, ver, lang, siblings, condMap,
+          typeSlug: typeMap.get(entity.slug) ?? 'monstrosity',
+          swarmBase: swarmBases.get(entity.slug) ?? null,
+        },
       });
     }
   }
   return paths;
 }
 
-const { entity, ver, lang, siblings, condMap, typeSlug } = Astro.props;
+const { entity, ver, lang, siblings, condMap, typeSlug, swarmBase } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
 const verKey = ver; // srd52
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
@@ -139,9 +149,20 @@ const description =
 
 const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
 // «Тот же тип существа» — до 8 других монстров того же типа (внутренняя перелинковка/SEO).
-const sameType = (siblings as Sib[])
-  .filter((s) => s.slug !== entity.slug && s.type === creatureType)
-  .slice(0, 8);
+// Соседи «того же типа» — по каноническому слагу. Сырое поле `type` для этого негодно:
+// в RU оно переведено непоследовательно, а у роя это вся конструкция целиком.
+// Если по своему типу соседей не нашлось — берём базовый тип роя: в 5.2 рой ползучих
+// когтей единственный, и страница осталась бы вовсе без внутренней перелинковки.
+const neighbours = (slug: string) =>
+  (siblings as Sib[]).filter((s) => s.slug !== entity.slug && s.typeSlug === slug).slice(0, 8);
+const relatedSlug = neighbours(typeSlug).length > 0 ? typeSlug : (swarmBase ?? typeSlug);
+const sameType = neighbours(relatedSlug);
+// Подпись блока — каноническая метка типа, а не сырое поле: у роя она иначе разъезжается
+// со списком. В RU метка идёт со строчной — как и было с сырым типом («Ещё существа: нежить»).
+const relatedTypeLabel = (() => {
+  const label = typeLabel(relatedSlug, lang);
+  return lang === 'ru' ? label.charAt(0).toLowerCase() + label.slice(1) : label;
+})();
 
 const upLink = { href: `${base}/`, ru: 'Монстры от А до Я', en: 'Monsters A–Z' };
 const kind = t('Монстр', 'Monster');
@@ -260,7 +281,7 @@ const portrait = creatureImage('dnd', entity.slug);
 
   {sameType.length > 0 && (
     <nav class="ent-related" aria-label={t('Тот же тип', 'Same type')}>
-      <span class="ent-related-h">{t(`Ещё существа: ${creatureType}`, `More ${creatureType} creatures`)}</span>
+      <span class="ent-related-h">{t(`Ещё существа: ${relatedTypeLabel}`, `More ${relatedTypeLabel} creatures`)}</span>
       <span class="ent-related-list">
         {sameType.map((r) => (
           <a href={`${base}/${r.slug}/`}>{r.name}</a>
