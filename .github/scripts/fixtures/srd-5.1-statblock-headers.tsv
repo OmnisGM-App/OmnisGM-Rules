@@ -1,0 +1,333 @@
+# Шапки статблоков SRD 5.1 — выемка из официального PDF (CC-BY-4.0),
+# https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf
+# Формула атрибуции, которой держим комплаенс, — в src/dnd/srd-5.1/LICENSE.md.
+#
+# Колонки: <имя статблока>\t<ожидаемая строка шапки>\t<строка PDF как есть>.
+# Третья колонка — сырой текст документа, и гейт её ЧИТАЕТ: вторая колонка обязана быть
+# ею же после нормализации регистра. Отличие ровно одно и механическое: PDF 5.1
+# пишет тип и мировоззрение со строчной («Large aberration, lawful evil»), а
+# импорт приводит их к нашему формату с прописных, оставляя строчными «of» и «or».
+# Проверено: после этой нормализации PDF и текст репозитория совпадают во всех
+# 317 блоках. Мягкие переносы (U+00AD) и типографские дефисы PDF нормализованы.
+#
+# Перевод мировоззрения в 5.1 несогласован по роду: у одного значения соседствуют
+# «Хаотично-злое» и «Хаотично-злой». Это дефект перевода, а не разные значения, поэтому
+# гейту разрешено принимать средний род ИМЕННО ЗДЕСЬ. У 5.2 такого послабления нет.
+# опция: род-мировоззрения-несогласован
+Aboleth	Large Aberration, Lawful Evil	Large aberration, lawful evil
+Acolyte	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Adult Black Dragon	Huge Dragon, Chaotic Evil	Huge dragon, chaotic evil
+Adult Blue Dragon	Huge Dragon, Lawful Evil	Huge dragon, lawful evil
+Adult Brass Dragon	Huge Dragon, Chaotic Good	Huge dragon, chaotic good
+Adult Bronze Dragon	Huge Dragon, Lawful Good	Huge dragon, lawful good
+Adult Copper Dragon	Huge Dragon, Chaotic Good	Huge dragon, chaotic good
+Adult Gold Dragon	Huge Dragon, Lawful Good	Huge dragon, lawful good
+Adult Green Dragon	Huge Dragon, Lawful Evil	Huge dragon, lawful evil
+Adult Red Dragon	Huge Dragon, Chaotic Evil	Huge dragon, chaotic evil
+Adult Silver Dragon	Huge Dragon, Lawful Good	Huge dragon, lawful good
+Adult White Dragon	Huge Dragon, Chaotic Evil	Huge dragon, chaotic evil
+Air Elemental	Large Elemental, Neutral	Large elemental, neutral
+Ancient Black Dragon	Gargantuan Dragon, Chaotic Evil	Gargantuan dragon, chaotic evil
+Ancient Blue Dragon	Gargantuan Dragon, Lawful Evil	Gargantuan dragon, lawful evil
+Ancient Brass Dragon	Gargantuan Dragon, Chaotic Good	Gargantuan dragon, chaotic good
+Ancient Bronze Dragon	Gargantuan Dragon, Lawful Good	Gargantuan dragon, lawful good
+Ancient Copper Dragon	Gargantuan Dragon, Chaotic Good	Gargantuan dragon, chaotic good
+Ancient Gold Dragon	Gargantuan Dragon, Lawful Good	Gargantuan dragon, lawful good
+Ancient Green Dragon	Gargantuan Dragon, Lawful Evil	Gargantuan dragon, lawful evil
+Ancient Red Dragon	Gargantuan Dragon, Chaotic Evil	Gargantuan dragon, chaotic evil
+Ancient Silver Dragon	Gargantuan Dragon, Lawful Good	Gargantuan dragon, lawful good
+Ancient White Dragon	Gargantuan Dragon, Chaotic Evil	Gargantuan dragon, chaotic evil
+Androsphinx	Large Monstrosity, Lawful Neutral	Large monstrosity, lawful neutral
+Animated Armor	Medium Construct, Unaligned	Medium construct, unaligned
+Ankheg	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Ape	Medium Beast, Unaligned	Medium beast, unaligned
+Archmage	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Assassin	Medium Humanoid (Any Race), Any Non-good Alignment	Medium humanoid (any race), any non-good alignment
+Awakened Shrub	Small Plant, Unaligned	Small plant, unaligned
+Awakened Tree	Huge Plant, Unaligned	Huge plant, unaligned
+Axe Beak	Large Beast, Unaligned	Large beast, unaligned
+Azer	Medium Elemental, Lawful Neutral	Medium elemental, lawful neutral
+Baboon	Small Beast, Unaligned	Small beast, unaligned
+Badger	Tiny Beast, Unaligned	Tiny beast, unaligned
+Balor	Huge Fiend (Demon), Chaotic Evil	Huge fiend (demon), chaotic evil
+Bandit	Medium Humanoid (Any Race), Any Non-lawful Alignment	Medium humanoid (any race), any non-lawful alignment
+Bandit Captain	Medium Humanoid (Any Race), Any Non-lawful Alignment	Medium humanoid (any race), any non-lawful alignment
+Barbed Devil	Medium Fiend (Devil), Lawful Evil	Medium fiend (devil), lawful evil
+Basilisk	Medium Monstrosity, Unaligned	Medium monstrosity, unaligned
+Bat	Tiny Beast, Unaligned	Tiny beast, unaligned
+Bearded Devil	Medium Fiend (Devil), Lawful Evil	Medium fiend (devil), lawful evil
+Behir	Huge Monstrosity, Neutral Evil	Huge monstrosity, neutral evil
+Berserker	Medium Humanoid (Any Race), Any Chaotic Alignment	Medium humanoid (any race), any chaotic alignment
+Black Bear	Medium Beast, Unaligned	Medium beast, unaligned
+Black Dragon Wyrmling	Medium Dragon, Chaotic Evil	Medium dragon, chaotic evil
+Black Pudding	Large Ooze, Unaligned	Large ooze, unaligned
+Blink Dog	Medium Fey, Lawful Good	Medium fey, lawful good
+Blood Hawk	Small Beast, Unaligned	Small beast, unaligned
+Blue Dragon Wyrmling	Medium Dragon, Lawful Evil	Medium dragon, lawful evil
+Boar	Medium Beast, Unaligned	Medium beast, unaligned
+Bone Devil	Large Fiend (Devil), Lawful Evil	Large fiend (devil), lawful evil
+Brass Dragon Wyrmling	Medium Dragon, Chaotic Good	Medium dragon, chaotic good
+Bronze Dragon Wyrmling	Medium Dragon, Lawful Good	Medium dragon, lawful good
+Brown Bear	Large Beast, Unaligned	Large beast, unaligned
+Bugbear	Medium Humanoid (Goblinoid), Chaotic Evil	Medium humanoid (goblinoid), chaotic evil
+Bulette	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Camel	Large Beast, Unaligned	Large beast, unaligned
+Cat	Tiny Beast, Unaligned	Tiny beast, unaligned
+Centaur	Large Monstrosity, Neutral Good	Large monstrosity, neutral good
+Chain Devil	Medium Fiend (Devil), Lawful Evil	Medium fiend (devil), lawful evil
+Chimera	Large Monstrosity, Chaotic Evil	Large monstrosity, chaotic evil
+Chuul	Large Aberration, Chaotic Evil	Large aberration, chaotic evil
+Clay Golem	Large Construct, Unaligned	Large construct, unaligned
+Cloaker	Large Aberration, Chaotic Neutral	Large aberration, chaotic neutral
+Cloud Giant	Huge Giant, Neutral Good (50%) or Neutral Evil (50%)	Huge giant, neutral good (50%) or neutral evil (50%)
+Cockatrice	Small Monstrosity, Unaligned	Small monstrosity, unaligned
+Commoner	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Constrictor Snake	Large Beast, Unaligned	Large beast, unaligned
+Copper Dragon Wyrmling	Medium Dragon, Chaotic Good	Medium dragon, chaotic good
+Couatl	Medium Celestial, Lawful Good	Medium celestial, lawful good
+Crab	Tiny Beast, Unaligned	Tiny beast, unaligned
+Crocodile	Large Beast, Unaligned	Large beast, unaligned
+Cult Fanatic	Medium Humanoid (Any Race), Any Non-good Alignment	Medium humanoid (any race), any non-good alignment
+Cultist	Medium Humanoid (Any Race), Any Non-good Alignment	Medium humanoid (any race), any non-good alignment
+Darkmantle	Small Monstrosity, Unaligned	Small monstrosity, unaligned
+Death Dog	Medium Monstrosity, Neutral Evil	Medium monstrosity, neutral evil
+Deer	Medium Beast, Unaligned	Medium beast, unaligned
+Deva	Medium Celestial, Lawful Good	Medium celestial, lawful good
+Dire Wolf	Large Beast, Unaligned	Large beast, unaligned
+Djinni	Large Elemental, Chaotic Good	Large elemental, chaotic good
+Doppelganger	Medium Monstrosity (Shapechanger), Neutral	Medium monstrosity (shapechanger), neutral
+Draft Horse	Large Beast, Unaligned	Large beast, unaligned
+Dragon Turtle	Gargantuan Dragon, Neutral	Gargantuan dragon, neutral
+Dretch	Small Fiend (Demon), Chaotic Evil	Small fiend (demon), chaotic evil
+Drider	Large Monstrosity, Chaotic Evil	Large monstrosity, chaotic evil
+Druid	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Dryad	Medium Fey, Neutral	Medium fey, neutral
+Duergar	Medium Humanoid (Dwarf), Lawful Evil	Medium humanoid (dwarf), lawful evil
+Dust Mephit	Small Elemental, Neutral Evil	Small elemental, neutral evil
+Eagle	Small Beast, Unaligned	Small beast, unaligned
+Earth Elemental	Large Elemental, Neutral	Large elemental, neutral
+Efreeti	Large Elemental, Lawful Evil	Large elemental, lawful evil
+Elephant	Huge Beast, Unaligned	Huge beast, unaligned
+Elf, Drow	Medium Humanoid (Elf), Neutral Evil	Medium humanoid (elf), neutral evil
+Elk	Large Beast, Unaligned	Large beast, unaligned
+Erinyes	Medium Fiend (Devil), Lawful Evil	Medium fiend (devil), lawful evil
+Ettercap	Medium Monstrosity, Neutral Evil	Medium monstrosity, neutral evil
+Ettin	Large Giant, Chaotic Evil	Large giant, chaotic evil
+Fire Elemental	Large Elemental, Neutral	Large elemental, neutral
+Fire Giant	Huge Giant, Lawful Evil	Huge giant, lawful evil
+Flesh Golem	Medium Construct, Neutral	Medium construct, neutral
+Flying Snake	Tiny Beast, Unaligned	Tiny beast, unaligned
+Flying Sword	Small Construct, Unaligned	Small construct, unaligned
+Frog	Tiny Beast, Unaligned	Tiny beast, unaligned
+Frost Giant	Huge Giant, Neutral Evil	Huge giant, neutral evil
+Gargoyle	Medium Elemental, Chaotic Evil	Medium elemental, chaotic evil
+Gelatinous Cube	Large Ooze, Unaligned	Large ooze, unaligned
+Ghast	Medium Undead, Chaotic Evil	Medium undead, chaotic evil
+Ghost	Medium Undead, Any Alignment	Medium undead, any alignment
+Ghoul	Medium Undead, Chaotic Evil	Medium undead, chaotic evil
+Giant Ape	Huge Beast, Unaligned	Huge beast, unaligned
+Giant Badger	Medium Beast, Unaligned	Medium beast, unaligned
+Giant Bat	Large Beast, Unaligned	Large beast, unaligned
+Giant Boar	Large Beast, Unaligned	Large beast, unaligned
+Giant Centipede	Small Beast, Unaligned	Small beast, unaligned
+Giant Constrictor Snake	Huge Beast, Unaligned	Huge beast, unaligned
+Giant Crab	Medium Beast, Unaligned	Medium beast, unaligned
+Giant Crocodile	Huge Beast, Unaligned	Huge beast, unaligned
+Giant Eagle	Large Beast, Neutral Good	Large beast, neutral good
+Giant Elk	Huge Beast, Unaligned	Huge beast, unaligned
+Giant Fire Beetle	Small Beast, Unaligned	Small beast, unaligned
+Giant Frog	Medium Beast, Unaligned	Medium beast, unaligned
+Giant Goat	Large Beast, Unaligned	Large beast, unaligned
+Giant Hyena	Large Beast, Unaligned	Large beast, unaligned
+Giant Lizard	Large Beast, Unaligned	Large beast, unaligned
+Giant Octopus	Large Beast, Unaligned	Large beast, unaligned
+Giant Owl	Large Beast, Neutral	Large beast, neutral
+Giant Poisonous Snake	Medium Beast, Unaligned	Medium beast, unaligned
+Giant Rat	Small Beast, Unaligned	Small beast, unaligned
+Giant Scorpion	Large Beast, Unaligned	Large beast, unaligned
+Giant Sea Horse	Large Beast, Unaligned	Large beast, unaligned
+Giant Shark	Huge Beast, Unaligned	Huge beast, unaligned
+Giant Spider	Large Beast, Unaligned	Large beast, unaligned
+Giant Toad	Large Beast, Unaligned	Large beast, unaligned
+Giant Vulture	Large Beast, Neutral Evil	Large beast, neutral evil
+Giant Wasp	Medium Beast, Unaligned	Medium beast, unaligned
+Giant Weasel	Medium Beast, Unaligned	Medium beast, unaligned
+Giant Wolf Spider	Medium Beast, Unaligned	Medium beast, unaligned
+Gibbering Mouther	Medium Aberration, Neutral	Medium aberration, neutral
+Glabrezu	Large Fiend (Demon), Chaotic Evil	Large fiend (demon), chaotic evil
+Gladiator	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Gnoll	Medium Humanoid (Gnoll), Chaotic Evil	Medium humanoid (gnoll), chaotic evil
+Gnome, Deep	Small Humanoid (Gnome), Neutral Good	Small humanoid (gnome), neutral good
+Goat	Medium Beast, Unaligned	Medium beast, unaligned
+Goblin	Small Humanoid (Goblinoid), Neutral Evil	Small humanoid (goblinoid), neutral evil
+Gold Dragon Wyrmling	Medium Dragon, Lawful Good	Medium dragon, lawful good
+Gorgon	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Gray Ooze	Medium Ooze, Unaligned	Medium ooze, unaligned
+Green Dragon Wyrmling	Medium Dragon, Lawful Evil	Medium dragon, lawful evil
+Green Hag	Medium Fey, Neutral Evil	Medium fey, neutral evil
+Grick	Medium Monstrosity, Neutral	Medium monstrosity, neutral
+Griffon	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Grimlock	Medium Humanoid (Grimlock), Neutral Evil	Medium humanoid (grimlock), neutral evil
+Guard	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Guardian Naga	Large Monstrosity, Lawful Good	Large monstrosity, lawful good
+Gynosphinx	Large Monstrosity, Lawful Neutral	Large monstrosity, lawful neutral
+Half-Red Dragon Veteran	Medium Humanoid (Human), Any Alignment	Medium humanoid (human), any alignment
+Harpy	Medium Monstrosity, Chaotic Evil	Medium monstrosity, chaotic evil
+Hawk	Tiny Beast, Unaligned	Tiny beast, unaligned
+Hell Hound	Medium Fiend, Lawful Evil	Medium fiend, lawful evil
+Hezrou	Large Fiend (Demon), Chaotic Evil	Large fiend (demon), chaotic evil
+Hill Giant	Huge Giant, Chaotic Evil	Huge giant, chaotic evil
+Hippogriff	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Hobgoblin	Medium Humanoid (Goblinoid), Lawful Evil	Medium humanoid (goblinoid), lawful evil
+Homunculus	Tiny Construct, Neutral	Tiny construct, neutral
+Horned Devil	Large Fiend (Devil), Lawful Evil	Large fiend (devil), lawful evil
+Hunter Shark	Large Beast, Unaligned	Large beast, unaligned
+Hydra	Huge Monstrosity, Unaligned	Huge monstrosity, unaligned
+Hyena	Medium Beast, Unaligned	Medium beast, unaligned
+Ice Devil	Large Fiend (Devil), Lawful Evil	Large fiend (devil), lawful evil
+Ice Mephit	Small Elemental, Neutral Evil	Small elemental, neutral evil
+Imp	Tiny Fiend (Devil, Shapechanger), Lawful Evil	Tiny fiend (devil, shapechanger), lawful evil
+Invisible Stalker	Medium Elemental, Neutral	Medium elemental, neutral
+Iron Golem	Large Construct, Unaligned	Large construct, unaligned
+Jackal	Small Beast, Unaligned	Small beast, unaligned
+Killer Whale	Huge Beast, Unaligned	Huge beast, unaligned
+Knight	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Kobold	Small Humanoid (Kobold), Lawful Evil	Small humanoid (kobold), lawful evil
+Kraken	Gargantuan Monstrosity (Titan), Chaotic Evil	Gargantuan monstrosity (titan), chaotic evil
+Lamia	Large Monstrosity, Chaotic Evil	Large monstrosity, chaotic evil
+Lemure	Medium Fiend (Devil), Lawful Evil	Medium fiend (devil), lawful evil
+Lich	Medium Undead, Any Evil Alignment	Medium undead, any evil alignment
+Lion	Large Beast, Unaligned	Large beast, unaligned
+Lizard	Tiny Beast, Unaligned	Tiny beast, unaligned
+Lizardfolk	Medium Humanoid (Lizardfolk), Neutral	Medium humanoid (lizardfolk), neutral
+Mage	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Magma Mephit	Small Elemental, Neutral Evil	Small elemental, neutral evil
+Magmin	Small Elemental, Chaotic Neutral	Small elemental, chaotic neutral
+Mammoth	Huge Beast, Unaligned	Huge beast, unaligned
+Manticore	Large Monstrosity, Lawful Evil	Large monstrosity, lawful evil
+Marilith	Large Fiend (Demon), Chaotic Evil	Large fiend (demon), chaotic evil
+Mastiff	Medium Beast, Unaligned	Medium beast, unaligned
+Medusa	Medium Monstrosity, Lawful Evil	Medium monstrosity, lawful evil
+Merfolk	Medium Humanoid (Merfolk), Neutral	Medium humanoid (merfolk), neutral
+Merrow	Large Monstrosity, Chaotic Evil	Large monstrosity, chaotic evil
+Mimic	Medium Monstrosity (Shapechanger), Neutral	Medium monstrosity (shapechanger), neutral
+Minotaur	Large Monstrosity, Chaotic Evil	Large monstrosity, chaotic evil
+Minotaur Skeleton	Large Undead, Lawful Evil	Large undead, lawful evil
+Mule	Medium Beast, Unaligned	Medium beast, unaligned
+Mummy	Medium Undead, Lawful Evil	Medium undead, lawful evil
+Mummy Lord	Medium Undead, Lawful Evil	Medium undead, lawful evil
+Nalfeshnee	Large Fiend (Demon), Chaotic Evil	Large fiend (demon), chaotic evil
+Night Hag	Medium Fiend, Neutral Evil	Medium fiend, neutral evil
+Nightmare	Large Fiend, Neutral Evil	Large fiend, neutral evil
+Noble	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Ochre Jelly	Large Ooze, Unaligned	Large ooze, unaligned
+Octopus	Small Beast, Unaligned	Small beast, unaligned
+Ogre	Large Giant, Chaotic Evil	Large giant, chaotic evil
+Ogre Zombie	Large Undead, Neutral Evil	Large undead, neutral evil
+Oni	Large Giant, Lawful Evil	Large giant, lawful evil
+Orc	Medium Humanoid (Orc), Chaotic Evil	Medium humanoid (orc), chaotic evil
+Otyugh	Large Aberration, Neutral	Large aberration, neutral
+Owl	Tiny Beast, Unaligned	Tiny beast, unaligned
+Owlbear	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Panther	Medium Beast, Unaligned	Medium beast, unaligned
+Pegasus	Large Celestial, Chaotic Good	Large celestial, chaotic good
+Phase Spider	Large Monstrosity, Unaligned	Large monstrosity, unaligned
+Pit Fiend	Large Fiend (Devil), Lawful Evil	Large fiend (devil), lawful evil
+Planetar	Large Celestial, Lawful Good	Large celestial, lawful good
+Plesiosaurus	Large Beast, Unaligned	Large beast, unaligned
+Poisonous Snake	Tiny Beast, Unaligned	Tiny beast, unaligned
+Polar Bear	Large Beast, Unaligned	Large beast, unaligned
+Pony	Medium Beast, Unaligned	Medium beast, unaligned
+Priest	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Pseudodragon	Tiny Dragon, Neutral Good	Tiny dragon, neutral good
+Purple Worm	Gargantuan Monstrosity, Unaligned	Gargantuan monstrosity, unaligned
+Quasit	Tiny Fiend (Demon, Shapechanger), Chaotic Evil	Tiny fiend (demon, shapechanger), chaotic evil
+Quipper	Tiny Beast, Unaligned	Tiny beast, unaligned
+Rakshasa	Medium Fiend, Lawful Evil	Medium fiend, lawful evil
+Rat	Tiny Beast, Unaligned	Tiny beast, unaligned
+Raven	Tiny Beast, Unaligned	Tiny beast, unaligned
+Red Dragon Wyrmling	Medium Dragon, Chaotic Evil	Medium dragon, chaotic evil
+Reef Shark	Medium Beast, Unaligned	Medium beast, unaligned
+Remorhaz	Huge Monstrosity, Unaligned	Huge monstrosity, unaligned
+Rhinoceros	Large Beast, Unaligned	Large beast, unaligned
+Riding Horse	Large Beast, Unaligned	Large beast, unaligned
+Roc	Gargantuan Monstrosity, Unaligned	Gargantuan monstrosity, unaligned
+Roper	Large Monstrosity, Neutral Evil	Large monstrosity, neutral evil
+Rug of Smothering	Large Construct, Unaligned	Large construct, unaligned
+Rust Monster	Medium Monstrosity, Unaligned	Medium monstrosity, unaligned
+Saber-Toothed Tiger	Large Beast, Unaligned	Large beast, unaligned
+Sahuagin	Medium Humanoid (Sahuagin), Lawful Evil	Medium humanoid (sahuagin), lawful evil
+Salamander	Large Elemental, Neutral Evil	Large elemental, neutral evil
+Satyr	Medium Fey, Chaotic Neutral	Medium fey, chaotic neutral
+Scorpion	Tiny Beast, Unaligned	Tiny beast, unaligned
+Scout	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Sea Hag	Medium Fey, Chaotic Evil	Medium fey, chaotic evil
+Sea Horse	Tiny Beast, Unaligned	Tiny beast, unaligned
+Shadow	Medium Undead, Chaotic Evil	Medium undead, chaotic evil
+Shambling Mound	Large Plant, Unaligned	Large plant, unaligned
+Shield Guardian	Large Construct, Unaligned	Large construct, unaligned
+Shrieker	Medium Plant, Unaligned	Medium plant, unaligned
+Silver Dragon Wyrmling	Medium Dragon, Lawful Good	Medium dragon, lawful good
+Skeleton	Medium Undead, Lawful Evil	Medium undead, lawful evil
+Solar	Large Celestial, Lawful Good	Large celestial, lawful good
+Specter	Medium Undead, Chaotic Evil	Medium undead, chaotic evil
+Spider	Tiny Beast, Unaligned	Tiny beast, unaligned
+Spirit Naga	Large Monstrosity, Chaotic Evil	Large monstrosity, chaotic evil
+Sprite	Tiny Fey, Neutral Good	Tiny fey, neutral good
+Spy	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Steam Mephit	Small Elemental, Neutral Evil	Small elemental, neutral evil
+Stirge	Tiny Beast, Unaligned	Tiny beast, unaligned
+Stone Giant	Huge Giant, Neutral	Huge giant, neutral
+Stone Golem	Large Construct, Unaligned	Large construct, unaligned
+Storm Giant	Huge Giant, Chaotic Good	Huge giant, chaotic good
+Succubus/Incubus	Medium Fiend (Shapechanger), Neutral Evil	Medium fiend (shapechanger), neutral evil
+Swarm of Bats	Medium Swarm of Tiny Beasts, Unaligned	Medium swarm of Tiny beasts, unaligned
+Swarm of Insects	Medium Swarm of Tiny Beasts, Unaligned	Medium swarm of Tiny beasts, unaligned
+Swarm of Poisonous Snakes	Medium Swarm of Tiny Beasts, Unaligned	Medium swarm of Tiny beasts, unaligned
+Swarm of Quippers	Medium Swarm of Tiny Beasts, Unaligned	Medium swarm of Tiny beasts, unaligned
+Swarm of Rats	Medium Swarm of Tiny Beasts, Unaligned	Medium swarm of Tiny beasts, unaligned
+Swarm of Ravens	Medium Swarm of Tiny Beasts, Unaligned	Medium swarm of Tiny beasts, unaligned
+Tarrasque	Gargantuan Monstrosity (Titan), Unaligned	Gargantuan monstrosity (titan), unaligned
+Thug	Medium Humanoid (Any Race), Any Non-good Alignment	Medium humanoid (any race), any non-good alignment
+Tiger	Large Beast, Unaligned	Large beast, unaligned
+Treant	Huge Plant, Chaotic Good	Huge plant, chaotic good
+Tribal Warrior	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Triceratops	Huge Beast, Unaligned	Huge beast, unaligned
+Troll	Large Giant, Chaotic Evil	Large giant, chaotic evil
+Tyrannosaurus Rex	Huge Beast, Unaligned	Huge beast, unaligned
+Unicorn	Large Celestial, Lawful Good	Large celestial, lawful good
+Vampire	Medium Undead (Shapechanger), Lawful Evil	Medium undead (shapechanger), lawful evil
+Vampire Spawn	Medium Undead, Neutral Evil	Medium undead, neutral evil
+Veteran	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
+Violet Fungus	Medium Plant, Unaligned	Medium plant, unaligned
+Vrock	Large Fiend (Demon), Chaotic Evil	Large fiend (demon), chaotic evil
+Vulture	Medium Beast, Unaligned	Medium beast, unaligned
+Warhorse	Large Beast, Unaligned	Large beast, unaligned
+Warhorse Skeleton	Large Undead, Lawful Evil	Large undead, lawful evil
+Water Elemental	Large Elemental, Neutral	Large elemental, neutral
+Weasel	Tiny Beast, Unaligned	Tiny beast, unaligned
+Werebear	Medium Humanoid (Human, Shapechanger), Neutral Good	Medium humanoid (human, shapechanger), neutral good
+Wereboar	Medium Humanoid (Human, Shapechanger), Neutral Evil	Medium humanoid (human, shapechanger), neutral evil
+Wererat	Medium Humanoid (Human, Shapechanger), Lawful Evil	Medium humanoid (human, shapechanger), lawful evil
+Weretiger	Medium Humanoid (Human, Shapechanger), Neutral	Medium humanoid (human, shapechanger), neutral
+Werewolf	Medium Humanoid (Human, Shapechanger), Chaotic Evil	Medium humanoid (human, shapechanger), chaotic evil
+White Dragon Wyrmling	Medium Dragon, Chaotic Evil	Medium dragon, chaotic evil
+Wight	Medium Undead, Neutral Evil	Medium undead, neutral evil
+Will-o'-Wisp	Tiny Undead, Chaotic Evil	Tiny undead, chaotic evil
+Winter Wolf	Large Monstrosity, Neutral Evil	Large monstrosity, neutral evil
+Wolf	Medium Beast, Unaligned	Medium beast, unaligned
+Worg	Large Monstrosity, Neutral Evil	Large monstrosity, neutral evil
+Wraith	Medium Undead, Neutral Evil	Medium undead, neutral evil
+Wyvern	Large Dragon, Unaligned	Large dragon, unaligned
+Xorn	Medium Elemental, Neutral	Medium elemental, neutral
+Young Black Dragon	Large Dragon, Chaotic Evil	Large dragon, chaotic evil
+Young Blue Dragon	Large Dragon, Lawful Evil	Large dragon, lawful evil
+Young Brass Dragon	Large Dragon, Chaotic Good	Large dragon, chaotic good
+Young Bronze Dragon	Large Dragon, Lawful Good	Large dragon, lawful good
+Young Copper Dragon	Large Dragon, Chaotic Good	Large dragon, chaotic good
+Young Gold Dragon	Large Dragon, Lawful Good	Large dragon, lawful good
+Young Green Dragon	Large Dragon, Lawful Evil	Large dragon, lawful evil
+Young Red Dragon	Large Dragon, Chaotic Evil	Large dragon, chaotic evil
+Young Silver Dragon	Large Dragon, Lawful Good	Large dragon, lawful good
+Young White Dragon	Large Dragon, Chaotic Evil	Large dragon, chaotic evil
+Zombie	Medium Undead, Neutral Evil	Medium undead, neutral evil
