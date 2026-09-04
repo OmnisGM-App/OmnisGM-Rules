@@ -85,6 +85,43 @@ def test_glued_table_row_untouched():
     return check("glued: table row untouched", out, row)
 
 
+def test_word_per_line_rejoined():
+    # marker на узкой колонке кладёт каждое слово на свою строку с одним пробелом
+    text = "# **Aboleth**\n\n*Large \n aberration, \n lawful \n evil*\n"
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: rejoined",
+                 out, "# **Aboleth**\n\n*Large aberration, lawful evil*\n")
+
+
+def test_word_per_line_healthy_file_untouched():
+    # Здоровый файл: отступы редки и легитимны — склейка не должна включаться вовсе
+    text = "Обычный абзац.\n\n- пункт\n  - вложенный пункт\n\nЕщё абзац.\n"
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: healthy file untouched", out, text)
+
+
+def test_word_per_line_keeps_lists_and_tables():
+    # Даже в разорванном файле список и таблица со отступом остаются отдельными строками
+    text = ("*Large \n beast*\n\n"
+            "Текст \n продолжение \n ещё \n слово \n здесь \n длинный \n абзац\n\n"
+            " - пункт списка\n | ячейка | таблицы |\n")
+    out = run(lr.fix_word_per_line, text)
+    ok = ("*Large beast*" in out
+          and "Текст продолжение ещё слово здесь длинный абзац" in out
+          and "\n - пункт списка\n" in out
+          and "\n | ячейка | таблицы |\n" in out)
+    return check("word-per-line: lists and tables kept", ok, True)
+
+
+def test_word_per_line_dice_tail_rejoined():
+    # «(18d10\n + 36)» — по виду маркер списка, по смыслу хвост формулы
+    text = ("*Large \n beast*\n\n**Hit \n Points** 135 \n (18d10 \n + \n 36)\n\n"
+            "Текст \n продолжение \n ещё \n слово \n здесь\n")
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: dice tail rejoined",
+                 "**Hit Points** 135 (18d10 + 36)" in out, True)
+
+
 def main():
     tests = [
         test_br_prose_word_split,
@@ -96,6 +133,10 @@ def main():
         test_glued_single_field_untouched,
         test_glued_prose_inline_untouched,
         test_glued_table_row_untouched,
+        test_word_per_line_rejoined,
+        test_word_per_line_healthy_file_untouched,
+        test_word_per_line_keeps_lists_and_tables,
+        test_word_per_line_dice_tail_rejoined,
     ]
     results = [t() for t in tests]
     passed = sum(results)

@@ -3596,7 +3596,7 @@ The dragon can take 3 legendary actions, choosing from the options below. Only o
 
 ### Young Red Dragon (Chromatic)
 
-Large dragon, chaotic evil
+*Large Dragon, Chaotic Evil*
 
 - **Armor Class:** 18 (natural armor)
 - **Hit Points:** 178 (17d10 + 85)
@@ -4716,7 +4716,7 @@ The wall lasts for 1 minute or until the devil is incapacitated or dies. The wal
 *Large Fiend (Devil), Lawful Evil*
 
 - **Armor Class:** 18 (natural armor)
-- **Hit Points:** 148 (17d10 + 55)
+- **Hit Points:** 178 (17d10 + 85)
 - **Speed:** 20 ft., Fly 60 ft.
 
 | STR      | DEX      | CON      | INT      | WIS      | CHA      |

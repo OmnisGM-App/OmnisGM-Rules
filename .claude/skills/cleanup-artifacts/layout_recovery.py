@@ -13,6 +13,7 @@ Fixes applied:
     4. Join split spell components/craft/utilize lines
     5. Split glued stat-block fields (**Casting Time:** X **Range:** Y → one per line)
     6. Clean trailing empty table columns
+    7. Rejoin word-per-line output (narrow PDF columns break every word onto its own line)
 """
 
 import re
@@ -20,6 +21,49 @@ import sys
 from collections import Counter
 
 stats = Counter()
+
+
+# Доля строк-продолжений, начиная с которой считаем, что документ разорван по словам.
+# У здорового markdown отступом начинаются вложенные списки и блоки кода — единицы процентов;
+# у разорванного (marker на узкой колонке SRD 5.1) таких строк 89%.
+WORD_PER_LINE_RATIO = 0.30
+# Продолжение строки — ровно один ведущий пробел и не разметка: список, таблица, заголовок
+# или цитата с отступом остаются на своих строках, иначе схлопнется вложенность.
+CONTINUATION_RE = re.compile(r"^ (?![ \t])(?![-*+] )(?!\d+[.)] )(?![|#>`])(\S.*)$")
+# Хвост формулы кубов — «(18d10\n + 36)»: по виду это маркер списка, по смыслу продолжение.
+# Отличаем по цифре сразу за знаком; в разорванном документе список «- 3 очка» встречается
+# несопоставимо реже, чем разорванная формула, а чинить его вручную дешевле, чем всё склеивать.
+ARITHMETIC_RE = re.compile(r"^ ([-+](?:\s*\d.*?)?)\s*$")
+
+
+def fix_word_per_line(text):
+    """Rejoin lines broken mid-sentence by the converter.
+
+    Узкая колонка PDF (стат-блоки SRD) заставляет marker класть КАЖДОЕ слово на свою
+    строку с одним ведущим пробелом: «*Large \n aberration, \n lawful \n evil*».
+    Формально markdown валиден и рендерится в один абзац, но такой файл нельзя ни
+    сверить построчно, ни разрезать на разделы, ни прочитать глазами в diff.
+
+    Склеиваем только там, где документ разорван целиком (см. WORD_PER_LINE_RATIO) —
+    иначе на здоровом файле мы бы съели легитимные отступы.
+    """
+    lines = text.split("\n")
+    nonempty = [l for l in lines if l.strip()]
+    if not nonempty:
+        return text
+    broken = sum(1 for l in nonempty if CONTINUATION_RE.match(l))
+    if broken / len(nonempty) < WORD_PER_LINE_RATIO:
+        return text
+
+    out = []
+    for line in lines:
+        m = CONTINUATION_RE.match(line) or ARITHMETIC_RE.match(line)
+        if m and out and out[-1].strip():
+            out[-1] = out[-1].rstrip() + " " + m.group(1).strip()
+            stats["word_per_line"] += 1
+        else:
+            out.append(line)
+    return "\n".join(out)
 
 
 def fix_bold_headers(text):
@@ -167,6 +211,8 @@ def main():
 
     original_lines = text.count('\n')
 
+    # Склейка — первой: остальные правила построчные и на разорванном тексте слепы.
+    text = fix_word_per_line(text)
     text = fix_bold_headers(text)
     text = fix_br_artifacts(text)
     text = fix_hyphen_breaks(text)
