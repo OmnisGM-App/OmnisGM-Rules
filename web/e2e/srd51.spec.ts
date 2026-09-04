@@ -107,11 +107,13 @@ test('монстр 5.1: чистый тип (запятая в скобках п
   await expect(page.locator('.ent-hubs a[href$="/monsters-a-z/type/fiend/"]')).toBeVisible();
 });
 
-test('type-хабы монстров 5.1: есть beast и swarm (в 5.2 их нет)', async ({ page }) => {
+test('type-хабы монстров 5.1: есть beast и swarm (beast-хаба в 5.2 нет)', async ({ page }) => {
   expect((await page.goto('/en/dnd/srd-5.1/monsters-a-z/type/beast/'))?.status()).toBe(200);
   expect((await page.goto('/en/dnd/srd-5.1/monsters-a-z/type/swarm/'))?.status()).toBe(200);
-  // В 5.2 звери вынесены в animals — beast-хаба нет.
+  // В 5.2 звери вынесены в animals — beast-хаба нет. Swarm-хаб в 5.2, наоборот, есть
+  // (рой ползучих когтей) — с тех пор, как тип роя восстановлен по PDF (#196).
   expect((await page.goto('/en/dnd/srd-5.2/monsters-a-z/type/beast/'))?.status()).toBe(404);
+  expect((await page.goto('/en/dnd/srd-5.2/monsters-a-z/type/swarm/'))?.status()).toBe(200);
 });
 
 test('расы 5.1: страница расы — EN-имя, подрасы, автолинк заклинаний, «другие расы»', async ({ page }) => {

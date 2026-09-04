@@ -49,6 +49,16 @@ test('related: другие существа того же типа', async ({ p
   await expect(rel.locator('a[href*="/monsters-a-z/"]').first()).toBeVisible();
 });
 
+test('related: рой попадает к своему базовому типу', async ({ page }) => {
+  // Тип роя — вся конструкция («Swarm of Tiny Undead» / «рой Крошечной нежити»), и в 5.2
+  // он ровно один. Фильтр по сырому полю оставлял страницу вообще без блока соседей —
+  // потеря внутренней перелинковки, которую никакой гейт данных не увидит (#196).
+  await page.goto('/ru/dnd/srd-5.2/monsters-a-z/swarm-of-crawling-claws/');
+  const rel = page.locator('.ent-related');
+  await expect(rel).toContainText('нежить');
+  await expect(rel.locator('a[href*="/monsters-a-z/"]').first()).toBeVisible();
+});
+
 test('SEO: hreflang-тройка, индексируема, в sitemap', async ({ page, request }) => {
   const res = await page.goto('/en/dnd/srd-5.2/monsters-a-z/aboleth/');
   expect(res?.status()).toBe(200);
