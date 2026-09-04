@@ -8,7 +8,7 @@ test('страница животного: заголовок, EN-имя, тип
   await page.goto('/ru/dnd/srd-5.2/animals/wolf/');
   await expect(page.locator('.rd-doc h1')).toContainText('Волк');
   await expect(page.locator('.ent-en')).toHaveText('Wolf');
-  await expect(page.locator('.mon-type')).toContainText('зверь');
+  await expect(page.locator('.mon-type')).toContainText('Зверь');
   const stat = page.locator('.mon-stat');
   await expect(stat.locator('.mon-row', { hasText: 'Класс доспеха' })).toBeVisible();
   await expect(stat.locator('.mon-row', { hasText: 'Показатель опасности' })).toContainText('1/4');

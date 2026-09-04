@@ -8,7 +8,7 @@ test('страница монстра: заголовок, EN-имя, строк
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/adult-green-dragon/');
   await expect(page.locator('.rd-doc h1')).toContainText('Взрослый зелёный дракон');
   await expect(page.locator('.ent-en')).toHaveText('Adult Green Dragon');
-  await expect(page.locator('.mon-type')).toContainText('дракон'); // тип существа
+  await expect(page.locator('.mon-type')).toContainText('Дракон'); // тип существа — с прописной, как в EN и в указателе (#256)
   const stat = page.locator('.mon-stat');
   await expect(stat).toContainText('Класс доспеха');
   await expect(stat).toContainText('Хиты');

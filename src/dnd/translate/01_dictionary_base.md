@@ -400,7 +400,10 @@
 | Fiend | Fiend | Исчадие | srd-5.2 | srd-5.1 |  |
 | Giant | Giant | Великан | srd-5.2 | srd-5.1 |  |
 | Humanoid | Humanoid | Гуманоид | srd-5.2 | srd-5.1 |  |
+| Chromatic | - | цветной | srd-5.2 | — | подтип в скобках: Dragon (Chromatic) |
+| Genie | Genie | джинн | srd-5.2 | srd-5.1 | подтип в скобках: Elemental (Genie) |
 | Lycanthrope | - | Ликантроп | srd-5.2 | — | подтип в скобках: Monstrosity (Lycanthrope) |
+| Metallic | - | металлический | srd-5.2 | — | подтип в скобках: Dragon (Metallic) |
 | Monstrosity | Monstrosity | Чудовище | srd-5.2 | srd-5.1 |  |
 | Ooze | Ooze | Слизь | srd-5.2 | srd-5.1 |  |
 | Plant | Plant | Растение | srd-5.2 | srd-5.1 |  |

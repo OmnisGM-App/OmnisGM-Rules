@@ -78,6 +78,9 @@ ANY_RE = re.compile(r"^любое(?: (.+?))? мировоззрение$")
 PERCENT_RE = re.compile(r"^(.*?)\s*(\(\d+%\))$")
 
 SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")   # запятая мировоззрения, но не внутри скобок
+# Словарь терминов — единственный источник правды для перевода типов существ. Гейт читает
+# ЕГО, а не свою копию: иначе расхождение словаря и текста осталось бы незамеченным (#256).
+DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"
 # Таксономический хвост в скобках: в 5.1 он есть и у заголовков статблоков («Deva (Angel)»),
 # и у строк указателя — в ключ эталона он не входит.
 STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
@@ -146,6 +149,31 @@ def titlecase_header(raw: str) -> str:
         out.append(token if not m else token[:m.start()] + token[m.start()].upper()
                    + token[m.start() + 1:])
     return " ".join(out)
+
+
+def creature_types() -> dict:
+    """{EN-тип → RU-перевод} из раздела «Типы существ» словаря.
+
+    Колонки словаря: оригинал 5.2, оригинал 5.1, перевод. Оба оригинала ведут на один
+    перевод, прочерк «-» означает «в этой редакции термина нет».
+    """
+    out, inside = {}, False
+    for line in DICT.read_text(encoding="utf-8").split("\n"):
+        if line.startswith("## "):
+            inside = "Типы существ" in line
+            continue
+        if not inside or not line.startswith("| "):
+            continue
+        cells = [c.strip() for c in line.strip().strip("|").split("|")]
+        if len(cells) < 3 or cells[0].startswith("---") or cells[0] == "Оригинал 5.2":
+            continue
+        for en in cells[:2]:
+            if en and en not in {"-", "—"}:
+                out.setdefault(en, cells[2])
+    return out
+
+
+TYPES_RU = creature_types()
 
 
 def paren_groups(text: str) -> list:
@@ -466,6 +494,16 @@ def check_version(version: str, fixture: Path) -> None:
                 f"(EN {want_sub or 'без подтипа'}, RU «{got}»)")
         if want_type.startswith("Swarm of") and "рой" not in ru_type.lower():
             failures.append(f"{version} RU «{name}»: тип роя потерян — «{got}»")
+        # Термин типа против словаря. Ровно этим гейт не занимался, и в 5.2 накопилось
+        # расщепление: «чудовищность» и «чудовище» у одного Monstrosity, «конструкция»
+        # рядом с «конструкт» (#256). Подтип в скобках сюда не входит — он свой термин.
+        want_ru = TYPES_RU.get(want_type)
+        got_ru = re.sub(r"\s*\(.*\)\s*$", "", ru_type).strip()
+        if want_ru is None:
+            failures.append(f"{version} словарь: типа существа «{want_type}» нет в «Типы существ»")
+        elif got_ru != want_ru:
+            failures.append(
+                f"{version} RU «{name}»: тип «{got_ru}», в словаре {want_type} → «{want_ru}»")
 
     # --- RU-указатели: размер и мировоззрение (термин типа ждёт #256) -------------------
     # Мировоззрение здесь — не украшение: именно этой колонкой в 5.1 проехала форма
@@ -492,6 +530,15 @@ def check_version(version: str, fixture: Path) -> None:
             if ru is None or ru[0] != want[0]:
                 failures.append(
                     f"{version} RU-указатель {index}, «{key}»: размер «{cells[2]}» ≠ {want[0]}")
+            # Колонка «Тип» — та же строка, что в шапке статблока. Пока её не сверяли,
+            # четыре животных 5.2 стояли в указателе «Зверь» при «Небожитель»/«Чудовище»
+            # в шапке и в EN (#256).
+            if len(cells) > 3:
+                ru_head = parts_ru(ru_headers.get(key, ""), version)
+                if ru_head is not None and cells[3] != ru_head[3]:
+                    failures.append(
+                        f"{version} RU-указатель {index}, «{key}»: тип «{cells[3]}» ≠ "
+                        f"шапке «{ru_head[3]}»")
             if align_col is not None and len(cells) > align_col:
                 # Версия намеренно пустая: послабление по роду объявлено для ШАПОК
                 # статблоков, а в колонках указателей средних форм нет ни одной —

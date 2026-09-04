@@ -30,7 +30,7 @@ export const MONSTER_TYPES: { slug: string; en: string; ru: string }[] = [
   { slug: 'construct', en: 'Construct', ru: 'Конструкт' },
   { slug: 'dragon', en: 'Dragon', ru: 'Дракон' },
   { slug: 'elemental', en: 'Elemental', ru: 'Элементаль' },
-  { slug: 'fey', en: 'Fey', ru: 'Фей' },
+  { slug: 'fey', en: 'Fey', ru: 'Фея' },
   { slug: 'fiend', en: 'Fiend', ru: 'Исчадие' },
   { slug: 'giant', en: 'Giant', ru: 'Великан' },
   { slug: 'humanoid', en: 'Humanoid', ru: 'Гуманоид' },
