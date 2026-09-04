@@ -57,7 +57,8 @@ docling:     ~N% (основной / верификация)
 python3 .claude/skills/cleanup-artifacts/layout_recovery.py /tmp/{game}_{version}_merged.md /tmp/{game}_{version}_recovered.md
 ```
 
-Скрипт исправляет: bold в заголовках, артефакты `<br>`, дефисные переносы, split components, склеенные поля stat-блока (`**Casting Time:** … **Range:** …` → по строкам), trailing пустые колонки таблиц. Регресс-тесты скрипта: `python3 .claude/skills/cleanup-artifacts/test_layout_recovery.py`.
+Скрипт исправляет: разрыв вывода по словам (узкая колонка PDF — см. `layout-recovery.md` §11a),
+bold в заголовках, артефакты `<br>`, дефисные переносы, split components, склеенные поля stat-блока (`**Casting Time:** … **Range:** …` → по строкам), trailing пустые колонки таблиц. Регресс-тесты скрипта: `python3 .claude/skills/cleanup-artifacts/test_layout_recovery.py`.
 
 #### Шаг 2: Ручные исправления (агент)
 

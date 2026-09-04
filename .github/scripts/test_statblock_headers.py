@@ -20,8 +20,11 @@ JSON API: файл валиден, таблицы на месте, и все п�
   4) RU-зеркало — размер, мировоззрение, наличие подтипа и признак роя должны сводиться
      к тем же значениям, что в EN (перевод свой, но это поля данных, а не проза).
 
-Версии берутся из имён фикстур (`srd-<версия>-statblock-headers.tsv`) — чтобы добавить
-5.1, достаточно положить рядом её фикстуру, править код не нужно.
+Версии берутся из имён фикстур (`srd-<версия>-statblock-headers.tsv`). Новая версия
+подхватывается сама, но рассчитывать, что правки кода не потребуется, не стоит: у 5.1
+свои формы заголовков, свой регистр в PDF и свой разнобой в переводе мировоззрения —
+всё это пришлось учить. Послабления, нужные одной версии, объявляются В ФИКСТУРЕ
+(строка «# опция: …»), чтобы не снимать проверку с остальных.
 
 Запуск: python3 .github/scripts/test_statblock_headers.py
 """
@@ -46,8 +49,9 @@ SIZES_RU = {
     "огромный": "Huge", "огромная": "Huge", "огромное": "Huge",
     "громадный": "Gargantuan", "громадная": "Gargantuan", "громадное": "Gargantuan",
 }
-# Мировоззрение RU → EN. Формы среднего рода («нейтрально-доброе») — след несогласованности
-# перевода, а не отдельное значение: принимаем обе, сама несогласованность лечится в #256.
+# Мировоззрение RU → EN. Две формы среднего рода ниже — не про 5.1, а про живые данные 5.2
+# (вермедведь и вертигр), где согласование поехало точечно; лечится в #256, до тех пор
+# принимаем обе. Прочий средний род разрешён только версиям с опцией (см. GENDER_DRIFT).
 ALIGN_RU = {
     "без мировоззрения": "Unaligned",
     "нейтральный": "Neutral",
@@ -78,13 +82,17 @@ STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
 failures = []
 
 
-def align_to_en(text: str):
+# Версии, где перевод мировоззрения несогласован по роду («Нейтральное» и «Нейтральный»
+# у одного значения). Послабление объявляется В ФИКСТУРЕ, а не в коде: 5.2 переведён
+# согласованно, и молча разрешить ему «нейтральное» значило бы снять с него проверку.
+GENDER_DRIFT: set = set()
+
+
+def align_to_en(text: str, version: str):
     """RU-мировоззрение → EN-значение. None, если строка не опознана.
 
-    В 5.1 перевод несогласован по роду («Нейтральное» и «Нейтральный» у одного и того же
-    значения) — это дефект перевода, а не разные значения, поэтому окончание нормализуем.
     Отдельно разбираются «Любое … мировоззрение» и составное «X (50%) или Y (50%)»
-    (облачный великан).
+    (облачный великан). Средний род принимается только у версий из GENDER_DRIFT.
     """
     t = " ".join(text.strip().lower().split())
     if " или " in t:
@@ -92,7 +100,7 @@ def align_to_en(text: str):
         for chunk in t.split(" или "):
             m = PERCENT_RE.match(chunk.strip())
             base, tail = (m.group(1), f" {m.group(2)}") if m else (chunk.strip(), "")
-            mapped = align_to_en(base)
+            mapped = align_to_en(base, version)
             if mapped is None:
                 return None
             parts.append(mapped + tail)
@@ -104,11 +112,33 @@ def align_to_en(text: str):
         return ALIGN_RU[t]
     # Средний род («Хаотично-злое», «Нейтральное») — тот же термин, другое согласование:
     # пробуем оба мужских окончания, ударение в них разное («злой», но «добрый»).
-    if t.endswith("ое"):
+    if version in GENDER_DRIFT and t.endswith("ое"):
         for ending in ("ый", "ой"):
             if t[:-2] + ending in ALIGN_RU:
                 return ALIGN_RU[t[:-2] + ending]
     return None
+
+
+# Служебные слова, которые в наших шапках остаются со строчной («Swarm of Tiny Beasts»).
+TITLE_LOWER = {"of", "or"}
+
+
+def titlecase_header(raw: str) -> str:
+    """Строка PDF → наш формат: каждое слово с прописной, кроме служебных.
+
+    PDF 5.1 пишет тип и мировоззрение со строчной («Large aberration, lawful evil»),
+    импорт приводит их к прописным. Преобразование механическое, поэтому его можно
+    проверять, а не принимать на веру.
+    """
+    out = []
+    for token in raw.split(" "):
+        if out and token.lower().strip("(),") in TITLE_LOWER:
+            out.append(token)
+            continue
+        m = re.search(r"[A-Za-z]", token)
+        out.append(token if not m else token[:m.start()] + token[m.start()].upper()
+                   + token[m.start() + 1:])
+    return " ".join(out)
 
 
 def paren_groups(text: str) -> list:
@@ -126,6 +156,12 @@ def paren_groups(text: str) -> list:
     return out
 
 
+def en_group_from_ru_heading(heading: str) -> str:
+    """Последняя группа скобок с латиницей — имя оригинала КАК НАПИСАНО, с хвостом."""
+    latin = [g for g in paren_groups(heading) if re.search(r"[A-Za-z]", g)]
+    return latin[-1].strip() if latin else heading.strip()
+
+
 def en_name_from_ru_heading(heading: str) -> str:
     """Оригинальное имя из RU-заголовка статблока.
 
@@ -134,29 +170,34 @@ def en_name_from_ru_heading(heading: str) -> str:
     (Gnome, Deep (Svirfneblin))». Берём последнюю группу скобок с латиницей и снимаем
     её собственный таксономический хвост — так ключ сходится с именем EN-заголовка.
     """
-    latin = [g for g in paren_groups(heading) if re.search(r"[A-Za-z]", g)]
-    if not latin:
-        return heading.strip()
-    return STRIP_TAIL.sub("", latin[-1]).strip()
+    return STRIP_TAIL.sub("", en_group_from_ru_heading(heading)).strip()
 
 
-def headers(path: Path, lang: str) -> dict:
-    """{имя статблока → строка шапки без звёздочек}. Имя RU-блока — оригинал в скобках."""
-    out, name = {}, None
+def headers(path: Path, lang: str):
+    """({ключ → шапка}, {как написано в заголовке → ключ}).
+
+    Ключ — имя без таксономического хвоста («Deva» для «### Deva (Angel)»), потому что в
+    эталоне PDF хвоста нет. Вторую карту держим отдельно: строки указателей сверяются по
+    ПОЛНОМУ имени, иначе подмена хвоста («Aboleth» → «Aboleth (Angel)») пройдёт молча.
+    """
+    out, alias, name, full = {}, {}, None, None
     first_letter = "A-Z" if lang == "en" else "А-ЯЁ"
     for line in path.read_text(encoding="utf-8").split("\n"):
         s = line.strip()
         if s.startswith("#"):
             m = re.match(r"^#{2,4} (.+)$", s)
             if m:
-                name = (en_name_from_ru_heading(m.group(1)) if lang == "ru"
-                        else STRIP_TAIL.sub("", m.group(1)).strip())
+                full = m.group(1).strip()
+                name = (en_name_from_ru_heading(full) if lang == "ru"
+                        else STRIP_TAIL.sub("", full).strip())
             continue
         m = re.match(rf"^\*([{first_letter}][^*]*)\*$", s)
         if m and name and not s.startswith("**"):
             out.setdefault(name, m.group(1))
+            alias.setdefault(full, name)
+            alias.setdefault(name, name)
             name = None
-    return out
+    return out, alias
 
 
 def parts_en(header: str):
@@ -173,7 +214,7 @@ def parts_en(header: str):
             sub.group(2).strip() if sub else None, chunks[1].strip())
 
 
-def parts_ru(header: str):
+def parts_ru(header: str, version: str):
     """То же для RU, но значения приводятся к EN.
 
     Возвращает (размер, подтип, мировоззрение, сырой тип). Последний элемент — RU-строка
@@ -198,7 +239,7 @@ def parts_ru(header: str):
         return None
     sub = re.match(r"^(.+?)\s*\((.+)\)$", rest.strip())
     return (size, sub.group(2).strip() if sub else None,
-            align_to_en(alignment), rest.strip())
+            align_to_en(alignment, version), rest.strip())
 
 
 def index_rows(path: Path) -> list:
@@ -216,10 +257,23 @@ def statblock_files(version_dir: Path) -> list:
     return files
 
 
+# Объявления в шапке фикстуры: «# опция: <имя>».
+OPTION_RE = re.compile(r"^#\s*опция:\s*(\S+)\s*$")
+OPTIONS = {"род-мировоззрения-несогласован"}
+
+
 def check_version(version: str, fixture: Path) -> None:
-    expected = {}
+    expected, raw_pdf, seen = {}, {}, {}
     for number, line in enumerate(fixture.read_text(encoding="utf-8").split("\n"), 1):
-        if not line.strip() or line.startswith("#"):
+        if line.startswith("#"):
+            m = OPTION_RE.match(line)
+            if m:
+                if m.group(1) not in OPTIONS:
+                    failures.append(f"{version}: неизвестная опция фикстуры «{m.group(1)}»")
+                elif m.group(1) == "род-мировоззрения-несогласован":
+                    GENDER_DRIFT.add(version)
+            continue
+        if not line.strip():
             continue
         # Колонок минимум две; третья (сырая строка PDF) — для глаз рецензента, не для сверки.
         # Разбор битой строки не роняем трейсбеком: фикстура правится руками.
@@ -227,14 +281,33 @@ def check_version(version: str, fixture: Path) -> None:
         if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
             failures.append(f"{version}: строка {number} фикстуры не разбирается: {line!r}")
             continue
+        if parts[0] in seen:
+            failures.append(
+                f"{version}: имя «{parts[0]}» в фикстуре дважды (строки {seen[parts[0]]} и {number})")
+            continue
+        seen[parts[0]] = number
         expected[parts[0]] = parts[1]
+        if len(parts) > 2 and parts[2].strip():
+            raw_pdf[parts[0]] = parts[2]
+
+    # Третья колонка — сырая строка PDF. Она не «для глаз»: вторая колонка обязана быть
+    # ею же, приведённой к нашему регистру, иначе эталон разъедется с источником молча.
+    for name, raw in raw_pdf.items():
+        if titlecase_header(raw) != expected[name]:
+            failures.append(
+                f"{version} эталон «{name}»: ожидаемая шапка «{expected[name]}» ≠ строке PDF "
+                f"«{raw}» после нормализации регистра")
 
     en_dir, ru_dir = ROOT / f"src/dnd/{version}/en", ROOT / f"src/dnd/{version}/ru"
-    en_headers, ru_headers = {}, {}
+    en_headers, ru_headers, alias = {}, {}, {"en": {}, "ru": {}}
     for f in statblock_files(en_dir):
-        en_headers.update(headers(f, "en"))
+        found, names = headers(f, "en")
+        en_headers.update(found)
+        alias["en"].update(names)
     for f in statblock_files(ru_dir):
-        ru_headers.update(headers(f, "ru"))
+        found, names = headers(f, "ru")
+        ru_headers.update(found)
+        alias["ru"].update(names)
 
     # --- 1+2. Шапки EN против эталона и разбор их продукционным парсером ----------------
     for name, header in sorted(expected.items()):
@@ -268,15 +341,23 @@ def check_version(version: str, fixture: Path) -> None:
             if path is None:
                 continue
             rows = index_rows(path)
-            # Имя строки: в EN-указателе первая колонка, в RU — вторая («Оригинал (EN)»).
-            index_names[lang].update(
-                STRIP_TAIL.sub("", r[0 if lang == "en" else 1]) for r in rows if len(r) > 1)
             for cells in rows:
-                key = STRIP_TAIL.sub("", cells[0] if lang == "en" else
-                                     (cells[1] if len(cells) > 1 else cells[0]))
+                # Имя строки: в EN-указателе первая колонка, в RU — вторая («Оригинал (EN)»).
+                listed = cells[0] if lang == "en" else (cells[1] if len(cells) > 1 else cells[0])
+                # Сверяем по ТОМУ ЖЕ имени, что стоит в заголовке статблока, включая
+                # таксономический хвост: срезать его вслепую значит пропустить подмену
+                # («Aboleth» → «Aboleth (Angel)» — строка указателя врёт, гейт молчит).
+                # Колонка «Оригинал (EN)» RU-указателя несёт ИМЕННО EN-имя, поэтому
+                # разрешаем её по EN-карте имён, а не по RU.
+                key = alias["en"].get(listed)
+                if key is None:
+                    failures.append(
+                        f"{version} {lang}-указатель {index}: строка «{listed}» без статблока")
+                    continue
+                index_names[lang].add(key)
                 header = (en_headers if lang == "en" else ru_headers).get(key)
                 if header is None:
-                    failures.append(f"{version} {lang}-указатель {index}: строка «{key}» без статблока")
+                    failures.append(f"{version} {lang}-указатель {index}: строка «{listed}» без шапки")
                     continue
                 if lang == "ru":
                     continue  # колонки RU-указателя сверяются размером ниже, отдельным блоком
@@ -306,7 +387,7 @@ def check_version(version: str, fixture: Path) -> None:
             failures.append(f"{version} RU: статблок «{name}» не найден")
             continue
         want = parts_en(header)
-        ru = parts_ru(got)
+        ru = parts_ru(got, version)
         if want is None or ru is None:
             failures.append(f"{version} RU «{name}»: шапка «{got}» не разбирается")
             continue
@@ -325,20 +406,35 @@ def check_version(version: str, fixture: Path) -> None:
         if want_type.startswith("Swarm of") and "рой" not in ru_type.lower():
             failures.append(f"{version} RU «{name}»: тип роя потерян — «{got}»")
 
-    # --- RU-указатели: размер (тип и подтип RU ждут #256) -------------------------------
-    for index in ("04_Monsters.md", "05_Animals.md"):
+    # --- RU-указатели: размер и мировоззрение (термин типа ждёт #256) -------------------
+    # Мировоззрение здесь — не украшение: именно этой колонкой в 5.1 проехала форма
+    # «Принципиально-злый», которой в русском нет, — значение при этом «узнаваемое».
+    for index, align_col in (("04_Monsters.md", 4), ("05_Animals.md", None)):
         path = next(iter(ru_dir.glob(f"*Glossary/{index}")), None)
         if path is None:
             continue
         for cells in index_rows(path):
-            key = STRIP_TAIL.sub("", cells[1]) if len(cells) > 1 else ""
-            if len(cells) < 3 or key not in expected:
+            key = alias["en"].get(cells[1]) if len(cells) > 1 else None
+            if key is None or key not in expected or len(cells) < 3:
                 continue
             want = parts_en(expected[key])
-            ru = parts_ru(f"{cells[2]} тип, без мировоззрения")
+            if want is None:
+                failures.append(f"{version} эталон «{key}»: шапка не разбирается")
+                continue
+            ru = parts_ru(f"{cells[2]} тип, без мировоззрения", version)
             if ru is None or ru[0] != want[0]:
                 failures.append(
                     f"{version} RU-указатель {index}, «{key}»: размер «{cells[2]}» ≠ {want[0]}")
+            if align_col is not None and len(cells) > align_col:
+                got = align_to_en(cells[align_col], version)
+                if got is None:
+                    failures.append(
+                        f"{version} RU-указатель {index}, «{key}»: мировоззрение "
+                        f"«{cells[align_col]}» не из списка")
+                elif got != want[3]:
+                    failures.append(
+                        f"{version} RU-указатель {index}, «{key}»: мировоззрение {got}, "
+                        f"в EN {want[3]}")
 
 
 fixtures = sorted(SCRIPTS.glob("fixtures/srd-*-statblock-headers.tsv"))
@@ -348,7 +444,11 @@ if not fixtures:
 
 versions = []
 for fixture in fixtures:
-    version = re.match(r"(srd-[\d.]+)-statblock-headers\.tsv", fixture.name).group(1)
+    m = re.match(r"(srd-[\d.]+)-statblock-headers\.tsv", fixture.name)
+    if not m:
+        failures.append(f"фикстура «{fixture.name}»: имя не по шаблону srd-<версия>-statblock-headers.tsv")
+        continue
+    version = m.group(1)
     check_version(version, fixture)
     versions.append(version)
 

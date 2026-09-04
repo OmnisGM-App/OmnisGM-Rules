@@ -6,14 +6,14 @@ Fixes structural issues without changing content.
 Usage:
     python3 layout_recovery.py <input.md> <output.md>
 
-Fixes applied:
+Fixes applied (in call order):
+    0. Rejoin word-per-line output (narrow PDF columns break every word onto its own line)
     1. Remove **bold** markers from # headings
     2. Convert <br> line-break artifacts from PDF (join broken words / spaces)
     3. Join hyphenated word breaks across lines (word-\\nrest → word-rest)
     4. Join split spell components/craft/utilize lines
     5. Split glued stat-block fields (**Casting Time:** X **Range:** Y → one per line)
     6. Clean trailing empty table columns
-    7. Rejoin word-per-line output (narrow PDF columns break every word onto its own line)
 """
 
 import re
@@ -30,10 +30,13 @@ WORD_PER_LINE_RATIO = 0.30
 # Продолжение строки — ровно один ведущий пробел и не разметка: список, таблица, заголовок
 # или цитата с отступом остаются на своих строках, иначе схлопнется вложенность.
 CONTINUATION_RE = re.compile(r"^ (?![ \t])(?![-*+] )(?!\d+[.)] )(?![|#>`])(\S.*)$")
-# Хвост формулы кубов — «(18d10\n + 36)»: по виду это маркер списка, по смыслу продолжение.
-# Отличаем по цифре сразу за знаком; в разорванном документе список «- 3 очка» встречается
-# несопоставимо реже, чем разорванная формула, а чинить его вручную дешевле, чем всё склеивать.
-ARITHMETIC_RE = re.compile(r"^ ([-+](?:\s*\d.*?)?)\s*$")
+# Хвост формулы кубов — «(18d10\n + \n 36)»: по виду маркер списка, по смыслу продолжение.
+# Строка целиком должна выглядеть арифметикой: знак, знак с числом, число со скобкой.
+# «- 3 очка действия» под это не подходит и остаётся пунктом списка.
+ARITHMETIC_RE = re.compile(r"^ ([-+](?:\s*\d[\d\s]*\)?)?)\s*$")
+# Приёмник склейки: к заголовку, строке таблицы, подчёркиванию setext и фенсу не клеим —
+# продолжение туда не относится, а разметку это ломает.
+NO_APPEND_RE = re.compile(r"^\s*(?:#{1,6}\s|\||```|~~~|=+\s*$|-{3,}\s*$)")
 
 
 def fix_word_per_line(text):
@@ -55,11 +58,19 @@ def fix_word_per_line(text):
     if broken / len(nonempty) < WORD_PER_LINE_RATIO:
         return text
 
-    out = []
+    out, in_fence = [], False
     for line in lines:
-        m = CONTINUATION_RE.match(line) or ARITHMETIC_RE.match(line)
-        if m and out and out[-1].strip():
-            out[-1] = out[-1].rstrip() + " " + m.group(1).strip()
+        if re.match(r"^\s*(?:```|~~~)", line):
+            in_fence = not in_fence
+            out.append(line)
+            continue
+        m = None if in_fence else (CONTINUATION_RE.match(line) or ARITHMETIC_RE.match(line))
+        if m and out and out[-1].strip() and not NO_APPEND_RE.match(out[-1]):
+            prev, tail = out[-1].rstrip(), m.group(1).strip()
+            # Перенос по дефису склеиваем без пробела: иначе «any non-\n lawful» станет
+            # «any non- lawful» — слово так и останется битым, но уже внутри строки, где
+            # ни глазами, ни fix_hyphen_breaks его больше не найти.
+            out[-1] = prev + tail if prev.endswith("-") else prev + " " + tail
             stats["word_per_line"] += 1
         else:
             out.append(line)

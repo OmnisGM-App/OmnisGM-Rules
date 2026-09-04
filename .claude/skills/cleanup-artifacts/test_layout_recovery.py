@@ -94,10 +94,46 @@ def test_word_per_line_rejoined():
 
 
 def test_word_per_line_healthy_file_untouched():
-    # Здоровый файл: отступы редки и легитимны — склейка не должна включаться вовсе
-    text = "Обычный абзац.\n\n- пункт\n  - вложенный пункт\n\nЕщё абзац.\n"
+    # Здоровый файл: продолжений с ОДНИМ ведущим пробелом мало — порог не пройден.
+    # Фикстура намеренно содержит такую строку, иначе тест был бы вакуумным и не заметил
+    # бы снижения порога.
+    text = ("Обычный абзац.\n продолжение с отступом\n\n"
+            + "".join(f"Строка {i} без отступа.\n" for i in range(10)))
     out = run(lr.fix_word_per_line, text)
-    return check("word-per-line: healthy file untouched", out, text)
+    return check("word-per-line: below threshold untouched", out, text)
+
+
+def test_word_per_line_above_threshold_joins():
+    # Ровно та же форма, но продолжений большинство — склейка обязана включиться
+    text = "Абзац\n продолжение\n ещё\n слово\n и\n ещё\n одно\n"
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: above threshold joined",
+                 out, "Абзац продолжение ещё слово и ещё одно\n")
+
+
+def test_word_per_line_hyphen_join_no_space():
+    # «any non-\n lawful» → «any non-lawful», а не «any non- lawful»
+    text = "any non-\n lawful\n alignment\n здесь\n ещё\n слова\n"
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: hyphen joined without space",
+                 out.startswith("any non-lawful alignment"), True)
+
+
+def test_word_per_line_fence_and_heading_protected():
+    # Фенс не разрушаем, к заголовку продолжение не клеим
+    text = ("## Bandit\n *Medium humanoid*\n текст\n дальше\n ещё\n слово\n\n"
+            "```\ndef f():\n return 1\n```\n")
+    out = run(lr.fix_word_per_line, text)
+    ok = ("## Bandit\n *Medium humanoid* текст дальше ещё слово" in out
+          and "```\ndef f():\n return 1\n```" in out)
+    return check("word-per-line: fence and heading protected", ok, True)
+
+
+def test_word_per_line_list_item_with_number_kept():
+    # «- 3 очка действия» — пункт списка, а не хвост формулы
+    text = "Абзац\n продолжение\n ещё\n слово\n и\n ещё\n одно\n - 3 очка действия\n"
+    out = run(lr.fix_word_per_line, text)
+    return check("word-per-line: numeric list item kept", "\n - 3 очка действия" in out, True)
 
 
 def test_word_per_line_keeps_lists_and_tables():
@@ -135,6 +171,10 @@ def main():
         test_glued_table_row_untouched,
         test_word_per_line_rejoined,
         test_word_per_line_healthy_file_untouched,
+        test_word_per_line_above_threshold_joins,
+        test_word_per_line_hyphen_join_no_space,
+        test_word_per_line_fence_and_heading_protected,
+        test_word_per_line_list_item_with_number_kept,
         test_word_per_line_keeps_lists_and_tables,
         test_word_per_line_dice_tail_rejoined,
     ]

@@ -318,4 +318,4 @@
 | Young White Dragon (Chromatic) | Large | Dragon | Chaotic Evil | 6 | 17 | 133 |
 | Zombie | Medium | Undead | Neutral Evil | 1/4 | 8 | 22 |
 
-Total: 277 monsters.
+Total: 317 monsters.

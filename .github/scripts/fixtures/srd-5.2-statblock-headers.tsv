@@ -1,6 +1,6 @@
 # Шапки статблоков SRD 5.2.1 — выемка из официального PDF (CC-BY-4.0),
 # https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf
-# Формула атрибуции, которой держим комплаенс, — в LICENSE.md репозитория.
+# Формула атрибуции, которой держим комплаенс, — в src/dnd/srd-5.2/LICENSE.md.
 # Формат: <имя статблока>\t<строка «размер тип, мировоззрение»>. Эталон для
 # .github/scripts/test_statblock_headers.py — см. .claude/rules/verify-import.md.
 Aboleth	Large Aberration, Lawful Evil
