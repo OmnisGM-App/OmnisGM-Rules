@@ -50,6 +50,25 @@ SIZES_RU = {
     "огромный": "Huge", "огромная": "Huge", "огромное": "Huge",
     "громадный": "Gargantuan", "громадная": "Gargantuan", "громадное": "Gargantuan",
 }
+# Формы размера по роду: (мужской, женский, средний). Обратная сторона SIZES_RU — она
+# сводит все три рода к одному EN-значению, поэтому рассогласование («Большое Фея»)
+# ей не видно вовсе.
+SIZE_FORMS = {
+    "Tiny": ("Крошечный", "Крошечная", "Крошечное"),
+    "Small": ("Маленький", "Маленькая", "Маленькое"),
+    "Medium": ("Средний", "Средняя", "Среднее"),
+    "Large": ("Большой", "Большая", "Большое"),
+    "Huge": ("Огромный", "Огромная", "Огромное"),
+    "Gargantuan": ("Громадный", "Громадная", "Громадное"),
+}
+# Род русского термина типа — грамматика, а не терминология, поэтому таблица живёт здесь,
+# а не в словаре. Полнота таблицы проверяется: тип из словаря, которого тут нет, — failure.
+GENDER_RU = {
+    "Зверь": 0, "Дракон": 0, "Гуманоид": 0, "Великан": 0, "Конструкт": 0,
+    "Элементаль": 0, "Небожитель": 0, "Рой": 0,
+    "Аберрация": 1, "Фея": 1, "Слизь": 1, "Нежить": 1,
+    "Растение": 2, "Исчадие": 2, "Чудовище": 2,
+}
 # Мировоззрение RU → EN. Две формы среднего рода ниже — не про 5.1, а про живые данные 5.2
 # (Древень «нейтрально-доброе» и Вермедведь «хаотично-доброе»), где согласование поехало
 # точечно; лечится в #256, до тех пор принимаем обе. Прочий средний род разрешён только
@@ -95,6 +114,10 @@ GENDER_DRIFT: set = set()
 # либо опция, скопированная в фикстуру, которой она не нужна (и тогда версия молча теряет
 # строгость), либо перевод, уже починенный в #256. Оба случая требуют снять строку.
 GENDER_USED: Counter = Counter()
+# То же для рода ПРИЛАГАТЕЛЬНОГО РАЗМЕРА («Средний Нежить» вместо «Средняя»). В 5.2
+# согласование починено, у 5.1 это отдельная правка — до неё версия объявляет опцию.
+SIZE_DRIFT: set = set()
+SIZE_USED: Counter = Counter()
 
 
 def align_to_en(text: str, version: str):
@@ -166,6 +189,10 @@ def creature_types() -> dict:
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
         if len(cells) < 3 or cells[0].startswith("---") or cells[0] == "Оригинал 5.2":
+            continue
+        # Подтипы («Dragon (Chromatic)» → цветной) живут в том же разделе словаря, но
+        # типами не являются: сверять по ним нечего, и рода у них нет.
+        if len(cells) > 5 and "подтип" in cells[5].lower():
             continue
         for en in cells[:2]:
             if en and en not in {"-", "—"}:
@@ -300,6 +327,38 @@ def parts_ru(header: str, version: str):
             align_to_en(alignment, version), rest.strip())
 
 
+def size_agreement(header: str, version: str):
+    """Ошибка согласования размера с родом типа, либо None.
+
+    «Большая Фея» верно, «Большое Фея» — нет. Составной размер проверяется по обоим
+    прилагательным: «Средняя или Маленькая Нежить».
+    """
+    left = SPLIT_ALIGN.split(header, maxsplit=1)[0]
+    words, sizes, i = left.split(), [], 0
+    while i < len(words):
+        if words[i].lower() in SIZES_RU:
+            sizes.append(words[i]); i += 1
+        elif words[i].lower() == "или" and sizes:
+            i += 1
+        else:
+            break
+    rest = words[i:]
+    if not sizes or not rest:
+        return None
+    term = rest[0].strip("(),")
+    gender = GENDER_RU.get(term)
+    if gender is None:
+        return f"род типа «{term}» неизвестен — добавьте его в GENDER_RU"
+    for word in sizes:
+        want = SIZE_FORMS[SIZES_RU[word.lower()]][gender]
+        if word != want:
+            if version in SIZE_DRIFT:
+                SIZE_USED[version] += 1
+                return None
+            return f"размер «{word}» не согласован с «{term}» — ожидалось «{want}»"
+    return None
+
+
 def index_rows(path: Path) -> list:
     """Строки markdown-таблицы указателя как списки ячеек (без шапки таблицы)."""
     out = []
@@ -317,7 +376,7 @@ def statblock_files(version_dir: Path) -> list:
 
 # Объявления в шапке фикстуры: «# опция: <имя>».
 OPTION_RE = re.compile(r"^#\s*опция:\s*(\S+)\s*$")
-OPTIONS = {"род-мировоззрения-несогласован"}
+OPTIONS = {"род-мировоззрения-несогласован", "род-размера-несогласован"}
 
 
 def check_version(version: str, fixture: Path) -> None:
@@ -330,6 +389,8 @@ def check_version(version: str, fixture: Path) -> None:
                     failures.append(f"{version}: неизвестная опция фикстуры «{m.group(1)}»")
                 elif m.group(1) == "род-мировоззрения-несогласован":
                     GENDER_DRIFT.add(version)
+                elif m.group(1) == "род-размера-несогласован":
+                    SIZE_DRIFT.add(version)
             continue
         if not line.strip():
             continue
@@ -497,6 +558,9 @@ def check_version(version: str, fixture: Path) -> None:
         # Термин типа против словаря. Ровно этим гейт не занимался, и в 5.2 накопилось
         # расщепление: «чудовищность» и «чудовище» у одного Monstrosity, «конструкция»
         # рядом с «конструкт» (#256). Подтип в скобках сюда не входит — он свой термин.
+        problem = size_agreement(got, version)
+        if problem:
+            failures.append(f"{version} RU «{name}»: {problem} (шапка «{got}»)")
         want_ru = TYPES_RU.get(want_type)
         got_ru = re.sub(r"\s*\(.*\)\s*$", "", ru_type).strip()
         if want_ru is None:
@@ -509,10 +573,13 @@ def check_version(version: str, fixture: Path) -> None:
     # Мировоззрение здесь — не украшение: именно этой колонкой в 5.1 проехала форма
     # «Принципиально-злый», которой в русском нет, — значение при этом «узнаваемое».
     # Послабление, которым никто не пользуется, — это снятая строгость без причины.
-    if version in GENDER_DRIFT and not GENDER_USED[version]:
-        failures.append(
-            f"{version}: опция «род-мировоззрения-несогласован» ни разу не понадобилась — "
-            f"удалите её из фикстуры")
+    for option, used in (("род-мировоззрения-несогласован", GENDER_USED),
+                         ("род-размера-несогласован", SIZE_USED)):
+        drift = GENDER_DRIFT if used is GENDER_USED else SIZE_DRIFT
+        if version in drift and not used[version]:
+            failures.append(
+                f"{version}: опция «{option}» ни разу не понадобилась — "
+                f"удалите её из фикстуры")
 
     for index, align_col in (("04_Monsters.md", 4), ("05_Animals.md", None)):
         path = next(iter(ru_dir.glob(f"*Glossary/{index}")), None)
@@ -553,6 +620,12 @@ def check_version(version: str, fixture: Path) -> None:
                         f"{version} RU-указатель {index}, «{key}»: мировоззрение {got}, "
                         f"в EN {want[3]}")
 
+
+# Таблица родов обязана покрывать словарь целиком: иначе новый тип существа молча
+# выпадет из сверки согласования.
+for _ru in sorted(set(TYPES_RU.values())):
+    if _ru.split()[0] not in GENDER_RU:
+        failures.append(f"GENDER_RU: нет рода для типа «{_ru}» из словаря")
 
 fixtures = sorted(SCRIPTS.glob("fixtures/srd-*-statblock-headers.tsv"))
 if not fixtures:
