@@ -4431,7 +4431,7 @@ The possession lasts until the body drops to 0 Hit Points or the ghost leaves as
 
 - **Armor Class:** 14
 - **Hit Points:** 123 (13d10 + 52)
-- **Speed:** 30 ft
+- **Speed:** 30 ft.
 - **Initiative:** +3 (13)
 
 |          |  STR   |  DEX   |  CON   |  INT   |  WIS   |  CHA   |
@@ -5141,7 +5141,7 @@ If the target takes damage from the *Dream* spell, the target's Hit Point maximu
 - **Immunities:** Cold, Lightning; Frightened, Grappled, Paralyzed, Restrained
 - **Skills:** History +13, Perception +11
 - **Senses:** truesight 120 ft.; Passive Perception 21
-- **Languages:** Understands Abyssal, Celestial, Infernal, And Primordial but can't speak; telepathy 120 ft.
+- **Languages:** Understands Abyssal, Celestial, Infernal, and Primordial but can't speak; telepathy 120 ft.
 - **CR** 23 (XP 50,000, or 62,000 in lair; PB +7)
 
 #### Traits
@@ -5621,6 +5621,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 - **Immunities:** Acid; Prone
 - **Skills:** Stealth +5
 - **Senses:** darkvision 60 ft.; Passive Perception 11
+- **Languages:** None
 - **CR** 2 (XP 450; PB +2)
 
 #### Traits
@@ -7170,7 +7171,7 @@ The tentacle can be damaged, freeing a creature it has Grappled when destroyed (
 |   MOD    |   +0   |   +2   |   +0   |   +1   |   +2   |   +3   |
 |   SAVE   |   +0   |   +2   |   +0   |   +1   |   +2   |   +3   |
 
-- **Skills:** Deception +5, Insight +4, Investigation +5, Perception +6, Sleight of hand +4, Stealth +6
+- **Skills:** Deception +5, Insight +4, Investigation +5, Perception +6, Sleight of Hand +4, Stealth +6
 - **Gear** Hand Crossbow, Shortsword, Thieves' Tools
 - **Senses:** Passive Perception 16
 - **Languages:** Common plus one other language

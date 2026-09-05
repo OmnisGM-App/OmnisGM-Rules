@@ -40,15 +40,27 @@ EN_LABELS = {"Gear": "gear", "Armor Class": "ac", "AC": "ac", "Hit Points": "hp"
              "Initiative": "initiative", "Skills": "skills", "Senses": "senses",
              "Languages": "languages", "Immunities": "immunities",
              "Resistances": "resistances", "Vulnerabilities": "vulnerabilities"}
+# RU читаем ПОЛНЫМ набором полей: числа сверяются со значением, остальные — по наличию.
+# Без этого удаление 91 RU-строки «Языки: —» проходило зелёным весь CI, то есть RU-половина
+# правок #260 не была защищена ничем.
 RU_LABELS = {"Класс доспеха": "ac", "КД": "ac", "Хиты": "hp", "Скорость": "speed",
-             "Инициатива": "initiative"}
+             "Инициатива": "initiative", "Навыки": "skills", "Снаряжение": "gear",
+             "Чувства": "senses", "Языки": "languages", "Иммунитеты": "immunities",
+             "Сопротивления": "resistances", "Уязвимости": "vulnerabilities"}
 # Поля, которые в RU обязаны совпадать с EN ПОБУКВЕННО (это числа, а не проза).
 RU_NUMERIC = ("ac", "hp", "initiative")
 failures = []
 
 
 def canon(field: str, value: str) -> str:
-    """Регистр и хвостовая пунктуация — не данные; всё остальное сверяется как есть."""
+    """Приведение перед сравнением — ЕДИНСТВЕННОЕ послабление этого гейта.
+
+    Гасятся ровно две вещи, и обе намеренно:
+      * регистр (кроме шапки) — PDF пишет «Darkvision 120 ft.», мы «darkvision 120 ft.»;
+        различие живёт в 252 строках чувств и не является данными;
+      * хвостовая точка/запятая — конвертеры её теряют и добавляют произвольно.
+    Всё остальное — включая порядок слов, скобки и числа — сверяется как есть.
+    """
     value = re.sub(r"\s+", " ", value).strip(" .;,")
     value = value.replace("*", "").replace("((", "(").replace("))", ")")
     return value if field == "header" else value.lower()
@@ -67,6 +79,8 @@ def read_blocks(path: Path, labels: dict, ru: bool) -> dict:
         m = re.match(r"^#{2,4} (.+)$", s)
         if m:
             if name and block:
+                if name in out:
+                    failures.append(f"{path.name}: статблок «{name}» встречается дважды")
                 out.setdefault(name, block)
             title = m.group(1).strip()
             if ru:
@@ -120,14 +134,28 @@ def hp_value(hp: str) -> str:
     return m.group(1) if m else hp.strip()
 
 
-expected = json.loads(FIXTURE.read_text(encoding="utf-8"))
+_fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
+# Эталон — дословная выемка из PDF, поэтому у него есть шапка с источником и лицензией;
+# сами блоки лежат под ключом «blocks», чтобы служебные поля не путались с именами существ.
+expected = _fixture["blocks"]
+for _key in ("pdf", "sha256", "license", "extraction", "regenerate"):
+    if not _fixture.get("_source", {}).get(_key):
+        failures.append(f"эталон: в шапке _source нет «{_key}» — эталон без провенанса")
 en_dir, ru_dir = ROOT / f"src/dnd/{VERSION}/en", ROOT / f"src/dnd/{VERSION}/ru"
 en_blocks, ru_blocks = {}, {}
 for chapter in ("12_MonstersA-Z.md", "13_Animals.md"):
     en_blocks.update(read_blocks(en_dir / chapter, EN_LABELS, ru=False))
     ru_blocks.update(read_blocks(ru_dir / chapter, RU_LABELS, ru=True))
-# Блоки-врезки: заклинания и магические предметы.
-OUTSIDE = [n for n, f in expected.items() if f.get("outside_chapters")]
+# Блоки-врезки: заклинания и магические предметы. Список ЗАКРЫТ и живёт здесь, а не
+# выводится из фикстуры: иначе удаление врезки из эталона молча выключало бы её проверку.
+OUTSIDE = ["Animated Object", "Avatar of Death", "Draconic Spirit", "Giant Fly",
+           "Giant Insect", "Otherworldly Steed"]
+for _name in OUTSIDE:
+    if not expected.get(_name, {}).get("outside_chapters"):
+        failures.append(f"эталон: блок-врезка «{_name}» пропал или потерял пометку")
+for _name, _f in expected.items():
+    if _f.get("outside_chapters") and _name not in OUTSIDE:
+        failures.append(f"эталон: блок «{_name}» помечен как врезка, но нет в списке OUTSIDE")
 for chapter in ("07_Spells.md", "10_MagicItems.md"):
     for src, dst, labels, ru in ((en_dir, en_blocks, EN_LABELS, False),
                                  (ru_dir, ru_blocks, RU_LABELS, True)):
@@ -143,18 +171,30 @@ for name, fields in sorted(expected.items()):
     if got is None:
         failures.append(f"EN: статблок «{name}» из эталона не найден")
         continue
+    # Лишнее поле в тексте — тоже расхождение: эталон описывает блок целиком.
+    for field in sorted(set(got) - set(fields) - {"header"}):
+        failures.append(f"EN «{name}»: поле «{field}» = «{got[field]}» есть в тексте, но не в PDF")
     for field, want in fields.items():
         if field in ("cr_note", "cr_repo", "abilities", "outside_chapters"):
             continue
         # Эталон хранит строку PDF; если у PDF там опечатка, в тексте ждём исправленную
         # форму, объявленную в самом эталоне.
         if field == "cr" and "cr_repo" in fields:
+            # cr_repo — не свободный белый список: это ровно cr с исправленным порядком
+            # «700 XP» → «XP 700». Иначе им можно было бы узаконить любое значение.
+            fixed = re.sub(r"\((\d[\d,]*)\s+XP", r"(XP \1", fields["cr"])
+            if fields["cr_repo"] != fixed:
+                failures.append(
+                    f"эталон «{name}»: cr_repo «{fields['cr_repo']}» не выводится из PDF "
+                    f"«{fields['cr']}» — ожидалось «{fixed}»")
             want = fields["cr_repo"]
         value = got.get(field)
         if value is None:
             failures.append(f"EN «{name}»: поле «{field}» потеряно (в PDF «{want}»)")
         elif canon(field, value) != canon(field, want):
-            failures.append(f"EN «{name}» {field}: «{value}» ≠ PDF «{want}»")
+            source = (f"PDF «{fields['cr']}», у нас ждём «{want}» ({fields['cr_note']})"
+                      if field == "cr" and "cr_repo" in fields else f"PDF «{want}»")
+            failures.append(f"EN «{name}» {field}: «{value}» ≠ {source}")
 for name in sorted(set(en_blocks) - set(expected)):
     failures.append(f"EN: статблок «{name}» есть в тексте, но не в эталоне PDF")
 
@@ -164,6 +204,15 @@ for name, fields in sorted(en_blocks.items()):
     if got is None:
         failures.append(f"RU: статблок «{name}» не найден")
         continue
+    # Присутствие: у каждого поля эталона обязана быть RU-строка. Перевод свой, но
+    # СТРОКА должна быть — иначе поле молча исчезает только из русской половины.
+    for field in expected.get(name, {}):
+        if field in ("cr_note", "cr_repo", "abilities", "outside_chapters", "header", "cr"):
+            continue
+        if field in fields and field not in got:
+            failures.append(f"RU «{name}»: нет строки поля «{field}» (в EN «{fields[field]}»)")
+    if "cr" in fields and "cr" not in got:
+        failures.append(f"RU «{name}»: нет строки ПО (в EN «{fields['cr']}»)")
     for field in RU_NUMERIC:
         if field not in fields or field not in got:
             continue

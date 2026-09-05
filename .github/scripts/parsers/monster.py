@@ -20,9 +20,12 @@ SIZES_RU_TO_EN = {
 def _split_size(words: list, lang: str) -> tuple:
     """Split '['Medium', 'or', 'Small', 'Humanoid']' into ('Medium or Small', 'Humanoid').
 
-    SRD 5.2 writes a choice of size for shape-shifters and playable-species NPCs
-    ('Medium or Small Humanoid', RU 'Средний или Маленький гуманоид'). Taking only
-    the first word would leave a dangling 'or Small' inside the creature type.
+    Две формы составного размера:
+      * выбор — 'Medium or Small Humanoid' (RU 'Средний или Маленький гуманоид') —
+        у оборотней и НИП играбельных видов;
+      * граница диапазона — 'Huge or Smaller Construct' (RU 'Громадный или меньший
+        конструкт') — у врезки заклинания Animate Objects.
+    Взять только первое слово значило бы оставить болтающееся 'or Small' внутри типа.
     """
     sizes = SIZES_EN if lang == "en" else SIZES_RU_TO_EN
     conj = "or" if lang == "en" else "или"
@@ -35,7 +38,10 @@ def _split_size(words: list, lang: str) -> tuple:
         return " ".join(words[:3]), " ".join(words[3:])
     # «Huge or Smaller Construct» (заклинание Animate Objects): второе слово — не размер,
     # а граница диапазона. Без этой ветки тип уезжал в «or Smaller Construct» (#260).
-    bounds = {"smaller", "larger"} if lang == "en" else {"меньше", "больше"}
+    # RU-текст пишет прилагательное («Громадный или меньший конструкт»), а не наречие.
+    bounds = ({"smaller", "larger"} if lang == "en"
+              else {"меньше", "больше", "меньший", "больший", "меньшая", "большая",
+                    "меньшее", "большее"})
     if (
         len(words) > 3
         and words[0].lower() in sizes
