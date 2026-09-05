@@ -455,9 +455,49 @@ def statblock_files(version_dir: Path) -> list:
     return files
 
 
-# Объявления в шапке фикстуры: «# опция: <имя>».
+# Объявления в шапке фикстуры: «# опция: <имя>». Сегодня объявленных послаблений нет —
+# обе опции 5.1 сняты вместе с правкой её шапок (#256); имена оставлены, чтобы опечатка
+# в новой опции не прошла молча.
 OPTION_RE = re.compile(r"^#\s*опция:\s*(\S+)\s*$")
 OPTIONS = {"род-мировоззрения-несогласован", "род-размера-несогласован"}
+
+
+def chapter_titles(version: str) -> dict:
+    """{EN-заголовок главы: RU-заголовок} для групповых глав («Monsters: Lycanthropes»).
+
+    Пары строим по СОСТАВУ главы, а не по её порядку: RU-главы отсортированы по русскому
+    алфавиту, поэтому позиционного соответствия нет. Совпадение требуем полное — те же
+    статблоки и там и там, иначе пара не строится и глава просто не сверяется.
+    """
+    def groups(path: Path, ru: bool) -> dict:
+        out, head = {}, None
+        for line in path.read_text(encoding="utf-8").split("\n"):
+            if line.startswith("## "):
+                head = line[3:].strip()
+                out.setdefault(head, set())
+                continue
+            m = re.match(r"^### (.+)$", line)
+            if m and head:
+                name = (en_name_from_ru_heading(m.group(1)) if ru
+                        else STRIP_TAIL.sub("", m.group(1).strip()).strip())
+                if name:
+                    out[head].add(name)
+        return out
+
+    en_groups, ru_groups = {}, {}
+    for path in statblock_files(ROOT / f"src/dnd/{version}/en"):
+        en_groups.update(groups(path, False))
+    for path in statblock_files(ROOT / f"src/dnd/{version}/ru"):
+        ru_groups.update(groups(path, True))
+    pairs = {}
+    for en_head, blocks in en_groups.items():
+        if not blocks:
+            continue
+        for ru_head, ru_blocks in ru_groups.items():
+            if blocks == ru_blocks:
+                pairs[en_head] = ru_head
+                break
+    return pairs
 
 
 def check_version(version: str, fixture: Path) -> None:
@@ -911,6 +951,17 @@ for fixture in fixtures:
     version = m.group(1)
     check_version(version, fixture)
     versions.append(version)
+
+# Заголовок ГЛАВЫ — та же терминология, что и шапки, но в другом носителе, и до #256 он
+# был расщеплён: одна и та же «Monsters: Lycanthropes» звалась в 5.1 «Ликантропами», а в
+# 5.2 «Оборотнями». Сверяем версии между собой по главам, состав которых совпал.
+_titles = {v: chapter_titles(v) for v in versions}
+for _a, _b in ((x, y) for i, x in enumerate(versions) for y in versions[i + 1:]):
+    for _en in sorted(set(_titles[_a]) & set(_titles[_b])):
+        if _titles[_a][_en] != _titles[_b][_en]:
+            failures.append(
+                f"заголовок главы «{_en}» переведён по-разному: {_a} — "
+                f"«{_titles[_a][_en]}», {_b} — «{_titles[_b][_en]}» (#256)")
 
 if failures:
     print(f"❌ Шапки статблоков разошлись с эталоном ({len(failures)}):")
