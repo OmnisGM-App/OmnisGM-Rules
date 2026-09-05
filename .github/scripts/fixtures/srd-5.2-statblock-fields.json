@@ -11,8 +11,8 @@
    "docling (поля, потерянные обоими: двухколоночная вёрстка уносит AC/HP за таблицу характеристик)",
    "pdftotext -layout по колонкам: -x 0 -W 297 и -x 297 -W 297, страницы склеены попарно"
   ],
-  "regenerate": ".github/scripts/build_statblock_fields.py (см. его докстроку: нужен PDF и три перегона)",
-  "note": "Опечатки самого PDF объявляются полями cr_note/cr_repo у блока."
+  "regenerate": ".github/scripts/build_statblock_fields.py",
+  "note": "Опечатки самого PDF объявляются у блока полями cr_note/cr_repo (порядок «700 XP») и xp_note (опыт вразрез с таблицей ПО)."
  },
  "blocks": {
   "Aboleth": {
@@ -386,7 +386,8 @@
    "senses": "Passive Perception 16",
    "languages": "Common plus five other languages",
    "immunities": "Psychic; Charmed (with *Mind Blank*)",
-   "cr": "12 (XP 8,000; PB +4)"
+   "cr": "12 (XP 8,000; PB +4)",
+   "xp_note": "в PDF «XP 8,000», хотя по таблице ПО 12 — 8,400 опыта; держим форму PDF"
   },
   "Assassin": {
    "header": "Medium or Small Humanoid, Neutral",

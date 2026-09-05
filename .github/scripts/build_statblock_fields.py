@@ -1,41 +1,67 @@
 #!/usr/bin/env python3
-"""Сборка эталона полей статблоков из официального PDF (issue #260).
+"""Сборка и сверка эталона полей статблоков из официального PDF (issue #260).
+
+Что скрипт делает и чего НЕ делает. Он снимает поля статблоков из четырёх выемок
+официального PDF, сверяет их с текстом репозитория и — ключевое — с самой фикстурой
+`fixtures/srd-5.2-statblock-fields.json`, печатая поячеечный отчёт: сколько значений
+эталона выемки воспроизводят, какие расходятся и какие не достаются вовсе. Фикстуру он
+НЕ перезаписывает: эталон правится осознанно, а не автоперезаписью с выхлопа конвертера.
+Часть ячеек (см. отчёт `--report`) конвертерами не достаётся ни одним из четырёх путей —
+они сняты из колонной выемки вручную и в отчёте перечислены поимённо.
 
 Как пользоваться:
 
-    # 1. Скачать PDF и прогнать три конвертера (скилл /convert-pdf):
+    # 1. Скачать PDF и прогнать конвертеры (скилл /convert-pdf):
     curl -sL -o /tmp/srd-5.2.1.pdf \
       https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf
+    shasum -a 256 /tmp/srd-5.2.1.pdf   # обязан совпасть с _source.sha256 фикстуры
     python3 .claude/skills/convert-pdf/convert_pdf.py /tmp/srd-5.2.1.pdf dnd_srd-5.2.1
     python3 .claude/skills/cleanup-artifacts/layout_recovery.py \
       /tmp/dnd_srd-5.2.1_marker.md /tmp/dnd_srd-5.2.1_recovered.md
 
-    # 2. Четвёртая выемка — сам PDF, разрезанный по колонкам:
+    # 2. Четвёртая выемка — сам PDF, разрезанный по колонкам, страницы склеены подряд:
     pdftotext -layout -x 0   -W 297 -H 783 /tmp/srd-5.2.1.pdf /tmp/col_l.txt
     pdftotext -layout -x 297 -W 297 -H 783 /tmp/srd-5.2.1.pdf /tmp/col_r.txt
-    # страницы склеиваются попарно в /tmp/srd-5.2.1_cols.txt (см. cols_from_pdf ниже)
+    cat /tmp/col_l.txt /tmp/col_r.txt > /tmp/srd-5.2.1_cols.txt
 
-    # 3. Собрать эталон:
-    python3 .github/scripts/build_statblock_fields.py
+    # 3. Сверить выемки с фикстурой и с текстом:
+    python3 .github/scripts/build_statblock_fields.py --report
+
+Пути к выемкам берутся из переменных окружения (`SRD_MARKER`, `SRD_PYMUPDF`,
+`SRD_DOCLING`, `SRD_COLS`) — значения по умолчанию те, что оставляет рецепт выше.
+Отсутствие файла — внятная ошибка, а не стектрейс.
 
 Почему четыре выемки. Конвертеры теряют РАЗНЫЕ поля на двухколоночной вёрстке: marker
 склеивает часть заголовков, pymupdf4llm и docling уносят AC/HP за таблицу характеристик.
-Ни один из них в одиночку не даёт всех 3181 значений; вместе — дают.
-
-Скрипт печатает расхождения с текущим текстом репозитория и пишет JSON рядом с фикстурой;
-сама фикстура правится осознанно, не автоперезаписью.
+Ни один из них в одиночку не даёт всех значений; мерило — не число выемок, а нулевой
+остаток непрочитанных полей.
 """
 
 import json
+import os
 import re
 import sys
 import unicodedata
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-PDF_MD = Path("/tmp/dnd_srd-5.2.1_recovered.md")
+FIXTURE = Path(__file__).resolve().parent / "fixtures/srd-5.2-statblock-fields.json"
 SIZE = r"(?:Tiny|Small|Medium|Large|Huge|Gargantuan)"
-ABIL = ["Str", "Dex", "Con", "Int", "Wis", "Cha"]
+# Главы репозитория со статблоками: две главы монстров и две главы с блоками-врезками.
+CHAPTERS = ("12_MonstersA-Z.md", "13_Animals.md", "07_Spells.md", "10_MagicItems.md")
+LABELS = ["AC", "Initiative", "HP", "Speed", "Skills", "Senses", "Languages", "CR",
+          "Immunities", "Resistances", "Vulnerabilities", "Gear"]
+KEY_OF = {"AC": "ac", "Initiative": "initiative", "HP": "hp", "Speed": "speed",
+          "Skills": "skills", "Senses": "senses", "Languages": "languages",
+          "CR": "cr", "Immunities": "immunities", "Resistances": "resistances",
+          "Vulnerabilities": "vulnerabilities", "Gear": "gear"}
+
+
+def source(env: str, default: str) -> Path:
+    path = Path(os.environ.get(env, default))
+    if not path.exists():
+        sys.exit(f"нет выемки {path} (переменная {env}) — прогоните шаги 1–2 из докстроки")
+    return path
 
 
 def norm(s: str) -> str:
@@ -50,22 +76,13 @@ def clean_heading(line: str) -> str:
     return re.sub(r"[#*_]+", " ", line).strip()
 
 
-PDF_ALT = Path("/tmp/dnd_srd-5.2.1_pymupdf.md")
-PDF_ALT2 = Path("/tmp/dnd_srd-5.2.1_docling.md")
-# Четвёртый источник — сам PDF, разрезанный по колонкам (`pdftotext -layout -x/-W`):
-# им добираются поля, которые конвертеры теряют на двухколоночной вёрстке.
-PDF_COLS = Path("/tmp/srd-5.2.1_cols.txt")
-LABELS = ["AC", "Initiative", "HP", "Speed", "Skills", "Senses", "Languages", "CR",
-          "Immunities", "Resistances", "Vulnerabilities", "Gear"]
-
-
-def pdf_blocks(path=None, bare=False) -> dict:
+def pdf_blocks(path: "Path", bare: bool = False) -> dict:
     """{имя: {поле: значение}} из перегона PDF (по умолчанию marker).
 
-    bare=True — для docling: он пишет метки полей без разметки («AC 13 HP 36 …»),
-    поэтому перед разбором их приходится обернуть самим.
+    bare=True — для docling и для колонной выемки: они пишут метки полей без разметки
+    («AC 13 HP 36 …»), поэтому перед разбором их приходится обернуть самим.
     """
-    lines = unicodedata.normalize("NFKC", (path or PDF_MD).read_text(encoding="utf-8")).split("\n")
+    lines = unicodedata.normalize("NFKC", path.read_text(encoding="utf-8")).split("\n")
     out, name = {}, None
     for i, line in enumerate(lines):
         s = line.strip()
@@ -77,8 +94,11 @@ def pdf_blocks(path=None, bare=False) -> dict:
         m = re.match(pat, s)
         if not m:
             continue
-        if bare and not name:
+        if bare:
             # В голом тексте заголовков нет: имя — ближайшая непустая строка выше.
+            # Считаем его ЗАНОВО для каждого блока: имя от предыдущего (пропущенного)
+            # блока иначе прилипает к следующему и уносит его поля под чужим ключом.
+            name = None
             for back in range(i - 1, max(i - 4, -1), -1):
                 cand = clean_heading(lines[back])
                 if cand and not re.search(r"\d", cand) and len(cand) < 60:
@@ -89,14 +109,12 @@ def pdf_blocks(path=None, bare=False) -> dict:
         block = {"header": norm(m.group(1))}
         head_tail = "" if bare else m.group(2).strip()
         # Тело блока: до следующего заголовка уровня 1-3 или до «#### Traits/Actions».
-        body, stats = ([head_tail] if head_tail else []), []
+        body = [head_tail] if head_tail else []
         for j in range(i + 1, len(lines)):
             t = lines[j].strip()
             if re.match(r"^#{1,3}\s", t) or re.match(r"^#{4,6}\s*(Traits|Actions|Bonus Actions|Reactions|Legendary)", t):
                 break
             if t.startswith("|"):
-                if "Str" in t or "Int" in t:
-                    stats.append(t)
                 continue
             # «#### Vulnerabilities Fire» — то же поле, оформленное заголовком.
             mm = re.match(r"^#{3,6}\s*(Immunities|Resistances|Vulnerabilities|Gear)\s*(.*)$", t)
@@ -107,21 +125,19 @@ def pdf_blocks(path=None, bare=False) -> dict:
                 body.append(t)
         # Поля идут подряд, длинные переносятся: склеиваем и режем по меткам.
         text = re.sub(r"</?u>|</?mark>", " ", " ".join(body))
+        # Колонтитул «357 System Reference Document 5.2.1» приклеивается к последнему
+        # полю страницы — режем его до разбора, иначе он уезжает в значение.
+        text = re.sub(r"\s*\**\d{1,3}\**\s*System Reference Document [\d.]+\s*", " ", text)
+        text = re.sub(r"\s*System Reference Document [\d.]+\s*\**\d{1,3}\**\s*", " ", text)
         if bare:
             text = re.sub(rf"(?<![*\w])({'|'.join(LABELS)})(?=\s)", r"**\1**", text)
-        labels = ["AC", "Initiative", "HP", "Speed", "Skills", "Senses", "Languages", "CR",
-                  "Immunities", "Resistances", "Vulnerabilities", "Gear"]
-        alt = "|".join(labels)
-        parts = re.split(rf"\*\*({alt})\*\*", text)
-        key_of = {"AC": "ac", "Initiative": "initiative", "HP": "hp", "Speed": "speed",
-                  "Skills": "skills", "Senses": "senses", "Languages": "languages",
-                  "CR": "cr", "Immunities": "immunities", "Resistances": "resistances",
-                  "Vulnerabilities": "vulnerabilities", "Gear": "gear"}
+        parts = re.split(rf"\*\*({'|'.join(LABELS)})\*\*", text)
         # Хвост поля обрезаем на первом признаке следующей секции: строка характеристик
         # без разметки таблицы («MOD SAVE …»), заголовок или начало черты («*Bite.*»).
-        cut = re.compile(r"\s(?:<u>|MOD\s+SAVE|#{3,6}\s|\*[A-Z][^*]{0,60}?\.\*)")
+        cut = re.compile(r"\s(?:<u>|MOD\s+SAVE|#{3,6}\s|"
+                         r"\*[A-Z][^*]{0,80}?(?:\.\*|Attack Roll:|Saving Throw:))")
         for k in range(1, len(parts) - 1, 2):
-            key = key_of[parts[k]]
+            key = KEY_OF[parts[k]]
             if key in block:
                 continue
             value = parts[k + 1]
@@ -143,19 +159,26 @@ def pdf_blocks(path=None, bare=False) -> dict:
 
 
 def repo_blocks() -> dict:
+    """Поля статблоков из текста репозитория — все четыре главы, включая врезки.
+
+    Врезки (`> #### Giant Fly` в заклинаниях и магпредметах) оформлены цитатой и метками
+    без двоеточия — без них выборка была бы на шесть блоков короче эталона.
+    """
     out = {}
-    for rel in ("src/dnd/srd-5.2/en/12_MonstersA-Z.md", "src/dnd/srd-5.2/en/13_Animals.md"):
-        lines = (ROOT / rel).read_text(encoding="utf-8").split("\n")
-        name, block, table = None, None, []
-        for line in lines + ["### END"]:
-            s = line.strip()
+    label_re = "|".join(["Armor Class", "AC", "Hit Points", "HP", "Speed", "Initiative",
+                         "Skills", "Senses", "Languages", "Immunities", "Resistances",
+                         "Vulnerabilities", "Gear"])
+    key_of = dict(KEY_OF, **{"Armor Class": "ac", "Hit Points": "hp"})
+    for chapter in CHAPTERS:
+        path = ROOT / "src/dnd/srd-5.2/en" / chapter
+        name, block = None, None
+        for line in path.read_text(encoding="utf-8").split("\n") + ["### END"]:
+            s = re.sub(r"^>\s?", "", line).strip()
             m = re.match(r"^#{2,4} (.+)$", s)
             if m:
                 if name and block:
-                    if table:
-                        block["abilities"] = parse_repo_table(table)
-                    out[name] = block
-                name, block, table = m.group(1).strip(), {}, []
+                    out.setdefault(name, block)
+                name, block = m.group(1).strip(), {}
                 continue
             if block is None:
                 continue
@@ -163,69 +186,64 @@ def repo_blocks() -> dict:
             if m and "header" not in block:
                 block["header"] = norm(m.group(1))
                 continue
-            m = re.match(r"^- \*\*(Armor Class|Hit Points|Speed|Initiative|Skills|Senses|Languages|Immunities|Resistances|Vulnerabilities|Gear):\*\*\s*(.+)$", s)
-            if m:
-                key = {"Armor Class": "ac", "Hit Points": "hp", "Speed": "speed",
-                       "Initiative": "initiative", "Skills": "skills", "Senses": "senses",
-                       "Languages": "languages", "Immunities": "immunities",
-                       "Resistances": "resistances", "Vulnerabilities": "vulnerabilities",
-                       "Gear": "gear"}[m.group(1)]
-                block[key] = norm(m.group(2))
+            m = re.match(rf"^(?:- )?\*\*({label_re}):?\*\*\s*(.+)$", s)
+            if m and key_of[m.group(1)] not in block:
+                block[key_of[m.group(1)]] = norm(m.group(2))
                 continue
-            m = re.match(r"^- \*\*CR\*\*\s*(.+)$", s)
-            if m:
+            m = re.match(r"^(?:- )?\*\*CR:?\*\*\s*(.+)$", s)
+            if m and "cr" not in block:
                 block["cr"] = norm(m.group(1))
-                continue
-            if s.startswith("|") and not s.startswith("|:"):
-                table.append(s)
     return out
 
 
-def parse_repo_table(rows: list) -> dict:
-    """Таблица репозитория: строки SCORE/MOD/SAVE по колонкам STR…CHA."""
-    data = {}
-    for row in rows:
-        cells = [norm(c) for c in row.strip().strip("|").split("|")]
-        if not cells:
-            continue
-        head = cells[0].upper()
-        if head in ("SCORE", "MOD", "SAVE"):
-            data[head] = cells[1:7]
-    if "SCORE" not in data:
-        return {}
-    return {a: (data["SCORE"][i] if i < len(data.get("SCORE", [])) else "",
-                data["MOD"][i] if i < len(data.get("MOD", [])) else "",
-                data["SAVE"][i] if i < len(data.get("SAVE", [])) else "")
-            for i, a in enumerate(ABIL)}
+def extractions() -> dict:
+    """Слияние четырёх выемок: каждая добирает то, что потеряли предыдущие."""
+    marker = pdf_blocks(source("SRD_MARKER", "/tmp/dnd_srd-5.2.1_recovered.md"))
+    alt = pdf_blocks(source("SRD_PYMUPDF", "/tmp/dnd_srd-5.2.1_pymupdf.md"))
+    docling = pdf_blocks(source("SRD_DOCLING", "/tmp/dnd_srd-5.2.1_docling.md"), bare=True)
+    cols = pdf_blocks(source("SRD_COLS", "/tmp/srd-5.2.1_cols.txt"), bare=True)
+    merged = dict(marker)
+    for extra in (alt, docling, cols):
+        for name, block in extra.items():
+            if name not in merged:
+                merged[name] = dict(block)
+                continue
+            for field, value in block.items():
+                merged[name].setdefault(field, value)
+    return merged
 
 
 if __name__ == "__main__":
-    pdf, repo = pdf_blocks(), repo_blocks()
-    # marker теряет часть заголовков (склеивает их с текстом) — недостающие блоки
-    # добираем вторым перегоном: он тот же PDF, разобранный другим инструментом.
-    alt = pdf_blocks(PDF_ALT)
-    alt2 = pdf_blocks(PDF_ALT2, bare=True)
-    for _name in set(repo) - set(pdf):
-        if _name in alt:
-            pdf[_name] = alt[_name]
-    # Поля, потерянные обоими первыми перегонами (двухколоночная вёрстка ставит AC/HP
-    # после таблицы характеристик), добираем третьим.
-    for _name, _block in pdf.items():
-        for _f in ("ac", "hp", "speed", "initiative", "cr", "skills", "senses", "languages"):
-            if _f not in _block and _name in alt2 and _f in alt2[_name]:
-                _block[_f] = alt2[_name][_f]
-    for _name in set(repo) - set(pdf):
-        if _name in alt2:
-            pdf[_name] = alt2[_name]
-    if PDF_COLS.exists():
-        cols = pdf_blocks(PDF_COLS, bare=True)
-        for _name, _block in pdf.items():
-            for _f in ("ac", "hp", "speed", "initiative", "cr", "skills", "senses",
-                       "languages", "immunities", "resistances", "vulnerabilities", "gear"):
-                if _f not in _block and _name in cols and _f in cols[_name]:
-                    _block[_f] = cols[_name][_f]
-    print(f"блоков: PDF {len(pdf)}, репозиторий {len(repo)}, общих {len(set(pdf) & set(repo))}")
-    Path("/tmp/pdf_blocks.json").write_text(json.dumps(pdf, ensure_ascii=False, indent=1), encoding="utf-8")
-    Path("/tmp/repo_blocks.json").write_text(json.dumps(repo, ensure_ascii=False, indent=1), encoding="utf-8")
+    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))["blocks"]
+    pdf, repo = extractions(), repo_blocks()
+    print(f"блоков: выемки {len(pdf)}, репозиторий {len(repo)}, эталон {len(fixture)}, "
+          f"общих с эталоном {len(set(pdf) & set(fixture))}")
+
+    # Главное: сверка выемок с САМОЙ фикстурой — иначе «способ пересборки» ничего не значит.
+    same, differ, unreachable = 0, [], []
+    for name, fields in sorted(fixture.items()):
+        for field, want in fields.items():
+            if field in ("cr_note", "cr_repo", "xp_note", "outside_chapters"):
+                continue
+            got = pdf.get(name, {}).get(field)
+            if got is None:
+                unreachable.append(f"{name}.{field}")
+            elif norm(got) == norm(want):
+                same += 1
+            else:
+                differ.append(f"{name}.{field}: выемка «{got}» ≠ эталон «{want}»")
+    total = same + len(differ) + len(unreachable)
+    print(f"ячеек эталона {total}: воспроизведено выемками {same}, расходится {len(differ)}, "
+          f"не достаётся конвертерами {len(unreachable)}")
+    if "--report" in sys.argv:
+        for line in differ:
+            print(f"  ≠ {line}")
+        for cell in unreachable:
+            print(f"  ? {cell} — снято из колонной выемки вручную")
+
+    # И сверка текста репозитория с выемками — то, ради чего скрипт писался изначально.
     missing = sorted(set(repo) - set(pdf))
-    print(f"нет в перегоне: {len(missing)} {missing[:6]}")
+    print(f"нет в выемках: {len(missing)} {missing[:6]}")
+    # Ненулевой код возврата — чтобы «эталон воспроизводится» было утверждением,
+    # которое можно прогнать, а не обещанием в докстроке.
+    sys.exit(1 if differ or unreachable or missing else 0)

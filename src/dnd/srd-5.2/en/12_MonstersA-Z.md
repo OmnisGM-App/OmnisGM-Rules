@@ -5681,7 +5681,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 |   MOD    |   +0   |   +2   |   +1   |   +5   |   +2   |   +3   |
 |   SAVE   |   +0   |   +2   |   +1   |   +9   |   +6   |   +3   |
 
-- **Immunities:** Psychic; Charmed ((with Mind Blank))
+- **Immunities:** Psychic; Charmed (with Mind Blank)
 - **Skills:** Arcana +13, History +9, Perception +6
 - **Gear** Wand
 - **Senses:** Passive Perception 16
@@ -6032,7 +6032,7 @@ If the kraken takes 50 damage or more on a single turn from a creature inside it
 
 - **Immunities:** Fire
 - **Senses:** Passive Perception 11
-- **Languages:** Understands Abyssal, Common, And Infernal but can't speak
+- **Languages:** Understands Abyssal, Common, and Infernal but can't speak
 - **CR** 3 (XP 700; PB +2)
 
 #### Traits
@@ -6428,7 +6428,7 @@ The ooze can eat through 2-inch-thick, nonmagical metal or wood in 1 round.
 
 - **Skills:** Perception +6
 - **Senses:** Passive Perception 16
-- **Languages:** Understands Celestial, Common, Elvish, And Sylvan but can't speak
+- **Languages:** Understands Celestial, Common, Elvish, and Sylvan but can't speak
 - **CR** 2 (XP 450; PB +2)
 
 #### Actions
@@ -7841,7 +7841,7 @@ While in mist form, the vampire can't take any actions, speak, or manipulate obj
 |   SAVE   |   +3   |   +5   |   +2   |   +0   |   +2   |   +2   |
 
 - **Resistances:** Necrotic
-- **Immunities:** Charmed ((except from its vampire master))
+- **Immunities:** Charmed (except from its vampire master)
 - **Skills:** Perception +4, Persuasion +4, Stealth +7
 - **Gear** Daggers (10)
 - **Senses:** darkvision 60 ft.; Passive Perception 14

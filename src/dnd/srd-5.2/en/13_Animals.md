@@ -911,7 +911,7 @@
 - **Resistances:** Necrotic, Radiant
 - **Skills:** Perception +4
 - **Senses:** darkvision 90 ft.; Passive Perception 14
-- **Languages:** Celestial; understands Common, Elvish, And Sylvan but can't speak them
+- **Languages:** Celestial; understands Common, Elvish, and Sylvan but can't speak them
 - **CR** 2 (XP 450; PB +2)
 
 #### Actions
@@ -1667,7 +1667,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 - **Resistances:** Necrotic, Radiant
 - **Skills:** Perception +6, Stealth +6
 - **Senses:** darkvision 120 ft.; Passive Perception 16
-- **Languages:** Celestial; understands Common, Elvish, And Sylvan but can't speak them
+- **Languages:** Celestial; understands Common, Elvish, and Sylvan but can't speak them
 - **CR** 1/4 (XP 50; PB +2)
 
 #### Traits
