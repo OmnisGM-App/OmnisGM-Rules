@@ -20,9 +20,12 @@ SIZES_RU_TO_EN = {
 def _split_size(words: list, lang: str) -> tuple:
     """Split '['Medium', 'or', 'Small', 'Humanoid']' into ('Medium or Small', 'Humanoid').
 
-    SRD 5.2 writes a choice of size for shape-shifters and playable-species NPCs
-    ('Medium or Small Humanoid', RU 'Средний или Маленький гуманоид'). Taking only
-    the first word would leave a dangling 'or Small' inside the creature type.
+    Две формы составного размера:
+      * выбор — 'Medium or Small Humanoid' (RU 'Средний или Маленький гуманоид') —
+        у оборотней и НИП играбельных видов;
+      * граница диапазона — 'Huge or Smaller Construct' (RU 'Громадный или меньший
+        конструкт') — у врезки заклинания Animate Objects.
+    Взять только первое слово значило бы оставить болтающееся 'or Small' внутри типа.
     """
     sizes = SIZES_EN if lang == "en" else SIZES_RU_TO_EN
     conj = "or" if lang == "en" else "или"
@@ -31,6 +34,19 @@ def _split_size(words: list, lang: str) -> tuple:
         and words[0].lower() in sizes
         and words[1].lower() == conj
         and words[2].lower() in sizes
+    ):
+        return " ".join(words[:3]), " ".join(words[3:])
+    # «Huge or Smaller Construct» (заклинание Animate Objects): второе слово — не размер,
+    # а граница диапазона. Без этой ветки тип уезжал в «or Smaller Construct» (#260).
+    # RU-текст пишет прилагательное («Громадный или меньший конструкт»), а не наречие.
+    bounds = ({"smaller", "larger"} if lang == "en"
+              else {"меньше", "больше", "меньший", "больший", "меньшая", "большая",
+                    "меньшее", "большее"})
+    if (
+        len(words) > 3
+        and words[0].lower() in sizes
+        and words[1].lower() == conj
+        and words[2].lower() in bounds
     ):
         return " ".join(words[:3]), " ".join(words[3:])
     return (words[0] if words else ""), " ".join(words[1:])
@@ -44,9 +60,12 @@ def _parse_type_line(line: str, lang: str) -> dict:
     # as the separator, else the type keeps a dangling '(Devil'. Negative lookahead
     # skips any comma still enclosed by an unclosed '(' . 5.2 lines have no comma
     # inside the type-parens, so this is a no-op there.
-    parts = re.split(r",\s*(?![^(]*\))", text, maxsplit=1)
-    first = parts[0].strip()
-    alignment = parts[1].strip() if len(parts) > 1 else None
+    # Мировоззрение — хвост после ПОСЛЕДНЕЙ запятой вне скобок: у составного типа
+    # «Large Celestial, Fey, or Fiend (Your Choice), Neutral» (заклинание Find Steed)
+    # запятых вне скобок несколько, и по первой из них тип разрывался пополам (#260).
+    chunks = re.split(r",\s*(?![^(]*\))", text)
+    first = ", ".join(c.strip() for c in chunks[:-1]) if len(chunks) > 1 else chunks[0].strip()
+    alignment = chunks[-1].strip() if len(chunks) > 1 else None
 
     words = first.split()
     size = ""
