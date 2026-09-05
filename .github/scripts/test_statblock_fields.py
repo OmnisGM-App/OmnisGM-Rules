@@ -152,11 +152,21 @@ def read_blocks(path: Path, labels: dict, ru: bool) -> list:
             # форма одинакова в обоих языках и проверяется ниже (`label_style`).
             # В главах поля идут списком («- **Speed:** …»), во врезках — абзацами.
             m = re.match(rf"^(?:- )?\*\*{label}:?\*\*:?\s*(.+)$", s)
-            if m and key not in block:
-                block[key] = m.group(1).strip()
+            if not m:
+                continue
+            if key in block:
+                # Повторная строка того же поля: в сверку идёт первая, вторая живёт в
+                # тексте невидимкой для гейта — поэтому она сама по себе расхождение.
+                failures.append(f"{path.name} «{name}»: поле «{key}» записано дважды "
+                                f"(«{block[key]}» и «{m.group(1).strip()}»)")
+                continue
+            block[key] = m.group(1).strip()
         m = re.match(r"^(?:- )?\*\*(?:CR|ПО):?\*\*:?\s*(.+)$", s)
-        if m and "cr" not in block:
-            block["cr"] = m.group(1).strip()
+        if m:
+            if "cr" in block:
+                failures.append(f"{path.name} «{name}»: поле «cr» записано дважды")
+            else:
+                block["cr"] = m.group(1).strip()
     flush()
     return out
 
@@ -347,6 +357,11 @@ for name, fields in sorted(en_blocks.items()):
             continue
         if numbers(value) != numbers(got[field]):
             failures.append(f"RU «{name}» {field}: «{got[field]}» ≠ EN «{value}» (числа)")
+    # Снаряжение: количество пишется скобкой («Daggers (10)» / «Кинжалы (10)»), и это
+    # форма записи, а не перевод, — иначе откат к «Кинжал x 10» виден только глазами.
+    if "gear" in fields and "gear" in got and fields["gear"].count("(") != got["gear"].count("("):
+        failures.append(f"RU «{name}» снаряжение: «{got['gear']}» записано иначе, чем "
+                        f"EN «{fields['gear']}» — количество пишется скобкой")
     # Шапка врезок не сверяется гейтом шапок (тот читает только главы монстров и
     # указатели), поэтому размер сверяем здесь — по тем же словарям.
     if "header" in fields and "header" in got:
