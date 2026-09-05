@@ -9,7 +9,7 @@
 JSON API: файл валиден, таблицы на месте, и все прежние проверки проходили. Поймать
 такое можно только сверкой с источником — поэтому эталон лежит в репозитории.
 
-Проверяем четыре уровня, потому что дефект расползается по ним по очереди:
+Проверяем пять уровней, потому что дефект расползается по ним по очереди:
   1) шапки EN — построчно против эталона;
   2) РАЗБОР шапки продукционным парсером JSON API (`parsers.monster._parse_type_line`) —
      иначе откат самого парсера проходит гейт: данные-то в файле верные, а `size`/`type`
@@ -22,6 +22,10 @@ JSON API: файл валиден, таблицы на месте, и все п�
      (`src/dnd/translate/01_dictionary_base.md`); там же проверяется согласование рода
      прилагательного размера с типом. Второй источник правды здесь — словарь: он читается,
      а не копируется в код, иначе расхождение словаря и текста осталось бы незамеченным.
+
+  5) копии карты «тип существа → RU» вне словаря (RU-глоссарии обеих версий, таблица
+     типов в правилах 5.2, `web/src/lib/monster-hubs.ts`) — они кормят заголовки, хабы
+     и `<title>`, а не сверялись до сих пор ни с чем.
 
 Версии берутся из имён фикстур (`srd-<версия>-statblock-headers.tsv`). Новая версия
 подхватывается сама, но рассчитывать, что правки кода не потребуется, не стоит: у 5.1
@@ -103,6 +107,10 @@ SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")   # запятая мировозз
 # Словарь терминов — единственный источник правды для перевода типов существ. Гейт читает
 # ЕГО, а не свою копию: иначе расхождение словаря и текста осталось бы незамеченным (#256).
 DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"
+# Подтипы лежат ОТДЕЛЬНО от словаря: семь их ключей («Cleric», «Wizard», «Dwarf»…)
+# совпадают с именами классов и рас, а пишутся со строчной, и в общем namespace
+# `build_term_map.py` они перекрывали переводы сущностей («Орк» → «орк»).
+SUBTYPE_DICT = ROOT / "src/dnd/translate/statblock_subtypes.md"
 # Таксономический хвост в скобках: в 5.1 он есть и у заголовков статблоков («Deva (Angel)»),
 # и у строк указателя — в ключ эталона он не входит.
 STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
@@ -180,54 +188,71 @@ def titlecase_header(raw: str) -> str:
 DASH = {"-", "—"}
 
 
-def creature_types():
-    """({EN-тип → RU}, {EN-подтип → RU}) из раздела «Типы существ» словаря.
+def dict_table(path: Path, section: str, report: bool = True) -> dict:
+    """{EN → RU} из таблицы файла словаря; section — заголовок раздела или None.
+
+    report=False читает молча: в словаре есть законные омонимы с пометкой в комментарии
+    («Ammunition» — предмет «Боеприпасы» и свойство оружия «Боеприпас»), и жаловаться на
+    них — не дело этого гейта, они и так видны в отчёте `build_term_map.py`.
 
     Колонки: оригинал 5.2, оригинал 5.1, перевод, источник 5.2, источник 5.1, комментарий.
     Оба оригинала ведут на один перевод, прочерк — «в этой редакции термина нет».
-    Подтипы («Dragon (Chromatic)» → цветной) живут в подразделе «Подтипы» того же
-    раздела — разделяет их заголовок, а не формулировка комментария: пометка прозой
-    ломалась от любой правки текста, а показывала при этом на таблицу родов.
     """
-    if not DICT.exists():
-        failures.append(f"словарь не найден: {DICT.relative_to(ROOT)} — сверять типы не с чем")
-        return {}, {}
-    types, subtypes, inside, is_sub = {}, {}, False, False
-    for number, line in enumerate(DICT.read_text(encoding="utf-8").split("\n"), 1):
-        if line.startswith("## "):
-            inside, is_sub = "Типы существ" in line, False
-            continue
-        if line.startswith("### "):
-            is_sub = "Подтипы" in line
+    if not path.exists():
+        failures.append(f"словарь не найден: {path.relative_to(ROOT)} — сверять не с чем")
+        return {}
+    out, inside = {}, section is None
+    for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
+        if section is not None and line.startswith("## "):
+            inside = section in line
             continue
         if not inside or not line.startswith("| "):
             continue
         cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if cells[0].startswith("---") or cells[0] == "Оригинал 5.2":
+        if cells[0].startswith("---") or cells[0].startswith("Оригинал"):
             continue
         # Ровно шесть колонок: лишняя проходила молча, потерянная давала «род для типа
         # «srd-5.2» не найден» — диагностику мимо причины.
         if len(cells) != 6:
-            failures.append(
-                f"словарь, строка {number}: колонок {len(cells)}, а должно быть 6: {line!r}")
+            if report:
+                failures.append(
+                    f"{path.name}, строка {number}: колонок {len(cells)}, "
+                    f"а должно быть 6: {line!r}")
             continue
-        target = subtypes if is_sub else types
+        if not cells[2] or cells[2] in DASH:
+            if report:
+                failures.append(f"{path.name}, строка {number}: пустой перевод: {line!r}")
+            continue
+        reported = False
         for en in cells[:2]:
             if not en or en in DASH:
                 continue
             # Противоречие внутри словаря разрешалось порядком строк: дубль ниже живой
             # строки молча игнорировался. Единственный источник правды не может зависеть
             # от того, куда редактор вставил строку.
-            if en in target and target[en] != cells[2]:
-                failures.append(
-                    f"словарь, строка {number}: «{en}» переведён и как «{target[en]}», "
-                    f"и как «{cells[2]}»")
+            if en in out and out[en] != cells[2]:
+                if report and not reported:
+                    failures.append(
+                        f"{path.name}, строка {number}: «{en}» переведён и как «{out[en]}», "
+                        f"и как «{cells[2]}»")
+                    reported = True
                 continue
-            target[en] = cells[2]
-    return types, subtypes
+            out[en] = cells[2]
+    return out
 
 
-TYPES_RU, SUBTYPES_RU = creature_types()
+TYPES_RU = dict_table(DICT, "Типы существ")
+SUBTYPES_RU = dict_table(SUBTYPE_DICT, None)
+# Подтип — регистровый вариант термина, а не свой перевод: «Cleric» это «Жрец» в списке
+# классов и «жрец» в скобках после типа. Расхождение по существу («Dwarf» → «гном»)
+# ловится здесь, иначе два файла разъехались бы молча.
+_BASE_ALL = dict_table(DICT, None, report=False)
+for _en, _ru in sorted(SUBTYPES_RU.items()):
+    _base = _BASE_ALL.get(_en)
+    if _base is not None and _base.lower() != _ru.lower():
+        failures.append(
+            f"{SUBTYPE_DICT.name}: подтип «{_en}» → «{_ru}», а в словаре тот же термин "
+            f"→ «{_base}»")
 
 
 def paren_groups(text: str) -> list:
@@ -330,8 +355,8 @@ def parts_ru(header: str, version: str):
     """То же для RU, но значения приводятся к EN.
 
     Возвращает (размер, подтип, мировоззрение, сырой тип). Последний элемент — RU-строка
-    типа как есть: сверять её со словарём пока нельзя (термины расщеплены, #256), но по
-    ней проверяется признак роя.
+    типа как есть: по ней проверяется признак роя, а сам термин сверяется со словарём
+    выше по коду (#256 расщепление вычистил).
     """
     chunks = SPLIT_ALIGN.split(header, maxsplit=1)
     if len(chunks) != 2:
@@ -352,6 +377,9 @@ def parts_ru(header: str, version: str):
     sub = re.match(r"^(.+?)\s*\((.+)\)$", rest.strip())
     return (size, sub.group(2).strip() if sub else None,
             align_to_en(alignment, version), rest.strip())
+
+
+missing_gender: set = set()
 
 
 def size_agreement(header: str, version: str):
@@ -375,11 +403,16 @@ def size_agreement(header: str, version: str):
     term = rest[0].strip("(),")
     gender = GENDER_RU.get(term)
     if gender is None:
-        # Не «допишите в GENDER_RU»: почти всегда сюда приводит расщеплённый или
-        # написанный со строчной термин в самой шапке, и совет править таблицу означал бы
-        # снять проверку, которую #256 только что поставил.
+        # Два разных дефекта — два разных сообщения. Если термин В СЛОВАРЕ есть, виновата
+        # таблица родов; если нет — виновата шапка, и советовать «допишите в GENDER_RU»
+        # значило бы предложить снять проверку, которую #256 только что поставил.
+        if term in TYPES_RU.values():
+            # Одна дыра в таблице родов давала сообщение на КАЖДОЕ существо этого типа
+            # (170 одинаковых строк на «Зверь») и вытесняла из отчёта настоящие дефекты.
+            missing_gender.add(term)
+            return None
         return (f"тип «{term}» не из словаря — в шапке он пишется словарным термином "
-                f"с прописной (#256); таблицу родов правят, только когда тип НОВЫЙ")
+                f"с прописной (#256)")
     for word in sizes:
         want = SIZE_FORMS[SIZES_RU[word.lower()]][gender]
         if word != want:
@@ -392,12 +425,17 @@ def size_agreement(header: str, version: str):
 
 def index_rows(path: Path) -> list:
     """Строки markdown-таблицы указателя как списки ячеек (без шапки таблицы)."""
+    return table_rows(path)[1]
+
+
+def table_rows(path: Path):
+    """(шапка таблицы, строки) — шапка нужна, чтобы знать ТОЧНУЮ ширину строки."""
     out = []
     for line in path.read_text(encoding="utf-8").split("\n"):
         if not line.startswith("| ") or line.startswith("|---"):
             continue
         out.append([c.strip() for c in line.strip().strip("|").split("|")])
-    return out[1:]
+    return (out[0] if out else []), out[1:]
 
 
 def statblock_files(version_dir: Path) -> list:
@@ -567,6 +605,7 @@ def check_version(version: str, fixture: Path) -> None:
     # одна удалённая строка словаря давала сотни одинаковых сообщений и вытесняла из
     # отчёта настоящие дефекты — ровно на том входе, ради которого гейт и написан.
     unknown_types, unknown_subtypes = set(), set()
+    missing_gender.clear()
     for name, header in sorted(expected.items()):
         got = ru_headers.get(name)
         if got is None:
@@ -619,15 +658,20 @@ def check_version(version: str, fixture: Path) -> None:
             for part, mapped in zip(want_parts, want_sub_ru):
                 if mapped is None:
                     unknown_subtypes.add(part)
-            if all(want_sub_ru) and (len(want_parts) != len(got_parts) or any(
-                    a.lower() != b.lower() for a, b in zip(got_parts, want_sub_ru))):
+            # `is not None`, а не истинность: пустой перевод гасил сверку всего
+            # составного подтипа. Регистр сверяется как есть — подтип пишется со
+            # строчной, и поблажка тут данным не нужна.
+            if all(x is not None for x in want_sub_ru) and (
+                    len(want_parts) != len(got_parts)
+                    or any(a != b for a, b in zip(got_parts, want_sub_ru))):
                 failures.append(
                     f"{version} RU «{name}»: подтип «{ru_sub}», в словаре {want_sub} → "
                     f"«{', '.join(want_sub_ru)}»")
 
-    # --- RU-указатели: размер, тип и мировоззрение --------------------------------------
-    # Мировоззрение здесь — не украшение: именно этой колонкой в 5.1 проехала форма
-    # «Принципиально-злый», которой в русском нет, — значение при этом «узнаваемое».
+    # --- Итоги словарных сверок: одна строка на класс, а не на каждое существо ----------
+    for term in sorted(missing_gender):
+        failures.append(
+            f"{version}: типа «{term}» нет в таблице родов GENDER_RU — допишите его туда")
     for term in sorted(unknown_types):
         failures.append(f"{version} словарь: типа существа «{term}» нет в «Типы существ»")
     for term in sorted(unknown_subtypes):
@@ -644,21 +688,28 @@ def check_version(version: str, fixture: Path) -> None:
                 f"{version}: опция «{option}» ни разу не понадобилась — "
                 f"удалите её из фикстуры")
 
+    # --- RU-указатели: ширина строки, размер, тип и мировоззрение -----------------------
+    # Мировоззрение здесь — не украшение: именно этой колонкой в 5.1 проехала форма
+    # «Принципиально-злый», которой в русском нет, — значение при этом «узнаваемое».
     for index, align_col in (("04_Monsters.md", 4), ("05_Animals.md", None)):
         path = next(iter(ru_dir.glob(f"*Glossary/{index}")), None)
         if path is None:
             continue
-        width = 5 if align_col is not None else 4   # имя, оригинал, размер, тип [, мировоззрение]
-        for cells in index_rows(path):
+        # Ширина берётся из ШАПКИ таблицы, а не минимумом «сколько нужно проверкам»:
+        # с минимумом потеря хвостовых колонок (ПО/КД/хиты) и приписанная лишняя
+        # проходили зелёными.
+        header, rows = table_rows(path)
+        width = len(header)
+        for cells in rows:
             key = alias["en"].get(cells[1]) if len(cells) > 1 else None
             if key is None or key not in expected:
                 continue
             # Раньше короткая строка молча выключала все сверки ниже — а «строка потеряла
             # хвост колонок» это ровно тот класс, ради которого живёт layout recovery.
-            if len(cells) < width:
+            if len(cells) != width:
                 failures.append(
                     f"{version} RU-указатель {index}, «{key}»: колонок {len(cells)}, "
-                    f"а нужно минимум {width} — строка обрезана")
+                    f"а в шапке таблицы {width}")
                 continue
             want = parts_en(expected[key])
             if want is None:
@@ -691,12 +742,18 @@ def check_version(version: str, fixture: Path) -> None:
                         f"в EN {want[3]}")
 
 
-def other_type_maps() -> list:
-    """Копии карты «тип существа → RU» вне словаря: (что это, {EN: RU}).
+# Типы, которых в копиях законно нет: рой в списках типов существ не перечисляют.
+COPY_EXEMPT = {"Swarm of Tiny Beasts", "Swarm of Tiny Undead"}
 
-    Их четыре штуки на репозиторий, и до сих пор они не сверялись ни с чем: откат
-    правки «Фея» в вебе проходил зелёным, хотя метка идёт в <title>, <h1> и крошки
-    хабов. E2E тут страховкой быть не могут — в CI они не гоняются.
+
+def other_type_maps() -> list:
+    """Копии карты «тип существа → RU» вне словаря: (что это, {EN: RU}, полная ли).
+
+    Их пять штук на репозиторий, и до сих пор они не сверялись ни с чем: откат правки
+    «Фея» в вебе проходил зелёным, хотя метка идёт в <title>, <h1> и крошки хабов.
+    E2E тут страховкой быть не могут — в CI они не гоняются. Пятая копия (таблица типов
+    в `08_RulesGlossary.md`) без EN-колонки, поэтому сверяется как МНОЖЕСТВО RU-форм.
+    Шестая, прозой в `srd-5.1/ru/14_Monsters.md`, машинно не сверяется — записана в #260.
     """
     maps = []
     for path, en_first in ((ROOT / "src/dnd/srd-5.2/ru/14_Glossary/00_Glossary.md", True),
@@ -715,24 +772,81 @@ def other_type_maps() -> list:
                 continue
             en, ru = (cells[0], cells[1]) if en_first else (cells[1], cells[0])
             table[en] = ru
-        maps.append((f"глоссарий {path.relative_to(ROOT)}", table))
+        maps.append((f"глоссарий {path.relative_to(ROOT)}", table, True))
 
     hubs = ROOT / "web/src/lib/monster-hubs.ts"
     if hubs.exists():
-        table = {m.group(1): m.group(2) for m in re.finditer(
-            r"en:\s*'([^']+)',\s*ru:\s*'([^']+)'", hubs.read_text(encoding="utf-8"))}
-        maps.append(("web/src/lib/monster-hubs.ts", table))
+        table, entries, inside_list = {}, 0, False
+        for line in hubs.read_text(encoding="utf-8").split("\n"):
+            # Разбираем ТОЛЬКО массив MONSTER_TYPES: `slug:` встречается в файле и в
+            # других структурах, и считать их записями типов нельзя.
+            if "MONSTER_TYPES" in line and line.rstrip().endswith("["):
+                inside_list = True
+                continue
+            if inside_list and line.startswith("]"):
+                inside_list = False
+                continue
+            # Только живые строки записи типа: закомментированная строка рядом с правкой
+            # перебивала бы её («// было: en: 'Fey', ru: 'Фея'»).
+            if not inside_list or line.lstrip().startswith("//") or "slug:" not in line:
+                continue
+            entries += 1
+            m = re.search(r"""en:\s*['"]([^'"]+)['"],\s*ru:\s*['"]([^'"]+)['"]""", line)
+            if m:
+                table[m.group(1)] = m.group(2)
+        # Каждая запись обязана разобраться: иначе изменение формата одной строки просто
+        # выводит её из-под сверки, а остальные держат карту непустой.
+        if entries != len(table):
+            failures.append(
+                f"web/src/lib/monster-hubs.ts: записей типов {entries}, разобрано "
+                f"{len(table)} — формат строки изменился")
+        maps.append(("web/src/lib/monster-hubs.ts", table, False))
     return maps
 
 
-# Копии карты обязаны совпадать со словарём — там, где термин им известен. Своих терминов
-# у копий хватает («Swarm» у хабов), поэтому сверяем пересечение, а не равенство.
-for _what, _table in other_type_maps():
+# Копии карты обязаны совпадать со словарём. Пустая карта — это молча выключенная сверка
+# (переименованный раздел глоссария, изменённый формат записи в TS), поэтому пустота
+# красная, как и пропажа самого словаря.
+for _what, _table, _full in other_type_maps():
+    if not _table:
+        failures.append(f"{_what}: карта типов не разобрана — сверять не с чем")
+        continue
     for _en, _ru in sorted(_table.items()):
         _want = TYPES_RU.get(_en)
         if _want is not None and _ru != _want:
-            failures.append(
-                f"{_what}: «{_en}» → «{_ru}», а в словаре «{_want}»")
+            failures.append(f"{_what}: «{_en}» → «{_ru}», а в словаре «{_want}»")
+    # У глоссариев сверяется и ПОЛНОТА: удалённая строка иначе просто уходит из
+    # пересечения. У хабов свои слаги («Swarm»), поэтому полноты с них не требуем.
+    if _full:
+        for _en in sorted(set(TYPES_RU) - set(_table) - COPY_EXEMPT):
+            failures.append(f"{_what}: нет строки для типа «{_en}» из словаря")
+
+# Пятая копия — таблица типов существ в правилах 5.2: EN-колонки у неё нет, поэтому
+# сверяем множество RU-форм.
+_RULES_TYPES = ROOT / "src/dnd/srd-5.2/ru/08_RulesGlossary.md"
+if _RULES_TYPES.exists():
+    _text = _RULES_TYPES.read_text(encoding="utf-8")
+    _start = _text.find("Вот типы существ в игре")
+    _cells = set()
+    if _start >= 0:
+        for _line in _text[_start:].split("\n"):
+            if not _line.startswith("|"):
+                if _cells:
+                    break
+                continue
+            for _c in _line.strip().strip("|").split("|"):
+                _c = _c.strip()
+                if _c and not _c.startswith("---"):
+                    _cells.add(_c)
+    _want_set = {v for k, v in TYPES_RU.items() if k not in COPY_EXEMPT}
+    if not _cells:
+        failures.append(f"{_RULES_TYPES.name}: таблица типов существ не найдена")
+    elif _cells != _want_set:
+        _extra = ", ".join(sorted(_cells - _want_set)) or "—"
+        _missing = ", ".join(sorted(_want_set - _cells)) or "—"
+        failures.append(
+            f"{_RULES_TYPES.name}: список типов существ разошёлся со словарём "
+            f"(лишние: {_extra}; нет: {_missing})")
 
 # Таблица родов обязана покрывать словарь целиком: иначе новый тип существа молча
 # выпадет из сверки согласования.
