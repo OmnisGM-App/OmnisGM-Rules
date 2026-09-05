@@ -224,15 +224,22 @@ def build(game: str, version: str, src: Path):
     terms = {}
     source_of = {}
     dict_snapshot = {}
+    # Перекрытия МЕЖДУ тирами словарей: внутри тира это конфликт, а между тирами —
+    # штатный приоритет, и до сих пор оно нигде не показывалось. Ровно так подтипы,
+    # положенные в общий словарь, молча перекрыли бы переводы сущностей (#256).
+    cross_tier = []
     for label, tier in tiers:
         if label == COMMON_LOGS:
             dict_snapshot = dict(terms)  # freeze dictionary-only state before logs
         for en, ru in tier.items():
+            if en in terms and terms[en] != ru and label not in LOG_TIERS:
+                cross_tier.append({"term": en, "from": source_of.get(en), "to": label,
+                                   "values": [terms[en], ru]})
             terms[en] = ru
             source_of[en] = label
 
-    overridden_by_logs = sum(
-        1
+    overridden_by_logs = sorted(
+        en
         for en, src_label in source_of.items()
         if src_label in LOG_TIERS
         and en in dict_snapshot
@@ -262,6 +269,13 @@ def build(game: str, version: str, src: Path):
         "sources": {label: counts.get(label, 0) for label, _ in tiers},
         "aliases": aliases,
         "conflicts": conflicts,
+        # Термины, для которых запись лога перебила словарь, и перекрытия между тирами
+        # словарей — то и другое читает гейт `.github/scripts/test_term_map.py`.
+        "overridden_by_logs": overridden_by_logs,
+        "cross_tier_overrides": cross_tier,
+        # Ключи, пришедшие ИЗ ЛОГОВ: заголовок записи лога — самое лёгкое место, где в
+        # карту попадает не термин, а фраза.
+        "log_terms": sorted(en for en, lbl in source_of.items() if lbl in LOG_TIERS),
     }
     return result, files_read, overridden_by_logs
 
@@ -302,7 +316,7 @@ def main():
     print(
         f"{n_terms} терминов из {n_files} файлов "
         f"(в т.ч. {result['aliases']} алиасов без скобок), "
-        f"{overridden} переопределено логами, конфликты: {n_conflicts}"
+        f"{len(overridden)} переопределено логами, конфликты: {n_conflicts}"
     )
     print(f"JSON: {out}")
     for label, count in result["sources"].items():

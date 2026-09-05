@@ -196,7 +196,7 @@
 | - | Lion | Лев | — | srd-5.1 |  |
 | - | Lizard | Ящерица | — | srd-5.1 |  |
 | - | Lizardfolk | Ящеролюд | — | srd-5.1 |  |
-| Lycanthrope | Lycanthrope | Ликантроп | srd-5.2 | srd-5.1 | глава «Monsters: Lycanthropes» переведена как «Монстры: Оборотни»; подтип в скобках — «ликантроп», см. statblock_subtypes.md |
+| Lycanthrope | Lycanthrope | Ликантроп | srd-5.2 | srd-5.1 | заголовок главы расщеплён: 5.1 «Монстры: Ликантропы», 5.2 «Монстры: Оборотни» — сведение за переводчиком (#256); подтип в скобках — «ликантроп», см. statblock_subtypes.md |
 | Mage | Mage | Маг | srd-5.2 | srd-5.1 |  |
 | Magma Mephit | Magma Mephit | Магмовый мефит | srd-5.2 | srd-5.1 |  |
 | Magmin | Magmin | Магмин | srd-5.2 | srd-5.1 |  |
