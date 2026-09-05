@@ -43,20 +43,14 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
-from parsers.monster import _parse_type_line  # noqa: E402
+from parsers.monster import SIZES_RU_TO_EN, _parse_type_line  # noqa: E402
 
 SIZES_EN = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
 SIZE_ALT = "|".join(SIZES_EN)
 SIZE_RE = re.compile(rf"^((?:{SIZE_ALT})(?: or (?:{SIZE_ALT}))?)\s+(.*)$")
 # Прилагательное согласуется с родом типа существа, поэтому вариантов больше, чем размеров.
-SIZES_RU = {
-    "крошечный": "Tiny", "крошечная": "Tiny", "крошечное": "Tiny",
-    "маленький": "Small", "маленькая": "Small", "маленькое": "Small",
-    "средний": "Medium", "средняя": "Medium", "среднее": "Medium",
-    "большой": "Large", "большая": "Large", "большое": "Large",
-    "огромный": "Huge", "огромная": "Huge", "огромное": "Huge",
-    "громадный": "Gargantuan", "громадная": "Gargantuan", "громадное": "Gargantuan",
-}
+# Словарь один — продукционный, из парсера: копия здесь уже жила и могла разъехаться.
+SIZES_RU = SIZES_RU_TO_EN
 # Формы размера по роду: (мужской, женский, средний). Обратная сторона SIZES_RU — она
 # сводит все три рода к одному EN-значению, поэтому рассогласование («Большое Фея»)
 # ей не видно вовсе.

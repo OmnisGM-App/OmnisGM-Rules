@@ -1225,9 +1225,9 @@ The creature exists for a duration specific to each figurine. At the end of the 
 >
 > **Initiative** +1 (11)
 >
-> **HP** 15 (3d10 + 3)
+> **HP** 19 (3d10 + 3)
 >
-> **Speed** Speed 30 ft., Fly 60 ft.
+> **Speed** 30 ft., Fly 60 ft.
 >
 > | Attribute | Score | Mod | Save |
 > |-----------|-------|-----|------|
