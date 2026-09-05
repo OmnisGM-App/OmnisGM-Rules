@@ -10,7 +10,8 @@
  * Ровно это чинилось в PR #247, и ловить такое глазами на ревью — плохая опора: литерал
  * выглядит безобидно, а последствие видно только на другом слоте.
  *
- * Адрес берётся из `e2e/ports.ts` (`BASE_URL`, `E2E_PORT`) — единственного места, где он живёт.
+ * Адрес берётся из `e2e/ports.ts` (`BASE_URL`, `E2E_PORT`) — единственного места, где он живёт
+ * для продукта; сами базовые числа лежат в общей карте `@omnisgm-app/core`.
  *
  * Гоняется в CI и локально: `node scripts/verify_no_hardcoded_urls.mjs`. E2E для этого не нужны,
  * поэтому гейт работает там, где сами e2e не запускаются.
@@ -18,6 +19,7 @@
 import { readdir, readFile } from 'node:fs/promises';
 import { fileURLToPath } from 'node:url';
 import { dirname, join, relative, resolve } from 'node:path';
+import { PORT_BLOCKS } from '@omnisgm-app/core/blocks';
 
 const web = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const e2eDir = join(web, 'e2e');
@@ -39,13 +41,19 @@ const ADDRESS = /(?:https?:\/\/)?(?:localhost|127\.0\.0\.1|\[::1\]):\d{2,5}/g;
  * Голый порт без хоста — `const PORT = 4321` плюс шаблон воспроизводит ту же регрессию
  * насквозь, поэтому ловим и его.
  *
- * Числа читаем из `e2e/ports.ts` ТЕКСТОМ, а не импортом: скрипт гоняется в CI на Node 20,
- * который `.ts` из `.mjs` не подгрузит. Заодно список не разъезжается с реальностью.
+ * Числа берём ИЗ ПАКЕТА `@omnisgm-app/core`, где живёт карта портов всей экосистемы
+ * (Table#477). Раньше их выскребали регуляркой из текста `ports.ts` — «заодно список не
+ * разъезжается с реальностью», — но реальность переехала: баз в этом файле больше нет, он
+ * читает их из карты. Регулярка перестала находить что-либо, и гейт ЧЕСТНО упал вместо того,
+ * чтобы молча пропускать всё; проверка на пустой список ровно для этого и стояла.
+ *
+ * Импорт вместо текста надёжнее прежнего: список не может разойтись с тем, что поднимает
+ * прогон, потому что это один и тот же источник. Пакет отдаёт ESM, так что `.mjs` его
+ * подгружает без оговорок про TypeScript.
  */
-const portsSource = await readFile(join(e2eDir, 'ports.ts'), 'utf8');
-const basePorts = [...portsSource.matchAll(/=\s*(\d{4})\s*\+\s*slot\(\)/g)].map((m) => m[1]);
+const basePorts = Object.values(PORT_BLOCKS.rules).map(String);
 if (basePorts.length === 0) {
-  console.error('❌ В e2e/ports.ts не нашлось ни одной базы порта — гейт проверял бы половину правила');
+  console.error('❌ В карте портов пуст блок `rules` — гейт проверял бы половину правила');
   process.exit(1);
 }
 const BARE_PORTS = new RegExp(`\\b(?:${basePorts.join('|')})\\b`, 'g');
