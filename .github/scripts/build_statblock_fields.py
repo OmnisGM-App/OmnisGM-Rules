@@ -4,10 +4,10 @@
 Что скрипт делает и чего НЕ делает. Он снимает поля статблоков из четырёх выемок
 официального PDF, сверяет их с текстом репозитория и — ключевое — с самой фикстурой
 `fixtures/srd-5.2-statblock-fields.json`, печатая поячеечный отчёт: сколько значений
-эталона выемки воспроизводят, какие расходятся и какие не достаются вовсе. Фикстуру он
-НЕ перезаписывает: эталон правится осознанно, а не автоперезаписью с выхлопа конвертера.
-Часть ячеек (см. отчёт `--report`) конвертерами не достаётся ни одним из четырёх путей —
-они сняты из колонной выемки вручную и в отчёте перечислены поимённо.
+эталона выемки воспроизводят и какие расходятся. Фикстуру он НЕ перезаписывает: эталон
+правится осознанно, а не автоперезаписью с выхлопа конвертера. Сегодня выемки
+воспроизводят ВСЕ 3181 значение, поэтому любой ненулевой остаток — расхождение, и код
+возврата ненулевой: «эталон воспроизводится» — утверждение, которое можно прогнать.
 
 Как пользоваться:
 
@@ -19,17 +19,21 @@
     python3 .claude/skills/cleanup-artifacts/layout_recovery.py \
       /tmp/dnd_srd-5.2.1_marker.md /tmp/dnd_srd-5.2.1_recovered.md
 
-    # 2. Четвёртая выемка — сам PDF, разрезанный по колонкам, страницы склеены подряд:
+    # 2. Четвёртая выемка — сам PDF, разрезанный по колонкам. Страницы чередуются
+    #    ПОПАРНО (левая колонка страницы N, затем правая колонка страницы N) — просто
+    #    склеить файлы нельзя: тогда правые колонки уезжают на 350 страниц вперёд и
+    #    поля статблока разрываются. Чередование делает сам скрипт:
     pdftotext -layout -x 0   -W 297 -H 783 /tmp/srd-5.2.1.pdf /tmp/col_l.txt
     pdftotext -layout -x 297 -W 297 -H 783 /tmp/srd-5.2.1.pdf /tmp/col_r.txt
-    cat /tmp/col_l.txt /tmp/col_r.txt > /tmp/srd-5.2.1_cols.txt
+    #    (-H 783 обязателен: без него pdftotext отдаёт пустышку в 728 байт)
 
     # 3. Сверить выемки с фикстурой и с текстом:
     python3 .github/scripts/build_statblock_fields.py --report
 
-Пути к выемкам берутся из переменных окружения (`SRD_MARKER`, `SRD_PYMUPDF`,
-`SRD_DOCLING`, `SRD_COLS`) — значения по умолчанию те, что оставляет рецепт выше.
-Отсутствие файла — внятная ошибка, а не стектрейс.
+Пути берутся из переменных окружения (`SRD_MARKER`, `SRD_PYMUPDF`, `SRD_DOCLING`,
+`SRD_COL_L`, `SRD_COL_R`) — значения по умолчанию те, что оставляет рецепт выше.
+Отсутствие файла — внятная ошибка, а не стектрейс. Скрипт не гоняется в CI: ему нужен
+сам PDF и три конвертера, которых на раннере нет, — это второй эшелон для правки эталона.
 
 Почему четыре выемки. Конвертеры теряют РАЗНЫЕ поля на двухколоночной вёрстке: marker
 склеивает часть заголовков, pymupdf4llm и docling уносят AC/HP за таблицу характеристик.
@@ -43,6 +47,9 @@ import re
 import sys
 import unicodedata
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+from statblock_meta import META_KEYS   # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).resolve().parent / "fixtures/srd-5.2-statblock-fields.json"
@@ -177,6 +184,8 @@ def repo_blocks() -> dict:
             m = re.match(r"^#{2,4} (.+)$", s)
             if m:
                 if name and block:
+                    if name in out:
+                        print(f"  ! дубль статблока «{name}» в {chapter}")
                     out.setdefault(name, block)
                 name, block = m.group(1).strip(), {}
                 continue
@@ -196,12 +205,29 @@ def repo_blocks() -> dict:
     return out
 
 
+def interleave_columns() -> Path:
+    """Склейка колонной выемки: левая и правая колонки чередуются ПОСТРАНИЧНО.
+
+    `pdftotext` пишет страницы через перевод формата (\f), поэтому просто сложить два
+    файла нельзя — правые колонки уедут на весь документ вперёд и разорвут статблоки.
+    """
+    left = source("SRD_COL_L", "/tmp/col_l.txt").read_text(encoding="utf-8").split("\f")
+    right = source("SRD_COL_R", "/tmp/col_r.txt").read_text(encoding="utf-8").split("\f")
+    pages = []
+    for i in range(max(len(left), len(right))):
+        pages.append(left[i] if i < len(left) else "")
+        pages.append(right[i] if i < len(right) else "")
+    out = Path(os.environ.get("SRD_COLS", "/tmp/srd-5.2.1_cols.txt"))
+    out.write_text("\n".join(pages), encoding="utf-8")
+    return out
+
+
 def extractions() -> dict:
     """Слияние четырёх выемок: каждая добирает то, что потеряли предыдущие."""
     marker = pdf_blocks(source("SRD_MARKER", "/tmp/dnd_srd-5.2.1_recovered.md"))
     alt = pdf_blocks(source("SRD_PYMUPDF", "/tmp/dnd_srd-5.2.1_pymupdf.md"))
     docling = pdf_blocks(source("SRD_DOCLING", "/tmp/dnd_srd-5.2.1_docling.md"), bare=True)
-    cols = pdf_blocks(source("SRD_COLS", "/tmp/srd-5.2.1_cols.txt"), bare=True)
+    cols = pdf_blocks(interleave_columns(), bare=True)
     merged = dict(marker)
     for extra in (alt, docling, cols):
         for name, block in extra.items():
@@ -223,7 +249,7 @@ if __name__ == "__main__":
     same, differ, unreachable = 0, [], []
     for name, fields in sorted(fixture.items()):
         for field, want in fields.items():
-            if field in ("cr_note", "cr_repo", "xp_note", "outside_chapters"):
+            if field in META_KEYS:
                 continue
             got = pdf.get(name, {}).get(field)
             if got is None:
@@ -235,11 +261,12 @@ if __name__ == "__main__":
     total = same + len(differ) + len(unreachable)
     print(f"ячеек эталона {total}: воспроизведено выемками {same}, расходится {len(differ)}, "
           f"не достаётся конвертерами {len(unreachable)}")
+    # Сегодня и то и другое равно нулю, поэтому любой остаток — расхождение, а не сноска.
     if "--report" in sys.argv:
         for line in differ:
             print(f"  ≠ {line}")
         for cell in unreachable:
-            print(f"  ? {cell} — снято из колонной выемки вручную")
+            print(f"  ? {cell} — выемки не дают этого значения")
 
     # И сверка текста репозитория с выемками — то, ради чего скрипт писался изначально.
     missing = sorted(set(repo) - set(pdf))

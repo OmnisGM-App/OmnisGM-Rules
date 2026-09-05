@@ -33,7 +33,9 @@ def _split_size(words: list, lang: str) -> tuple:
     # диапазона («Huge or Smaller», RU «Огромный или меньший» у врезки Animate Objects).
     # Обе формы режутся одинаково, поэтому и условие одно: без него тип уезжал
     # в «or Smaller Construct» (#260).
-    bounds = {"smaller", "larger"} if lang == "en" else {"меньший", "больший"}
+    # RU согласует границу с родом типа: «или меньший конструкт», «или меньшая тварь».
+    bounds = ({"smaller", "larger"} if lang == "en"
+              else {"меньший", "больший", "меньшая", "большая", "меньшее", "большее"})
     if (
         len(words) > 3
         and words[0].lower() in sizes

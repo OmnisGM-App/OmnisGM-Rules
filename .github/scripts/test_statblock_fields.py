@@ -34,14 +34,17 @@
 import json
 import re
 import sys
+from collections import Counter
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
-from parsers.monster import SIZES_RU_TO_EN, _parse_type_line   # noqa: E402
+from parsers.monster import SIZES_EN, SIZES_RU_TO_EN, _parse_type_line   # noqa: E402
+from statblock_meta import META_KEYS                              # noqa: E402
 
 FIXTURE = SCRIPTS / "fixtures/srd-5.2-statblock-fields.json"
+REGENERATE = ".github/scripts/build_statblock_fields.py"
 VERSION = "srd-5.2"
 # Провенанс эталона пришпилен ПАРОЙ «имя → значение»: иначе шапку можно исказить,
 # оставив её непустой, и гейт этого не заметит.
@@ -49,9 +52,14 @@ PDF_URL = "https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.p
 PDF_SHA256 = "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87"
 PDF_PAGES = 364
 PDF_PAGE_SIZE = "594 x 783"
-# Число ячеек эталона. Пришпилено, потому что усыхание эталона — самый тихий способ
-# ослабить эту сверку: удалённое поле перестаёт проверяться, а гейт остаётся зелёным.
-EXPECTED_CELLS = 3181
+# Состав эталона ПО ПОЛЯМ, а не одной суммой: усыхание эталона — самый тихий способ
+# ослабить сверку (удалённое поле просто перестаёт проверяться), а сумма ещё и
+# компенсируется — снял поле у одного блока, выдумал у другого. Это не «настройка»:
+# числа выведены из PDF, и менять их можно только вместе с эталоном и с объяснением,
+# откуда взялось новое значение.
+FIELD_COUNTS = {"header": 336, "ac": 336, "hp": 336, "speed": 336, "senses": 336,
+                "languages": 336, "cr": 336, "initiative": 332, "skills": 216,
+                "immunities": 150, "resistances": 71, "gear": 45, "vulnerabilities": 15}
 
 # Во врезках метки короткие («**AC** 11»), в главах — полные («- **Armor Class:** 11»).
 EN_LABELS = {"Gear": "gear", "Armor Class": "ac", "AC": "ac", "Hit Points": "hp",
@@ -67,34 +75,40 @@ RU_LABELS = {"Класс доспеха": "ac", "КД": "ac", "Хиты": "hp", 
              "Чувства": "senses", "Языки": "languages", "Иммунитеты": "immunities",
              "Сопротивления": "resistances", "Уязвимости": "vulnerabilities"}
 # Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне.
-META_KEYS = ("cr_note", "cr_repo", "xp_note", "outside_chapters")
 # Поля, которые есть у КАЖДОГО статблока. Отсутствие любого из них в эталоне — дыра
 # эталона (ровно та, из-за которой «Mimic Languages None» и «Animated Object AC» молчали).
 REQUIRED = ("header", "ac", "hp", "speed", "senses", "languages", "cr")
 # Заголовки внутри статблока — не имена блоков.
 SERVICE_HEADINGS = {"traits", "actions", "bonus actions", "reactions", "legendary actions",
-                    "черты", "действия", "бонусные действия", "реакции",
-                    "легендарные действия"}
+                    "особенности", "действия", "бонусные действия", "реакции",
+                    "легендарные действия", "свойства"}
+# Первое слово шапки — размер; словари канонические, из продукционного парсера.
+SIZE_PREFIX = "|".join(sorted(set(SIZES_EN) | set(SIZES_RU_TO_EN), key=len, reverse=True))
 failures = []
 
 
 def canon(field: str, value: str) -> str:
-    """Приведение перед сравнением — послабления этого гейта, все четыре.
+    """Приведение перед сравнением — послабления этого гейта, ВСЕ ПЯТЬ.
 
     Гасятся ровно эти вещи, и каждая намеренно:
-      * хвостовая точка/запятая/точка с запятой — конвертеры теряют и добавляют её
-        произвольно, поэтому в эталоне её нет ни у одного из 336 значений скорости.
-        Форму строки в тексте держит отдельная проверка `speed_punctuation` ниже —
-        без неё потерянная точка (был такой дефект у Глиняного голема) проходила молча;
-      * курсив вокруг названия («*Bless*» у Ракшаса): PDF-выемка разметки не несёт;
-      * регистр у ЧУВСТВ — PDF пишет «Darkvision 120 ft.», мы «darkvision 120 ft.»;
-        различие живёт в 252 строках чувств и не является данными;
-      * «Thieves' Cant» → «Thieves' cant» в языках: та же стилистика в 7 строках.
+      1) повторные пробелы схлопываются в один — перенос строки в PDF рвёт значение
+         в произвольном месте;
+      2) ХВОСТОВАЯ точка/запятая/точка с запятой — конвертеры теряют и добавляют её
+         произвольно, поэтому в эталоне её нет ни у одного из 336 значений скорости.
+         Ведущая пунктуация НЕ гасится, и форму строки в тексте держит проверка формы
+         (раздел 3 ниже): без неё потерянная точка у Глиняного голема проходила молча;
+      3) ПАРНЫЙ курсив («*Bless*» у Ракшаса): PDF-выемка разметки не несёт. Непарная
+         звёздочка остаётся в значении и делает расхождение видимым;
+      4) регистр у ЧУВСТВ — PDF пишет «Darkvision 120 ft.», мы «darkvision 120 ft.»;
+         различие живёт в 252 строках чувств и не является данными;
+      5) «Thieves' Cant» → «Thieves' cant» в языках: та же стилистика, 3 строки в скоупе.
     Всё остальное — включая регистр в остальных полях, порядок слов, скобки и числа —
-    сверяется как есть. Это не косметика: «And Primordial» у Кракена и «Sleight of hand»
-    у Шпиона были найдены ровно тем, что регистр сверяется.
+    сверяется как есть. Регистрозависимость нашла четыре «And» в языках (Гигантский лось,
+    Гигантская сова, Кошмар, Пегас), которых не видел ни один прогон до неё.
     """
-    value = re.sub(r"\s+", " ", value).strip(" .;,").replace("*", "")
+    value = re.sub(r"\s+", " ", value).strip()
+    value = re.sub(r"[.;,]+$", "", value)
+    value = re.sub(r"\*([^*]+)\*", r"\1", value)
     if field == "senses":
         return value.lower()
     if field == "languages":
@@ -107,7 +121,8 @@ def numbers(value: str) -> list:
     return re.findall(r"[+-]?\d+", re.sub(r"(?<=\d)[,   ](?=\d\d\d\b)", "", value))
 
 
-def read_blocks(path: Path, labels: dict, ru: bool) -> list:
+def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
+                strict_headings: bool = True) -> list:
     """[(EN-имя, {поле: значение})] из главы статблоков или из блока-врезки.
 
     Возвращаем СПИСОК, а не словарь: дубли имён ловятся при слиянии, поэтому терять их
@@ -115,22 +130,31 @@ def read_blocks(path: Path, labels: dict, ru: bool) -> list:
     оформленные цитатой (`> #### Giant Fly`). Их поля те же, поэтому снимаем префикс
     цитаты и читаем так же; в эталоне они помечены `outside_chapters`.
     """
-    out, name, block = [], None, None
+    where = where or path.name
+    out, names, name, block, closed = [], [], None, None, None
 
     def flush():
+        if name is not None:
+            names.append(name)
         if name and block:
             out.append((name, block))
 
     for line in path.read_text(encoding="utf-8").split("\n"):
         s = re.sub(r"^>\s?", "", line).strip()
+        m = re.match(r"^#{2,6} (.+)$", s)
+        if m and m.group(1).strip().lower() in SERVICE_HEADINGS:
+            # «#### Actions» внутри блока — конец полей блока, а не новый блок. Имя
+            # запоминаем: строка поля ПОСЛЕ служебного заголовка — расхождение, а не
+            # молчаливый пропуск (её видит только читатель, но не сверка).
+            closed = name
+            flush()
+            name, block = None, None
+            continue
         m = re.match(r"^#{2,4} (.+)$", s)
         if m:
             flush()
+            closed = None
             title = m.group(1).strip()
-            if title.lower() in SERVICE_HEADINGS:
-                # «#### Actions» внутри блока — конец блока, а не новый блок.
-                name, block = None, None
-                continue
             if ru:
                 # RU-заголовок несёт оригинал в скобках: «Аболет (Aboleth)».
                 latin = re.findall(r"\(([^()]*[A-Za-z][^()]*)\)", title)
@@ -140,16 +164,17 @@ def read_blocks(path: Path, labels: dict, ru: bool) -> list:
             block = {}
             continue
         if block is None:
+            if closed and re.match(r"^(?:- )?\*\*(?:%s|CR|ПО):?\*\*" % "|".join(labels), s):
+                failures.append(f"{where} «{closed}»: строка поля «{s[:40]}» стоит после "
+                                f"служебного заголовка — в сверку она не попадает")
             continue
         m = re.match(r"^\*([^*]+)\*$", s)
-        if m and "header" not in block and re.match(
-                r"^(?:Tiny|Small|Medium|Large|Huge|Gargantuan|"
-                r"Крошечн|Маленьк|Средн|Больш|Огромн|Громадн)", m.group(1)):
+        if m and "header" not in block and re.match(SIZE_PREFIX, m.group(1), re.I):
             block["header"] = m.group(1).strip()
             continue
         for label, key in labels.items():
             # «Gear» и «CR» в наших файлах записаны без двоеточия, остальные поля — с ним;
-            # форма одинакова в обоих языках и проверяется ниже (`label_style`).
+            # форма одинакова в обоих языках и проверяется ниже, в разделе 3.
             # В главах поля идут списком («- **Speed:** …»), во врезках — абзацами.
             m = re.match(rf"^(?:- )?\*\*{label}:?\*\*:?\s*(.+)$", s)
             if not m:
@@ -157,17 +182,24 @@ def read_blocks(path: Path, labels: dict, ru: bool) -> list:
             if key in block:
                 # Повторная строка того же поля: в сверку идёт первая, вторая живёт в
                 # тексте невидимкой для гейта — поэтому она сама по себе расхождение.
-                failures.append(f"{path.name} «{name}»: поле «{key}» записано дважды "
+                failures.append(f"{where} «{name}»: поле «{key}» записано дважды "
                                 f"(«{block[key]}» и «{m.group(1).strip()}»)")
                 continue
             block[key] = m.group(1).strip()
         m = re.match(r"^(?:- )?\*\*(?:CR|ПО):?\*\*:?\s*(.+)$", s)
         if m:
             if "cr" in block:
-                failures.append(f"{path.name} «{name}»: поле «cr» записано дважды")
+                failures.append(f"{where} «{name}»: поле «cr» записано дважды")
             else:
                 block["cr"] = m.group(1).strip()
     flush()
+    # Дубль ЗАГОЛОВКА — сверх дубля блока: скопированный заголовок без полей блоком не
+    # становится и иначе был бы невидим. В главах монстров каждый заголовок — статблок,
+    # а во врезочных главах имя существа законно совпадает с именем заклинания
+    # («### Giant Insect» и врезка `> #### Giant Insect`), поэтому там проверки нет.
+    if strict_headings:
+        for n in sorted({n for n in names if n and names.count(n) > 1}):
+            failures.append(f"{where}: заголовок «{n}» встречается дважды")
     return out
 
 
@@ -208,20 +240,63 @@ def hp_value(hp: str) -> str:
     return m.group(1) if m else hp.strip()
 
 
-# Официальная таблица «ПО → опыт»: она делает значение ПО проверяемым САМО ПО СЕБЕ, а не
-# только против эталона, — согласованная подделка `cr` в эталоне и в тексте больше не проходит.
-XP_BY_CR = {"0": (0, 10), "1/8": (25,), "1/4": (50,), "1/2": (100,)}
-for _cr, _xp in enumerate((200, 450, 700, 1100, 1800, 2300, 2900, 3900, 5000, 5900, 7200,
-                           8400, 10000, 11500, 13000, 15000, 18000, 20000, 22000, 25000,
-                           33000, 41000, 50000, 62000, 75000, 90000, 105000, 120000,
-                           135000, 155000), start=1):
-    XP_BY_CR[str(_cr)] = (_xp,)
+def md_table(path: Path, title: str) -> list:
+    """Строки таблицы markdown, идущей за строкой «Table: <title>»/«Таблица: <title>»."""
+    rows, inside = [], False
+    for line in path.read_text(encoding="utf-8").split("\n"):
+        if line.strip().endswith(title):
+            inside = True
+            continue
+        if not inside:
+            continue
+        if line.startswith("|"):
+            if not line.startswith("|---"):
+                rows.append([c.strip() for c in line.strip().strip("|").split("|")])
+            continue
+        if rows:
+            break
+    return rows[1:]
+
+
+def read_xp_table(path: Path, title: str) -> dict:
+    """{ПО: (варианты опыта)} из публикуемой таблицы «Опыт по показателю опасности»."""
+    out = {}
+    for cells in md_table(path, title):
+        if len(cells) < 2:
+            continue
+        out[cells[0]] = tuple(int(x) for x in re.findall(r"\d+", cells[1].replace(",", "")))
+    return out
+
+
+def read_pb_table(path: Path, title: str) -> dict:
+    """{ПО: бонус} из публикуемой таблицы «Бонус мастерства», диапазоны развёрнуты."""
+    out = {}
+    for cells in md_table(path, title):
+        if len(cells) < 2:
+            continue
+        bounds = [int(x) for x in re.findall(r"\d+", cells[0])]
+        bonus = int(re.sub(r"[^\d]", "", cells[1]))
+        for value in range(bounds[0], (bounds[-1] if len(bounds) > 1 else bounds[0]) + 1):
+            out[str(value)] = bonus
+    return out
+
+
+# Официальная таблица «ПО → опыт» читается ИЗ ПУБЛИКУЕМОГО КОНТЕНТА (глава «Монстры»), а не
+# держится литералом: иначе экземпляров знания становится два и порча канона — та, что уедет
+# читателю, — не краснеет нигде. Она же делает значение ПО проверяемым САМО ПО СЕБЕ:
+# согласованная подделка `cr` в эталоне и в тексте больше не проходит.
+MONSTERS_EN = ROOT / f"src/dnd/{VERSION}/en/11_Monsters.md"
+MONSTERS_RU = ROOT / f"src/dnd/{VERSION}/ru/11_Monsters.md"
+XP_BY_CR = read_xp_table(MONSTERS_EN, "Experience Points by Challenge Rating")
+PB_BY_CR = read_pb_table(MONSTERS_EN, "Proficiency Bonus by Challenge Rating")
+# ПО дробное — бонус тот же, что у ПО 0.
+for _fraction in ("1/8", "1/4", "1/2"):
+    PB_BY_CR[_fraction] = PB_BY_CR.get("0", 2)
 
 
 def pb_by_cr(cr: str) -> int:
-    """Бонус мастерства по ПО: +2 до ПО 4, дальше +1 каждые четыре ступени."""
-    value = 0 if "/" in cr else int(cr)
-    return 2 + max(0, (value - 1) // 4)
+    """Бонус мастерства по ПО — по таблице из главы «Монстры»."""
+    return PB_BY_CR.get(cr, 0)
 
 
 _fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))
@@ -235,19 +310,29 @@ for _key, _want in (("pdf", PDF_URL), ("sha256", PDF_SHA256),
                     ("pages", PDF_PAGES), ("page_size_pt", PDF_PAGE_SIZE)):
     if _src.get(_key) != _want:
         failures.append(f"эталон: _source.{_key} = «{_src.get(_key)}», ожидалось «{_want}»")
-for _key in ("license", "extraction", "regenerate"):
-    if not _src.get(_key):
-        failures.append(f"эталон: в шапке _source нет «{_key}» — эталон без провенанса")
-if not (ROOT / str(_src.get("regenerate", ""))).exists():
-    failures.append(f"эталон: _source.regenerate «{_src.get('regenerate')}» — файла нет")
+# Лицензия и способ пересборки — тоже пара «имя → значение»: «непустое» пропускает
+# и «Proprietary», и путь в никуда.
+if "CC BY 4.0" not in str(_src.get("license", "")):
+    failures.append(f"эталон: _source.license «{_src.get('license')}» — не CC BY 4.0")
+if _src.get("regenerate") != REGENERATE:
+    failures.append(f"эталон: _source.regenerate «{_src.get('regenerate')}» ≠ «{REGENERATE}»")
+elif not (ROOT / REGENERATE).is_file():
+    failures.append(f"эталон: скрипта пересборки «{REGENERATE}» нет")
+if len(_src.get("extraction", [])) != 4:
+    failures.append("эталон: в _source.extraction не четыре выемки — провенанс неполон")
 
 # --- 0. Состав эталона ----------------------------------------------------------------
 # Без этого согласованное удаление поля из эталона И из обоих текстов было зелёным:
 # поле просто переставало существовать для гейта.
-_cells = sum(len([k for k in f if k not in META_KEYS]) for f in expected.values())
-if _cells != EXPECTED_CELLS:
-    failures.append(f"эталон: {_cells} ячеек вместо {EXPECTED_CELLS} — эталон усох или вырос; "
-                    f"если это осознанно, поправьте EXPECTED_CELLS")
+# Считаем ПО ПОЛЯМ: сумма компенсируется (снял поле у одного блока, выдумал у другого),
+# состав — нет. Текст расхождения называет поле и обе стороны, чтобы правка эталона была
+# видна ревьюеру, а не выглядела подгонкой константы.
+_have = Counter(k for f in expected.values() for k in f if k not in META_KEYS)
+_cells = sum(_have.values())
+for _key in sorted(set(_have) | set(FIELD_COUNTS)):
+    if _have.get(_key, 0) != FIELD_COUNTS.get(_key, 0):
+        failures.append(f"состав эталона: поле «{_key}» у {_have.get(_key, 0)} блоков, "
+                        f"а по PDF у {FIELD_COUNTS.get(_key, 0)}")
 for _name, _f in sorted(expected.items()):
     for _key in REQUIRED:
         if _key not in _f:
@@ -258,8 +343,10 @@ for _name, _f in sorted(expected.items()):
 en_dir, ru_dir = ROOT / f"src/dnd/{VERSION}/en", ROOT / f"src/dnd/{VERSION}/ru"
 en_blocks, ru_blocks = {}, {}
 for chapter in ("12_MonstersA-Z.md", "13_Animals.md"):
-    merge(en_blocks, read_blocks(en_dir / chapter, EN_LABELS, ru=False), f"en/{chapter}")
-    merge(ru_blocks, read_blocks(ru_dir / chapter, RU_LABELS, ru=True), f"ru/{chapter}")
+    merge(en_blocks, read_blocks(en_dir / chapter, EN_LABELS, False, f"en/{chapter}"),
+          f"en/{chapter}")
+    merge(ru_blocks, read_blocks(ru_dir / chapter, RU_LABELS, True, f"ru/{chapter}"),
+          f"ru/{chapter}")
 # Блоки-врезки: заклинания и магические предметы. Список ЗАКРЫТ и живёт здесь, а не
 # выводится из фикстуры: иначе удаление врезки из эталона молча выключало бы её проверку.
 OUTSIDE = ["Animated Object", "Avatar of Death", "Draconic Spirit", "Giant Fly",
@@ -276,7 +363,7 @@ for chapter in ("07_Spells.md", "10_MagicItems.md"):
         path = src / chapter
         if not path.exists():
             continue
-        pairs = read_blocks(path, labels, ru)
+        pairs = read_blocks(path, labels, ru, f"{lang}/{chapter}", strict_headings=False)
         # Врезочные главы читаются тем же разбором, что и главы монстров, поэтому в них
         # тоже видно «блок есть в тексте, но не в эталоне»: статблоком считаем всё, у
         # чего есть шапка и КД с хитами — прочие `####` в заклинаниях этому не отвечают.
@@ -314,18 +401,36 @@ for name, fields in sorted(expected.items()):
         if value is None:
             failures.append(f"EN «{name}»: поле «{field}» потеряно (в PDF «{want}»)")
         elif canon(field, value) != canon(field, want):
-            source = (f"PDF «{fields['cr']}», у нас ждём «{want}» ({fields['cr_note']})"
+            source = (f"PDF «{fields['cr']}», у нас ждём «{want}» ({fields.get('cr_note', '')})"
                       if field == "cr" and "cr_repo" in fields else f"PDF «{want}»")
             failures.append(f"EN «{name}» {field}: «{value}» ≠ {source}")
     # ПО против официальной таблицы: опыт и бонус мастерства выводятся из самого ПО.
     cr = fields.get("cr", "")
     lead = cr_value(cr)
     if lead in XP_BY_CR:
-        xp = numbers(re.sub(r"^[\d/]+", "", cr.split(";")[0]))
-        if xp and int(xp[0]) not in XP_BY_CR[lead] and "xp_note" not in fields:
-            failures.append(f"эталон «{name}»: ПО {lead} — опыт {xp[0]}, а по таблице "
-                            f"{XP_BY_CR[lead][0]}; если так в PDF, объявите xp_note")
+        xp = [int(x) for x in numbers(re.sub(r"^[\d/]+", "", cr.split(";")[0]))]
+        note = str(fields.get("xp_note", ""))
+        if xp and xp[0] not in XP_BY_CR[lead]:
+            # xp_note — не выключатель: пометка обязана НАЗВАТЬ оба числа, иначе ею
+            # узаконивается любое значение опыта.
+            declared = [int(x) for x in re.findall(r"\d[\d,]*", note.replace(",", ""))]
+            if xp[0] not in declared or XP_BY_CR[lead][0] not in declared:
+                failures.append(
+                    f"эталон «{name}»: ПО {lead} — опыт {xp[0]}, а по таблице "
+                    f"{XP_BY_CR[lead][0]}. Так в PDF? Тогда в xp_note обязаны стоять оба "
+                    f"числа — иначе пометка не утверждение, а выключатель")
+        # Логовый опыт: «или 7,200 в логове» — это опыт ПО на ступень выше.
+        if len(xp) > 1 and str(int(lead) + 1 if "/" not in lead else 1) in XP_BY_CR:
+            lair_want = XP_BY_CR[str(int(lead) + 1)][0] if "/" not in lead else None
+            if lair_want is not None and xp[1] != lair_want:
+                failures.append(f"эталон «{name}»: логовый опыт {xp[1]}, а по таблице "
+                                f"{lair_want} (опыт ПО {int(lead) + 1})")
         pb = re.search(r"PB \+(\d+)", cr)
+        if not pb and not fields.get("pb_note"):
+            # СТИРАНИЕ бонуса мастерства — то же расхождение, что подделка: «29 ПО без
+            # бонуса мастерства» были вторым по величине классом правок #260.
+            failures.append(f"эталон «{name}»: в ПО «{cr}» нет бонуса мастерства "
+                            f"(по таблице +{pb_by_cr(lead)}); если его нет в PDF — pb_note")
         if pb and int(pb.group(1)) != pb_by_cr(lead):
             failures.append(f"эталон «{name}»: ПО {lead} — бонус мастерства +{pb.group(1)}, "
                             f"а по таблице +{pb_by_cr(lead)}")
@@ -341,7 +446,7 @@ for name, fields in sorted(en_blocks.items()):
     # Присутствие: у каждого поля эталона обязана быть RU-строка. Перевод свой, но
     # СТРОКА должна быть — иначе поле молча исчезает только из русской половины.
     for field in expected.get(name, {}):
-        if field in META_KEYS or field in ("header", "cr"):
+        if field in META_KEYS or field == "cr":
             continue
         if field in fields and field not in got:
             failures.append(f"RU «{name}»: нет строки поля «{field}» (в EN «{fields[field]}»)")
@@ -368,7 +473,14 @@ for name, fields in sorted(en_blocks.items()):
         ru_size = _parse_type_line(got["header"], "ru")["size"].split()
         en_size = _parse_type_line(fields["header"], "en")["size"].split()
         ru_first = SIZES_RU_TO_EN.get(ru_size[0].lower()) if ru_size else None
-        if ru_first and en_size and ru_first.lower() != en_size[0].lower():
+        if not ru_size:
+            failures.append(f"RU «{name}» шапка: «{got['header']}» — размера нет")
+        elif ru_first is None:
+            # Незнакомое слово раньше давало None и молча пропускалось — то есть любой
+            # непереводной размер («Гигантский», «Титанический», «Huge») проходил.
+            failures.append(f"RU «{name}» шапка: размер «{ru_size[0]}» не из словаря "
+                            f"(EN «{en_size[0] if en_size else ''}»)")
+        elif en_size and ru_first.lower() != en_size[0].lower():
             failures.append(f"RU «{name}» шапка: размер «{ru_size[0]}» ({ru_first}) "
                             f"≠ EN «{en_size[0]}»")
 for name in sorted(set(ru_blocks) - set(en_blocks)):
@@ -378,20 +490,19 @@ for name in sorted(set(ru_blocks) - set(en_blocks)):
 # canon() снимает хвостовую пунктуацию (в эталоне её нет ни у одной скорости), поэтому
 # потерянная точка была бы невидима. Держим форму самим текстом: значение скорости
 # кончается либо точкой сокращения «ft.»/«фт.», либо закрывающей скобкой «(hover)».
-# Проверка на EN-половине: там значение кончается сокращением «ft.» или скобкой
-# «(hover)». RU пишет слово «футов» без точки, поэтому форму русской строки держит
-# сверка чисел с EN, а не пунктуация.
-for chapter in ("12_MonstersA-Z.md", "13_Animals.md"):
-    for i, line in enumerate((en_dir / chapter).read_text(encoding="utf-8").split("\n"), 1):
-        m = re.match(r"^- \*\*Speed:\*\*\s*(.+)$", line.strip())
-        if m and m.group(1).strip()[-1] not in ".)":
-            failures.append(f"en/{chapter}:{i}: скорость «{m.group(1)}» "
-                            f"не кончается точкой или скобкой")
+# Проверка на EN-половине и по ЗНАЧЕНИЯМ блоков, а не по строкам главы: так в неё попадают
+# и шесть врезок (в них метка пишется без двоеточия, и регулярка по главам их не видела).
+# RU пишет слово «футов» без точки, поэтому форму русской строки держит сверка чисел с EN.
+for name, block in sorted(en_blocks.items()):
+    value = block.get("speed", "").strip()
+    if value and value[-1] not in ".)":
+        failures.append(f"EN «{name}»: скорость «{value}» не кончается точкой или скобкой")
 # Метки полей: «Gear»/«CR» без двоеточия, остальные с ним — и одинаково в обоих языках.
-for lang, folder, pairs in (
-        ("en", en_dir, (("Gear", False), ("CR", False), ("Speed", True), ("Senses", True))),
-        ("ru", ru_dir, (("Снаряжение", False), ("ПО", False), ("Скорость", True),
-                        ("Чувства", True)))):
+# Проверяем ВСЕ метки глав; врезки живут по другой форме (там двоеточия нет ни у одной
+# метки), поэтому их строки сюда не входят.
+for lang, folder, labels in (("en", en_dir, EN_LABELS), ("ru", ru_dir, RU_LABELS)):
+    pairs = [(label, label not in ("Gear", "Снаряжение")) for label in labels]
+    pairs += [("CR", False)] if lang == "en" else [("ПО", False)]
     for chapter in ("12_MonstersA-Z.md", "13_Animals.md"):
         text = (folder / chapter).read_text(encoding="utf-8")
         for label, colon in pairs:
@@ -410,6 +521,10 @@ for lang, gloss_dir, offset in (("en", en_dir, 0), ("ru", ru_dir, 1)):
             failures.append(f"{lang}-указатель {index} не найден")
             continue
         for cells in index_rows(path):
+            if len(cells) < (2 if lang == "ru" else 1):
+                failures.append(f"{lang}-указатель {index}: строка «{'|'.join(cells)}» "
+                                f"короче двух колонок")
+                continue
             name = cells[1] if lang == "ru" else cells[0]
             block = en_blocks.get(name)
             if block is None:
