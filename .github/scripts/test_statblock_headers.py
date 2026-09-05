@@ -770,10 +770,16 @@ def check_version(version: str, fixture: Path) -> None:
                 f"{wrong_width[0][1]} при {width} колонках в шапке таблицы — "
                 f"похоже, правили саму шапку")
         else:
-            for key, count in wrong_width:
+            # Кап: смешанный вход (правили шапку И одна строка сломана иначе) под условие
+            # выше не подходит, а поимённый список на 235 строк — тот же флуд.
+            for key, count in wrong_width[:5]:
                 failures.append(
                     f"{version} RU-указатель {index}, «{key}»: колонок {count}, "
                     f"а в шапке таблицы {width}")
+            if len(wrong_width) > 5:
+                failures.append(
+                    f"{version} RU-указатель {index}: ещё {len(wrong_width) - 5} строк "
+                    f"той же беды — ширина не сходится с шапкой таблицы")
 
 
 # Типы, которых в копиях законно нет: рой в списках типов существ не перечисляют.
@@ -781,7 +787,7 @@ COPY_EXEMPT = {"Swarm of Tiny Beasts", "Swarm of Tiny Undead"}
 
 
 def other_type_maps() -> list:
-    """Копии карты «тип существа → RU» вне словаря: (что это, {EN: RU}, полная ли).
+    """Копии карты «тип существа → RU» вне словаря: (что это, {EN: RU}).
 
     Машинно сверяемых четыре (два глоссария, хабы, таблица типов в правилах), и до сих
     пор они не сверялись ни с чем: откат правки
@@ -810,7 +816,7 @@ def other_type_maps() -> list:
                 continue
             en, ru = (cells[0], cells[1]) if en_first else (cells[1], cells[0])
             table[en] = ru
-        maps.append((f"глоссарий {path.relative_to(ROOT)}", table, True))
+        maps.append((f"глоссарий {path.relative_to(ROOT)}", table))
 
     hubs = ROOT / "web/src/lib/monster-hubs.ts"
     if not hubs.exists():
@@ -842,14 +848,14 @@ def other_type_maps() -> list:
             failures.append(
                 f"web/src/lib/monster-hubs.ts: записей типов {entries}, разобрано "
                 f"{len(table)} — формат строки изменился")
-        maps.append(("web/src/lib/monster-hubs.ts", table, True))
+        maps.append(("web/src/lib/monster-hubs.ts", table))
     return maps
 
 
 # Копии карты обязаны совпадать со словарём. Пустая карта — это молча выключенная сверка
 # (переименованный раздел глоссария, изменённый формат записи в TS), поэтому пустота
 # красная, как и пропажа самого словаря.
-for _what, _table, _full in other_type_maps():
+for _what, _table in other_type_maps():
     if not _table:
         failures.append(f"{_what}: карта типов не разобрана — сверять не с чем")
         continue
@@ -859,9 +865,8 @@ for _what, _table, _full in other_type_maps():
             failures.append(f"{_what}: «{_en}» → «{_ru}», а в словаре «{_want}»")
     # Сверяется и ПОЛНОТА: удалённая строка иначе просто уходит из пересечения.
     # Свои слаги хабов («Swarm») из требования снимает COPY_EXEMPT.
-    if _full:
-        for _en in sorted(set(TYPES_RU) - set(_table) - COPY_EXEMPT):
-            failures.append(f"{_what}: нет строки для типа «{_en}» из словаря")
+    for _en in sorted(set(TYPES_RU) - set(_table) - COPY_EXEMPT):
+        failures.append(f"{_what}: нет строки для типа «{_en}» из словаря")
 
 # Пятая копия — таблица типов существ в правилах 5.2: EN-колонки у неё нет, поэтому
 # сверяем множество RU-форм.

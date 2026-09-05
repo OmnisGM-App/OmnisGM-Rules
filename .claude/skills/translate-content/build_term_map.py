@@ -193,6 +193,11 @@ def aggregate_log_tier(files: list):
 
 
 def build(game: str, version: str, src: Path):
+    """(result, files_read, overridden_by_logs) или None, если словарей у игры нет.
+
+    result — тот же JSON, что пишется на диск; files_read нужен для отчёта; третий
+    элемент — список терминов, у которых запись лога перебила словарь.
+    """
     ver_num = version_number(version)
     game_tr = src / game / "translate"
     common_tr = src / "translate"

@@ -10,10 +10,11 @@
 
 Проверяем не формы дефекта (их можно обойти переформулировкой), а СОСТАВ карты:
 
-  1) списки «что перебивает что» пришпилены. Переопределение словаря логом и перекрытие
-     между тирами словарей — законные механики, но каждый случай перечислен здесь
-     поимённо; новый — красный, пока его не осознали. Именно этим ловятся и ASCII-стрелка,
-     и латинская проза, и подтипы, положенные в общий словарь через отдельный тир;
+  1) «что перебивает что» пришпилено ПАРАМИ «имя → значение»: всё, что пришло из
+     заголовков записей логов, перекрытия между тирами словарей и конфликты. Именной пин
+     ловил бы только новое имя, а подмена значения у знакомого имени возвращала бы
+     исходный дефект зелёной. Исчезнувшая запись — тоже красная. Этим закрываются и
+     ASCII-стрелка, и латинская проза, и подтипы, положенные в общий словарь;
   2) карта не схлопывается: у каждой пары есть пол по числу терминов и по источникам,
      иначе потеря половины словаря прошла бы молча;
   3) конфликты пришпилены вместе со ЗНАЧЕНИЯМИ: протухшая запись allowlist краснеет
@@ -39,24 +40,70 @@ BUILDER = ROOT / ".claude/skills/translate-content/build_term_map.py"
 VERSIONS = {"dnd": ["srd-5.2", "srd-5.1"], "daggerheart": ["srd-1.0"], "brp": ["srd-1.0"]}
 
 # Пины по играм. Версии одной игры делят словари и логи, поэтому пин общий.
-#   overridden — термины, где запись лога намеренно перебивает словарь;
-#   cross_tier — перекрытия между тирами словарей (общий → системный и т. п.);
-#   conflicts  — осознанные конфликты внутри тира, вместе со значениями;
+#
+# Пинится ПАРА «имя → значение», а не имя: именной пин ловит только появление новой
+# записи, а подмена значения у пришпиленного имени возвращает исходный дефект зелёной
+# («### Feature → кусок абзаца» — карта отравлена, имя прежнее). Исчезнувшая запись —
+# тоже красная: пин, которым никто не пользуется, это снятая строгость без причины.
+#   log_terms  — всё, что пришло в карту ИЗ ЛОГОВ (заголовки записей);
+#   cross_tier — перекрытия между тирами словарей, со значениями «было → стало»;
+#   conflicts  — осознанные конфликты внутри тира, со значениями;
 #   min_terms  — пол по числу терминов (падение вдвое = схлопнувшаяся карта).
 PINS = {
     "dnd": {
-        "overridden": {"Feature"},
-        "cross_tier": {"Hit Points (HP)", "Divination", "Light", "Game Master (GM)"},
+        "log_terms": {
+            "Advantage": "Преимущество", "Blinded": "Ослеплённый",
+            "Casting Time": "Время накладывания", "D20 Test": "Проверка d20",
+            "Deafened": "Оглохший", "Disadvantage": "Помеха",
+            "Feature": "Умение (класса) / Особенность", "Feet": "футов",
+            "Force": "Силовое поле", "Gamemaster": "Мастер игры",
+            "Gargantuan": "Громадный", "Long Rest": "Долгий отдых",
+            "Medium or Small": "Средний или Маленький",
+            "Opportunity Attack": "Провоцированная атака", "Perception": "Внимательность",
+            "Proficiency Bonus": "Бонус мастерства", "Prone": "Лежащий",
+            "Restrained": "Опутанный", "Saving Throw": "Спасбросок", "Skilled": "Умелый",
+            "Stunned": "Ошеломлённый", "Swarm of Tiny Beasts": "Рой Крошечных зверей",
+            "ability": "характеристика", "ability score": "показатель характеристики",
+            "monster": "чудовище", "target number": "целевое значение",
+        },
+        "cross_tier": {
+            # Системный словарь уточняет общий — законно.
+            ("Hit Points (HP)", ("Хиты (ХП)", "Хиты")),
+            ("Game Master (GM)", ("Мастер игры (МИ)", "Мастер")),
+            # А это ОМОНИМЫ, а не уточнения: у D&D «Divination» — и заклинание «Гадание»,
+            # и школа «Прорицание»; «Light» — и заклинание «Свет», и свойство оружия
+            # «Лёгкое». Карта отдаёт по этим ключам системное значение, то есть перевод
+            # заклинания придётся брать не из неё. Сведение — словарная работа (#260).
+            ("Divination", ("Гадание", "Прорицание")),
+            ("Light", ("Свет", "Лёгкое")),
+        },
         "conflicts": {
             ("Ammunition", ("Боеприпасы", "Боеприпас")),        # предмет и свойство оружия
             ("Succubus/Incubus", ("Инкуб", "Суккуб")),          # парная сущность, две строки
         },
         "min_terms": 1300,
     },
-    "daggerheart": {"overridden": set(), "cross_tier": set(), "conflicts": set(),
-                    "min_terms": 780},
-    "brp": {"overridden": {"Constitution"}, "cross_tier": set(), "conflicts": set(),
-            "min_terms": 220},
+    "daggerheart": {
+        "log_terms": {
+            "D20 Test": "Проверка d20", "Feet": "футов", "Gamemaster": "Мастер",
+            "Long Rest": "Долгий Отдых", "Stunned": "Ошеломлённый",
+            "Swashbuckler": "Сорвиголова", "ability": "характеристика",
+            "ability score": "показатель характеристики", "monster": "чудовище",
+            "target number": "целевое значение",
+        },
+        "cross_tier": set(), "conflicts": set(), "min_terms": 780,
+    },
+    "brp": {
+        "log_terms": {
+            "Constitution": "Выносливость", "D20 Test": "Проверка d20", "Feet": "футов",
+            "Gamemaster": "Мастер игры", "Hit Points": "Хиты",
+            "Non-Player Character": "Неигровой персонаж",
+            "Player Character": "Персонаж игрока", "ability": "характеристика",
+            "ability score": "показатель характеристики", "monster": "чудовище",
+            "target number": "целевое значение",
+        },
+        "cross_tier": set(), "conflicts": set(), "min_terms": 220,
+    },
 }
 
 CYRILLIC = re.compile(r"[А-Яа-яЁё]")
@@ -95,25 +142,57 @@ def check_game(game: str, versions: list) -> None:
                 f"{game} {version}: в карте {len(data['terms'])} терминов при поле "
                 f"{pin['min_terms']} — источник потерян или разобран не целиком")
         for label, count in data["sources"].items():
-            if label.endswith("_dicts") and not count:
-                failures.append(f"{game} {version}: тир «{label}» дал ноль терминов")
+            # Все словарные тиры, а не только `*_dicts`: у общего и системного базовых
+            # ярлык кончается на `_dict`, и обнуление общего словаря проходило молча.
+            if label.endswith("_dict") or label.endswith("_dicts"):
+                if not count:
+                    failures.append(f"{game} {version}: тир «{label}» дал ноль терминов")
 
-        for term in sorted(set(data["overridden_by_logs"]) - pin["overridden"]):
+        # Всё, что пришло из логов, — пара «имя → значение».
+        actual_logs = {t: data["terms"][t] for t in data["log_terms"]}
+        for term, value in sorted(actual_logs.items()):
             if (game, "ov", term) in seen_terms:
                 continue
             seen_terms.add((game, "ov", term))
+            pinned_value = pin["log_terms"].get(term)
+            if pinned_value is None:
+                failures.append(
+                    f"{game}: из заголовка записи лога в карту приехал «{term}» = "
+                    f"«{value}». Если это термин — впишите пару в PINS; если это "
+                    f"прозаический заголовок, уберите из него стрелку (её видит билдер)")
+            elif pinned_value != value:
+                failures.append(
+                    f"{game}: лог даёт «{term}» = «{value}», а в пине «{pinned_value}» — "
+                    f"либо решение изменилось (обновите пин), либо заголовок записи "
+                    f"поехал")
+        for term in sorted(set(pin["log_terms"]) - set(actual_logs)):
+            if (game, "ovpin", term) in seen_terms:
+                continue
+            seen_terms.add((game, "ovpin", term))
             failures.append(
-                f"{game}: запись лога перебивает словарь для «{term}» = "
-                f"«{data['terms'][term]}». Если это термин — обновите словарь; если это "
-                f"прозаический заголовок, уберите из него стрелку (её видит билдер)")
-        for over in data["cross_tier_overrides"]:
-            term = over["term"]
-            if term in pin["cross_tier"] or (game, "ct", term) in seen_terms:
+                f"{game}: пара «{term}» из пина больше не приходит из логов — запись "
+                f"удалена или переформулирована; уберите её из PINS осознанно")
+
+        actual_cross = {o["term"]: tuple(o["values"]) for o in data["cross_tier_overrides"]}
+        pinned_cross = dict(pin["cross_tier"])
+        for term, values in sorted(actual_cross.items()):
+            if (game, "ct", term) in seen_terms:
                 continue
             seen_terms.add((game, "ct", term))
+            if term not in pinned_cross:
+                failures.append(
+                    f"{game}: «{term}» перекрыт тиром {[o for o in data['cross_tier_overrides'] if o['term'] == term][0]['to']} "
+                    f"({' → '.join(values)}) — словарь спорит сам с собой")
+            elif pinned_cross[term] != values:
+                failures.append(
+                    f"{game}: перекрытие «{term}» теперь ({' → '.join(values)}), "
+                    f"а в пине ({' → '.join(pinned_cross[term])})")
+        for term in sorted(set(pinned_cross) - set(actual_cross)):
+            if (game, "ctpin", term) in seen_terms:
+                continue
+            seen_terms.add((game, "ctpin", term))
             failures.append(
-                f"{game}: «{term}» перекрыт из тира {over['from']} тиром {over['to']} "
-                f"({' → '.join(over['values'])}) — словарь спорит сам с собой")
+                f"{game}: перекрытие «{term}» из пина исчезло — уберите запись из PINS")
 
         pinned = {t for t, _ in pin["conflicts"]}
         actual = {}
@@ -163,6 +242,12 @@ def check_game(game: str, versions: list) -> None:
 for game, versions in sorted(VERSIONS.items()):
     if (ROOT / "src" / game / "translate").is_dir():
         check_game(game, versions)
+    else:
+        # Обратное направление к проверке ниже: исчезнувший каталог словарей молча
+        # выводил игру из-под гейта.
+        failures.append(
+            f"{game}: игра есть в VERSIONS, но каталога src/{game}/translate нет — "
+            f"карта этой системы не собирается")
 
 # Новая система не должна оказаться невидимой: её словари появятся раньше, чем кто-то
 # вспомнит про этот гейт.
