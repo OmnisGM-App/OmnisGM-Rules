@@ -60,6 +60,13 @@ jobs:
       - name: Unit — переименования в конверсионных документах
         run: python3 .github/scripts/test_conversion_renames.py
 
+      # Карта терминов для перевода собирается из словарей И ЛОГОВ, причём заголовок
+      # записи лога перебивает словарь. Прозаический заголовок со стрелкой уезжает в
+      # карту термином: так «Dragon» однажды стал куском предложения (#256). Саму карту
+      # не гонял ни один чек — теперь гоняет.
+      - name: Unit — карта терминов перевода
+        run: python3 .github/scripts/test_term_map.py
+
       - name: Validate JSON API schema
         run: |
           pip install jsonschema
