@@ -31,6 +31,7 @@
 
 Запуск: python3 .github/scripts/test_statblock_fields.py
 """
+import hashlib
 import json
 import re
 import sys
@@ -57,6 +58,9 @@ PDF_PAGE_SIZE = "594 x 783"
 # компенсируется — снял поле у одного блока, выдумал у другого. Это не «настройка»:
 # числа выведены из PDF, и менять их можно только вместе с эталоном и с объяснением,
 # откуда взялось новое значение.
+# Отпечаток структуры эталона: «имя блока → набор полей». Пришпилен рядом со счётчиками,
+# потому что счётчики ловят усыхание, а отпечаток — перестановку поля между блоками.
+STRUCTURE_SHA = "3027e107e8db11d296760bfd39a1c320503cf2750512bce5150de7a0c74cbee9"
 FIELD_COUNTS = {"header": 336, "ac": 336, "hp": 336, "speed": 336, "senses": 336,
                 "languages": 336, "cr": 336, "initiative": 332, "skills": 216,
                 "immunities": 150, "resistances": 71, "gear": 45, "vulnerabilities": 15}
@@ -119,6 +123,9 @@ def canon(field: str, value: str) -> str:
 def numbers(value: str) -> list:
     """Числа значения; разряды пишутся по-разному («22,000» и «22 000»)."""
     return re.findall(r"[+-]?\d+", re.sub(r"(?<=\d)[,   ](?=\d\d\d\b)", "", value))
+
+
+HEADINGS = {}
 
 
 def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
@@ -198,8 +205,14 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
     # а во врезочных главах имя существа законно совпадает с именем заклинания
     # («### Giant Insect» и врезка `> #### Giant Insect`), поэтому там проверки нет.
     if strict_headings:
-        for n in sorted({n for n in names if n and names.count(n) > 1}):
-            failures.append(f"{where}: заголовок «{n}» встречается дважды")
+        seen = HEADINGS.setdefault(where.split("/")[0] + ("/ru" if ru else "/en"), {})
+        for n in names:
+            if not n:
+                continue
+            if n in seen:
+                failures.append(f"{where}: заголовок «{n}» уже был в {seen[n]}")
+            else:
+                seen[n] = where
     return out
 
 
@@ -327,6 +340,14 @@ if len(_src.get("extraction", [])) != 4:
 # Считаем ПО ПОЛЯМ: сумма компенсируется (снял поле у одного блока, выдумал у другого),
 # состав — нет. Текст расхождения называет поле и обе стороны, чтобы правка эталона была
 # видна ревьюеру, а не выглядела подгонкой константы.
+# Отпечаток СТРУКТУРЫ (какой блок какие поля несёт): счётчик по полям не видит обмена —
+# снял «resistances» у одного блока, выдумал у другого, сумма и состав те же.
+_structure = "\n".join(f"{n}\t{','.join(sorted(k for k in f if k not in META_KEYS))}"
+                       for n, f in sorted(expected.items()))
+_digest = hashlib.sha256(_structure.encode("utf-8")).hexdigest()
+if _digest != STRUCTURE_SHA:
+    failures.append("состав эталона по блокам изменился: набор полей у блоков не тот, "
+                    "что снят с PDF (отпечаток структуры не сошёлся)")
 _have = Counter(k for f in expected.values() for k in f if k not in META_KEYS)
 _cells = sum(_have.values())
 for _key in sorted(set(_have) | set(FIELD_COUNTS)):
