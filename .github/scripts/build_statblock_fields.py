@@ -25,13 +25,16 @@
     #    поля статблока разрываются. Чередование делает сам скрипт:
     pdftotext -layout -x 0   -W 297 -H 783 /tmp/srd-5.2.1.pdf /tmp/col_l.txt
     pdftotext -layout -x 297 -W 297 -H 783 /tmp/srd-5.2.1.pdf /tmp/col_r.txt
-    #    (-H 783 обязателен: без него pdftotext отдаёт пустышку в 728 байт)
+    #    (-H 783 обязателен: без него pdftotext отдаёт по одному переводу страницы на
+    #     страницу — 364 байта на файл, проверено на этом PDF)
 
     # 3. Сверить выемки с фикстурой и с текстом:
     python3 .github/scripts/build_statblock_fields.py --report
 
-Пути берутся из переменных окружения (`SRD_MARKER`, `SRD_PYMUPDF`, `SRD_DOCLING`,
-`SRD_COL_L`, `SRD_COL_R`) — значения по умолчанию те, что оставляет рецепт выше.
+Пути берутся из переменных окружения: ВХОДЫ — `SRD_MARKER`, `SRD_PYMUPDF`, `SRD_DOCLING`,
+`SRD_COL_L`, `SRD_COL_R`; ВЫХОД — `SRD_COLS` (склеенная колонная выемка, файл по этому
+пути перезаписывается; по умолчанию `/tmp/srd-5.2.1_cols.txt`). Значения по умолчанию те,
+что оставляет рецепт выше.
 Отсутствие файла — внятная ошибка, а не стектрейс. Скрипт не гоняется в CI: ему нужен
 сам PDF и три конвертера, которых на раннере нет, — это второй эшелон для правки эталона.
 
@@ -165,6 +168,9 @@ def pdf_blocks(path: "Path", bare: bool = False) -> dict:
     return out
 
 
+duplicates = []
+
+
 def repo_blocks() -> dict:
     """Поля статблоков из текста репозитория — все четыре главы, включая врезки.
 
@@ -185,7 +191,7 @@ def repo_blocks() -> dict:
             if m:
                 if name and block:
                     if name in out:
-                        print(f"  ! дубль статблока «{name}» в {chapter}")
+                        duplicates.append(f"{chapter}: статблок «{name}» встречается дважды")
                     out.setdefault(name, block)
                 name, block = m.group(1).strip(), {}
                 continue
@@ -213,11 +219,14 @@ def interleave_columns() -> Path:
     """
     left = source("SRD_COL_L", "/tmp/col_l.txt").read_text(encoding="utf-8").split("\f")
     right = source("SRD_COL_R", "/tmp/col_r.txt").read_text(encoding="utf-8").split("\f")
-    pages = []
-    for i in range(max(len(left), len(right))):
-        pages.append(left[i] if i < len(left) else "")
-        pages.append(right[i] if i < len(right) else "")
+    if len(left) != len(right):
+        sys.exit(f"колонки не сошлись: слева {len(left)} страниц, справа {len(right)} — "
+                 f"выемки сделаны разными командами или из разных PDF")
+    if len(left) < 2:
+        sys.exit("в левой колонне одна страница — похоже, забыт -H 783 у pdftotext")
+    pages = [page for pair in zip(left, right) for page in pair]
     out = Path(os.environ.get("SRD_COLS", "/tmp/srd-5.2.1_cols.txt"))
+    print(f"склеенная колонная выемка → {out} ({len(left)} страниц, файл перезаписан)")
     out.write_text("\n".join(pages), encoding="utf-8")
     return out
 
@@ -271,6 +280,8 @@ if __name__ == "__main__":
     # И сверка текста репозитория с выемками — то, ради чего скрипт писался изначально.
     missing = sorted(set(repo) - set(pdf))
     print(f"нет в выемках: {len(missing)} {missing[:6]}")
+    for line in duplicates:
+        print(f"  ! {line}")
     # Ненулевой код возврата — чтобы «эталон воспроизводится» было утверждением,
     # которое можно прогнать, а не обещанием в докстроке.
-    sys.exit(1 if differ or unreachable or missing else 0)
+    sys.exit(1 if differ or unreachable or missing or duplicates else 0)
