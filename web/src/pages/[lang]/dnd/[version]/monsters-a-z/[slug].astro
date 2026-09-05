@@ -158,7 +158,8 @@ const neighbours = (slug: string) =>
 const relatedSlug = neighbours(typeSlug).length > 0 ? typeSlug : (swarmBase ?? typeSlug);
 const sameType = neighbours(relatedSlug);
 // Подпись блока — каноническая метка типа, а не сырое поле: у роя она иначе разъезжается
-// со списком. В RU метка идёт со строчной — как и было с сырым типом («Ещё существа: нежить»).
+// со списком. В RU метка понижается до строчной явно — так требует фраза («Ещё существа:
+// нежить»), а сам термин с #256 пишется с прописной и в шапке, и в указателе.
 const relatedTypeLabel = (() => {
   const label = typeLabel(relatedSlug, lang);
   return lang === 'ru' ? label.charAt(0).toLowerCase() + label.slice(1) : label;

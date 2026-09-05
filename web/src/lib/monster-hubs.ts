@@ -1,9 +1,11 @@
 // Хабы монстров (issue #20, SEO §2.3, PR B): фасетные списки по типу и по CR.
 // Роуты: monsters-a-z/type/[type] и monsters-a-z/cr/[cr] (детали монстров — под monsters-a-z/).
 //
-// ВАЖНО: RU-поле `type` переведено НЕПОСЛЕДОВАТЕЛЬНО (construct → «конструкт»/«конструкция»,
-// fey → «фей»/«фея», monstrosity → «чудовище»/«чудовищность») — фильтровать по нему нельзя.
-// Группируем по СЛАГУ через чистый EN-тип (слаг языконезависим); `cr.value` чист в обоих языках.
+// ВАЖНО: группируем по СЛАГУ через чистый EN-тип, а не по RU-полю `type`: слаг
+// языконезависим и не зависит от того, как термин переведён сегодня. (Историческая
+// причина — расщеплённый перевод типов, «конструкт»/«конструкция», «фея»/«фей» — снята
+// в #256, но группировка по слагу верна и без неё.) `cr.value` чист в обоих языках.
+// Подписи `ru` ниже сверяются со словарём гейтом `test_statblock_headers.py`.
 import { loadEntities } from './entities';
 
 export type Lang = 'en' | 'ru';
@@ -30,7 +32,7 @@ export const MONSTER_TYPES: { slug: string; en: string; ru: string }[] = [
   { slug: 'construct', en: 'Construct', ru: 'Конструкт' },
   { slug: 'dragon', en: 'Dragon', ru: 'Дракон' },
   { slug: 'elemental', en: 'Elemental', ru: 'Элементаль' },
-  { slug: 'fey', en: 'Fey', ru: 'Фей' },
+  { slug: 'fey', en: 'Fey', ru: 'Фея' },
   { slug: 'fiend', en: 'Fiend', ru: 'Исчадие' },
   { slug: 'giant', en: 'Giant', ru: 'Великан' },
   { slug: 'humanoid', en: 'Humanoid', ru: 'Гуманоид' },
