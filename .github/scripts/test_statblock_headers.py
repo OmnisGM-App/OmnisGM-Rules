@@ -462,6 +462,9 @@ OPTION_RE = re.compile(r"^#\s*опция:\s*(\S+)\s*$")
 OPTIONS = {"род-мировоззрения-несогласован", "род-размера-несогласован"}
 
 
+LETTER_CHAPTER = re.compile(r"^\S+:\s*\w$")
+
+
 def chapter_titles(version: str) -> dict:
     """{EN-заголовок главы: RU-заголовок} для групповых глав («Monsters: Lycanthropes»).
 
@@ -486,9 +489,13 @@ def chapter_titles(version: str) -> dict:
 
     en_groups, ru_groups = {}, {}
     for path in statblock_files(ROOT / f"src/dnd/{version}/en"):
-        en_groups.update(groups(path, False))
+        for head, blocks in groups(path, False).items():
+            # Буквенные главы («Monsters: A») есть и в главе монстров, и в главе животных:
+            # объединяем, а не затираем — иначе половина глав теряет пару по построению.
+            en_groups.setdefault(head, set()).update(blocks)
     for path in statblock_files(ROOT / f"src/dnd/{version}/ru"):
-        ru_groups.update(groups(path, True))
+        for head, blocks in groups(path, True).items():
+            ru_groups.setdefault(head, set()).update(blocks)
     pairs = {}
     for en_head, blocks in en_groups.items():
         if not blocks:
@@ -497,6 +504,16 @@ def chapter_titles(version: str) -> dict:
             if blocks == ru_blocks:
                 pairs[en_head] = ru_head
                 break
+        else:
+            # Буквенные главы («Monsters: A») по составу не сходятся по построению:
+            # алфавит у языков разный, и в русской «А» лежат другие существа. Их
+            # заголовок — не термин, а буква, и сверять там нечего. Все ОСТАЛЬНЫЕ главы
+            # обязаны иметь пару: без этого сверку заголовков выключает безобидная на вид
+            # правка — перенёс статблок в соседнюю главу, и глава выпала из сверки.
+            if not LETTER_CHAPTER.match(en_head):
+                failures.append(
+                    f"{version}: главе «{en_head}» ({len(blocks)} статблоков) не нашлось "
+                    f"RU-главы того же состава — заголовок этой главы не сверяется")
     return pairs
 
 
@@ -586,6 +603,7 @@ def check_version(version: str, fixture: Path) -> None:
     # Имена, перечисленные в указателях версии, копим по языкам: указатель монстров и
     # указатель животных делят один эталон, поэтому недостачу считаем по их объединению.
     index_names: dict = {"en": set(), "ru": set()}
+    ru_index_aligns: list = []
     for lang, gloss_dir in (("en", en_dir), ("ru", ru_dir)):
         for index, has_alignment in (("04_Monsters.md", True), ("05_Animals.md", False)):
             path = next(iter(gloss_dir.glob(f"*Glossary/{index}")), None)
@@ -632,6 +650,8 @@ def check_version(version: str, fixture: Path) -> None:
                         failures.append(
                             f"{version} ru-указатель {index}: «{cells[0]}» — это статблок "
                             f"«{ru_key}», а в колонке «Оригинал (EN)» стоит «{listed}»")
+                    if has_alignment and len(cells) > 4:
+                        ru_index_aligns.append(cells[4].strip())
                     continue  # размер и мировоззрение сверяются ниже, отдельным блоком
                 want = parts_en(header)
                 if want is None:
@@ -651,6 +671,23 @@ def check_version(version: str, fixture: Path) -> None:
             failures.append(
                 f"{version} {lang}-указатели: нет строк для {len(missing)} статблоков "
                 f"({', '.join(missing[:5])}{'…' if len(missing) > 5 else ''})")
+
+    # --- 3.5. Регистр мировоззрения: внутри версии он ОДИН -----------------------------
+    # Само значение сверяется без учёта регистра (align_to_en делает .lower()), поэтому
+    # разнобой прописных/строчных не виден ни одной проверке выше. Он и был у 5.1 — 36
+    # шапок из 317. Конвенция у версий разная (5.1 пишет «Принципиально-злой», 5.2 —
+    # «принципиально-злой»), поэтому сверяем не с литералом, а на ЕДИНСТВО внутри версии:
+    # правка одной строки обратно делает набор смешанным и краснеет.
+    for _what, _values in (("шапках", [h.rpartition(", ")[2].strip() for h in ru_headers.values()]),
+                           ("указателях", ru_index_aligns)):
+        _upper = [v for v in _values if v[:1].isupper()]
+        _lower = [v for v in _values if v[:1].islower()]
+        if _upper and _lower:
+            _few, _many = (_upper, "строчной") if len(_upper) < len(_lower) else (_lower, "прописной")
+            failures.append(
+                f"{version} RU: мировоззрение в {_what} пишется и с прописной, и со строчной "
+                f"({len(_upper)} против {len(_lower)}); в меньшинстве — «{sorted(set(_few))[0]}», "
+                f"остальные с {_many}")
 
     # --- 4. RU-зеркало: размер, мировоззрение, подтип, признак роя ----------------------
     # Незнакомые словарю термины копим и печатаем ОДНОЙ строкой на версию: внутри цикла
