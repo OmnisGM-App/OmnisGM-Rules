@@ -513,12 +513,21 @@ def parse_monsters(text: str, heading_level: int, lang: str,
         # Parse additional properties
         saves_raw = get_list_prop(body, ["Saving Throws", "Спасброски"]) or ""
         skills_raw = get_list_prop(body, ["Skills", "Навыки"]) or ""
-        dmg_resist_raw = get_list_prop(body, ["Damage Resistances", "Resistances", "Сопротивления к урону", "Сопротивления"]) or ""
-        dmg_vuln_raw = get_list_prop(body, ["Damage Vulnerabilities", "Vulnerabilities", "Уязвимости к урону", "Уязвимости"]) or ""
+        # RU-метки у редакций расходятся числом: 5.2 пишет «Сопротивления», 5.1 —
+        # «Сопротивление к урону». Пока словарь знал только множественное, все четыре поля
+        # защит у 317 монстров 5.1 уезжали в JSON API пустыми (#269).
+        dmg_resist_raw = get_list_prop(body, ["Damage Resistances", "Resistances",
+                                              "Сопротивления к урону", "Сопротивления",
+                                              "Сопротивление к урону"]) or ""
+        dmg_vuln_raw = get_list_prop(body, ["Damage Vulnerabilities", "Vulnerabilities",
+                                            "Уязвимости к урону", "Уязвимости",
+                                            "Уязвимость к урону"]) or ""
         # Иммунитеты: 5.1 — раздельные строки Damage/Condition; 5.2 — одна строка «Immunities»
         # (урон; состояния), которую разбираем классификатором.
-        sep_dmg = get_list_prop(body, ["Damage Immunities", "Иммунитеты к урону"])
-        sep_cond = get_list_prop(body, ["Condition Immunities", "Иммунитеты к состояниям"])
+        sep_dmg = get_list_prop(body, ["Damage Immunities", "Иммунитеты к урону",
+                                       "Иммунитет к урону"])
+        sep_cond = get_list_prop(body, ["Condition Immunities", "Иммунитеты к состояниям",
+                                        "Иммунитет к состояниям"])
         if sep_dmg is not None or sep_cond is not None:
             dmg_immune_list = _parse_damage_field(sep_dmg or "")
             cond_immune_list = _parse_damage_field(sep_cond or "")
