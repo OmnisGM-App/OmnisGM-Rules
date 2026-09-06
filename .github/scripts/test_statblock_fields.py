@@ -492,8 +492,8 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
     out = []
     en_parts, ru_parts = split_header(en_header), split_header(ru_header)
     if en_parts is None or ru_parts is None:
-        side = "EN" if en_parts is None else "переводе"
-        out.append(f"RU «{name}» шапка: мировоззрение не отделено запятой ({side}): "
+        side = "у EN" if en_parts is None else "у перевода"
+        out.append(f"RU «{name}» шапка: мировоззрение не отделено запятой {side}: "
                    f"«{en_header if en_parts is None else ru_header}»")
         return out
     en_types = type_terms(en_parts[0], TYPES_RU.keys())
