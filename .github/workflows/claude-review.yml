@@ -1,0 +1,24 @@
+name: Claude auto-review
+
+# Тонкий вызов ЕДИНОГО воркера авто-ревью из репы плагинов — сам процесс ревью и его
+# промт живут одним экземпляром в OmnisGM-App/claude-plugins/.github/workflows/claude-review.yml.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  # Один прогон на PR: прилетел новый коммит — текущее ревью стопается и стартует заново.
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    uses: OmnisGM-App/claude-plugins/.github/workflows/claude-review.yml@master
+    secrets: inherit
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+      actions: read
