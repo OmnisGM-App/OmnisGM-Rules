@@ -51,7 +51,7 @@ jobs:
             omnisgm@omnisgm
           claude_args: |
             --max-turns 120
-            --allowedTools "Task,Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*)"
+            --allowedTools "Task,Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR #${{ github.event.pull_request.number }}
             в ${{ github.repository }}. Работа строится по скиллу omnisgm-review установленного
@@ -59,16 +59,24 @@ jobs:
             skills/omnisgm-review/SKILL.md и references/agents.md) и прочитай оба файла.
 
             КОНВЕЙЕР (адаптация мультиагентного прогона скилла к CI):
+            0. Если в репе есть frontend/package.json или свои юнит-тесты — поставь
+               зависимости ОДИН раз (`npm ci` в нужной папке) до запуска агентов, чтобы им
+               были доступны tsc/vitest; упало — работай без юнит-прогонов, отметь в шапке.
             1. Контекст: рабочая копия — вычекнутая ветка PR в $GITHUB_WORKSPACE; дифф —
                `git diff origin/${{ github.base_ref }}...HEAD`; описание PR и связанные ишьи —
                через gh. Сложи всё в /tmp/review/ (00-pr.md, 01-diff.patch, 03-issue-*.md).
-            2. ВОСЕМЬ субагентов Task ПАРАЛЛЕЛЬНО (одним сообщением): A process, B regression,
+            2. ВОСЕМЬ субагентов Task ПАРАЛЛЕЛЬНО (одним сообщением), каждый с model: opus
+               — как в локальном конвейере: A process, B regression,
                C bugs, D architecture, E tests, G comments, H security, F hunter («Найди ошибки»,
                промт F не расширять). Каждому дай: CI-шапку (ниже) + его профильный промт
                ДОСЛОВНО из references/agents.md + пути контекста. Результаты — /tmp/review/1?-*.md.
-            3. Валидатор-скептик (Task, промт V из agents.md): опровергает каждую находку по
+            3. Валидатор-скептик (Task, model: opus, промт V из agents.md): опровергает каждую находку по
                рабочей копии, вердикты CONFIRMED/REFUTED/PLAUSIBLE, дубли слить →
-               /tmp/review/80-validation.md.
+               /tmp/review/80-validation.md. Находок после слияния больше ~15 — ДВА
+               валидатора параллельно, находки пополам (правило скилла).
+            3б. ЛИЧНАЯ ПЕРЕПРОВЕРКА: каждую ❗ из CONFIRMED перепроверь САМ — чтением кода
+               и, где возможно, прогоном; агентское CONFIRMED ≠ твоё. Не подтвердилась —
+               понизь или выкинь, с пометкой в журнал.
             4. Сборка по формату §5 SKILL.md: тело — шапка-вердикт в одну-две строки
                (голова, итог, «+N инлайнов»); находка на строку диффа — ТОЛЬКО инлайном с
                ПОЛНЫМ текстом (заголовок с тяжестью, доказательство, почему, предложение),
@@ -81,9 +89,14 @@ jobs:
             CI-ШАПКА для каждого субагента (вместо локальной шапки agents.md):
             - Рабочая копия: $GITHUB_WORKSPACE (ветка PR уже вычекнута, origin/${{ github.base_ref }} доступен).
               Опоры проверяй грепом и чтением файлов. НЕ переключать ветки, не писать в git.
-            - Прогоны РАЗРЕШЕНЫ только лёгкие: python3-гейты из .github/scripts (≤2 мин),
-              diff/grep-анализ. ЗАПРЕЩЕНО: npm install/build/test, эмуляторы, браузеры,
-              сеть кроме gh. Мутации данных — только в копии под /tmp, не в $GITHUB_WORKSPACE.
+            - Прогоны РАЗРЕШЕНЫ (максимально близко к локальному конвейеру): python3-гейты
+              из .github/scripts, tsc --noEmit, юнит-тесты (vitest run) — если node_modules
+              поставлены главным циклом. МУТАЦИОННОЕ ТЕСТИРОВАНИЕ приветствуется: копия
+              дерева в /tmp (`cp -r`/`git archive`), мутация там, прогон в ОБЕ стороны;
+              рабочую копию $GITHUB_WORKSPACE не мутировать. ЗАПРЕЩЕНО: эмуляторы,
+              Playwright/браузеры, пиксельные кадры, деплой, сеть кроме gh — эти классы
+              честно помечай «не проверялось в CI». На self-hosted раннере: чужие процессы
+              НЕ убивать, вне work-каталога и /tmp НЕ писать, занятые порты не расчищать.
             - Каждая находка: доказательство (файл:строка / вывод), тяжесть (❗/среднее/ремарка),
               уверенность, «внесено диффом / пре-существует». НЕ находки: пре-существующее,
               вкусовое, «потенциальное» без конкретного входа, ловимое линтером.
