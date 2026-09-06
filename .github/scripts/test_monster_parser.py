@@ -132,11 +132,22 @@ for (ver, out), halves in sorted(by_source.items()):
         continue
     if len(halves["en"]) != len(halves["ru"]):
         failures.append(f"{ver}/{out}: блоков EN {len(halves['en'])}, RU {len(halves['ru'])}")
-    for field in sorted({k for e in halves["en"] for k in e} | DECLARED_GAPS):
+    # Поля верхнего уровня — и ОТДЕЛЬНО режимы внутри скорости: «speed» непусто у обеих
+    # половин, даже когда режим потерян, поэтому счёт по полю climb/fly/swim не видит.
+    # Ровно так и терялся climb у 30 блоков, пока корпус писал слово двумя способами.
+    fields = sorted({k for e in halves["en"] for k in e} | DECLARED_GAPS)
+    fields += [f"speed.{mode}" for mode in ("walk", "fly", "swim", "climb", "burrow")]
+    for field in fields:
         if field in DECLARED_GAPS:
             continue
-        counts = {lang: sum(1 for e in halves[lang] if e.get(field) not in (None, "", [], {}))
-                  for lang in ("en", "ru")}
+        if field.startswith("speed."):
+            mode = field.split(".", 1)[1]
+            counts = {lang: sum(1 for e in halves[lang] if (e.get("speed") or {}).get(mode))
+                      for lang in ("en", "ru")}
+        else:
+            counts = {lang: sum(1 for e in halves[lang]
+                                if e.get(field) not in (None, "", [], {}))
+                      for lang in ("en", "ru")}
         if counts["en"] != counts["ru"]:
             failures.append(f"{ver}/{out}: поле «{field}» непусто у EN {counts['en']} блоков, "
                             f"у RU {counts['ru']} — половины JSON API разошлись")
