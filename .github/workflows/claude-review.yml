@@ -51,6 +51,7 @@ jobs:
             omnisgm@omnisgm
           claude_args: |
             --max-turns 60
+            --allowedTools "Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*)"
           prompt: |
             Ты — CI-ревьюер PR #${{ github.event.pull_request.number }} в ${{ github.repository }}.
             Прочитай SKILL.md скилла omnisgm-review из установленного плагина omnisgm и проведи
