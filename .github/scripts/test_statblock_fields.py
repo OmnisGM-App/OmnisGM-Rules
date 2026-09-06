@@ -62,6 +62,13 @@ from parsers.monster import SIZES_EN, SIZES_RU_TO_EN, _parse_type_line   # noqa:
 from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
                             OBJECT_BLOCKS_51, RU_LABELS_51, STRIP_TAIL,
                             en_name_from_ru_heading, titlecase_header)
+# Шапку врезки гейт шапок не видит (он читает главы монстров и указатели), поэтому её
+# тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271).
+from statblock_terms import (DICT, align_to_en, dict_table,  # noqa: E402
+                             split_header, type_terms)
+
+# Тип существа переводится только словарём: копия в коде разошлась бы с ним молча (#256).
+TYPES_RU, _DICT_PROBLEMS = dict_table(DICT, "Типы существ")
 
 # Отпечаток `_source.extraction` эталона: способ выемки — часть провенанса, и подменять
 # его молча нельзя (у 5.2 это четыре выемки, у 5.1 — две команды резки и две заметки).
@@ -471,6 +478,46 @@ def read_pb_table(path: Path, title: str) -> dict:
 CHECKED = []
 # Сколько сравнений гасит каждое версионное послабление — счётчик носителей для пина.
 SAVED = Counter()
+
+
+
+def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: dict) -> list:
+    """Расхождения ТИПА и МИРОВОЗЗРЕНИЯ в шапке врезки. Размер сверяется отдельно, выше.
+
+    Тип сверяется со словарём перевода — тем же, что у гейта шапок, — и порегистрово:
+    в шапке он пишется словарным термином с прописной. Мировоззрение сверяется дважды:
+    по ЗНАЧЕНИЮ (сводится к EN) и по ФОРМЕ (как пишет глава монстров этой редакции) —
+    иначе врезка молча жила бы по своей конвенции, как и было до #271.
+    """
+    out = []
+    en_parts, ru_parts = split_header(en_header), split_header(ru_header)
+    if en_parts is None or ru_parts is None:
+        side = "EN" if en_parts is None else "переводе"
+        out.append(f"RU «{name}» шапка: мировоззрение не отделено запятой ({side}): "
+                   f"«{en_header if en_parts is None else ru_header}»")
+        return out
+    en_types = type_terms(en_parts[0], TYPES_RU.keys())
+    ru_types = type_terms(ru_parts[0], TYPES_RU.values())
+    want_types = [TYPES_RU[t] for t in en_types]
+    if not en_types:
+        out.append(f"RU «{name}» шапка: EN-тип «{en_parts[0]}» не из словаря — сверять "
+                   f"перевод не с чем")
+    elif ru_types != want_types:
+        out.append(f"RU «{name}» шапка: тип «{ru_parts[0]}» ≠ EN «{en_parts[0]}» — "
+                   f"ожидались словарные термины {want_types}, найдены {ru_types}")
+    ru_align, _ = align_to_en(ru_parts[1])
+    if ru_align is None:
+        out.append(f"RU «{name}» шапка: мировоззрение «{ru_parts[1]}» не из словаря "
+                   f"(EN «{en_parts[1]}»)")
+    elif ru_align.lower() != en_parts[1].lower():
+        out.append(f"RU «{name}» шапка: мировоззрение «{ru_parts[1]}» ({ru_align}) "
+                   f"≠ EN «{en_parts[1]}»")
+    else:
+        forms = chapter_aligns.get(ru_align.lower())
+        if forms and ru_parts[1] not in forms:
+            out.append(f"RU «{name}» шапка: мировоззрение «{ru_parts[1]}» написано не как "
+                       f"в главе монстров — там {sorted(forms)}")
+    return out
 
 
 def check_version(V: dict) -> None:
@@ -922,6 +969,21 @@ def check_version(V: dict) -> None:
             failures.append(f"конфигурация: послабление «{_flag}» включено, а ни одного "
                             f"сравнения оно не гасит — послаблению нет носителя")
 
+    # Формы мировоззрения, как их пишет ГЛАВА монстров этой редакции: 5.1 переводит их
+    # с прописной («Нейтрально-злой»), 5.2 — со строчной («нейтрально-злой»). Врезка
+    # обязана писать так же, как глава своей редакции, — и это утверждение читается из
+    # корпуса, а не пришпиливается в конфигурации: главы уже сверены гейтом шапок.
+    chapter_aligns: dict = {}
+    for _n, _b in ru_blocks.items():
+        if _n in V['outside'] or "header" not in _b:
+            continue
+        _parts = split_header(_b["header"])
+        if not _parts:
+            continue
+        _en_align, _ = align_to_en(_parts[1])
+        if _en_align:
+            chapter_aligns.setdefault(_en_align.lower(), set()).add(_parts[1])
+
     # --- 2. RU-зеркало --------------------------------------------------------------------
     for name, fields in sorted(en_blocks.items()):
         got = ru_blocks.get(name)
@@ -970,7 +1032,9 @@ def check_version(V: dict) -> None:
             failures.append(f"RU «{name}» снаряжение: «{got['gear']}» записано иначе, чем "
                             f"EN «{fields['gear']}» — количество пишется скобкой")
         # Шапка врезок не сверяется гейтом шапок (тот читает только главы монстров и
-        # указатели), поэтому размер сверяем здесь — по тем же словарям.
+        # указатели), поэтому размер, ТИП и МИРОВОЗЗРЕНИЕ сверяем здесь — по тем же
+        # словарям. До #271 сверялся один размер, и подмена типа с мировоззрением
+        # в RU-врезке проходила зелёной.
         if "header" in fields and "header" in got:
             ru_size = _parse_type_line(got["header"], "ru")["size"].split()
             en_size = _parse_type_line(fields["header"], "en")["size"].split()
@@ -985,6 +1049,9 @@ def check_version(V: dict) -> None:
             elif en_size and ru_first.lower() != en_size[0].lower():
                 failures.append(f"RU «{name}» шапка: размер «{ru_size[0]}» ({ru_first}) "
                                 f"≠ EN «{en_size[0]}»")
+            if name in V['outside']:
+                failures.extend(sidebar_header(name, fields["header"], got["header"],
+                                               chapter_aligns))
     for name in sorted(set(ru_blocks) - set(en_blocks)):
         failures.append(f"RU: статблок «{name}» есть в переводе, но не в EN")
 

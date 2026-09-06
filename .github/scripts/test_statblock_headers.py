@@ -48,10 +48,12 @@ from parsers.monster import SIZES_RU_TO_EN, _parse_type_line  # noqa: E402
 # гейта полей и сборщика эталона: третья копия уже была бы третьим местом для расхождения.
 from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
                             en_name_from_ru_heading, paren_groups, titlecase_header)
-
-SIZES_EN = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
-SIZE_ALT = "|".join(SIZES_EN)
-SIZE_RE = re.compile(rf"^((?:{SIZE_ALT})(?: or (?:{SIZE_ALT}))?)\s+(.*)$")
+# Разбор шапки и словари типов/мировоззрений — общие с гейтом полей: он сверяет ими
+# ВРЕЗКИ, которых этот гейт не видит (#271). Копия здесь была бы вторым местом
+# для расхождения.
+from statblock_terms import (DICT, SIZE_RE, SIZES_EN, SPLIT_ALIGN,  # noqa: E402
+                            SUBTYPE_DICT, align_to_en as _align_to_en, dict_table as
+                            _dict_table, parts_en)
 # Прилагательное согласуется с родом типа существа, поэтому вариантов больше, чем размеров.
 # Словарь один — продукционный, из парсера: копия здесь уже жила и могла разъехаться.
 SIZES_RU = SIZES_RU_TO_EN
@@ -74,41 +76,8 @@ GENDER_RU = {
     "Аберрация": 1, "Фея": 1, "Слизь": 1, "Нежить": 1,
     "Растение": 2, "Исчадие": 2, "Чудовище": 2,
 }
-# Мировоззрение RU → EN. Только мужской род: две средние формы, которые здесь стояли ради
-# Древеня и Вермедведя из 5.2, сняты вместе с правкой их шапок — послаблением в коде
-# держать нечего, а версиям, где перевод действительно несогласован, служит опция
-# фикстуры (см. GENDER_DRIFT).
-ALIGN_RU = {
-    "без мировоззрения": "Unaligned",
-    "нейтральный": "Neutral",
-    "нейтрально-злой": "Neutral Evil",
-    "нейтрально-добрый": "Neutral Good",
-    "хаотично-злой": "Chaotic Evil",
-    "хаотично-добрый": "Chaotic Good",
-    "хаотично-нейтральный": "Chaotic Neutral",
-    "принципиально-злой": "Lawful Evil",
-    "принципиально-добрый": "Lawful Good",
-    "принципиально-нейтральный": "Lawful Neutral",
-}
-# «Любое не-доброе мировоззрение» → «Any Non-good Alignment» (форма 5.1).
-ANY_RU = {
-    "": "Any Alignment",
-    "не-доброе": "Any Non-good Alignment",
-    "не-принципиальное": "Any Non-lawful Alignment",
-    "хаотичное": "Any Chaotic Alignment",
-    "злое": "Any Evil Alignment",
-}
-ANY_RE = re.compile(r"^любое(?: (.+?))? мировоззрение$")
-PERCENT_RE = re.compile(r"^(.*?)\s*(\(\d+%\))$")
-
-SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")   # запятая мировоззрения, но не внутри скобок
-# Словарь терминов — единственный источник правды для перевода типов существ. Гейт читает
-# ЕГО, а не свою копию: иначе расхождение словаря и текста осталось бы незамеченным (#256).
-DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"
-# Подтипы лежат ОТДЕЛЬНО от словаря: семь их ключей («Cleric», «Wizard», «Dwarf»…)
-# совпадают с именами классов и рас, а пишутся со строчной, и в общем namespace
-# `build_term_map.py` они перекрывали переводы сущностей («Орк» → «орк»).
-SUBTYPE_DICT = ROOT / "src/dnd/translate/statblock_subtypes.md"
+# Мировоззрение и разбор шапки живут в `statblock_terms`: см. импорт выше. Здесь остаётся
+# только версионное послабление по роду — оно про фикстуры, а не про язык.
 failures = []
 
 
@@ -127,90 +96,21 @@ SIZE_USED: Counter = Counter()
 
 
 def align_to_en(text: str, version: str):
-    """RU-мировоззрение → EN-значение. None, если строка не опознана.
+    """RU-мировоззрение → EN-значение (общий разбор), None — если строка не опознана.
 
-    Отдельно разбираются «Любое … мировоззрение» и составное «X (50%) или Y (50%)»
-    (облачный великан). Средний род принимается только у версий из GENDER_DRIFT.
+    Здесь остаётся только версионная часть: средний род принимается у версий из
+    GENDER_DRIFT, и каждое срабатывание считается — послабление без носителя снимается.
     """
-    t = " ".join(text.strip().lower().split())
-    if " или " in t:
-        parts = []
-        for chunk in t.split(" или "):
-            m = PERCENT_RE.match(chunk.strip())
-            base, tail = (m.group(1), f" {m.group(2)}") if m else (chunk.strip(), "")
-            mapped = align_to_en(base, version)
-            if mapped is None:
-                return None
-            parts.append(mapped + tail)
-        return " or ".join(parts)
-    m = ANY_RE.match(t)
-    if m:
-        return ANY_RU.get(m.group(1) or "")
-    if t in ALIGN_RU:
-        return ALIGN_RU[t]
-    # Средний род («Хаотично-злое», «Нейтральное») — тот же термин, другое согласование:
-    # пробуем оба мужских окончания, ударение в них разное («злой», но «добрый»).
-    if version in GENDER_DRIFT and t.endswith("ое"):
-        for ending in ("ый", "ой"):
-            if t[:-2] + ending in ALIGN_RU:
-                GENDER_USED[version] += 1
-                return ALIGN_RU[t[:-2] + ending]
-    return None
+    value, used_drift = _align_to_en(text, neuter_ok=version in GENDER_DRIFT)
+    if used_drift:
+        GENDER_USED[version] += 1
+    return value
 
 
-DASH = {"-", "—"}
-
-
-def dict_table(path: Path, section: str, report: bool = True) -> dict:
-    """{EN → RU} из таблицы файла словаря; section — заголовок раздела или None.
-
-    report=False читает молча: в словаре есть законные омонимы с пометкой в комментарии
-    («Ammunition» — предмет «Боеприпасы» и свойство оружия «Боеприпас»), и жаловаться на
-    них — не дело этого гейта, они и так видны в отчёте `build_term_map.py`.
-
-    Колонки: оригинал 5.2, оригинал 5.1, перевод, источник 5.2, источник 5.1, комментарий.
-    Оба оригинала ведут на один перевод, прочерк — «в этой редакции термина нет».
-    """
-    if not path.exists():
-        failures.append(f"словарь не найден: {path.relative_to(ROOT)} — сверять не с чем")
-        return {}
-    out, inside = {}, section is None
-    for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
-        if section is not None and line.startswith("## "):
-            inside = section in line
-            continue
-        if not inside or not line.startswith("| "):
-            continue
-        cells = [c.strip() for c in line.strip().strip("|").split("|")]
-        if cells[0].startswith("---") or cells[0].startswith("Оригинал"):
-            continue
-        # Ровно шесть колонок: лишняя проходила молча, потерянная давала «род для типа
-        # «srd-5.2» не найден» — диагностику мимо причины.
-        if len(cells) != 6:
-            if report:
-                failures.append(
-                    f"{path.name}, строка {number}: колонок {len(cells)}, "
-                    f"а должно быть 6: {line!r}")
-            continue
-        if not cells[2] or cells[2] in DASH:
-            if report:
-                failures.append(f"{path.name}, строка {number}: пустой перевод: {line!r}")
-            continue
-        reported = False
-        for en in cells[:2]:
-            if not en or en in DASH:
-                continue
-            # Противоречие внутри словаря разрешалось порядком строк: дубль ниже живой
-            # строки молча игнорировался. Единственный источник правды не может зависеть
-            # от того, куда редактор вставил строку.
-            if en in out and out[en] != cells[2]:
-                if report and not reported:
-                    failures.append(
-                        f"{path.name}, строка {number}: «{en}» переведён и как «{out[en]}», "
-                        f"и как «{cells[2]}»")
-                    reported = True
-                continue
-            out[en] = cells[2]
+def dict_table(path: Path, section, report: bool = True) -> dict:
+    """{EN → RU} из словаря (общий разбор); проблемы файла уходят в отчёт этого гейта."""
+    out, problems = _dict_table(path, section, report=report)
+    failures.extend(problems)
     return out
 
 
@@ -287,20 +187,6 @@ def headers(path: Path, lang: str):
                 alias.setdefault(STRIP_TAIL.sub("", ru_part).strip(), name)
             name = None
     return out, alias
-
-
-def parts_en(header: str):
-    """«Large Swarm of Tiny Beasts, Unaligned» → (размер, тип, подтип, мировоззрение)."""
-    chunks = SPLIT_ALIGN.split(header, maxsplit=1)
-    if len(chunks) != 2:
-        return None
-    m = SIZE_RE.match(chunks[0].strip())
-    if not m:
-        return None
-    rest = m.group(2).strip()
-    sub = re.match(r"^(.+?)\s*\((.+)\)$", rest)
-    return (m.group(1), sub.group(1).strip() if sub else rest,
-            sub.group(2).strip() if sub else None, chunks[1].strip())
 
 
 def parts_ru(header: str, version: str):
