@@ -31,6 +31,8 @@ jobs:
 
       - name: Claude review
         uses: anthropics/claude-code-action@v1
+        env:
+          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -65,3 +67,9 @@ jobs:
             - НЕ одобрять (no APPROVE), НЕ давать финальный LGTM, НЕ мёржить, НЕ править код:
               финальный вердикт и гейт прогонов остаются за живой сессией ревью владельца.
             - Пиши по-русски, тон и формат — как в предыдущих ревью в треде PR.
+            - ПОСЛЕ публикации ревью — цикл улучшения: если по ходу что-то мешало
+              (скилл требовал недоступного в CI, промту не хватило правила, находка оказалась
+              ложной по понятной причине), добавь ОДИН коммент в журнал
+              `gh issue comment 1 --repo OmnisGM-App/claude-plugins` по формату из тела той
+              ишьи (PR/голова, наблюдение, класс). Токен для этого — в env GH_PLUGINS_TOKEN
+              (`GH_TOKEN=$GH_PLUGINS_TOKEN gh issue comment …`). Нечего сказать — не пиши.
