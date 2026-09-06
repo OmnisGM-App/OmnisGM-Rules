@@ -35,6 +35,8 @@ JSON API: файл валиден, таблицы на месте, и все п�
 
 Запуск: python3 .github/scripts/test_statblock_headers.py
 """
+import hashlib
+import json
 import re
 import sys
 from collections import Counter
@@ -407,6 +409,98 @@ def statblock_files(version_dir: Path) -> list:
 # в новой опции не прошла молча.
 OPTION_RE = re.compile(r"^#\s*опция:\s*(\S+)\s*$")
 OPTIONS = {"род-мировоззрения-несогласован", "род-размера-несогласован"}
+SOURCE_RE = re.compile(r"^#\s*_source:\s*([a-z0-9_]+)\s*=\s*(.+)$")
+# Провенанс эталона шапок: PDF, его отпечаток, объём, вёрстка и способ пересборки.
+# Значения пришпилены ЗДЕСЬ, а не только в фикстуре: «эталон снят с этого PDF» —
+# утверждение, и подмена его в самой фикстуре не должна проходить молча (#273).
+# Те же значения держит и эталон ПОЛЕЙ: расхождение двух артефактов одной выемки —
+# дефект, поэтому числа и адреса совпадают с `_source` фикстур полей.
+PROVENANCE = {
+    "srd-5.1": {
+        "pdf": "https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf",
+        "sha256": "2504d2a0abb0a4d491a939be4f17910a2dde0312570ab8d208080225ccf0a1f0",
+        "pages": "403",
+        "page_size_pt": "612 x 792",
+        "license": "CC BY 4.0; формула атрибуции — src/dnd/srd-5.1/LICENSE.md",
+        "license_sha": "39dc3d747ac3a357525aca274b6e5ec7e2f8f63af77634f5ecf9cd60e2dc8b18",
+        "extraction_sha": "e18d378ee63e139cd728cbab93871ca65fead56a5a3dc98883f6d051ce01a45c",
+        "regenerate": ".github/scripts/build_statblock_headers.py srd-5.1",
+    },
+    "srd-5.2": {
+        "pdf": "https://media.dndbeyond.com/compendium-images/srd/5.2/SRD_CC_v5.2.1.pdf",
+        "sha256": "8974902d109d6e63672d7c490bde9ccf052410503d9cfa768237154fbc5e3d87",
+        "pages": "364",
+        "page_size_pt": "594 x 783",
+        "license": "CC BY 4.0; формула атрибуции — src/dnd/srd-5.2/LICENSE.md",
+        "license_sha": "22ce079c48db402e3ff7c8c779788463a0bc1d50ca84154bf7ff0a3348ae1312",
+        "extraction_sha": "0dc81d0495d5f1b4e028be9b69dbdac1ce8b0d16360e328260e30391fee7931c",
+        "regenerate": ".github/scripts/build_statblock_headers.py srd-5.2",
+    },
+}
+
+def check_provenance(version: str, provenance: dict) -> None:
+    """Провенанс фикстуры шапок: набор ключей, значения и живая лицензия."""
+    want = PROVENANCE[version]
+    keys = set(want) - {"license_sha", "extraction_sha"} | {"extraction"}
+    if set(provenance) != keys:
+        failures.append(
+            f"{version}: провенанс эталона шапок — ключи {sorted(provenance)}, "
+            f"а должны быть {sorted(keys)}")
+    for key, value in sorted(want.items()):
+        if key in ("license_sha", "extraction_sha"):
+            continue
+        if provenance.get(key) not in (None, value):
+            failures.append(f"{version}: провенанс «{key}» = «{provenance[key]}», "
+                            f"а гейт держит «{value}»")
+    # Способ выемки сверяется ОТПЕЧАТКОМ: текст длинный и правится вместе с рецептом,
+    # но молча меняться не должен — это часть провенанса, как и у эталона полей.
+    extraction = provenance.get("extraction")
+    if not extraction:
+        failures.append(f"{version}: провенанс не называет способ выемки")
+    elif hashlib.sha256(extraction.encode("utf-8")).hexdigest() != want["extraction_sha"]:
+        failures.append(f"{version}: описание выемки изменено — отпечаток не сходится "
+                        f"с тем, что держит гейт")
+    # Лицензия — не строка в комментарии, а файл: сверяем отпечатком, чтобы правка
+    # формулы атрибуции не прошла мимо эталона (#268, #277).
+    path = re.search(r"src/dnd/\S+/LICENSE\.md", provenance.get("license", "") or "")
+    if not path:
+        failures.append(f"{version}: провенанс не называет файл лицензии")
+    else:
+        licence = ROOT / path.group(0)
+        if not licence.is_file():
+            failures.append(f"{version}: лицензии {path.group(0)} нет на диске")
+        elif hashlib.sha256(licence.read_bytes()).hexdigest() != want["license_sha"]:
+            failures.append(f"{version}: {path.group(0)} изменён — отпечаток не сходится "
+                            f"с тем, что держит гейт")
+
+
+def cross_check_fields(version: str, raw_pdf: dict) -> None:
+    """Третья колонка против эталона ПОЛЕЙ — второго артефакта той же выемки.
+
+    Сам гейт до PDF не дотягивается (на раннере нет ни файла, ни конвертеров), поэтому
+    согласованная правка обеих колонок фикстуры шапок ему не видна. Эталон полей держит
+    ту же строку под ключом `header` и пришпилен своими счётчиками и отпечатком
+    структуры — расхождение двух эталонов и есть тот сторож (#273).
+    """
+    path = SCRIPTS / f"fixtures/{version}-statblock-fields.json"
+    try:
+        blocks = json.loads(path.read_text(encoding="utf-8"))["blocks"]
+    except (OSError, ValueError, KeyError) as error:
+        failures.append(f"{version}: эталон полей не читается ({error}) — сверять "
+                        f"третью колонку не с чем")
+        return
+    by_stripped = {STRIP_TAIL.sub("", n).strip(): n for n in blocks}
+    for name, raw in sorted(raw_pdf.items()):
+        block = blocks.get(name) or blocks.get(
+            by_stripped.get(STRIP_TAIL.sub("", name).strip(), ""), {})
+        want = block.get("header")
+        if want is None:
+            failures.append(f"{version} эталон «{name}»: шапка есть в фикстуре шапок, "
+                            f"но не в эталоне полей")
+            continue
+        if raw != want:
+            failures.append(f"{version} эталон «{name}»: строка PDF «{raw}» ≠ шапке "
+                            f"«{want}» из эталона полей — два эталона одной выемки разошлись")
 
 
 LETTER_CHAPTER = re.compile(r"^\S+:\s*\w$")
@@ -466,8 +560,15 @@ def chapter_titles(version: str) -> dict:
 
 def check_version(version: str, fixture: Path) -> None:
     expected, raw_pdf, seen = {}, {}, {}
+    provenance = {}
     for number, line in enumerate(fixture.read_text(encoding="utf-8").split("\n"), 1):
         if line.startswith("#"):
+            prov = SOURCE_RE.match(line)
+            if prov:
+                key, value = prov.group(1), prov.group(2).strip()
+                if key in provenance:
+                    failures.append(f"{version}: провенанс «{key}» объявлен дважды")
+                provenance[key] = value
             m = OPTION_RE.match(line)
             if m:
                 if m.group(1) not in OPTIONS:
@@ -496,13 +597,15 @@ def check_version(version: str, fixture: Path) -> None:
             raw_pdf[parts[0]] = parts[2]
 
     # Третья колонка — сырая строка PDF. Вторая обязана быть ею же, приведённой к нашему
-    # регистру, иначе эталон разъедется с источником молча. Инвариант применяется построчно,
-    # поэтому удаление колонки у одной строки его просто выключало бы — требуем «у всех
-    # или ни у одной».
-    if raw_pdf and len(raw_pdf) != len(expected):
+    # регистру, иначе эталон разъедется с источником молча. Колонка ОБЯЗАТЕЛЬНА у всех
+    # строк обеих редакций: пока она была необязательной, её отсутствие у целой редакции
+    # (5.2 до #273) выключало инвариант, ничего не сообщая.
+    if len(raw_pdf) != len(expected):
         failures.append(
             f"{version}: третья колонка (строка PDF) есть у {len(raw_pdf)} строк "
-            f"из {len(expected)} — она либо у всех, либо ни у одной")
+            f"из {len(expected)} — она обязательна у каждой")
+    check_provenance(version, provenance)
+    cross_check_fields(version, raw_pdf)
     for name, raw in raw_pdf.items():
         if titlecase_header(raw) != expected[name]:
             failures.append(
