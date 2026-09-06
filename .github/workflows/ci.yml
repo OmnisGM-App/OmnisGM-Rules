@@ -60,7 +60,7 @@ jobs:
       # диапазона («Huge or Smaller Construct») и составной тип («Large Celestial, Fey,
       # or Fiend (Your Choice), Neutral»). Откат любой из них оставляет гейты шапок и
       # полей зелёными: врезки в JSON API не идут (#260).
-      - name: Unit — разбор строки типа статблока
+      - name: Unit — разбор строки типа и скорости статблока
         run: python3 .github/scripts/test_monster_parser.py
 
       # Автоправки чистки после конвертации PDF: их регресс виден только на синтетике —

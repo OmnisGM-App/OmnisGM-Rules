@@ -44,8 +44,10 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 from parsers.monster import SIZES_RU_TO_EN, _parse_type_line  # noqa: E402
-from statblock_meta import (en_group_from_ru_heading, en_name_from_ru_heading,  # noqa: E402
-                            paren_groups, titlecase_header)
+# Таксономический хвост в скобках («Deva (Angel)») снимается той же регуляркой, что у
+# гейта полей и сборщика эталона: третья копия уже была бы третьим местом для расхождения.
+from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
+                            en_name_from_ru_heading, paren_groups, titlecase_header)
 
 SIZES_EN = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
 SIZE_ALT = "|".join(SIZES_EN)
@@ -107,9 +109,6 @@ DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"
 # совпадают с именами классов и рас, а пишутся со строчной, и в общем namespace
 # `build_term_map.py` они перекрывали переводы сущностей («Орк» → «орк»).
 SUBTYPE_DICT = ROOT / "src/dnd/translate/statblock_subtypes.md"
-# Таксономический хвост в скобках: в 5.1 он есть и у заголовков статблоков («Deva (Angel)»),
-# и у строк указателя — в ключ эталона он не входит.
-STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
 failures = []
 
 

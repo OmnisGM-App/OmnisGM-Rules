@@ -1817,7 +1817,7 @@ Each card's effect is described below.
 
 > #### Avatar of Death
 >
-> *Medium Undead, Neutral Evil*
+> *Medium Undead, Neutral evil*
 >
 > **AC** 20
 >

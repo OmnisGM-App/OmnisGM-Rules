@@ -8794,9 +8794,6 @@ If the object touched is either metal armor or a metal shield being worn or carr
 - **Damage Vulnerabilities:** Cold
 - **Damage Resistances:** Bludgeoning, Piercing, and Slashing from nonmagical attacks
 - **Damage Immunities:** Fire
-
-**Sense**s darkvision 60 ft.; Passive Perception 10
-
 - **Senses:** darkvision 60 ft.; Passive Perception 10
 - **Languages:** Ignan
 - **Challenge:** 5 (1,800 XP)
@@ -8828,9 +8825,6 @@ If the object touched is either metal armor or a metal shield being worn or carr
 | 12 (+1)  | 16 (+3)  | 11 (+0)  | 12 (+1)  | 10 (+0)  | 14 (+2)  |
 
 - **Skills:** Perception +2, Performance +6, Stealth +5
-
-**Sense**s Passive Perception 12
-
 - **Senses:** Passive Perception 12
 - **Languages:** Common, Elvish, Sylvan
 - **Challenge:** 1/2 (100 XP)

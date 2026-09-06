@@ -61,7 +61,7 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from statblock_meta import META_KEYS   # noqa: E402
+from statblock_meta import EN_LABELS_51, META_KEYS, STRIP_TAIL   # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).resolve().parent / "fixtures/srd-5.2-statblock-fields.json"
@@ -325,14 +325,10 @@ def extractions() -> dict:
 # а поля у неё другие: спасброски отдельной строкой, иммунитеты разделены на урон и
 # состояния, инициативы и снаряжения нет. Поэтому разбор отдельный — общей у версий
 # остаётся сверка выемки с эталоном (см. main).
-LAB_51 = ["Armor Class","Hit Points","Speed","Saving Throws","Skills","Senses","Languages","Challenge",
-     "Damage Immunities","Condition Immunities","Damage Resistances","Damage Vulnerabilities",
-     "Damage Resistance"]
+# Метки полей 5.1 — из общего модуля, чтобы сборщик и гейт не разъехались молча (метка
+# ПО живёт в гейте отдельным параметром, поэтому здесь она добавляется руками).
+LAB_51 = list(EN_LABELS_51) + ["Challenge"]
 KEY_51 = {l: l.lower().replace(" ", "_") for l in LAB_51}
-def load_51(path):
-    t=unicodedata.normalize("NFKC",open(path,encoding='utf-8').read()).replace("−","-").replace("’","'")
-    t=re.sub(r"\t[ \t]*\n[ \t]*"," ",t)
-    return [re.sub(r"[ \t]+"," ",l).strip() for l in t.split("\n")]
 def blocks_51(lines):
     heads=[i for i,l in enumerate(lines) if re.match(rf"^{SIZE} [a-z]",l)]
     out={}
@@ -402,6 +398,10 @@ def interleave_columns_51() -> Path:
     if len(left) != len(right):
         sys.exit(f"колонки 5.1 не сошлись: слева {len(left)}, справа {len(right)}")
     out = Path(os.environ.get("SRD51_COLS", "/tmp/51_cols.txt"))
+    if out.exists() and "--force" not in sys.argv and "System Reference Document 5.1" not in \
+            out.read_text(encoding="utf-8", errors="replace")[:2000]:
+        sys.exit(f"{out} существует и не похож на колонную выемку 5.1 — "
+                 f"перезапись отменена (--force, если файл всё же нужно затереть)")
     out.write_text("\n".join(p for pair in zip(left, right) for p in pair), encoding="utf-8")
     print(f"склеенная колонная выемка 5.1 → {out} ({len(left)} страниц, файл перезаписан)")
     return out
@@ -435,8 +435,13 @@ def extractions_51() -> dict:
     return out
 
 
-def repo_blocks_51() -> dict:
-    """Поля статблоков 5.1 из текста репозитория — глава монстров и врезки магпредметов."""
+def repo_blocks_51() -> list:
+    """ИМЕНА статблоков 5.1 из текста репозитория — глава монстров и врезки магпредметов.
+
+    Поля здесь разбираются только затем, чтобы отличить статблок от прочих заголовков
+    (у статблока есть таблица характеристик). Сверку значений делает гейт: он сравнивает
+    текст с эталоном, а этот скрипт — эталон с выемкой из PDF, и вместе они замкнуты.
+    """
     label_re = "|".join(sorted(KEY_51, key=len, reverse=True))
     out = {}
     for chapter in ("15_MonstersA-Z.md", "13_MagicItems.md"):
@@ -468,7 +473,7 @@ def repo_blocks_51() -> dict:
                 if len(cells) >= 6 and all(pairs):
                     block["abilities"] = {a: [p.group(1), p.group(2)]
                                           for a, p in zip(ABIL_51, pairs)}
-    return {k: v for k, v in out.items() if "abilities" in v}
+    return sorted(k for k, v in out.items() if "abilities" in v)
 
 
 if __name__ == "__main__":
@@ -481,11 +486,10 @@ if __name__ == "__main__":
                  else (extractions_51(), repo_blocks_51()))
     # Имя в PDF 5.1 идёт без таксономического хвоста («Adult Black Dragon»), а в тексте и
     # в эталоне — с ним («Adult Black Dragon (Chromatic)»): сводим по имени без хвоста.
-    strip_tail = re.compile(r"\s*\([^()]*\)$")
-    by_stripped = {strip_tail.sub("", n).strip(): n for n in fixture}
+    by_stripped = {STRIP_TAIL.sub("", n).strip(): n for n in fixture}
     for source_map in (pdf, repo):
         for name in [n for n in source_map if n not in fixture]:
-            target = by_stripped.get(strip_tail.sub("", name).strip())
+            target = by_stripped.get(STRIP_TAIL.sub("", name).strip())
             if target and target not in source_map:
                 source_map[target] = source_map.pop(name)
     print(f"{version}: блоков — выемки {len(pdf)}, репозиторий {len(repo)}, "
@@ -538,6 +542,15 @@ if __name__ == "__main__":
     # И сверка текста репозитория с выемками — то, ради чего скрипт писался изначально.
     missing = sorted(set(repo) - set(pdf))
     print(f"нет в выемках: {len(missing)} {missing[:6]}")
+    # …и обратная сторона: блок есть в выемке, но не доехал до эталона. «Эталон недобрал
+    # блок» иначе выглядело бы так же, как «блоков ровно столько, сколько нужно».
+    # Имена сводим так же, как значения (апостроф выемки — типографский): иначе
+    # «Will-o’-Wisp» выглядит блоком, которого в эталоне нет.
+    fixture_names = {norm(n) for n in fixture}
+    extra = sorted(n for n in pdf if norm(n) not in fixture_names)
+    print(f"есть в выемках, но не в эталоне: {len(extra)}")
+    for name in extra:
+        print(f"  + {name}")
     for line in duplicates:
         print(f"  ! {line}")
     # Ненулевой код возврата — чтобы «эталон воспроизводится» было утверждением,

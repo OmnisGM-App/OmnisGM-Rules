@@ -1,17 +1,38 @@
 """Общее для гейтов статблоков: служебные ключи эталона и нормализация шапки.
 
-Живут отдельно, потому что их читают двое: гейт `test_statblock_fields.py` и сборщик
-`build_statblock_fields.py`. Копия в каждом из них уже разъезжалась.
+Живут отдельно, потому что их читают трое: гейты `test_statblock_fields.py` и
+`test_statblock_headers.py` и сборщик `build_statblock_fields.py`. Копия в каждом из них
+уже разъезжалась.
 """
 
 import re
 
 # Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне —
-# объявленные опечатки PDF (`cr_note`/`cr_repo`/`xp_note`/`pb_note`) и признак врезки.
+# объявленные опечатки PDF (`cr_note`/`cr_repo`/`xp_note`/`pb_note`/`saves_note`/
+# `saves_repo`/`abilities_note`/`abilities_repo`) и признак врезки.
 META_KEYS = ("cr_note", "cr_repo", "xp_note", "pb_note", "abilities_note", "abilities_repo",
-              "outside_chapters")
+             "saves_note", "saves_repo", "outside_chapters")
 
 STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
+
+# Метки полей статблока 5.1: у редакции свой состав (спасброски отдельной строкой,
+# иммунитеты разделены на урон и состояния, снаряжения и инициативы нет вовсе). Живут
+# здесь, потому что их читают и гейт, и сборщик эталона: разъехавшись, они молча
+# перестали бы видеть поле — сборщик его не собрал бы, а гейт сверил эталон сам с собой.
+EN_LABELS_51 = {"Armor Class": "ac", "Hit Points": "hp", "Speed": "speed",
+                "Saving Throws": "saves", "Skills": "skills", "Senses": "senses",
+                "Languages": "languages", "Damage Immunities": "damage_immunities",
+                "Condition Immunities": "condition_immunities",
+                "Damage Resistances": "damage_resistances",
+                "Damage Vulnerabilities": "damage_vulnerabilities",
+                "Damage Resistance": "damage_resistances"}
+# RU обе формы «Сопротивление к урону» пишет одной меткой, поэтому здесь их на одну меньше.
+RU_LABELS_51 = {"Класс Доспеха": "ac", "Хиты": "hp", "Скорость": "speed",
+                "Спасброски": "saves", "Навыки": "skills", "Чувства": "senses",
+                "Языки": "languages", "Иммунитет к урону": "damage_immunities",
+                "Иммунитет к состояниям": "condition_immunities",
+                "Сопротивление к урону": "damage_resistances",
+                "Уязвимость к урону": "damage_vulnerabilities"}
 
 
 def paren_groups(text: str) -> list:

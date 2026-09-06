@@ -8,21 +8,24 @@
 Чем это отличается от `test_statblock_headers.py`. Тот держит одну строку блока —
 «размер тип, мировоззрение», — и держит её строго. Всё остальное (КД, инициатива, хиты,
 скорость, навыки, чувства, языки, ПО, иммунитеты, сопротивления, уязвимости, снаряжение)
-до сих пор не сверялось ни с чем, хотя текст 5.2 приехал не из PDF, а из стороннего
-перегона. Сверка нашла 255 расхождений: у 30 существ инициатива была равна модификатору
+до сих пор не сверялось ни с чем, хотя текст приехал не из PDF, а из стороннего
+перегона. У 5.2 сверка нашла 255 расхождений, у 5.1 — ещё 9: у 30 существ инициатива была равна модификатору
 Ловкости вместо значения из PDF, у 29 в ПО не было бонуса мастерства, у 27 стояло
 обобщённое «XP 0 or 10» вместо конкретного значения, у 129 не было строки языков,
 у пятерых в скорости висела заглушка `?`, плюс точечные ошибки в навыках и уязвимостях.
 
-Эталон — `fixtures/srd-5.2-statblock-fields.json`, снятый с официального PDF 5.2.1
-четырьмя независимыми выемками (marker, pymupdf4llm, docling и постраничная резка
-`pdftotext` по колонкам — конвертеры теряют разные поля на двухколоночной вёрстке).
-Пересобирается и сверяется `build_statblock_fields.py` — тот прогон воспроизводит все
-3181 значение эталона из PDF и падает, если хоть одно перестало воспроизводиться.
+Эталонов два, по одному на редакцию: `fixtures/srd-5.2-statblock-fields.json` (336 блоков,
+9229 ячеек) снят с официального PDF 5.2.1 четырьмя независимыми выемками (marker,
+pymupdf4llm, docling и постраничная резка `pdftotext` по колонкам — конвертеры теряют
+разные поля на двухколоночной вёрстке), `fixtures/srd-5.1-statblock-fields.json`
+(319 блоков, 6635 ячеек) — с PDF 5.1 постраничной резкой по колонкам. Оба пересобираются
+и сверяются `build_statblock_fields.py` — тот прогон воспроизводит КАЖДОЕ значение эталона
+из PDF и падает, если хоть одно перестало воспроизводиться.
 
 Что проверяем:
   1) EN — каждое поле каждого блока против эталона (включая таблицу характеристик:
-     336 × 6 × значение/модификатор/спасбросок), и лишних полей в тексте нет;
+     у 5.2 это значение/модификатор/спасбросок, у 5.1 — значение/модификатор, а
+     спасброски стоят отдельной строкой), и лишних полей в тексте нет;
   2) состав эталона — обязательные ключи у всех блоков, число ячеек ПО КАЖДОМУ полю и
      отпечаток структуры «блок → набор полей» (иначе согласованное удаление поля из
      эталона и обоих текстов, а равно обмен полями между блоками, проходили бы молча);
@@ -33,9 +36,10 @@
   5) колонки указателей (ПО, КД, хиты) — против тех же блоков;
   6) ПО против официальной таблицы «ПО → опыт и бонус мастерства», а характеристики —
      против двух производных инвариантов: модификатор выводится из значения, спасбросок
-     отличается от модификатора на 0, бонус мастерства или удвоенный бонус;
+     отличается от модификатора на 0, бонус мастерства или удвоенный бонус (у 5.1 бонус
+     берётся из той же таблицы — в статблоке 5.1 он не печатается);
   7) опечатки САМОГО PDF объявляются в эталоне (`cr_note`/`cr_repo`/`xp_note`/`pb_note`/
-     `abilities_note`/`abilities_repo`),
+     `abilities_note`/`abilities_repo`/`saves_note`/`saves_repo`),
      а не молча терпятся: «3 (700 XP)» в PDF против нашего «3 (XP 700)». Пометка — это
      утверждение: она обязана назвать спорные числа И сказать словами, что в источнике.
 
@@ -52,13 +56,13 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 from parsers.monster import SIZES_EN, SIZES_RU_TO_EN, _parse_type_line   # noqa: E402
-from statblock_meta import (META_KEYS, STRIP_TAIL, en_name_from_ru_heading,  # noqa: E402
-                            titlecase_header)
+from statblock_meta import (EN_LABELS_51, META_KEYS, RU_LABELS_51, STRIP_TAIL,  # noqa: E402
+                            en_name_from_ru_heading, titlecase_header)
 
-EXTRACTION_HEADS_52 = ["marker (основная вые", "pymupdf4llm (блоки, ", "docling (поля, потер", "pdftotext -layout -x"]
+# Отпечаток `_source.extraction` эталона: способ выемки — часть провенанса, и подменять
+# его молча нельзя (у 5.2 это четыре выемки, у 5.1 — две команды резки и две заметки).
+EXTRACTION_SHA_52 = "4bf3eb51f9cb2f4a5f19102ad264f58f688d0abb7732f6719db1066a2d27c985"
 STRUCTURE_SHA_52 = "ed3a6cce774ba14f871d23502c358bebf83b353e5ca7609e41e221b07b0d57a9"
-# Сколько блоков несут логовую оговорку («or 7,200 in lair»). Пришпилено: её стирание
-# согласованно из эталона и обоих текстов иначе не оставляет следа.
 FIELD_COUNTS_52 = {"header": 336, "abilities": 336, "ac": 336, "hp": 336, "speed": 336, "senses": 336,
                 "languages": 336, "cr": 336, "initiative": 332, "skills": 216,
                 "immunities": 150, "resistances": 71, "gear": 45, "vulnerabilities": 15}
@@ -76,53 +80,62 @@ RU_LABELS_52 = {"Класс доспеха": "ac", "КД": "ac", "Хиты": "hp
              "Инициатива": "initiative", "Навыки": "skills", "Снаряжение": "gear",
              "Чувства": "senses", "Языки": "languages", "Иммунитеты": "immunities",
              "Сопротивления": "resistances", "Уязвимости": "vulnerabilities"}
-# Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне.
-# Поля, которые есть у КАЖДОГО статблока. Отсутствие любого из них в эталоне — дыра
-# эталона (ровно та, из-за которой «Mimic Languages None» и «Animated Object AC» молчали).
+# Заголовки внутри статблока — не имена блоков: «#### Actions» закрывает поля, а не
+# открывает новый блок.
 SERVICE_HEADINGS = {"traits", "actions", "bonus actions", "reactions", "legendary actions",
                     "особенности", "действия", "бонусные действия", "реакции",
                     "легендарные действия", "свойства"}
-# Первое слово шапки — размер; словари канонические, из продукционного парсера.
 ABIL = ("str", "dex", "con", "int", "wis", "cha")
 # Метки таблицы характеристик в обоих языках и в обеих формах записи.
 ABIL_ROWS = {"SCORE": "score", "MOD": "mod", "SAVE": "save",
              "ЗНАЧ": "score", "МОД": "mod", "СПАС": "save"}
+# Пара «характеристика — спасбросок» строки 5.1. Знаки перечислены ЯВНО: «[+-−]» — это
+# диапазон U+002B…U+2212 из 8680 символов, он ловил и «Con q7», и запись вовсе без знака.
+SAVE_PAIR = re.compile(r"\b(Str|Dex|Con|Int|Wis|Cha)\s+([+\u2212-]\d+)")
 ABILITIES = {"str": "str", "dex": "dex", "con": "con", "int": "int", "wis": "wis",
              "cha": "cha", "сил": "str", "лов": "dex", "тел": "con", "инт": "int",
              "мдр": "wis", "хар": "cha"}
-# Ячеек в таблицах характеристик: 336 блоков × 6 характеристик × (значение, модификатор,
-# спасбросок). Пришпилено рядом с составом полей — по той же причине.
+# Первое слово шапки — размер; словари канонические, из продукционного парсера.
 SIZE_PREFIX = "|".join(sorted(set(SIZES_EN) | set(SIZES_RU_TO_EN), key=len, reverse=True))
 failures = []
 
 
-def canon(field: str, value: str, lower_fields=("senses",)) -> str:
-    """Приведение перед сравнением — послабления этого гейта, ВСЕ ПЯТЬ.
+def canon(field: str, value: str, lower_fields=("senses",), senses_comma=False) -> str:
+    """Приведение перед сравнением — послабления этого гейта, ВСЕ СЕМЬ.
 
     Гасятся ровно эти вещи, и каждая намеренно:
       1) повторные пробелы схлопываются в один — перенос строки в PDF рвёт значение
          в произвольном месте;
       2) ХВОСТОВАЯ точка/запятая/точка с запятой — конвертеры теряют и добавляют её
-         произвольно, поэтому в эталоне её нет ни у одного из 336 значений скорости.
+         произвольно, поэтому в эталоне её нет ни у одного значения скорости.
          Ведущая пунктуация НЕ гасится, и форму строки в тексте держит проверка формы
          (раздел 3 ниже): без неё потерянная точка у Глиняного голема проходила молча;
       3) ПАРНЫЙ курсив («*Bless*» у Ракшаса): PDF-выемка разметки не несёт. Непарная
          звёздочка остаётся в значении и делает расхождение видимым;
       4) регистр у ЧУВСТВ — PDF пишет «Darkvision 120 ft.», мы «darkvision 120 ft.»;
          различие живёт в 252 строках чувств и не является данными;
-      5) «Thieves' Cant» → «Thieves' cant» в языках: та же стилистика, 3 строки в скоупе.
-    Всё остальное — включая регистр в остальных полях, порядок слов, скобки и числа —
-    сверяется как есть. Регистрозависимость нашла четыре «And» в языках (Гигантский лось,
-    Гигантская сова, Кошмар, Пегас), которых не видел ни один прогон до неё.
+      5) «Thieves' Cant» → «Thieves' cant» в языках: та же стилистика, 3 строки в скоупе;
+      6) тире сводятся к одному знаку («—», «–», «−» → «-»): PDF пишет «—» там, где поля
+         нет, импорт — «-», знак один и тот же;
+      7) разделитель перед пассивной Внимательностью в чувствах («;» → «,») — ТОЛЬКО у
+         той версии, что просит об этом конфигурацией (`senses_comma`): PDF 5.1 пишет
+         запятую, импорт — точку с запятой. У 5.2 послабления нет, и `;` там сверяется.
+    Первые шесть общие для обеих версий, седьмое — версионное; кроме них версия может
+    объявить поля, у которых не сверяется РЕГИСТР (`lower_fields`): у 5.2 это одни чувства,
+    у 5.1 — семь полей, потому что PDF 5.1 печатает весь статблок со строчной. Всё
+    остальное — порядок слов, скобки, числа и регистр в прочих полях — сверяется как есть.
+    Регистрозависимость нашла четыре «And» в языках (Гигантский лось, Гигантская сова,
+    Кошмар, Пегас), которых не видел ни один прогон до неё.
     """
     value = re.sub(r"\s+", " ", value).strip()
     # Тире: PDF пишет «—» там, где поля нет, импорт — «-». Знак один и тот же.
     value = value.replace("—", "-").replace("–", "-").replace("−", "-")
     value = re.sub(r"[.;,]+$", "", value)
     value = re.sub(r"\*([^*]+)\*", r"\1", value)
-    if field == "senses":
+    if field == "senses" and senses_comma:
         # Разделитель перед пассивной Внимательностью: PDF 5.1 пишет запятую, импорт —
-        # точку с запятой (как у 5.2). Различие оформления, не данных.
+        # точку с запятой (как у 5.2). Различие оформления, не данных — и оно есть только
+        # у 5.1: у 5.2 PDF пишет ту же точку с запятой, что и мы, поэтому там сверяется.
         value = value.replace(";", ",")
     if field in lower_fields:
         return value.lower()
@@ -162,7 +175,8 @@ SEEN_IN = {}
 
 
 def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
-                strict_headings: bool = True, cr_labels: str = "CR|ПО") -> list:
+                strict_headings: bool = True, cr_labels: str = "CR|ПО",
+                foreign_labels=()) -> list:
     """[(EN-имя, {поле: значение})] из главы статблоков или из блока-врезки.
 
     Возвращаем СПИСОК, а не словарь: дубли имён ловятся при слиянии, поэтому терять их
@@ -208,7 +222,8 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
             block = {}
             continue
         if block is None:
-            if closed and re.match(r"^(?:- )?\*\*(?:%s|CR|ПО):?\*\*" % "|".join(labels), s):
+            if closed and re.match(r"^(?:- )?\*\*(?:%s|%s):?\*\*"
+                                   % ("|".join(labels), cr_labels), s):
                 failures.append(f"{where} «{closed}»: строка поля «{s[:40]}» стоит после "
                                 f"служебного заголовка — в сверку она не попадает")
             continue
@@ -216,6 +231,13 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
         if m and "header" not in block and re.match(SIZE_PREFIX, m.group(1), re.I):
             block["header"] = m.group(1).strip()
             continue
+        for label in foreign_labels:
+            # Метка ЧУЖОЙ редакции («- **Initiative:**» в главе 5.1, «- **Saving Throws:**»
+            # в главе 5.2) не разбирается словарём версии, поэтому дописанная строка была бы
+            # невидима для сверки — ровно тот дефект импорта, ради которого заведён гейт.
+            if re.match(rf"^(?:- )?\*\*{label}:?\*\*", s):
+                failures.append(f"{where} «{name}»: строка «{s[:40]}» — поле формы другой "
+                                f"редакции SRD, в этой главе его быть не должно")
         for label, key in labels.items():
             # «Gear» и «CR» в наших файлах записаны без двоеточия, остальные поля — с ним;
             # форма одинакова в обоих языках и проверяется ниже, в разделе 3.
@@ -236,6 +258,15 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
             cells = [c.strip() for c in s.strip("|").split("|")]
             row = cells[0].upper() if cells else ""
             head = [ABILITIES.get(c.lower()) for c in cells[1:7]]
+            head_51 = [ABILITIES.get(c.lower()) for c in cells[:6]]
+            if len(cells) == 6 and all(head_51):
+                # Шапка формы 5.1 («| STR | DEX | … |», без ведущей пустой ячейки): разбор
+                # строки значений ниже позиционный, поэтому перестановка колонок обязана
+                # быть видна и здесь — иначе она молча меняет местами характеристики.
+                if head_51 != list(ABIL):
+                    failures.append(f"{where} «{name}»: колонки таблицы характеристик идут "
+                                    f"{cells[:6]} — ожидался порядок СИЛ ЛОВ ТЕЛ ИНТ МДР ХАР")
+                continue
             if not cells[0] and len(cells) > 6 and all(head):
                 # Шапка таблицы: порядок колонок держит весь разбор ниже (он позиционный),
                 # поэтому перестановка колонок обязана быть видна.
@@ -442,6 +473,11 @@ def check_version(V: dict) -> None:
         """Бонус мастерства по ПО — по таблице из главы «Монстры»."""
         return PB_BY_CR.get(cr, 0)
 
+    cr_labels = f"{V['cr_label_en']}|{V['cr_label_ru']}"
+    # Имена блоков у редакций пересекаются (214 общих, среди них Аболет, Лич, Анкег),
+    # поэтому каждое расхождение обязано назвать редакцию. Одна обёртка вместо префикса
+    # в восьмидесяти вызовах: помечаем всё, что добавилось за этот прогон.
+
     _fixture = json.loads(V['fixture'].read_text(encoding="utf-8"))
     # Эталон — выемка из PDF, поэтому у него есть шапка с источником и лицензией;
     # сами блоки лежат под ключом «blocks», чтобы служебные поля не путались с именами существ.
@@ -457,14 +493,21 @@ def check_version(V: dict) -> None:
     # и «Proprietary», и путь в никуда.
     if _src.get("license") != V['license']:
         failures.append(f"эталон: _source.license «{_src.get('license')}» ≠ «{V['license']}»")
+    elif not (ROOT / f"src/dnd/{V['version']}/LICENSE.md").is_file():
+        # Формула атрибуции публикуется из шаблона читалки, а файл лицензии в репозитории —
+        # артефакт комплаенса: его пропажу до сих пор не ловил ни один гейт.
+        failures.append(f"эталон: файла лицензии src/dnd/{V['version']}/LICENSE.md нет")
     if _src.get("regenerate") != V['regenerate']:
         failures.append(f"эталон: _source.regenerate «{_src.get('regenerate')}» ≠ «{V['regenerate']}»")
     elif not (ROOT / V['regenerate']).is_file():
         failures.append(f"эталон: скрипта пересборки «{V['regenerate']}» нет")
     _extraction = _src.get("extraction")
-    if not isinstance(_extraction, list) or [str(x)[:20] for x in _extraction] != V['extraction_heads']:
-        failures.append("эталон: _source.extraction — не тот список из четырёх выемок, "
-                        "которым снят эталон")
+    # Записи сверяются ЦЕЛИКОМ (отпечатком): по первым двадцати символам две команды
+    # `pdftotext` неразличимы, и подмена параметров резки проходила молча.
+    _ex_sha = hashlib.sha256(json.dumps(_extraction, ensure_ascii=False).encode("utf-8")).hexdigest()
+    if not isinstance(_extraction, list) or _ex_sha != V['extraction_sha']:
+        failures.append("эталон: _source.extraction — не тот способ выемки, которым снят "
+                        "эталон (отпечаток списка не сошёлся)")
 
     # --- 0. Состав эталона ----------------------------------------------------------------
     # Без этого согласованное удаление поля из эталона И из обоих текстов было зелёным:
@@ -490,6 +533,10 @@ def check_version(V: dict) -> None:
     if _ability_cells != V['ability_cells']:
         failures.append(f"состав эталона: ячеек характеристик {_ability_cells}, "
                         f"а по PDF {V['ability_cells']}")
+    _saves_pairs = sum(len(SAVE_PAIR.findall(f.get("saves", ""))) for f in expected.values())
+    if _saves_pairs != V['saves_pairs']:
+        failures.append(f"состав эталона: пар «характеристика — спасбросок» {_saves_pairs}, "
+                        f"а по PDF {V['saves_pairs']}")
     _cells = sum(_have.values()) - _have.get("abilities", 0) + _ability_cells
     for _key in sorted(set(_have) | set(V['field_counts'])):
         if _have.get(_key, 0) != V['field_counts'].get(_key, 0):
@@ -508,10 +555,10 @@ def check_version(V: dict) -> None:
     en_blocks, ru_blocks = {}, {}
     for chapter in V['chapters']:
         merge(en_blocks, read_blocks(en_dir / chapter, V['en_labels'], False, f"{V['version']} en/{chapter}",
-                     cr_labels=V['cr_labels']),
+                     cr_labels=cr_labels, foreign_labels=V['foreign_labels']['en']),
               f"{V['version']} en/{chapter}")
         merge(ru_blocks, read_blocks(ru_dir / chapter, V['ru_labels'], True, f"{V['version']} ru/{chapter}",
-                     cr_labels=V['cr_labels']),
+                     cr_labels=cr_labels, foreign_labels=V['foreign_labels']['ru']),
               f"{V['version']} ru/{chapter}")
     # Блоки-врезки: заклинания и магические предметы. Список ЗАКРЫТ и живёт в конфигурации
     # версии, а не выводится из фикстуры: иначе удаление врезки из эталона молча
@@ -529,7 +576,7 @@ def check_version(V: dict) -> None:
             if not path.exists():
                 continue
             pairs = read_blocks(path, labels, ru, f"{V['version']} {lang}/{chapter}", strict_headings=False,
-                            cr_labels=V['cr_labels'])
+                            cr_labels=cr_labels, foreign_labels=V['foreign_labels'][lang])
             # Врезочные главы читаются тем же разбором, что и главы монстров, поэтому в них
             # тоже видно «блок есть в тексте, но не в эталоне»: статблоком считаем всё, у
             # чего есть шапка и КД с хитами — прочие `####` в заклинаниях этому не отвечают.
@@ -553,7 +600,7 @@ def check_version(V: dict) -> None:
             if field in META_KEYS:
                 continue
             if field == "abilities":
-                # 18 ячеек на блок: сверяем поимённо, иначе одна правка внутри таблицы
+                # Ячейки таблицы сверяем поимённо, иначе одна правка внутри таблицы
                 # растворяется в «таблица не совпала».
                 got_table = got.get("abilities")
                 if not got_table:
@@ -588,6 +635,17 @@ def check_version(V: dict) -> None:
                 continue
             # Эталон хранит строку PDF; если у PDF там опечатка, в тексте ждём исправленную
             # форму, объявленную в самом эталоне.
+            if field == "saves" and "saves_repo" in fields:
+                # Та же пара, что abilities_note/abilities_repo: если опечатка в строке
+                # спасбросков стоит в самом PDF, в тексте ждём исправленную форму, а
+                # пометка обязана назвать спорные числа и сказать словами, что в источнике.
+                problem = declared(fields.get("saves_note"),
+                                   [int(x) for _a, x in SAVE_PAIR.findall(
+                                       fields["saves"] + " " + fields["saves_repo"])])
+                if problem:
+                    failures.append(f"эталон «{name}»: правка строки спасбросков объявлена, "
+                                    f"но {problem}")
+                want = fields["saves_repo"]
             if field == "cr" and "cr_repo" in fields:
                 # cr_repo — не свободный белый список: это ровно cr с исправленным порядком
                 # «700 XP» → «XP 700». Иначе им можно было бы узаконить любое значение.
@@ -600,17 +658,23 @@ def check_version(V: dict) -> None:
                         f"эталон «{name}»: cr_repo «{fields['cr_repo']}» не выводится из PDF "
                         f"«{fields['cr']}» — ожидалось «{fixed}»")
                 want = fields["cr_repo"]
-            if field == "header":
+            normalized = False
+            if field == "header" and V['titlecase_header']:
                 # Эталон хранит строку PDF, а PDF 5.1 пишет тип и мировоззрение со
-                # строчной. Нормализация та же и из того же модуля, что у гейта шапок.
+                # строчной — все 319 шапок. Нормализация та же и из того же модуля, что у
+                # гейта шапок, и включается ТОЛЬКО версией, которой она нужна: у 5.2 она
+                # погасила бы ровно одну шапку (Avatar of Death, «Neutral evil» в PDF).
                 want = titlecase_header(want)
+                normalized = True
             value = got.get(field)
             if value is None:
                 failures.append(f"EN «{name}»: поле «{field}» потеряно (в PDF «{want}»)")
-            elif (canon(field, value, V['lower_fields'])
-                  != canon(field, want, V['lower_fields'])):
+            elif (canon(field, value, V['lower_fields'], V['senses_comma'])
+                  != canon(field, want, V['lower_fields'], V['senses_comma'])):
                 source = (f"PDF «{fields['cr']}», у нас ждём «{want}» ({fields.get('cr_note', '')})"
-                          if field == "cr" and "cr_repo" in fields else f"PDF «{want}»")
+                          if field == "cr" and "cr_repo" in fields
+                          else f"эталон после titlecase_header «{want}» (в PDF «{fields[field]}»)"
+                          if normalized else f"PDF «{want}»")
                 failures.append(f"EN «{name}» {field}: «{value}» ≠ {source}")
         # ПО против официальной таблицы: опыт и бонус мастерства выводятся из самого ПО.
         cr = fields.get("cr", "")
@@ -705,8 +769,13 @@ def check_version(V: dict) -> None:
         elif en_table and ru_table:
             for abil in ABIL:
                 en_cells, ru_cells = en_table.get(abil), ru_table.get(abil)
-                if not ru_cells:
-                    failures.append(f"RU «{name}»: в таблице характеристик нет «{abil}»")
+                if not ru_cells or not en_cells:
+                    # Обе стороны, а не одна: обрезанная ячейка EN («18(+4)») даёт частично
+                    # собранный разбор, и несимметричная защита валила гейт трейсбеком,
+                    # унося весь накопленный отчёт — включая расхождения другой редакции.
+                    side = "переводе" if not ru_cells else "EN"
+                    failures.append(f"RU «{name}»: в таблице характеристик нет «{abil}» "
+                                    f"({side})")
                 elif [c.replace("−", "-") for c in ru_cells] != [c.replace("−", "-") for c in en_cells]:
                     failures.append(f"RU «{name}» {abil}: {ru_cells} ≠ EN {en_cells}")
         # Снаряжение: количество пишется скобкой («Daggers (10)» / «Кинжалы (10)»), и это
@@ -781,20 +850,32 @@ def check_version(V: dict) -> None:
         if not saves or not table:
             continue
         bonus = pb_by_cr(cr_value(block.get("cr", "")))
-        for abil, value in re.findall(r"\b(Str|Dex|Con|Int|Wis|Cha)\s+([+-−]\d+)", saves):
+        for abil, value in SAVE_PAIR.findall(saves):
             cells = table.get(abil.lower())
             if not cells:
                 continue
-            mod = int(cells[1].replace("−", "-").replace("+", ""))
-            save = int(value.replace("−", "-").replace("+", ""))
+            try:
+                mod = int(cells[1].replace("−", "-").replace("+", ""))
+                save = int(value.replace("−", "-").replace("+", ""))
+            except ValueError:
+                # Нераспознанная форма — расхождение с адресной строкой, а не исключение:
+                # трейсбек уносит с собой ВЕСЬ накопленный отчёт, включая другую редакцию.
+                failures.append(f"EN «{name}» {abil.lower()}: спасбросок «{value}» или "
+                                f"модификатор «{cells[1]}» записаны не числом")
+                continue
             gap = save - mod
             if not bonus:
                 failures.append(f"EN «{name}» {abil.lower()}: спасбросок {save:+d} есть, "
                                 f"а бонуса мастерства по ПО «{block.get('cr')}» нет")
             elif gap not in (bonus, 2 * bonus):
-                failures.append(f"EN «{name}» {abil.lower()}: спасбросок {save:+d} на {gap} "
-                                f"выше модификатора {mod:+d} — не бонус мастерства "
-                                f"(+{bonus}) и не удвоенный бонус")
+                # Штатный выход — объявить опечатку PDF пометкой, как у ПО и характеристик:
+                # инвариант производный, и первая же опечатка источника в этой строке иначе
+                # упиралась бы в правку кода или текста.
+                problem = declared(expected.get(name, {}).get("saves_note"), (save, mod, bonus))
+                if problem:
+                    failures.append(f"EN «{name}» {abil.lower()}: спасбросок {save:+d} на {gap} "
+                                    f"выше модификатора {mod:+d} — не бонус мастерства "
+                                    f"(+{bonus}) и не удвоенный бонус; {problem}")
 
 # --- 3. Форма строк, которую сравнение значений намеренно не видит ---------------------
     # canon() снимает хвостовую пунктуацию (в эталоне её нет ни у одной скорости), поэтому
@@ -812,7 +893,11 @@ def check_version(V: dict) -> None:
     # метки), поэтому их строки сюда не входят.
     for lang, folder, labels in (("en", en_dir, V['en_labels']), ("ru", ru_dir, V['ru_labels'])):
         pairs = [(label, label not in ("Gear", "Снаряжение")) for label in labels]
-        pairs += [("CR", False)] if lang == "en" else [("ПО", False)]
+        # Метка ПО у версий своя («CR» у 5.2, «Challenge» у 5.1) и живёт отдельным
+        # параметром, поэтому берём её оттуда же — литерал делал проверку слепой.
+        # Метка ПО у версий своя («CR» без двоеточия у 5.2, «Challenge:» у 5.1) и живёт
+        # в конфигурации версии — литерал «CR»/«ПО» делал проверку 5.1 слепой.
+        pairs += [(V[f'cr_label_{lang}'], V['cr_colon'])]
         for chapter in V['chapters']:
             text = (folder / chapter).read_text(encoding="utf-8")
             for label, colon in pairs:
@@ -862,25 +947,17 @@ def check_version(V: dict) -> None:
                         f"{lang}-указатель {index}, «{name}»: хиты «{hp}» ≠ «{hp_value(block['hp'])}»")
 
 
-# Метки полей 5.1: у неё свой состав (спасброски отдельной строкой, иммунитеты разделены
-# на урон и состояния, снаряжения и инициативы нет вовсе).
-EN_LABELS_51 = {"Armor Class": "ac", "Hit Points": "hp", "Speed": "speed",
-                "Saving Throws": "saves", "Skills": "skills", "Senses": "senses",
-                "Languages": "languages", "Damage Immunities": "damage_immunities",
-                "Condition Immunities": "condition_immunities",
-                "Damage Resistances": "damage_resistances",
-                "Damage Vulnerabilities": "damage_vulnerabilities",
-                "Damage Resistance": "damage_resistances"}
-RU_LABELS_51 = {"Класс Доспеха": "ac", "Хиты": "hp", "Скорость": "speed",
-                "Спасброски": "saves", "Навыки": "skills", "Чувства": "senses",
-                "Языки": "languages", "Иммунитет к урону": "damage_immunities",
-                "Иммунитет к состояниям": "condition_immunities",
-                "Сопротивление к урону": "damage_resistances",
-                "Уязвимость к урону": "damage_vulnerabilities",
-                "Сопротивление к урону": "damage_resistances"}
+def check_version_labeled(V: dict) -> None:
+    """`check_version` + пометка редакции на всех её расхождениях."""
+    start = len(failures)
+    check_version(V)
+    failures[start:] = [m if m.startswith(V['version']) else f"{V['version']}: {m}"
+                        for m in failures[start:]]
+
+
 FIELD_COUNTS_51 = {"abilities": 319, "ac": 319, "condition_immunities": 89, "cr": 318, "damage_immunities": 127, "damage_resistances": 64, "damage_vulnerabilities": 15, "header": 319, "hp": 319, "languages": 319, "saves": 92, "senses": 319, "skills": 188, "speed": 319}
 STRUCTURE_SHA_51 = "aa45b415a9148ec56a84320459aeae1369e624b30649391573915a7db2b3e5f8"
-EXTRACTION_HEADS_51 = ["pdftotext -layout -x", "pdftotext -layout -x", "страницы колонок чер", "мягкие переносы (U+0"]
+EXTRACTION_SHA_51 = "efdc7c73984135716608cfb0ff341f4d4562bdec7945f836cc1110466707105a"
 
 
 # Конфигурация версий: различия форм живут здесь, а проверки — общие (см. check_version).
@@ -894,7 +971,7 @@ VERSIONS = [
         "page_size": "594 x 783",
         "license": "CC BY 4.0; формула атрибуции — src/dnd/srd-5.2/LICENSE.md",
         "regenerate": ".github/scripts/build_statblock_fields.py",
-        "extraction_heads": EXTRACTION_HEADS_52,
+        "extraction_sha": EXTRACTION_SHA_52,
         "chapters": ("12_MonstersA-Z.md", "13_Animals.md"),
         "sidebar_chapters": ("07_Spells.md", "10_MagicItems.md"),
         "monsters_chapter": "11_Monsters.md",
@@ -903,15 +980,29 @@ VERSIONS = [
         "ru_labels": RU_LABELS_52,
         "outside": ["Animated Object", "Avatar of Death", "Draconic Spirit", "Giant Fly",
                     "Giant Insect", "Otherworldly Steed"],
+        # Поля, которые есть у КАЖДОГО статблока: отсутствие любого из них в эталоне —
+        # дыра эталона (та, из-за которой «Mimic Languages» и «Animated Object AC» молчали).
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages", "cr"),
         "field_counts": FIELD_COUNTS_52,
         "structure_sha": STRUCTURE_SHA_52,
+        # Ячеек в таблицах характеристик: 336 блоков × 6 характеристик ×
+        # (значение, модификатор, спасбросок). Пришпилено рядом с составом полей.
         "ability_cells": 6048,
+        # Сколько блоков несут логовую оговорку («or 7,200 in lair»): её стирание
+        # согласованно из эталона и обоих текстов иначе не оставляет следа.
         "lair_blocks": 27,
-        "cr_labels": "CR|ПО",
+        "cr_label_en": "CR",
+        "cr_label_ru": "ПО",
+        "cr_colon": False,
         "required_in_chapters": ("initiative",),
         "lower_fields": ("senses",),
+        # PDF 5.2 пишет тот же разделитель чувств и ту же шапку, что и мы, поэтому оба
+        # послабления, нужные 5.1, здесь выключены — иначе они молча ослабляют 5.2.
+        "senses_comma": False,
+        "titlecase_header": False,
         "pb_in_cr": True,
+        # Спасброски 5.2 живут в таблице характеристик и посчитаны в ability_cells.
+        "saves_pairs": 0,
     },
     {
         "version": "srd-5.1",
@@ -922,7 +1013,7 @@ VERSIONS = [
         "page_size": "612 x 792",
         "license": "CC BY 4.0; формула атрибуции — src/dnd/srd-5.1/LICENSE.md",
         "regenerate": ".github/scripts/build_statblock_fields.py",
-        "extraction_heads": EXTRACTION_HEADS_51,
+        "extraction_sha": EXTRACTION_SHA_51,
         "chapters": ("15_MonstersA-Z.md",),
         "sidebar_chapters": ("13_MagicItems.md",),
         "monsters_chapter": "14_Monsters.md",
@@ -933,23 +1024,44 @@ VERSIONS = [
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages"),
         "field_counts": FIELD_COUNTS_51,
         "structure_sha": STRUCTURE_SHA_51,
+        # 319 блоков × 6 характеристик × (значение, модификатор): спасбросков в
+        # таблице 5.1 нет, они стоят отдельной строкой и считаются в saves_pairs.
         "ability_cells": 3828,
+        # Логовой оговорки в 5.1 нет ни у одного блока — это тоже утверждение о PDF.
         "lair_blocks": 0,
-        "cr_labels": "Challenge|Показатель опасности",
+        "cr_label_en": "Challenge",
+        "cr_label_ru": "Показатель опасности",
+        "cr_colon": True,
         # ПО есть у всех, кроме врезки Гигантской мухи: у неё в PDF строки «Challenge» нет.
         "required_in_chapters": ("cr",),
         # PDF 5.1 пишет весь статблок со строчной, импорт — с прописной: различие
         # оформления, а не данных, и оно сплошное (317 блоков). Регистр ИМЁН и чисел от
         # этого не страдает: шапка сверяется после той же нормализации, что у гейта шапок.
-        "lower_fields": ("senses", "speed", "ac", "languages", "damage_immunities",
+        # Список закрытый и проверенный поштучно: снятие любого из семи даёт расхождения,
+        # а «languages» и мёртвый «damage_resistance» сняты — регистр языков сверяется.
+        "lower_fields": ("senses", "speed", "ac", "damage_immunities",
                          "condition_immunities", "damage_resistances",
-                         "damage_vulnerabilities", "damage_resistance"),
+                         "damage_vulnerabilities"),
+        "senses_comma": True,
+        "titlecase_header": True,
         "pb_in_cr": False,
+        # Пар «характеристика — спасбросок» во всех строках спасбросков эталона. Пришпилено
+        # по той же причине, что ability_cells: удаление пары из строки и из эталона
+        # согласованно проходило молча — арифметика проверяет лишь то, что уже написано.
+        "saves_pairs": 315,
     },
 ]
 
 for _V in VERSIONS:
-    check_version(_V)
+    # Метки ЧУЖОЙ редакции: строка «- **Initiative:**» в главе 5.1 (и «- **Saving Throws:**»
+    # в главе 5.2) не разбирается словарём своей версии и потому была бы невидима.
+    _other = [o for o in VERSIONS if o is not _V]
+    _V['foreign_labels'] = {
+        lang: sorted({lab for o in _other for lab in o[f'{lang}_labels']}
+                     - set(_V[f'{lang}_labels']) - {_V[f'cr_label_{lang}']})
+        for lang in ("en", "ru")}
+for _V in VERSIONS:
+    check_version_labeled(_V)
 
 
 if failures:
