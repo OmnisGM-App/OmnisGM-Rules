@@ -44,6 +44,10 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 from parsers.monster import SIZES_RU_TO_EN, _parse_type_line  # noqa: E402
+# Таксономический хвост в скобках («Deva (Angel)») снимается той же регуляркой, что у
+# гейта полей и сборщика эталона: третья копия уже была бы третьим местом для расхождения.
+from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
+                            en_name_from_ru_heading, paren_groups, titlecase_header)
 
 SIZES_EN = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
 SIZE_ALT = "|".join(SIZES_EN)
@@ -105,9 +109,6 @@ DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"
 # совпадают с именами классов и рас, а пишутся со строчной, и в общем namespace
 # `build_term_map.py` они перекрывали переводы сущностей («Орк» → «орк»).
 SUBTYPE_DICT = ROOT / "src/dnd/translate/statblock_subtypes.md"
-# Таксономический хвост в скобках: в 5.1 он есть и у заголовков статблоков («Deva (Angel)»),
-# и у строк указателя — в ключ эталона он не входит.
-STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
 failures = []
 
 
@@ -155,28 +156,6 @@ def align_to_en(text: str, version: str):
                 GENDER_USED[version] += 1
                 return ALIGN_RU[t[:-2] + ending]
     return None
-
-
-# Служебные слова, которые в наших шапках остаются со строчной («Swarm of Tiny Beasts»).
-TITLE_LOWER = {"of", "or"}
-
-
-def titlecase_header(raw: str) -> str:
-    """Строка PDF → наш формат: каждое слово с прописной, кроме служебных.
-
-    PDF 5.1 пишет тип и мировоззрение со строчной («Large aberration, lawful evil»),
-    импорт приводит их к прописным. Преобразование механическое, поэтому его можно
-    проверять, а не принимать на веру.
-    """
-    out = []
-    for token in raw.split(" "):
-        if out and token.lower().strip("(),") in TITLE_LOWER:
-            out.append(token)
-            continue
-        m = re.search(r"[A-Za-z]", token)
-        out.append(token if not m else token[:m.start()] + token[m.start()].upper()
-                   + token[m.start() + 1:])
-    return " ".join(out)
 
 
 DASH = {"-", "—"}
@@ -258,38 +237,6 @@ for _en, _ru in sorted(SUBTYPES_RU.items()):
         failures.append(
             f"{SUBTYPE_DICT.name}: подтип «{_en}» → «{_ru}», а в словаре тот же термин "
             f"→ «{_base}»")
-
-
-def paren_groups(text: str) -> list:
-    """Группы верхнего уровня в скобках, с учётом вложенности."""
-    out, depth, start = [], 0, None
-    for i, ch in enumerate(text):
-        if ch == "(":
-            if depth == 0:
-                start = i + 1
-            depth += 1
-        elif ch == ")" and depth:
-            depth -= 1
-            if depth == 0:
-                out.append(text[start:i])
-    return out
-
-
-def en_group_from_ru_heading(heading: str) -> str:
-    """Последняя группа скобок с латиницей — имя оригинала КАК НАПИСАНО, с хвостом."""
-    latin = [g for g in paren_groups(heading) if re.search(r"[A-Za-z]", g)]
-    return latin[-1].strip() if latin else heading.strip()
-
-
-def en_name_from_ru_heading(heading: str) -> str:
-    """Оригинальное имя из RU-заголовка статблока.
-
-    В 5.2 всё просто: «Летучая мышь (Bat)». В 5.1 заголовки разнородны — «Балор (Balor)
-    (Демон)», «Андросфинкс (Androsphinx (Sphinx))», «Гном глубинный (свирфнеблин)
-    (Gnome, Deep (Svirfneblin))». Берём последнюю группу скобок с латиницей и снимаем
-    её собственный таксономический хвост — так ключ сходится с именем EN-заголовка.
-    """
-    return STRIP_TAIL.sub("", en_group_from_ru_heading(heading)).strip()
 
 
 def ru_part_from_heading(heading: str) -> str:

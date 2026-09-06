@@ -180,7 +180,7 @@ You can also use an action to cast the *detect magic* spell from the orb without
 
 #### Avatar of Death
 
-*Medium undead, neutral evil*
+*Medium Undead, Neutral Evil*
 
 **Armor Class** 20
 
@@ -586,7 +586,7 @@ As an action, one dose of the ointment can be swallowed or applied to the skin. 
 
 #### Giant Fly
 
-*Large beast, unaligned*
+*Large Beast, Unaligned*
 
 **Armor Class** 11
 
