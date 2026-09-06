@@ -17,7 +17,8 @@
 3181 значение эталона из PDF и падает, если хоть одно перестало воспроизводиться.
 
 Что проверяем:
-  1) EN — каждое поле каждого блока против эталона, и лишних полей в тексте нет;
+  1) EN — каждое поле каждого блока против эталона (включая таблицу характеристик:
+     336 × 6 × значение/модификатор/спасбросок), и лишних полей в тексте нет;
   2) состав эталона — обязательные ключи у всех блоков, число ячеек ПО КАЖДОМУ полю и
      отпечаток структуры «блок → набор полей» (иначе согласованное удаление поля из
      эталона и обоих текстов, а равно обмен полями между блоками, проходили бы молча);
@@ -26,8 +27,11 @@
   4) форма строк текста, которую сравнение значений намеренно не видит (хвостовая
      пунктуация скорости, метки полей);
   5) колонки указателей (ПО, КД, хиты) — против тех же блоков;
-  6) ПО против официальной таблицы «ПО → опыт и бонус мастерства»;
-  7) опечатки САМОГО PDF объявляются в эталоне (`cr_note`/`cr_repo`/`xp_note`/`pb_note`),
+  6) ПО против официальной таблицы «ПО → опыт и бонус мастерства», а характеристики —
+     против двух производных инвариантов: модификатор выводится из значения, спасбросок
+     отличается от модификатора на 0, бонус мастерства или удвоенный бонус;
+  7) опечатки САМОГО PDF объявляются в эталоне (`cr_note`/`cr_repo`/`xp_note`/`pb_note`/
+     `abilities_note`/`abilities_repo`),
      а не молча терпятся: «3 (700 XP)» в PDF против нашего «3 (XP 700)». Пометка — это
      утверждение: она обязана назвать спорные числа И сказать словами, что в источнике.
 
@@ -66,11 +70,11 @@ PDF_PAGE_SIZE = "594 x 783"
 # откуда взялось новое значение.
 # Отпечаток структуры эталона: «имя блока → набор полей». Пришпилен рядом со счётчиками,
 # потому что счётчики ловят усыхание, а отпечаток — перестановку поля между блоками.
-STRUCTURE_SHA = "3027e107e8db11d296760bfd39a1c320503cf2750512bce5150de7a0c74cbee9"
+STRUCTURE_SHA = "ed3a6cce774ba14f871d23502c358bebf83b353e5ca7609e41e221b07b0d57a9"
 # Сколько блоков несут логовую оговорку («or 7,200 in lair»). Пришпилено: её стирание
 # согласованно из эталона и обоих текстов иначе не оставляет следа.
 LAIR_BLOCKS = 27
-FIELD_COUNTS = {"header": 336, "ac": 336, "hp": 336, "speed": 336, "senses": 336,
+FIELD_COUNTS = {"header": 336, "abilities": 336, "ac": 336, "hp": 336, "speed": 336, "senses": 336,
                 "languages": 336, "cr": 336, "initiative": 332, "skills": 216,
                 "immunities": 150, "resistances": 71, "gear": 45, "vulnerabilities": 15}
 
@@ -90,12 +94,22 @@ RU_LABELS = {"Класс доспеха": "ac", "КД": "ac", "Хиты": "hp", 
 # Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне.
 # Поля, которые есть у КАЖДОГО статблока. Отсутствие любого из них в эталоне — дыра
 # эталона (ровно та, из-за которой «Mimic Languages None» и «Animated Object AC» молчали).
-REQUIRED = ("header", "ac", "hp", "speed", "senses", "languages", "cr")
+REQUIRED = ("header", "abilities", "ac", "hp", "speed", "senses", "languages", "cr")
 # Заголовки внутри статблока — не имена блоков.
 SERVICE_HEADINGS = {"traits", "actions", "bonus actions", "reactions", "legendary actions",
                     "особенности", "действия", "бонусные действия", "реакции",
                     "легендарные действия", "свойства"}
 # Первое слово шапки — размер; словари канонические, из продукционного парсера.
+ABIL = ("str", "dex", "con", "int", "wis", "cha")
+# Метки таблицы характеристик в обоих языках и в обеих формах записи.
+ABIL_ROWS = {"SCORE": "score", "MOD": "mod", "SAVE": "save",
+             "ЗНАЧ": "score", "МОД": "mod", "СПАС": "save"}
+ABILITIES = {"str": "str", "dex": "dex", "con": "con", "int": "int", "wis": "wis",
+             "cha": "cha", "сил": "str", "лов": "dex", "тел": "con", "инт": "int",
+             "мдр": "wis", "хар": "cha"}
+# Ячеек в таблицах характеристик: 336 блоков × 6 характеристик × (значение, модификатор,
+# спасбросок). Пришпилено рядом с составом полей — по той же причине.
+ABILITY_CELLS = 6048
 SIZE_PREFIX = "|".join(sorted(set(SIZES_EN) | set(SIZES_RU_TO_EN), key=len, reverse=True))
 failures = []
 
@@ -224,6 +238,23 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
                                 f"(«{block[key]}» и «{m.group(1).strip()}»)")
                 continue
             block[key] = m.group(1).strip()
+        # Таблица характеристик. В главах она транспонирована (строки ЗНАЧ/МОД/СПАС по
+        # колонкам характеристик), во врезках — обычная, строка на характеристику.
+        if s.startswith("|"):
+            cells = [c.strip() for c in s.strip("|").split("|")]
+            row = cells[0].upper() if cells else ""
+            head = [ABILITIES.get(c.lower()) for c in cells[1:7]]
+            if not cells[0] and len(cells) > 6 and all(head):
+                # Шапка таблицы: порядок колонок держит весь разбор ниже (он позиционный),
+                # поэтому перестановка колонок обязана быть видна.
+                if head != list(ABIL):
+                    failures.append(f"{where} «{name}»: колонки таблицы характеристик идут "
+                                    f"{cells[1:7]} — ожидался порядок СИЛ ЛОВ ТЕЛ ИНТ МДР ХАР")
+            if row in ABIL_ROWS and len(cells) > 6:
+                block.setdefault("_rows", {})[ABIL_ROWS[row]] = cells[1:7]
+            elif cells and ABILITIES.get(cells[0].lower()) and len(cells) > 3:
+                block.setdefault("abilities", {})[ABILITIES[cells[0].lower()]] = cells[1:4]
+            continue
         m = re.match(r"^(?:- )?\*\*(?:CR|ПО):?\*\*:?\s*(.+)$", s)
         if m:
             if "cr" in block:
@@ -231,6 +262,14 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
             else:
                 block["cr"] = m.group(1).strip()
     flush()
+    for _n, _b in out:
+        rows = _b.pop("_rows", None)
+        if rows and set(rows) == {"score", "mod", "save"}:
+            _b["abilities"] = {a: [rows["score"][i], rows["mod"][i], rows["save"][i]]
+                               for i, a in enumerate(ABIL)}
+        elif rows:
+            failures.append(f"{where} «{_n}»: в таблице характеристик нет строк "
+                            f"{', '.join(sorted({'score', 'mod', 'save'} - set(rows)))}")
     # Дубль ЗАГОЛОВКА — сверх дубля блока: скопированный заголовок без полей блоком не
     # становится и иначе был бы невидим. В главах монстров каждый заголовок — статблок,
     # а во врезочных главах имя существа законно совпадает с именем заклинания
@@ -423,7 +462,12 @@ if _lair != LAIR_BLOCKS:
     failures.append(f"состав эталона: логовая оговорка у {_lair} блоков, а по PDF "
                     f"у {LAIR_BLOCKS}")
 _have = Counter(k for f in expected.values() for k in f if k not in META_KEYS)
-_cells = sum(_have.values())
+_ability_cells = sum(len(v) for f in expected.values()
+                     for v in f.get("abilities", {}).values())
+if _ability_cells != ABILITY_CELLS:
+    failures.append(f"состав эталона: ячеек характеристик {_ability_cells}, "
+                    f"а по PDF {ABILITY_CELLS}")
+_cells = sum(_have.values()) - _have.get("abilities", 0) + _ability_cells
 for _key in sorted(set(_have) | set(FIELD_COUNTS)):
     if _have.get(_key, 0) != FIELD_COUNTS.get(_key, 0):
         failures.append(f"состав эталона: поле «{_key}» у {_have.get(_key, 0)} блоков, "
@@ -480,6 +524,35 @@ for name, fields in sorted(expected.items()):
                         f"но не в эталоне PDF — расходятся текст и эталон")
     for field, want in fields.items():
         if field in META_KEYS:
+            continue
+        if field == "abilities":
+            # 18 ячеек на блок: сверяем поимённо, иначе одна правка внутри таблицы
+            # растворяется в «таблица не совпала».
+            got_table = got.get("abilities")
+            if not got_table:
+                failures.append(f"EN «{name}»: таблицы характеристик нет в тексте")
+                continue
+            override = fields.get("abilities_repo", {})
+            for abil in ABIL:
+                pdf_cells = want.get(abil)
+                want_cells = override.get(abil, pdf_cells)
+                text_cells = got_table.get(abil)
+                if pdf_cells is None or text_cells is None:
+                    failures.append(f"EN «{name}»: в таблице характеристик нет «{abil}»")
+                    continue
+                for idx, part in enumerate(("значение", "модификатор", "спасбросок")):
+                    if text_cells[idx].replace("−", "-") != want_cells[idx]:
+                        source = (f"PDF «{pdf_cells[idx]}», у нас ждём «{want_cells[idx]}»"
+                                  if want_cells[idx] != pdf_cells[idx]
+                                  else f"PDF «{pdf_cells[idx]}»")
+                        failures.append(f"EN «{name}» {abil} {part}: "
+                                        f"«{text_cells[idx]}» ≠ {source}")
+                if abil in override:
+                    problem = declared(fields.get("abilities_note"),
+                                       (int(pdf_cells[2]), int(override[abil][2])))
+                    if problem:
+                        failures.append(f"эталон «{name}»: правка таблицы характеристик "
+                                        f"объявлена, но {problem}")
             continue
         # Эталон хранит строку PDF; если у PDF там опечатка, в тексте ждём исправленную
         # форму, объявленную в самом эталоне.
@@ -569,10 +642,22 @@ for name, fields in sorted(en_blocks.items()):
                         f"но не в EN")
     # Числа общие для обеих половин: перевод свой только у слов.
     for field, value in sorted(fields.items()):
-        if field == "header" or field not in got:
+        if field in ("header", "abilities") or field not in got:
             continue
         if numbers(value) != numbers(got[field]):
             failures.append(f"RU «{name}» {field}: «{got[field]}» ≠ EN «{value}» (числа)")
+    # Таблица характеристик — чистые числа: перевода в ней нет вовсе, поэтому RU обязана
+    # совпадать с EN ячейка в ячейку.
+    en_table, ru_table = fields.get("abilities"), got.get("abilities")
+    if en_table and not ru_table:
+        failures.append(f"RU «{name}»: таблицы характеристик нет в переводе")
+    elif en_table and ru_table:
+        for abil in ABIL:
+            en_cells, ru_cells = en_table.get(abil), ru_table.get(abil)
+            if not ru_cells:
+                failures.append(f"RU «{name}»: в таблице характеристик нет «{abil}»")
+            elif [c.replace("−", "-") for c in ru_cells] != [c.replace("−", "-") for c in en_cells]:
+                failures.append(f"RU «{name}» {abil}: {ru_cells} ≠ EN {en_cells}")
     # Снаряжение: количество пишется скобкой («Daggers (10)» / «Кинжалы (10)»), и это
     # форма записи, а не перевод, — иначе откат к «Кинжал x 10» виден только глазами.
     if "gear" in fields and "gear" in got and fields["gear"].count("(") != got["gear"].count("("):
@@ -596,6 +681,40 @@ for name, fields in sorted(en_blocks.items()):
                             f"≠ EN «{en_size[0]}»")
 for name in sorted(set(ru_blocks) - set(en_blocks)):
     failures.append(f"RU: статблок «{name}» есть в переводе, но не в EN")
+
+# --- 2.5. Характеристики: инварианты, не зависящие от эталона -------------------------
+# Модификатор выводится из значения, а спасбросок — из модификатора и бонуса мастерства.
+# Эти две проверки не смотрят в эталон вовсе: согласованная подделка эталона и обоих
+# текстов ими всё равно ловится, если подделка нарушает правила игры.
+for name, block in sorted(en_blocks.items()):
+    table = block.get("abilities")
+    if not table:
+        continue
+    pb = re.search(r"PB \+(\d+)", block.get("cr", ""))
+    bonus = int(pb.group(1)) if pb else None
+    for abil in ABIL:
+        cells = table.get(abil)
+        if not cells:
+            continue
+        try:
+            score, mod, save = (int(c.replace("−", "-").replace("+", "")) for c in cells)
+        except ValueError:
+            failures.append(f"EN «{name}» {abil}: в таблице характеристик не числа {cells}")
+            continue
+        if mod != (score - 10) // 2:
+            failures.append(f"EN «{name}» {abil}: модификатор {mod:+d} не выводится из "
+                            f"значения {score} — ожидался {(score - 10) // 2:+d}")
+        gap = save - mod
+        if gap < 0:
+            failures.append(f"EN «{name}» {abil}: спасбросок {save:+d} ниже модификатора "
+                            f"{mod:+d}")
+        elif gap and bonus is None:
+            failures.append(f"EN «{name}» {abil}: спасбросок {save:+d} выше модификатора, "
+                            f"а бонуса мастерства в ПО «{block.get('cr')}» нет")
+        elif gap and (gap % bonus or gap // bonus > 2):
+            failures.append(f"EN «{name}» {abil}: спасбросок {save:+d} на {gap} выше "
+                            f"модификатора {mod:+d} — не 0, не бонус мастерства (+{bonus}) "
+                            f"и не удвоенный бонус")
 
 # --- 3. Форма строк, которую сравнение значений намеренно не видит ---------------------
 # canon() снимает хвостовую пунктуацию (в эталоне её нет ни у одной скорости), поэтому

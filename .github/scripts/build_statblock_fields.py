@@ -171,6 +171,47 @@ def pdf_blocks(path: "Path", bare: bool = False) -> dict:
 duplicates = []
 
 
+ABIL = ("Str", "Dex", "Con", "Int", "Wis", "Cha")
+# Строка характеристик колонной выемки: «Str 18 +4 +4   Dex 10 +0 +3   Con 18 +4 +4».
+# Знак минуса в PDF типографский (U+2212), пробел между меткой и значением бывает съеден
+# («Con22»), а у Молодого белого дракона в самом PDF потерян минус спасброска Интеллекта.
+ABIL_ROW = re.compile(r"(Str|Dex|Con|Int|Wis|Cha)\s*(\d+)\s+([+\-−]?\d+)\s+([+\-−]?\d+)")
+
+
+def pdf_abilities(path: Path) -> dict:
+    """{имя: {характеристика: [значение, модификатор, спасбросок]}} из колонной выемки.
+
+    Таблица характеристик — единственное поле блока, которое конвертеры дают только в
+    колонной выемке: в двухколоночной вёрстке она стоит между полями и разрывается.
+    """
+    lines = unicodedata.normalize("NFKC", path.read_text(encoding="utf-8")).replace("’", "'")
+    lines = lines.split("\n")
+    out = {}
+    for i, line in enumerate(lines):
+        if not re.match(rf"^\s*{SIZE}\b", line.strip()):
+            continue
+        name = None
+        for back in range(i - 1, max(i - 4, -1), -1):
+            cand = lines[back].strip()
+            if cand and not re.search(r"\d", cand) and len(cand) < 60:
+                name = cand
+                break
+        if not name or name in out:
+            continue
+        vals = {}
+        for j in range(i + 1, min(i + 40, len(lines))):
+            if re.match(r"^\s*(Str|Dex|Con|Int|Wis|Cha)\s*\d", lines[j]):
+                for m in ABIL_ROW.finditer(lines[j]):
+                    vals.setdefault(m.group(1).lower(),
+                                    [m.group(2), m.group(3).replace("−", "-"),
+                                     m.group(4).replace("−", "-")])
+            if len(vals) == 6:
+                break
+        if len(vals) == 6:
+            out[name] = vals
+    return out
+
+
 def repo_blocks() -> dict:
     """Поля статблоков из текста репозитория — все четыре главы, включая врезки.
 
@@ -208,6 +249,22 @@ def repo_blocks() -> dict:
             m = re.match(r"^(?:- )?\*\*CR:?\*\*\s*(.+)$", s)
             if m and "cr" not in block:
                 block["cr"] = norm(m.group(1))
+                continue
+            # Таблица характеристик: в главах она транспонирована (строки SCORE/MOD/SAVE),
+            # во врезках обычная (строка на характеристику).
+            if s.startswith("|"):
+                cells = [c.strip() for c in s.strip("|").split("|")]
+                if cells and cells[0].upper() in ("SCORE", "MOD", "SAVE") and len(cells) > 6:
+                    block.setdefault("_rows", {})[cells[0].upper()] = cells[1:7]
+                elif cells and cells[0].capitalize() in ABIL and len(cells) > 3:
+                    block.setdefault("abilities", {})[cells[0].lower()] = cells[1:4]
+        if name and block:
+            out.setdefault(name, block)
+    for block in out.values():
+        rows = block.pop("_rows", None)
+        if rows and set(rows) == {"SCORE", "MOD", "SAVE"}:
+            block["abilities"] = {a.lower(): [rows["SCORE"][i], rows["MOD"][i], rows["SAVE"][i]]
+                                  for i, a in enumerate(ABIL)}
     return out
 
 
@@ -236,7 +293,9 @@ def extractions() -> dict:
     marker = pdf_blocks(source("SRD_MARKER", "/tmp/dnd_srd-5.2.1_recovered.md"))
     alt = pdf_blocks(source("SRD_PYMUPDF", "/tmp/dnd_srd-5.2.1_pymupdf.md"))
     docling = pdf_blocks(source("SRD_DOCLING", "/tmp/dnd_srd-5.2.1_docling.md"), bare=True)
-    cols = pdf_blocks(interleave_columns(), bare=True)
+    cols_file = interleave_columns()
+    cols = pdf_blocks(cols_file, bare=True)
+    abilities = pdf_abilities(cols_file)
     merged = dict(marker)
     for extra in (alt, docling, cols):
         for name, block in extra.items():
@@ -245,6 +304,9 @@ def extractions() -> dict:
                 continue
             for field, value in block.items():
                 merged[name].setdefault(field, value)
+    for name, table in abilities.items():
+        if name in merged:
+            merged[name].setdefault("abilities", table)
     return merged
 
 
@@ -261,6 +323,25 @@ if __name__ == "__main__":
             if field in META_KEYS:
                 continue
             got = pdf.get(name, {}).get(field)
+            if field == "abilities":
+                # У характеристик 18 ячеек на блок — считаем их поимённо, иначе одна
+                # правка внутри таблицы теряется в одном общем «совпало».
+                for abil in ABIL:
+                    key = abil.lower()
+                    want_cells = (want or {}).get(key)
+                    got_cells = (got or {}).get(key)
+                    for idx, part in enumerate(("значение", "модификатор", "спасбросок")):
+                        w = want_cells[idx] if want_cells else None
+                        g = got_cells[idx] if got_cells else None
+                        if w is None:
+                            continue
+                        if g is None:
+                            unreachable.append(f"{name}.{key}.{part}")
+                        elif norm(g) == norm(w):
+                            same += 1
+                        else:
+                            differ.append(f"{name}.{key}.{part}: выемка «{g}» ≠ эталон «{w}»")
+                continue
             if got is None:
                 unreachable.append(f"{name}.{field}")
             elif norm(got) == norm(want):
