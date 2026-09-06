@@ -1,12 +1,13 @@
 # Правовая информация
 
-System Reference Document 5.1 предоставляется вам безвозмездно на условиях лицензии Creative Commons Attribution 4.0 International («CC-BY-4.0»). Вы можете использовать это содержимое любым способом, допускаемым лицензией, при условии, что вы включите следующее заявление об атрибуции в любую свою работу:
+System Reference Document 5.1 («SRD 5.1») предоставляется вам безвозмездно на условиях лицензии Creative Commons Attribution 4.0 International («CC-BY-4.0»). Вы можете использовать содержимое этого документа в пределах, допускаемых лицензией CC-BY-4.0, при условии, что вы включите следующее заявление об атрибуции в любую свою работу:
 
 > This work includes material taken from the System Reference Document 5.1 ("SRD 5.1") by Wizards of the Coast LLC and available at https://dnd.wizards.com/resources/systems-reference-document. The SRD 5.1 is licensed under the Creative Commons Attribution 4.0 International License available at https://creativecommons.org/licenses/by/4.0/legalcode.
 
 Пожалуйста, не включайте никакую другую атрибуцию Wizards, кроме указанной выше. Однако вы можете включить в свою работу заявление о том, что она «совместима с пятой редакцией» или «совместима с 5E».
 
-Раздел 5 CC-BY-4.0 содержит Отказ от гарантий и Ограничение ответственности, ограничивающие ответственность перед вами.
+Раздел 5 CC-BY-4.0 содержит Отказ от гарантий и Ограничение ответственности, которые ограничивают нашу ответственность перед вами.
+
 
 ---
 
