@@ -112,6 +112,13 @@ DECLARED_GAPS = {
     # Русское имя оригинала есть только у RU-половины — так устроен формат.
     "name_en",
 }
+# Зеркало сверяет ЧИСЛА, а не состав, поэтому согласованная потеря у ОБЕИХ половин
+# (EN 0 = RU 0) ему не видна. Для полей статблока вторую половину класса держит эталон
+# полей (`test_statblock_fields.py`), а ссылки на заклинания в эталон не входят — их
+# держит этот пин: минимум непустых значений по главе.
+MIN_NON_EMPTY = {
+    ("srd51", "monsters"): {"spells": 36},
+}
 by_source = {}
 for src in getattr(config, "SOURCES", []):
     if src["type"] != "monster":
@@ -135,6 +142,11 @@ for (ver, out), halves in sorted(by_source.items()):
         if counts["en"] != counts["ru"]:
             failures.append(f"{ver}/{out}: поле «{field}» непусто у EN {counts['en']} блоков, "
                             f"у RU {counts['ru']} — половины JSON API разошлись")
+        floor = MIN_NON_EMPTY.get((ver, out), {}).get(field)
+        if floor is not None and min(counts.values()) < floor:
+            failures.append(f"{ver}/{out}: поле «{field}» непусто у EN {counts['en']} и RU "
+                            f"{counts['ru']} блоков, а по корпусу должно быть хотя бы "
+                            f"{floor} — потеряно у обеих половин сразу")
 
 if failures:
     print(f"❌ Разбор статблока ({len(failures)}):")
