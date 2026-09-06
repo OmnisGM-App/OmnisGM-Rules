@@ -1,0 +1,67 @@
+name: Claude auto-review
+
+# Авто-ревью каждого коммита PR (#443-процесс, скилл omnisgm-review из плагина omnisgm).
+# Новый пуш в PR отменяет незаконченное ревью и запускает свежее (concurrency ниже).
+# Работает на личной подписке владельца: CLAUDE_CODE_OAUTH_TOKEN из `claude setup-token`.
+on:
+  pull_request:
+    types: [opened, synchronize, reopened, ready_for_review]
+
+concurrency:
+  # Один прогон на PR: прилетел новый коммит — текущее ревью стопается и стартует заново.
+  group: claude-review-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  review:
+    if: github.event.pull_request.draft == false
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write
+      issues: read
+      id-token: write
+      actions: read
+    steps:
+      - name: Checkout PR
+        uses: actions/checkout@v4
+        with:
+          # Полная история: ревью сверяет опоры по базовой ветке (git diff base...head).
+          fetch-depth: 0
+
+      - name: Claude review
+        uses: anthropics/claude-code-action@v1
+        with:
+          claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
+          github_token: ${{ github.token }}
+          track_progress: false
+          # Маркетплейс приватный — клонится fine-grained PAT-ом (contents: read
+          # на OmnisGM-App/claude-plugins); секрет в URL маскируется логами Actions.
+          plugin_marketplaces: |
+            https://x-access-token:${{ secrets.CLAUDE_PLUGINS_TOKEN }}@github.com/OmnisGM-App/claude-plugins.git
+          plugins: |
+            omnisgm@omnisgm
+          claude_args: |
+            --max-turns 60
+          prompt: |
+            Ты — CI-ревьюер PR #${{ github.event.pull_request.number }} в ${{ github.repository }}.
+            Прочитай SKILL.md скилла omnisgm-review из установленного плагина omnisgm и проведи
+            ОДИНОЧНОЕ ревью по его §§1–5 с поправками на CI:
+
+            - Рабочая копия — уже вычекнутая ветка PR в $GITHUB_WORKSPACE (не локальные клоны
+              из скилла). Дифф: `git diff origin/${{ github.base_ref }}...HEAD`. Опоры (контракты,
+              полноту замены) проверяй грепом по рабочей копии.
+            - НИЧЕГО не собирать и не запускать: ни тестов, ни эмуляторов, ни песочниц —
+              только чтение кода и диффа. Мутационные проверки пропускай, честно помечая
+              «не проверялось в CI».
+            - Каждая находка — с доказательством (файл:строка, вывод грепа) и тяжестью
+              (❗ существенное / среднее / ремарка). Пре-существующее, вкусовое и «потенциальное»
+              без конкретного входа — не находки.
+            - Публикация: ОДИН review-объект (body + inline-комменты к строкам диффа) через
+              `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`
+              с event=COMMENT. Тело — шапка-вердикт в одну-две строки (голова, итог, «+N инлайнов»);
+              находка на строку диффа — ТОЛЬКО инлайном с полным текстом, из тела целиком убирается.
+              Если находок нет — короткий коммент «CI-ревью: находок нет» с головой коммита.
+            - НЕ одобрять (no APPROVE), НЕ давать финальный LGTM, НЕ мёржить, НЕ править код:
+              финальный вердикт и гейт прогонов остаются за живой сессией ревью владельца.
+            - Пиши по-русски, тон и формат — как в предыдущих ревью в треде PR.
