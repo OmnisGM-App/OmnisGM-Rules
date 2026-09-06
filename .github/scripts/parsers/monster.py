@@ -366,8 +366,12 @@ def _parse_section_entries(text: str) -> list[dict]:
 def _extract_spells_from_traits(traits: list[dict], lang: str) -> list[str]:
     """Extract spell names referenced in italic from spellcasting traits."""
     spells = []
+    # RU-корпус 5.1 называет черту тремя способами: «Врождённое колдовство» (24 блока),
+    # «Использование заклинаний» (11) и «Сотворение заклинаний» (1). Пока словарь знал
+    # только два, ссылки на заклинания у 11 монстров не доезжали до JSON API (#269).
     spellcasting_keywords = ["spellcasting", "сотворение заклинаний", "innate spellcasting",
-                              "врождённое сотворение", "колдовство"]
+                             "врождённое сотворение", "колдовство",
+                             "использование заклинаний"]
 
     for trait in traits:
         if any(kw in trait["name"].lower() for kw in spellcasting_keywords):
