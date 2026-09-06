@@ -568,14 +568,29 @@ if __name__ == "__main__":
     # …и обратная сторона: блок есть в выемке, но не доехал до эталона. «Эталон недобрал
     # блок» иначе выглядело бы так же, как «блоков ровно столько, сколько нужно».
     # Имена сводим так же, как значения (апостроф выемки — типографский): иначе
-    # «Will-o’-Wisp» выглядит блоком, которого в эталоне нет.
+    # «Will-o’-Wisp» выглядит блоком, которого в эталоне нет. И отсеиваем заведомо
+    # неблочные имена: колонная резка ловит на эвристику шапки куски прозы и заголовки
+    # таблиц, и настоящий недобор («эталон потерял существо») тонул бы среди них
+    # двадцатой строкой. Признак блока — те же поля, по которым он попадает в эталон.
     fixture_names = {norm(n) for n in fixture}
-    extra = sorted(n for n in pdf if norm(n) not in fixture_names)
-    print(f"есть в выемках, но не в эталоне: {len(extra)}")
+    def looks_like_block(name: str, fields: dict) -> bool:
+        # Имя без точки и не служебный заголовок статблока, плюс поля, по которым блок
+        # вообще попадает в эталон: этого хватает, чтобы отделить существо от обрывка.
+        return ({"ac", "hp", "abilities"} <= set(fields) and "." not in name
+                and name.lower() not in ("actions", "bonus actions", "reactions", "traits",
+                                         "legendary actions"))
+
+    extra = sorted(n for n, f in pdf.items()
+                   if norm(n) not in fixture_names and looks_like_block(n, f))
+    noise = sum(1 for n in pdf if norm(n) not in fixture_names) - len(extra)
+    print(f"есть в выемках, но не в эталоне: {len(extra)} "
+          f"(и ещё {noise} неблочных обрывков колонной резки)")
     for name in extra:
         print(f"  + {name}")
     for line in duplicates:
         print(f"  ! {line}")
     # Ненулевой код возврата — чтобы «эталон воспроизводится» было утверждением,
     # которое можно прогнать, а не обещанием в докстроке.
-    sys.exit(1 if differ or unreachable or missing or duplicates else 0)
+    # Обе стороны полноты входят в код возврата: «эталон недобрал блок» — такое же
+    # расхождение, как «блок пропал из текста».
+    sys.exit(1 if differ or unreachable or missing or duplicates or extra else 0)

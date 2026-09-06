@@ -25,7 +25,8 @@ EN_LABELS_51 = {"Armor Class": "ac", "Hit Points": "hp", "Speed": "speed",
                 "Condition Immunities": "condition_immunities",
                 "Damage Resistances": "damage_resistances",
                 "Damage Vulnerabilities": "damage_vulnerabilities"}
-# RU обе формы «Сопротивление к урону» пишет одной меткой, поэтому здесь их на одну меньше.
+# RU обе формы («Damage Resistances» и единственное число источника) пишет одной меткой —
+# то есть одна RU-метка покрывает два ER-ключа; мощность словарей при этом одинакова.
 RU_LABELS_51 = {"Класс Доспеха": "ac", "Хиты": "hp", "Скорость": "speed",
                 "Спасброски": "saves", "Навыки": "skills", "Чувства": "senses",
                 "Языки": "languages", "Иммунитет к урону": "damage_immunities",
