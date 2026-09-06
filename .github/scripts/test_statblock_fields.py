@@ -21,7 +21,7 @@
 9229 ячеек) снят с официального PDF 5.2.1 четырьмя независимыми выемками (marker,
 pymupdf4llm, docling и постраничная резка `pdftotext` по колонкам — конвертеры теряют
 разные поля на двухколоночной вёрстке), `fixtures/srd-5.1-statblock-fields.json`
-(319 блоков, 6635 ячеек) — с PDF 5.1 постраничной резкой по колонкам. Оба пересобираются
+(320 блоков, 6639 ячеек) — с PDF 5.1 постраничной резкой по колонкам. Оба пересобираются
 и сверяются `build_statblock_fields.py` — тот прогон воспроизводит КАЖДОЕ значение эталона
 из PDF и падает, если хоть одно перестало воспроизводиться.
 
@@ -119,7 +119,7 @@ def canon(field: str, value: str, lower_fields=("senses",), senses_comma=False,
 
     ПЯТЬ общих и ДВА версионных. Версионное послабление включается только той редакцией,
     которой оно нужно: включённое для обеих, оно молча снимает сверку у той, где различия
-    нет (так «;» → «,» сняло разделитель чувств у 336 блоков 5.2, а сведение тире — знак
+    нет (так «;» → «,» сняло разделитель чувств у 255 блоков 5.2 из 336, а тире — знак
     в инициативе).
 
     Гасятся ровно эти вещи, и каждая намеренно:
@@ -251,8 +251,9 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
                 # Совет буквально: почините МЕТКУ, а не удаляйте строку. Собственные метки
                 # редакций местами различаются лишь регистром («Класс доспеха» у 5.2 против
                 # «Класс Доспеха» у 5.1), поэтому сюда попадает и опечатка в своей метке.
-                failures.append(f"{where} «{name or closed}»: строка «{s[:40]}» — метка не "
-                                f"той редакции SRD (или опечатка в своей): почините метку")
+                failures.append(f"{where} «{name or closed or 'до первого блока'}»: "
+                                f"строка «{s[:40]}» — метка не той редакции SRD (или "
+                                f"опечатка в своей): почините метку")
         if block is None:
             if closed and re.match(r"^(?:- )?\*\*(?:%s|%s):?\*\*"
                                    % ("|".join(labels), cr_labels), s):
@@ -385,7 +386,7 @@ def ac_value(ac: str) -> str:
     """«17 (natural armor)» → «17»: указатель 5.1 несёт только число.
 
     Послабление ВЕРСИОННОЕ (`ac_bare_in_index`): у 5.1 скобка с видом доспеха стоит в
-    статблоке у 209 значений и в указателе её нет, у 5.2 таких значений ноль — и там
+    статблоке у 209 значений из 320 и в указателе её нет, у 5.2 таких значений ноль — там
     указатель обязан совпадать со статблоком дословно. Безусловное, оно снимало бы
     сверку формы у 5.2 «про запас», а импорт как раз такие хвосты и приносит.
     """
@@ -505,6 +506,14 @@ def check_version(V: dict) -> None:
     if V['pb_table_fractions'] != any("/" in _cr for _cr in PB_BY_CR):
         failures.append("канон: дробные строки таблицы бонуса мастерства есть/нет вопреки "
                         "конфигурации редакции")
+    # Бонус мастерства выводится из ПО формулой (2 + (ПО−1)//4, у ПО 0 и дробного — 2),
+    # поэтому согласованная порча ОБЕИХ половин таблицы ловится и там, где производному
+    # инварианту не за что зацепиться: у ПО 18 и 25–29 носителей со спасбросками нет.
+    for _cr, _pb in sorted(PB_BY_CR.items()):
+        _want_pb = 2 if "/" in _cr or _cr == "0" else 2 + (int(_cr) - 1) // 4
+        if _pb != _want_pb:
+            failures.append(f"канон: бонус мастерства ПО {_cr} — +{_pb}, а по правилу "
+                            f"+{_want_pb} (2 + (ПО−1)//4, у ПО 0 и дробного — 2)")
     if len(XP_BY_CR) != len(CR_LADDER):
         failures.append(f"канон: в таблице опыта {len(XP_BY_CR)} строк вместо {len(CR_LADDER)}")
     # ПО дробное — бонус тот же, что у ПО 0. Подставляем ТОЛЬКО если таблица редакции
@@ -517,11 +526,10 @@ def check_version(V: dict) -> None:
             # ПО 0 и ПО 1. Сверка EN↔RU согласованную порчу обеих половин не видит, а
             # производный инвариант до этих строк не достаёт — существ с ПО 1/8 и
             # спасбросками в редакции нет.
-            for _ref in ("0", "1"):
-                if _ref in PB_BY_CR and PB_BY_CR[_fraction] != PB_BY_CR[_ref]:
-                    failures.append(f"канон: бонус мастерства ПО {_fraction} — "
-                                    f"+{PB_BY_CR[_fraction]}, а у ПО {_ref} +{PB_BY_CR[_ref]}; "
-                                    f"у дробного ПО бонус тот же")
+            if PB_BY_CR[_fraction] != PB_BY_CR.get("0"):
+                failures.append(f"канон: бонус мастерства ПО {_fraction} — "
+                                f"+{PB_BY_CR[_fraction]}, а у ПО 0 +{PB_BY_CR.get('0')}; "
+                                f"у дробного ПО бонус тот же")
         else:
             PB_BY_CR[_fraction] = PB_BY_CR.get("0", 2)
 
@@ -535,7 +543,14 @@ def check_version(V: dict) -> None:
     # поэтому каждое расхождение обязано назвать редакцию. Одна обёртка вместо префикса
     # в восьмидесяти вызовах: помечаем всё, что добавилось за этот прогон.
 
-    _fixture = json.loads(V['fixture'].read_text(encoding="utf-8"))
+    try:
+        _fixture = json.loads(V['fixture'].read_text(encoding="utf-8"))
+    except (OSError, ValueError) as exc:
+        # Самый вероятный вход — не «файл не той формы», а «файла нет / файл битый»
+        # (оборванный checkout, конфликт слияния). Гейт общий для двух редакций и падать
+        # из-за одной фикстуры, гася отчёт другой, не должен.
+        failures.append(f"эталон {V['version']} ({V['fixture'].name}) не читается: {exc}")
+        return
     # Эталон — выемка из PDF, поэтому у него есть шапка с источником и лицензией;
     # сами блоки лежат под ключом «blocks», чтобы служебные поля не путались с именами существ.
     if "blocks" not in _fixture or "_source" not in _fixture:
@@ -616,7 +631,17 @@ def check_version(V: dict) -> None:
                         "что снят с PDF (отпечаток структуры не сошёлся)")
     # Версионный выключатель обязан иметь НОСИТЕЛЯ: без пина случайный (или скопированный
     # в конфигурацию будущей редакции) `pb_in_cr: False` молча снимает сверку бонуса
-    # мастерства — у 5.2 это 209 блоков, не прикрытых даже инвариантом спасбросков.
+    # мастерства — у 5.2 бонус стоит в ПО у 331 блока, а инвариант спасбросков прикрывает
+    # лишь те из них, где спасбросок выше модификатора.
+    # …то же и для послабления указателя: скобка с видом доспеха либо есть у редакции,
+    # либо нет, и переворот флага не должен проходить молча.
+    _ac_paren = sum(1 for f in expected.values() if "(" in f.get("ac", ""))
+    if V['ac_bare_in_index'] and not _ac_paren:
+        failures.append("состав эталона: ac_bare_in_index включён, а скобки в КД нет ни у "
+                        "одного блока — послаблению нечего гасить")
+    if not V['ac_bare_in_index'] and _ac_paren:
+        failures.append(f"состав эталона: ac_bare_in_index выключен, а скобка в КД стоит "
+                        f"у {_ac_paren} блоков — указатель сверяется не с той формой")
     _with_pb = sum(1 for f in expected.values() if re.search(r"PB \+\d+", f.get("cr", "")))
     if V['pb_in_cr'] and not _with_pb:
         failures.append("состав эталона: pb_in_cr включён, а бонуса мастерства нет ни в "
@@ -679,6 +704,17 @@ def check_version(V: dict) -> None:
     for _name in V['outside']:
         if not expected.get(_name, {}).get("outside_chapters"):
             failures.append(f"эталон: блок-врезка «{_name}» пропал или потерял пометку")
+    # Пометка `object_block` снимает с блока ВСЕ обязательные поля, поэтому её список тоже
+    # закрыт и живёт в конфигурации: иначе одна строка в эталоне снимала бы последнего
+    # сторожа состава с любого блока — счётчики и отпечаток структуры автор перегенерирует
+    # штатно, а требование обязательных полей перегенерации не поддаётся.
+    for _name in V['object_blocks']:
+        if not expected.get(_name, {}).get("object_block"):
+            failures.append(f"эталон: статблок объекта «{_name}» пропал или потерял пометку")
+    for _name, _f in expected.items():
+        if _f.get("object_block") and _name not in V['object_blocks']:
+            failures.append(f"эталон: блок «{_name}» помечен статблоком объекта, но нет в "
+                            f"списке V['object_blocks']")
     for _name, _f in expected.items():
         if _f.get("outside_chapters") and _name not in V['outside']:
             failures.append(f"эталон: блок «{_name}» помечен как врезка, но нет в списке V['outside']")
@@ -1095,10 +1131,14 @@ def check_version(V: dict) -> None:
                 if "cr" in block and cr != cr_value(block["cr"]):
                     failures.append(
                         f"{lang}-указатель {index}, «{name}»: ПО «{cr}» ≠ «{cr_value(block['cr'])}»")
-                want_ac = ac_value(block["ac"]) if V['ac_bare_in_index'] else block["ac"]
-                if "ac" in block and ac != want_ac:
-                    failures.append(
-                        f"{lang}-указатель {index}, «{name}»: КД «{ac}» ≠ «{want_ac}»")
+                if "ac" in block:
+                    # Значение считаем ВНУТРИ охраны: блок без строки КД (ровно тот дефект
+                    # импорта, ради которого писан гейт) иначе ронял прогон трейсбеком и
+                    # уносил весь накопленный отчёт обеих редакций.
+                    want_ac = ac_value(block["ac"]) if V['ac_bare_in_index'] else block["ac"]
+                    if ac != want_ac:
+                        failures.append(
+                            f"{lang}-указатель {index}, «{name}»: КД «{ac}» ≠ «{want_ac}»")
                 if "hp" in block and hp != hp_value(block["hp"]):
                     failures.append(
                         f"{lang}-указатель {index}, «{name}»: хиты «{hp}» ≠ «{hp_value(block['hp'])}»")
@@ -1140,6 +1180,7 @@ VERSIONS = [
         "ru_labels": RU_LABELS_52,
         "outside": ["Animated Object", "Avatar of Death", "Draconic Spirit", "Giant Fly",
                     "Giant Insect", "Otherworldly Steed"],
+        "object_blocks": [],
         # Поля, которые есть у КАЖДОГО статблока: отсутствие любого из них в эталоне —
         # дыра эталона (та, из-за которой «Mimic Languages» и «Animated Object AC» молчали).
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages", "cr"),
@@ -1187,6 +1228,9 @@ VERSIONS = [
         "en_labels": EN_LABELS_51,
         "ru_labels": RU_LABELS_51,
         "outside": ["Apparatus of the Crab", "Avatar of Death", "Giant Fly"],
+        # Статблок ОБЪЕКТА: ни шапки «размер тип, мировоззрение», ни характеристик, ни
+        # чувств с языками — обязательные поля к нему не применяются.
+        "object_blocks": ["Apparatus of the Crab"],
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages"),
         "field_counts": FIELD_COUNTS_51,
         "structure_sha": STRUCTURE_SHA_51,
@@ -1211,7 +1255,7 @@ VERSIONS = [
         "senses_comma": True,
         "dash_fold": True,
         # В указателе 5.1 КД — голое число, а в статблоке к нему приписан вид доспеха
-        # («17 (natural armor)»): 209 значений из 319.
+        # («17 (natural armor)»): 209 значений из 320.
         "ac_bare_in_index": True,
         # …а 5.1 печатает «1/8», «1/4», «1/2» отдельными строками — значит, они читаются
         # из главы и сверяются, а не подставляются.

@@ -7,9 +7,9 @@
 
 import re
 
-# Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне —
-# объявленные опечатки PDF (`cr_note`/`cr_repo`/`xp_note`/`pb_note`/`saves_note`/
-# `saves_repo`/`abilities_note`/`abilities_repo`) и признак врезки.
+# Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне. Здесь —
+# только ОБЪЯВЛЕНИЯ ОПЕЧАТОК источника; пометки СТРУКТУРЫ блока объявлены ниже, в
+# STRUCTURE_KEYS, и требование «назвать пометку в _source.note» на них не распространяется.
 NOTE_KEYS = ("cr_note", "cr_repo", "xp_note", "pb_note", "abilities_note", "abilities_repo",
              "saves_note", "saves_repo")
 # …и пометки СТРУКТУРЫ блока: они не объявляют опечатку источника, а говорят, какого рода
@@ -29,8 +29,9 @@ EN_LABELS_51 = {"Armor Class": "ac", "Hit Points": "hp", "Speed": "speed",
                 "Condition Immunities": "condition_immunities",
                 "Damage Resistances": "damage_resistances",
                 "Damage Vulnerabilities": "damage_vulnerabilities"}
-# RU обе формы («Damage Resistances» и единственное число источника) пишет одной меткой —
-# то есть одна RU-метка покрывает два ER-ключа; мощность словарей при этом одинакова.
+# RU обе формы («Damage Resistances» и единственное число источника) пишет одной меткой,
+# поэтому EN-меток на одну больше — но у LAB_51 в сборщике, который читает PDF; здесь, в
+# словарях НАШЕГО корпуса, мощность одинакова (по 11).
 RU_LABELS_51 = {"Класс Доспеха": "ac", "Хиты": "hp", "Скорость": "speed",
                 "Спасброски": "saves", "Навыки": "skills", "Чувства": "senses",
                 "Языки": "languages", "Иммунитет к урону": "damage_immunities",
