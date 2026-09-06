@@ -16,7 +16,7 @@ import sys
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parsers.monster import _parse_type_line  # noqa: E402
+from parsers.monster import _parse_speed, _parse_type_line  # noqa: E402
 
 CASES = [
     # (строка, язык, размер, тип, подтип, мировоззрение)
@@ -53,7 +53,22 @@ NEGATIVE = [
     ("", "en", ""),
 ]
 
+# Скорость «Climb or Fly 20 ft.»: число относится к обоим режимам. Живого гейта на JSON API
+# нет, а в тексте это единственный такой блок (Рой насекомых), поэтому форма — здесь.
+SPEEDS = [
+    ("20 ft., Climb or Fly 20 ft. (GM's choice)", "en", {"walk": 20, "climb": 20, "fly": 20}),
+    ("20 фт., лазание или полёт 20 фт. (на выбор Мастера)", "ru",
+     {"walk": 20, "climb": 20, "fly": 20}),
+    ("30 ft., Fly 60 ft. (hover)", "en", {"walk": 30, "fly": 60, "climb": None}),
+]
+
 failures = []
+for line, lang, want_speed in SPEEDS:
+    got = _parse_speed(line, lang)
+    for key, value in want_speed.items():
+        if got.get(key) != value:
+            failures.append(f"скорость «{line}» [{lang}] {key}: получили {got.get(key)!r}, "
+                            f"ждали {value!r}")
 for line, lang, size in NEGATIVE:
     got = _parse_type_line(line, lang)
     if got.get("size") != size:
@@ -70,4 +85,5 @@ if failures:
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print(f"✅ Разбор строки типа: {len(CASES)} форм и {len(NEGATIVE)} отрицательных случая")
+print(f"✅ Разбор статблока: {len(CASES)} форм строки типа, {len(NEGATIVE)} отрицательных "
+      f"случая, {len(SPEEDS)} формы скорости")

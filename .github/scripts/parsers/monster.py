@@ -145,6 +145,16 @@ def _parse_speed(value: str, lang: str) -> dict:
                 result[key] = int(m.group(1))
                 break
 
+    # «Climb or Fly 20 ft. (GM's choice)» у Роя насекомых: число относится к ОБОИМ режимам,
+    # а не только к последнему. Без этого climb уезжал пустым, хотя в тексте он есть (#260).
+    for first, second in (("climb", "fly"), ("swim", "fly"), ("burrow", "swim")):
+        for kw_a in speed_types[first]:
+            for kw_b in speed_types[second]:
+                m = re.search(rf"{re.escape(kw_a)}\s+(?:or|или)\s+{re.escape(kw_b)}\s+(\d+)",
+                              v_lower)
+                if m:
+                    result[first] = result[second] = int(m.group(1))
+
     return result
 
 

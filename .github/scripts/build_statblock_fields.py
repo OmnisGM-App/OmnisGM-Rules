@@ -1,6 +1,9 @@
 #!/usr/bin/env python3
 """Сборка и сверка эталона полей статблоков из официального PDF (issue #260).
 
+Версия задаётся аргументом: `srd-5.2` (по умолчанию) или `srd-5.1`. Вёрстка и состав полей
+у них разные, поэтому разбор свой у каждой, а сверка выемки с эталоном — общая.
+
 Что скрипт делает и чего НЕ делает. Он снимает поля статблоков из четырёх выемок
 официального PDF, сверяет их с текстом репозитория и — ключевое — с самой фикстурой
 `fixtures/srd-5.2-statblock-fields.json`, печатая поячеечный отчёт: сколько значений
@@ -30,6 +33,12 @@
 
     # 3. Сверить выемки с фикстурой и с текстом:
     python3 .github/scripts/build_statblock_fields.py --report
+
+    # Для 5.1 нужен свой PDF и своя резка колонок (страница 612 x 792):
+    curl -sL -o /tmp/srd-5.1.pdf https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf
+    pdftotext -layout -x 0   -W 306 -H 792 /tmp/srd-5.1.pdf /tmp/51_col_l.txt
+    pdftotext -layout -x 306 -W 306 -H 792 /tmp/srd-5.1.pdf /tmp/51_col_r.txt
+    python3 .github/scripts/build_statblock_fields.py srd-5.1 --report
 
 Пути берутся из переменных окружения: ВХОДЫ — `SRD_MARKER`, `SRD_PYMUPDF`, `SRD_DOCLING`,
 `SRD_COL_L`, `SRD_COL_R`; ВЫХОД — `SRD_COLS` (склеенная колонная выемка, файл по этому
@@ -310,10 +319,177 @@ def extractions() -> dict:
     return merged
 
 
+
+# --- SRD 5.1: своя вёрстка, свой набор полей ------------------------------------------
+# 5.1 свёрстана в две колонки с табуляцией между словами и мягкими переносами внутри слов,
+# а поля у неё другие: спасброски отдельной строкой, иммунитеты разделены на урон и
+# состояния, инициативы и снаряжения нет. Поэтому разбор отдельный — общей у версий
+# остаётся сверка выемки с эталоном (см. main).
+LAB_51 = ["Armor Class","Hit Points","Speed","Saving Throws","Skills","Senses","Languages","Challenge",
+     "Damage Immunities","Condition Immunities","Damage Resistances","Damage Vulnerabilities",
+     "Damage Resistance"]
+KEY_51 = {l: l.lower().replace(" ", "_") for l in LAB_51}
+def load_51(path):
+    t=unicodedata.normalize("NFKC",open(path,encoding='utf-8').read()).replace("−","-").replace("’","'")
+    t=re.sub(r"\t[ \t]*\n[ \t]*"," ",t)
+    return [re.sub(r"[ \t]+"," ",l).strip() for l in t.split("\n")]
+def blocks_51(lines):
+    heads=[i for i,l in enumerate(lines) if re.match(rf"^{SIZE} [a-z]",l)]
+    out={}
+    for n,i in enumerate(heads):
+        name=None
+        for b in range(i-1,max(i-4,-1),-1):
+            c=lines[b]
+            if c and not re.search(r"\d",c) and 0<len(c)<50 and not c.startswith(("Monsters","System")):
+                name=c.rstrip(","); break
+        if not name: continue
+        end=heads[n+1] if n+1<len(heads) else len(lines)
+        head=lines[i]
+        if "," not in head and i+1<len(lines) and lines[i+1] and lines[i+1][0].islower():
+            head=head+" "+lines[i+1]
+        elif i+1<len(lines) and re.match(r"^(alignment|evil|good|neutral)\b", lines[i+1]):
+            # Мировоззрение перенеслось на следующую строку («any non-lawful» + «alignment»).
+            head=head+" "+lines[i+1]
+        blk={"header":head}
+        last=None
+        for j in range(i+1,end):
+            s=lines[j]
+            m=re.match(rf"^({'|'.join(LAB_51)}) (.+)$",s)
+            if m:
+                last=KEY_51[m.group(1)]
+                if last not in blk: blk[last]=m.group(2)
+                continue
+            ma=re.fullmatch(r"((?:\d+ \([+-]?\d+\) ?){6})",s)
+            if ma and "abilities" not in blk:
+                blk["abilities"]=[list(x) for x in re.findall(r"(\d+) \(([+-]?\d+)\)",s)]
+                last=None
+                continue
+            # Продолжение значения: PDF переносит длинные списки на следующую строку.
+            # Признак конца — пустая строка, начало черты («Amphibious.») или новая метка.
+            if last and s and not re.match(r"^[A-Z][^.]{0,40}\.( |$)", s) and not s.startswith(("STR","System","Monsters")):
+                # Метка может стоять ПОСРЕДИ строки переноса («… silvered weapons Senses
+                # passive Perception 12»): режем строку по ней, иначе поле съедает соседа.
+                inner=re.search(rf" ({'|'.join(LAB_51)}|Damage Resistance) ",s)
+                if inner:
+                    blk[last]=blk[last]+" "+s[:inner.start()]
+                    tail=s[inner.start()+1:]
+                    m2=re.match(rf"^({'|'.join(LAB_51)}|Damage Resistance) (.+)$",tail)
+                    if m2:
+                        last=KEY_51.get(m2.group(1),"damage_resistance")
+                        if last not in blk: blk[last]=m2.group(2)
+                    continue
+                blk[last]=blk[last]+" "+s
+            else:
+                last=None
+        out.setdefault(name,blk)
+    return out
+
+
+def interleave_columns_51() -> Path:
+    """Колонная выемка 5.1: страница 612 x 792, колонки по 306 пунктов."""
+    left = source("SRD51_COL_L", "/tmp/51_col_l.txt").read_text(encoding="utf-8")
+    right = source("SRD51_COL_R", "/tmp/51_col_r.txt").read_text(encoding="utf-8")
+    def prep(text):
+        text = unicodedata.normalize("NFKC", text)
+        # PDF 5.1 режет слова мягким переносом (U+00AD) и типографским дефисом — из-за них
+        # не сходятся даже имена статблоков («Saber-\xad‐Toothed Tiger»).
+        text = (text.replace("−", "-").replace("’", "'").replace("\xad", "")
+                .replace("‐", "-").replace("–", "-"))
+        text = re.sub(r"-{2,}", "-", text)
+        text = re.sub(r"\t[ \t]*\n[ \t]*", " ", text)
+        return [re.sub(r"[ \t]+", " ", p) for p in text.split("\f")]
+    left, right = prep(left), prep(right)
+    if len(left) != len(right):
+        sys.exit(f"колонки 5.1 не сошлись: слева {len(left)}, справа {len(right)}")
+    out = Path(os.environ.get("SRD51_COLS", "/tmp/51_cols.txt"))
+    out.write_text("\n".join(p for pair in zip(left, right) for p in pair), encoding="utf-8")
+    print(f"склеенная колонная выемка 5.1 → {out} ({len(left)} страниц, файл перезаписан)")
+    return out
+
+
+ABIL_51 = ("str", "dex", "con", "int", "wis", "cha")
+KEYMAP_51 = {"armor_class": "ac", "hit_points": "hp", "speed": "speed", "senses": "senses",
+             "languages": "languages", "skills": "skills", "challenge": "cr",
+             "abilities": "abilities", "saving_throws": "saves", "header": "header",
+             "damage_immunities": "damage_immunities",
+             "condition_immunities": "condition_immunities",
+             "damage_resistances": "damage_resistances",
+             "damage_vulnerabilities": "damage_vulnerabilities",
+             "damage_resistance": "damage_resistances"}
+
+
+def extractions_51() -> dict:
+    """Блоки 5.1 из колонной выемки, ключи полей — как в эталоне."""
+    lines = [line.strip() for line in
+             interleave_columns_51().read_text(encoding="utf-8").split("\n")]
+    out = {}
+    for name, block in blocks_51(lines).items():
+        converted = {}
+        for key, value in block.items():
+            mapped = KEYMAP_51.get(key)
+            if not mapped:
+                continue
+            converted[mapped] = ({a: [c[0], c[1]] for a, c in zip(ABIL_51, value)}
+                                 if mapped == "abilities" else norm(value))
+        out[name] = converted
+    return out
+
+
+def repo_blocks_51() -> dict:
+    """Поля статблоков 5.1 из текста репозитория — глава монстров и врезки магпредметов."""
+    label_re = "|".join(sorted(KEY_51, key=len, reverse=True))
+    out = {}
+    for chapter in ("15_MonstersA-Z.md", "13_MagicItems.md"):
+        path = ROOT / "src/dnd/srd-5.1/en" / chapter
+        name, block = None, None
+        for line in path.read_text(encoding="utf-8").split("\n") + ["### END"]:
+            s = line.strip()
+            m = re.match(r"^#{2,4} (.+)$", s)
+            if m:
+                if name and block:
+                    if name in out:
+                        duplicates.append(f"{chapter}: статблок «{name}» встречается дважды")
+                    out.setdefault(name, block)
+                name, block = m.group(1).strip(), {}
+                continue
+            if block is None:
+                continue
+            m = re.match(rf"^\*({SIZE}[^*]*)\*$", s)
+            if m and "header" not in block:
+                block["header"] = norm(m.group(1))
+                continue
+            m = re.match(rf"^(?:- )?\*\*({label_re}):?\*\*\s*(.+)$", s)
+            if m:
+                block.setdefault(KEYMAP_51[KEY_51[m.group(1)]], norm(m.group(2)))
+                continue
+            if s.startswith("|") and re.search(r"\d+ \([+-]?\d+\)", s):
+                cells = [c.strip() for c in s.strip("|").split("|")]
+                pairs = [re.match(r"(\d+) \(([+-]?\d+)\)", c) for c in cells[:6]]
+                if len(cells) >= 6 and all(pairs):
+                    block["abilities"] = {a: [p.group(1), p.group(2)]
+                                          for a, p in zip(ABIL_51, pairs)}
+    return {k: v for k, v in out.items() if "abilities" in v}
+
+
 if __name__ == "__main__":
-    fixture = json.loads(FIXTURE.read_text(encoding="utf-8"))["blocks"]
-    pdf, repo = extractions(), repo_blocks()
-    print(f"блоков: выемки {len(pdf)}, репозиторий {len(repo)}, эталон {len(fixture)}, "
+    version = "srd-5.1" if "srd-5.1" in sys.argv else "srd-5.2"
+    fixture_path = (FIXTURE if version == "srd-5.2"
+                    else Path(__file__).resolve().parent
+                    / "fixtures/srd-5.1-statblock-fields.json")
+    fixture = json.loads(fixture_path.read_text(encoding="utf-8"))["blocks"]
+    pdf, repo = ((extractions(), repo_blocks()) if version == "srd-5.2"
+                 else (extractions_51(), repo_blocks_51()))
+    # Имя в PDF 5.1 идёт без таксономического хвоста («Adult Black Dragon»), а в тексте и
+    # в эталоне — с ним («Adult Black Dragon (Chromatic)»): сводим по имени без хвоста.
+    strip_tail = re.compile(r"\s*\([^()]*\)$")
+    by_stripped = {strip_tail.sub("", n).strip(): n for n in fixture}
+    for source_map in (pdf, repo):
+        for name in [n for n in source_map if n not in fixture]:
+            target = by_stripped.get(strip_tail.sub("", name).strip())
+            if target and target not in source_map:
+                source_map[target] = source_map.pop(name)
+    print(f"{version}: блоков — выемки {len(pdf)}, репозиторий {len(repo)}, "
+          f"эталон {len(fixture)}, "
           f"общих с эталоном {len(set(pdf) & set(fixture))}")
 
     # Главное: сверка выемок с САМОЙ фикстурой — иначе «способ пересборки» ничего не значит.
@@ -330,7 +506,8 @@ if __name__ == "__main__":
                     key = abil.lower()
                     want_cells = (want or {}).get(key)
                     got_cells = (got or {}).get(key)
-                    for idx, part in enumerate(("значение", "модификатор", "спасбросок")):
+                    parts = ("значение", "модификатор", "спасбросок")[:len(want_cells or ())]
+                    for idx, part in enumerate(parts):
                         w = want_cells[idx] if want_cells else None
                         g = got_cells[idx] if got_cells else None
                         if w is None:
