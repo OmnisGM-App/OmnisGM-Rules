@@ -1,0 +1,7 @@
+name: probe-reusable
+on:
+  pull_request:
+    types: [reopened]
+jobs:
+  probe:
+    uses: OmnisGM-App/claude-plugins/.github/workflows/rprobe.yml@master
