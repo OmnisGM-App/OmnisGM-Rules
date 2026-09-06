@@ -1572,7 +1572,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 |  SCORE   |   13   |   14   |   12   |   3    |   12   |   7    |
 |   MOD    |   +1   |   +2   |   +1   |   -4   |   +1   |   -2   |
-|   SAVE   |   +1   |   +2   |   +1   |   -4   |   +1   |   -2   |
+|   SAVE   |   +1   |   +2   |   +1   |   -4   |   +3   |   -2   |
 
 - **Skills:** Perception +5
 - **Senses:** darkvision 60 ft.; Passive Perception 15
@@ -1897,7 +1897,7 @@ At the end of the frog's next turn, the swallowed target takes 5 (2d4) Acid dama
 |:---:|:---:|:---:|:---:|:---:|:---:|:---:|
 |  SCORE   |   9    |   11   |   9    |   2    |   10   |   3    |
 |   MOD    |   -1   |   +0   |   -1   |   -4   |   +0   |   -4   |
-|   SAVE   |   -1   |   +0   |   -1   |   -4   |   +0   |   -4   |
+|   SAVE   |   -1   |   +2   |   -1   |   -4   |   +0   |   -4   |
 
 - **Resistances:** Bludgeoning, Piercing, Slashing
 - **Immunities:** Charmed, Frightened, Grappled, Paralyzed, Petrified, Prone, Restrained, Stunned
