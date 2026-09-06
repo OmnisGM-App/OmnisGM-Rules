@@ -1260,7 +1260,7 @@ if failures:
         # Ключ — ровно редакция: сообщения из read_blocks несут в префиксе ещё главу и имя
         # блока, и «всё до первого двоеточия» давало свой ключ на каждый блок — потолок
         # схлопывался в одну строку на класс, а шум печатался целиком.
-        key = f.split()[0] if f.startswith("srd-") else ""
+        key = f.split()[0].rstrip(":") if f.startswith("srd-") else ""
         if key not in by_version:
             by_version[key], _ = [], order.append(key)
         by_version[key].append(f)
