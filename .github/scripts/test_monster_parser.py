@@ -23,8 +23,11 @@ Fly 20 ft.» (число относится к ОБОИМ режимам) жив
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
-from parsers.monster import _parse_speed, _parse_type_line  # noqa: E402
+SCRIPTS = Path(__file__).resolve().parent
+ROOT = SCRIPTS.parents[1]
+sys.path.insert(0, str(SCRIPTS))
+import config  # noqa: E402
+from parsers.monster import _parse_speed, _parse_type_line, parse_monsters  # noqa: E402
 
 CASES = [
     # (строка, язык, размер, тип, подтип, мировоззрение)
@@ -99,10 +102,57 @@ for line, lang, size, ctype, subtype, alignment in CASES:
         if got.get(key) != value:
             failures.append(f"«{line}» [{lang}] {key}: получили {got.get(key)!r}, ждали {value!r}")
 
+# --- Зеркало полей EN↔RU на ЖИВОМ корпусе ---------------------------------------------
+# Синтетические формы выше проверяют разбор строки, но не то, что разобранное доезжает до
+# JSON API у обеих половин. Метки RU у редакций расходятся числом («Сопротивления» у 5.2,
+# «Сопротивление к урону» у 5.1), и пока словарь знал одну форму, четыре поля защит у 317
+# монстров 5.1 уезжали в API пустыми — молча, потому что живого гейта на API нет (#269).
+# Считаем ПО ПОЛЯМ: у скольких блоков поле непустое. Числа обязаны совпасть у EN и RU.
+DECLARED_GAPS = {
+    # Русское имя оригинала есть только у RU-половины — так устроен формат.
+    "name_en",
+}
+# Зеркало сверяет ЧИСЛА, а не состав, поэтому согласованная потеря у ОБЕИХ половин
+# (EN 0 = RU 0) ему не видна. Для полей статблока вторую половину класса держит эталон
+# полей (`test_statblock_fields.py`), а ссылки на заклинания в эталон не входят — их
+# держит этот пин: минимум непустых значений по главе.
+MIN_NON_EMPTY = {
+    ("srd51", "monsters"): {"spells": 36},
+}
+by_source = {}
+for src in getattr(config, "SOURCES", []):
+    if src["type"] != "monster":
+        continue
+    text = (ROOT / "src/dnd" / src["file"]).read_text(encoding="utf-8")
+    entities = parse_monsters(text, src["h"], src["lang"], src.get("after"),
+                              getattr(config, "SKIP_HEADINGS_MONSTER", set()))
+    by_source.setdefault((src["ver"], src.get("out", "monsters")), {})[src["lang"]] = entities
+
+for (ver, out), halves in sorted(by_source.items()):
+    if set(halves) != {"en", "ru"}:
+        failures.append(f"{ver}/{out}: нет обеих половин корпуса ({sorted(halves)})")
+        continue
+    if len(halves["en"]) != len(halves["ru"]):
+        failures.append(f"{ver}/{out}: блоков EN {len(halves['en'])}, RU {len(halves['ru'])}")
+    for field in sorted({k for e in halves["en"] for k in e} | DECLARED_GAPS):
+        if field in DECLARED_GAPS:
+            continue
+        counts = {lang: sum(1 for e in halves[lang] if e.get(field) not in (None, "", [], {}))
+                  for lang in ("en", "ru")}
+        if counts["en"] != counts["ru"]:
+            failures.append(f"{ver}/{out}: поле «{field}» непусто у EN {counts['en']} блоков, "
+                            f"у RU {counts['ru']} — половины JSON API разошлись")
+        floor = MIN_NON_EMPTY.get((ver, out), {}).get(field)
+        if floor is not None and min(counts.values()) < floor:
+            failures.append(f"{ver}/{out}: поле «{field}» непусто у EN {counts['en']} и RU "
+                            f"{counts['ru']} блоков, а по корпусу должно быть хотя бы "
+                            f"{floor} — потеряно у обеих половин сразу")
+
 if failures:
-    print(f"❌ Разбор строки типа ({len(failures)}):")
+    print(f"❌ Разбор статблока ({len(failures)}):")
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
 print(f"✅ Разбор статблока: {len(CASES)} форм строки типа, {len(NEGATIVE)} отрицательных "
-      f"случая, {len(SPEEDS)} формы скорости")
+      f"случая, {len(SPEEDS)} формы скорости; зеркало полей EN↔RU сходится на "
+      f"{len(by_source)} главах корпуса")
