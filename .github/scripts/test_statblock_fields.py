@@ -59,8 +59,9 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 from parsers.monster import SIZES_EN, SIZES_RU_TO_EN, _parse_type_line   # noqa: E402
-from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS, RU_LABELS_51,  # noqa: E402
-                            STRIP_TAIL, en_name_from_ru_heading, titlecase_header)
+from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
+                            OBJECT_BLOCKS_51, RU_LABELS_51, STRIP_TAIL,
+                            en_name_from_ru_heading, titlecase_header)
 
 # Отпечаток `_source.extraction` эталона: способ выемки — часть провенанса, и подменять
 # его молча нельзя (у 5.2 это четыре выемки, у 5.1 — две команды резки и две заметки).
@@ -468,6 +469,8 @@ def read_pb_table(path: Path, title: str) -> dict:
 
 
 CHECKED = []
+# Сколько сравнений гасит каждое версионное послабление — счётчик носителей для пина.
+SAVED = Counter()
 
 
 def check_version(V: dict) -> None:
@@ -520,18 +523,12 @@ def check_version(V: dict) -> None:
     # своей строки не дала: у 5.1 дробные ПО напечатаны отдельными строками, и
     # безусловная подстановка выбрасывала прочитанное — три строки канона, уезжающие
     # читателю, не сверялись ничем, даже согласованно испорченные в обоих языках.
+    # Прочитанное значение дробной строки сверяет формула выше — своей проверки здесь
+    # больше нет: она дублировала формулу на порче и лгала на пропаже строки ПО 0
+    # («+2 ≠ +None» тремя строками). Подставляем только там, где редакция дробей не
+    # печатает (5.2 задаёт бонус диапазонами ПО).
     for _fraction in ("1/8", "1/4", "1/2"):
-        if _fraction in PB_BY_CR:
-            # Прочитанное значение сверяем с правилом: у дробного ПО бонус тот же, что у
-            # ПО 0 и ПО 1. Сверка EN↔RU согласованную порчу обеих половин не видит, а
-            # производный инвариант до этих строк не достаёт — существ с ПО 1/8 и
-            # спасбросками в редакции нет.
-            if PB_BY_CR[_fraction] != PB_BY_CR.get("0"):
-                failures.append(f"канон: бонус мастерства ПО {_fraction} — "
-                                f"+{PB_BY_CR[_fraction]}, а у ПО 0 +{PB_BY_CR.get('0')}; "
-                                f"у дробного ПО бонус тот же")
-        else:
-            PB_BY_CR[_fraction] = PB_BY_CR.get("0", 2)
+        PB_BY_CR.setdefault(_fraction, PB_BY_CR.get("0", 2))
 
 
     def pb_by_cr(cr):
@@ -553,7 +550,8 @@ def check_version(V: dict) -> None:
         return
     # Эталон — выемка из PDF, поэтому у него есть шапка с источником и лицензией;
     # сами блоки лежат под ключом «blocks», чтобы служебные поля не путались с именами существ.
-    if "blocks" not in _fixture or "_source" not in _fixture:
+    if (not isinstance(_fixture, dict)
+            or "blocks" not in _fixture or "_source" not in _fixture):
         # Не выход из процесса: гейт общий для двух редакций, и упавшая фикстура одной
         # иначе гасит отчёт другой. Сообщение называет и редакцию, и файл.
         failures.append(f"эталон {V['version']} ({V['fixture'].name}): нет ключа «blocks» "
@@ -681,7 +679,7 @@ def check_version(V: dict) -> None:
         # Статблок ОБЪЕКТА (аппарат краба во врезке магпредметов) — не существо: у него нет
         # ни шапки «размер тип, мировоззрение», ни таблицы характеристик, ни чувств с
         # языками. Он объявлен пометкой, а не выпал из состава молча.
-        for _key in () if _f.get("object_block") else V['required']:
+        for _key in (V['object_required'] if _f.get("object_block") else V['required']):
             if _key not in _f:
                 failures.append(f"эталон «{_name}»: нет обязательного поля «{_key}»")
         for _key in V.get('required_in_chapters', ()):
@@ -834,6 +832,19 @@ def check_version(V: dict) -> None:
                 want = titlecase_header(want)
                 normalized = True
             value = got.get(field)
+            if value is not None:
+                # Считаем НОСИТЕЛЕЙ послаблений: сравнение, которое сходится с послаблением
+                # и разошлось бы без него. Пин ниже требует, чтобы у включённого послабления
+                # такой носитель был хотя бы один.
+                for _flag, _pos in (("senses_comma", 3), ("dash_fold", 4)):
+                    if not V[_flag]:
+                        continue
+                    args_on = [V['lower_fields'], V['senses_comma'], V['dash_fold']]
+                    args_off = list(args_on)
+                    args_off[_pos - 2] = False
+                    if (canon(field, value, *args_on) == canon(field, want, *args_on)
+                            and canon(field, value, *args_off) != canon(field, want, *args_off)):
+                        SAVED[V['version'], _flag] += 1
             if value is None:
                 failures.append(f"EN «{name}»: поле «{field}» потеряно (в PDF «{want}»)")
             elif (canon(field, value, V['lower_fields'], V['senses_comma'], V['dash_fold'])
@@ -902,6 +913,14 @@ def check_version(V: dict) -> None:
                             f"неразличимы без таксономического хвоста")
         by_stripped[_short] = _en_name
     ru_blocks = {by_stripped.get(_n, _n): _b for _n, _b in ru_blocks.items()}
+
+    # Носитель послаблений сравнения: включённое послабление обязано хоть что-то гасить.
+    # Без этого копия конфигурации 5.1 в будущей редакции молча снимает сверку разделителя
+    # чувств и знака тире — ровно те дефекты, которые уже ловились как живые.
+    for _flag in ("senses_comma", "dash_fold"):
+        if V[_flag] and not SAVED[V['version'], _flag]:
+            failures.append(f"конфигурация {V['version']}: послабление «{_flag}» включено, "
+                            f"а ни одного сравнения оно не гасит — послаблению нет носителя")
 
     # --- 2. RU-зеркало --------------------------------------------------------------------
     for name, fields in sorted(en_blocks.items()):
@@ -1181,6 +1200,7 @@ VERSIONS = [
         "outside": ["Animated Object", "Avatar of Death", "Draconic Spirit", "Giant Fly",
                     "Giant Insect", "Otherworldly Steed"],
         "object_blocks": [],
+        "object_required": (),
         # Поля, которые есть у КАЖДОГО статблока: отсутствие любого из них в эталоне —
         # дыра эталона (та, из-за которой «Mimic Languages» и «Animated Object AC» молчали).
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages", "cr"),
@@ -1230,7 +1250,10 @@ VERSIONS = [
         "outside": ["Apparatus of the Crab", "Avatar of Death", "Giant Fly"],
         # Статблок ОБЪЕКТА: ни шапки «размер тип, мировоззрение», ни характеристик, ни
         # чувств с языками — обязательные поля к нему не применяются.
-        "object_blocks": ["Apparatus of the Crab"],
+        "object_blocks": list(OBJECT_BLOCKS_51),
+        # …но СВОИ обязательные поля у него есть: без них пометка снимала последнего
+        # сторожа состава, который не сводится к перегенерации константы.
+        "object_required": ("ac", "hp", "speed"),
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages"),
         "field_counts": FIELD_COUNTS_51,
         "structure_sha": STRUCTURE_SHA_51,

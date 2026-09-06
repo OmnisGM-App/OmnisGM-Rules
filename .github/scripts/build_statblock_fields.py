@@ -43,11 +43,13 @@ PDF своей редакции (у 5.2 их четыре, у 5.1 — колон
     python3 .github/scripts/build_statblock_fields.py srd-5.1 --report
 
 Пути берутся из переменных окружения: ВХОДЫ — `SRD_MARKER`, `SRD_PYMUPDF`, `SRD_DOCLING`,
-`SRD_COL_L`, `SRD_COL_R`; ВЫХОД — `SRD_COLS` у 5.2 и `SRD51_COLS` у 5.1 (склеенная
+`SRD_COL_L`, `SRD_COL_R` у 5.2 и `SRD51_COL_L`, `SRD51_COL_R` у 5.1; ВЫХОД — `SRD_COLS` у 5.2 и `SRD51_COLS` у 5.1 (склеенная
 колонная выемка; по умолчанию `/tmp/srd-5.2.1_cols.txt` и `/tmp/51_cols.txt`). Свой
 прежний выход по этому пути перезаписывается молча, ЧУЖОЙ файл — нет: скрипт узнаёт свой
-по первой строке-маркеру и на чужом отказывается с кодом возврата 2 (перезаписать всё
-равно — `--force`). Значения по умолчанию те, что оставляет рецепт выше.
+по первой строке-маркеру (она несёт имя переменной, поэтому выемки редакций не путаются)
+и на чужом отказывается с кодом возврата 2 — как и на каталоге, нечитаемом файле и любой
+другой причине не писать (перезаписать всё равно — `--force`). Значения по умолчанию те,
+что оставляет рецепт выше.
 Отсутствие файла — внятная ошибка, а не стектрейс. Скрипт не гоняется в CI: ему нужен
 сам PDF и три конвертера, которых на раннере нет, — это второй эшелон для правки эталона.
 
@@ -65,7 +67,8 @@ import unicodedata
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent))
-from statblock_meta import EN_LABELS_51, META_KEYS, STRIP_TAIL   # noqa: E402
+from statblock_meta import (EN_LABELS_51, META_KEYS, OBJECT_BLOCKS_51,  # noqa: E402
+                            STRIP_TAIL)
 
 ROOT = Path(__file__).resolve().parents[2]
 FIXTURE = Path(__file__).resolve().parent / "fixtures/srd-5.2-statblock-fields.json"
@@ -296,7 +299,7 @@ def interleave_columns() -> Path:
         sys.exit("в левой колонне одна страница — похоже, забыт -H 783 у pdftotext")
     pages = [page for pair in zip(left, right) for page in pair]
     out = guarded_out("SRD_COLS", "/tmp/srd-5.2.1_cols.txt")
-    out.write_text("\n".join([COLS_MARKER] + pages), encoding="utf-8")
+    write_cols(out, "SRD_COLS", pages)
     print(f"склеенная колонная выемка → {out} ({len(left)} страниц)")
     return out
 
@@ -309,11 +312,30 @@ def interleave_columns() -> Path:
 COLS_MARKER = "# OmnisGM: склеенная колонная выемка, автоген build_statblock_fields.py"
 
 
+def cols_marker(env: str) -> str:
+    """Маркер несёт имя переменной выхода: у 5.1 и 5.2 выемки разные, и общий маркер
+    позволял одной молча затереть другую."""
+    return f"{COLS_MARKER} [{env}]"
+
+
+def refuse(message: str):
+    """Отказ писать. Код возврата 2, а не 1: у этого скрипта 1 означает «эталон не
+    сошёлся», и склеивать «не сверял» с «не сошлось» нельзя."""
+    print(message, file=sys.stderr)
+    sys.exit(2)
+
+
 def guarded_out(env: str, default: str) -> Path:
-    """Путь для склеенной выемки — свой прежний выход перезаписываем, чужой файл нет."""
+    """Путь для склеенной выемки — свой прежний выход перезаписываем, чужой файл нет.
+
+    Маркер сверяется ТОЖДЕСТВОМ и несёт имя переменной: по префиксу под защиту попадали
+    и правленный руками файл с дописанным хвостом, и выемка ДРУГОЙ редакции (маркер был
+    один на обе). Пишем через временный файл и `os.replace` — тогда симлинк на свой же
+    выход заменяется ссылкой, а не затирается его цель.
+    """
     out = Path(os.environ.get(env, default))
     if os.path.isdir(out):
-        sys.exit(f"{env}={out} — это каталог, а не файл")
+        refuse(f"{env}={out} — это каталог, а не файл")
     # lexists, а не exists: висячий симлинк «не существует» для exists(), и запись по нему
     # создала бы цель ссылки — для «не затирать чужое» это худшая из форм.
     if os.path.lexists(out) and "--force" not in sys.argv:
@@ -322,15 +344,19 @@ def guarded_out(env: str, default: str) -> Path:
             with open(out, encoding="utf-8", errors="replace") as fh:
                 head = fh.readline()
         except OSError as exc:
-            sys.exit(f"{env}={out} существует, но не читается ({exc}) — перезапись отменена")
-        if not head.startswith(COLS_MARKER):
-            # Код возврата 2, а не 1: у этого скрипта 1 означает «эталон не сошёлся», и
-            # склеивать «не сверял» с «не сошлось» нельзя.
-            print(f"{out} — не выход этого скрипта (нет первой строки-маркера): перезапись "
-                  f"отменена. Задайте другой путь в {env} или прогоните с --force",
-                  file=sys.stderr)
-            sys.exit(2)
+            refuse(f"{env}={out} существует, но не читается ({exc}) — перезапись отменена")
+        if head.rstrip("\r\n") != cols_marker(env):
+            refuse(f"{out} — не выход этого скрипта по {env} (первая строка не та): "
+                   f"перезапись отменена. Задайте другой путь в {env} или прогоните "
+                   f"с --force")
     return out
+
+
+def write_cols(out: Path, env: str, pages: list) -> None:
+    """Склеенная выемка на диск: сперва во временный файл рядом, потом атомарная замена."""
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_text("\n".join([cols_marker(env)] + pages), encoding="utf-8")
+    os.replace(tmp, out)
 
 
 def extractions() -> dict:
@@ -436,8 +462,7 @@ def interleave_columns_51() -> Path:
     if len(left) != len(right):
         sys.exit(f"колонки 5.1 не сошлись: слева {len(left)}, справа {len(right)}")
     out = guarded_out("SRD51_COLS", "/tmp/51_cols.txt")
-    out.write_text("\n".join([COLS_MARKER] + [p for pair in zip(left, right) for p in pair]),
-                   encoding="utf-8")
+    write_cols(out, "SRD51_COLS", [p for pair in zip(left, right) for p in pair])
     print(f"склеенная колонная выемка 5.1 → {out} ({len(left)} страниц)")
     return out
 
@@ -470,15 +495,13 @@ def extractions_51() -> dict:
     return out
 
 
-# Статблоки ОБЪЕКТОВ из главы магпредметов: у них нет ни шапки «размер тип,
-# мировоззрение», ни таблицы характеристик, поэтому эвристика шапки их не видит, а в PDF
-# их поля напечатаны с двоеточием («Armor Class: 20»). Список закрытый — «прочитать всё,
-# что похоже» на прозе главы предметов даёт мусор.
-OBJECT_BLOCKS_51 = ("Apparatus of the Crab",)
-
-
 def object_blocks_51(lines: list) -> dict:
-    """Поля объявленных статблоков объектов из колонной выемки 5.1."""
+    """Поля объявленных статблоков объектов из колонной выемки 5.1.
+
+    В PDF их поля напечатаны с двоеточием («Armor Class: 20»), а список закрыт и общий с
+    гейтом (`statblock_meta.OBJECT_BLOCKS_51`): «прочитать всё, что похоже» на прозе главы
+    предметов даёт мусор.
+    """
     out = {}
     for name in OBJECT_BLOCKS_51:
         start = next((i for i, l in enumerate(lines) if l.strip() == name), None)
@@ -623,6 +646,10 @@ if __name__ == "__main__":
     # таблиц, и настоящий недобор («эталон потерял существо») тонул бы среди них
     # двадцатой строкой. Признак блока — те же поля, по которым он попадает в эталон.
     fixture_names = {norm(n) for n in fixture}
+    # Объекты объявлены только у 5.1: у 5.2 таких блоков нет, и пускать её выемку по
+    # чужому списку имён незачем.
+    objects = OBJECT_BLOCKS_51 if version == "srd-5.1" else ()
+
     def looks_like_block(name: str, fields: dict) -> bool:
         # Имя без точки и не служебный заголовок статблока, плюс поля, по которым блок
         # вообще попадает в эталон: этого хватает, чтобы отделить существо от обрывка.
@@ -630,9 +657,9 @@ if __name__ == "__main__":
         # обратную полноту ровно для того класса, ради которого её чинили. Но снять его
         # совсем нельзя: без него в «блоки» лезут 18 обрывков колонной резки 5.2 (шапки
         # таблиц и куски прозы, у которых КД и хиты нашлись по соседству). Поэтому
-        # объекты входят по своему объявленному списку — других выемка и не собирает.
+        # объекты входят по объявленному списку СВОЕЙ редакции — других выемка не собирает.
         return ({"ac", "hp"} <= set(fields)
-                and ("abilities" in fields or name in OBJECT_BLOCKS_51)
+                and ("abilities" in fields or name in objects)
                 and "." not in name
                 and name.lower() not in ("actions", "bonus actions", "reactions", "traits",
                                          "legendary actions"))
