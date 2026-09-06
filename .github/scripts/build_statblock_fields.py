@@ -436,10 +436,10 @@ KEYMAP_51 = {"armor_class": "ac", "hit_points": "hp", "speed": "speed", "senses"
 
 def extractions_51() -> dict:
     """Блоки 5.1 из колонной выемки, ключи полей — как в эталоне."""
-    lines = [line.strip() for line in
-             interleave_columns_51().read_text(encoding="utf-8").split("\n")]
+    raw = interleave_columns_51().read_text(encoding="utf-8").split("\n")
+    lines = [line.strip() for line in raw]
     out = {}
-    for name, block in blocks_51(lines).items():
+    for name, block in list(blocks_51(lines).items()) + list(object_blocks_51(raw).items()):
         converted = {}
         for key, value in block.items():
             mapped = KEYMAP_51.get(key)
@@ -448,6 +448,37 @@ def extractions_51() -> dict:
             converted[mapped] = ({a: [c[0], c[1]] for a, c in zip(ABIL_51, value)}
                                  if mapped == "abilities" else norm(value))
         out[name] = converted
+    return out
+
+
+# Статблоки ОБЪЕКТОВ из главы магпредметов: у них нет ни шапки «размер тип,
+# мировоззрение», ни таблицы характеристик, поэтому эвристика шапки их не видит, а в PDF
+# их поля напечатаны с двоеточием («Armor Class: 20»). Список закрытый — «прочитать всё,
+# что похоже» на прозе главы предметов даёт мусор.
+OBJECT_BLOCKS_51 = ("Apparatus of the Crab",)
+
+
+def object_blocks_51(lines: list) -> dict:
+    """Поля объявленных статблоков объектов из колонной выемки 5.1."""
+    out = {}
+    for name in OBJECT_BLOCKS_51:
+        start = next((i for i, l in enumerate(lines) if l.strip() == name), None)
+        if start is None:
+            continue
+        blk, last = {}, None
+        for line in lines[start:start + 80]:
+            m = re.match(rf"^({'|'.join(LAB_51)}): (.+)$", line.strip())
+            if m:
+                last = KEY_51[m.group(1)]
+                blk.setdefault(last, m.group(2).strip())
+                continue
+            # Перенос длинного значения на следующую строку — как у существ.
+            if last and line.strip() and line.startswith(" "):
+                blk[last] = blk[last] + " " + line.strip()
+                continue
+            last = None
+        if blk:
+            out[name] = blk
     return out
 
 

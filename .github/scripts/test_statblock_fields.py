@@ -59,8 +59,8 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 from parsers.monster import SIZES_EN, SIZES_RU_TO_EN, _parse_type_line   # noqa: E402
-from statblock_meta import (EN_LABELS_51, META_KEYS, RU_LABELS_51, STRIP_TAIL,  # noqa: E402
-                            en_name_from_ru_heading, titlecase_header)
+from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS, RU_LABELS_51,  # noqa: E402
+                            STRIP_TAIL, en_name_from_ru_heading, titlecase_header)
 
 # Отпечаток `_source.extraction` эталона: способ выемки — часть провенанса, и подменять
 # его молча нельзя (у 5.2 это четыре выемки, у 5.1 — две команды резки и две заметки).
@@ -283,13 +283,16 @@ def read_blocks(path: Path, labels: dict, ru: bool, where: str = "",
             cells = [c.strip() for c in s.strip("|").split("|")]
             row = cells[0].upper() if cells else ""
             head = [ABILITIES.get(c.lower()) for c in cells[1:7]]
+            # Хвостовая колонка с чужим именем давала None и гасила ветку целиком —
+            # поэтому шапкой считаем строку, где имена характеристик стоят хотя бы в трёх
+            # первых ячейках, а длину сверяем ниже вместе с порядком.
             head_51 = [ABILITIES.get(c.lower()) for c in cells]
-            if len(cells) > 2 and all(head_51):
+            if len(cells) > 2 and all(head_51[:3]) and cells[0]:
                 # Шапка формы 5.1 («| STR | DEX | … |», без ведущей пустой ячейки): разбор
                 # строки значений ниже позиционный, поэтому и перестановка колонок, и
                 # ОБРЕЗКА шапки обязаны быть видны — оба типовые артефакты колонной резки,
                 # из которой этот текст и приехал.
-                if head_51 != list(ABIL):
+                if len(cells) != 6 or head_51 != list(ABIL):
                     failures.append(f"{where} «{name}»: колонки таблицы характеристик идут "
                                     f"{cells} — ожидался порядок СИЛ ЛОВ ТЕЛ ИНТ МДР ХАР "
                                     f"(шесть колонок)")
@@ -568,11 +571,14 @@ def check_version(V: dict) -> None:
         # опечатку источника: пометка, о которой шапка эталона не знает, объявлением не
         # является. Длины мало — она пропускала любую отписку в сорок букв.
         _note = str(_src.get("note"))
-        _unnamed = [k for k in META_KEYS if k != "outside_chapters" and k not in _note]
+        _unnamed = [k for k in NOTE_KEYS if k not in _note]
         if _unnamed:
             failures.append(f"эталон: _source.note не называет пометки {', '.join(_unnamed)} "
                             f"— шапка эталона не знает, чем объявляются опечатки PDF")
-        elif len(re.sub(r"[^A-Za-zА-Яа-яЁё]", "", _note)) < 40:
+        # Буквы считаем ПОСЛЕ вычёркивания самих имён пометок: иначе голое перечисление
+        # ключей проходит обе половины проверки, ничего при этом не объясняя.
+        elif len(re.sub(r"[^A-Za-zА-Яа-яЁё]", "",
+                        re.sub("|".join(NOTE_KEYS), " ", _note))) < 40:
             failures.append("эталон: _source.note не объясняет словами, как объявляются "
                             "опечатки самого PDF")
     _extraction = _src.get("extraction")
@@ -636,7 +642,10 @@ def check_version(V: dict) -> None:
             failures.append(f"состав эталона: поле «{_key}» у {_have.get(_key, 0)} блоков, "
                             f"а по PDF у {V['field_counts'].get(_key, 0)}")
     for _name, _f in sorted(expected.items()):
-        for _key in V['required']:
+        # Статблок ОБЪЕКТА (аппарат краба во врезке магпредметов) — не существо: у него нет
+        # ни шапки «размер тип, мировоззрение», ни таблицы характеристик, ни чувств с
+        # языками. Он объявлен пометкой, а не выпал из состава молча.
+        for _key in () if _f.get("object_block") else V['required']:
             if _key not in _f:
                 failures.append(f"эталон «{_name}»: нет обязательного поля «{_key}»")
         for _key in V.get('required_in_chapters', ()):
@@ -674,7 +683,11 @@ def check_version(V: dict) -> None:
             # тоже видно «блок есть в тексте, но не в эталоне»: статблоком считаем всё, у
             # чего есть шапка и КД с хитами — прочие `####` в заклинаниях этому не отвечают.
             for name, block in pairs:
-                if name not in V['outside'] and "header" in block:
+                # Статблоком считаем и блок БЕЗ шапки размера: у объектов её нет вовсе,
+                # и по прежнему критерию аппарат краба был невидим и для сверки, и для
+                # сторожа полноты — четыре его поля не держало ничто.
+                if name not in V['outside'] and ("header" in block
+                                                 or {"ac", "hp"} <= set(block)):
                     failures.append(
                         f"{lang}/{chapter}: статблок «{name}» есть в тексте, но не в эталоне PDF")
             merge(dst, pairs, f"{V['version']} {lang}/{chapter}", only=set(V['outside']))
@@ -741,9 +754,14 @@ def check_version(V: dict) -> None:
                     failures.append(f"эталон «{name}»: saves_repo «{fields['saves_repo']}» "
                                     f"меняет НАБОР спасбросков против PDF «{fields['saves']}» "
                                     f"— объявлять можно только число")
+                # В пометку идут только РАСХОЖДЕНИЯ (обе стороны каждой спорной пары), а
+                # не все модификаторы строки: иначе автор одной правки обязан перечислить
+                # восемь чисел, семь из которых ничем не спорны.
                 problem = declared(fields.get("saves_note"),
-                                   [signed(x) for x in
-                                    list(pdf_pairs.values()) + list(repo_pairs.values())])
+                                   [signed(v) for k, v in pdf_pairs.items()
+                                    if repo_pairs.get(k) != v]
+                                   + [signed(v) for k, v in repo_pairs.items()
+                                      if pdf_pairs.get(k) != v])
                 if problem:
                     failures.append(f"эталон «{name}»: правка строки спасбросков объявлена, "
                                     f"но {problem}")
@@ -995,11 +1013,13 @@ def check_version(V: dict) -> None:
     # читатель видит поле дважды. Ловим саму ФОРМУ носителя во всех главах версии, во всех
     # обёртках, в которых строка поля вообще встречается: пунктом списка, абзацем и внутри
     # цитатной врезки, — и с ПРОБЕЛАМИ в метке («**Damage Immunitie**s»).
-    torn = re.compile(r"^(?:[>\-]\s*)*\*\*[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё ]*\*\*[a-zа-яё]")
+    # Хвостовой класс — ЛЮБАЯ буква: разрыв по пробелу многословной EN-метки оставляет
+    # после «**» прописную («- **Armor **Class», «> **A**C»), а это основная форма 5.1.
+    torn = re.compile(r"^(?:[>\-]\s*)*\*\*[A-Za-zА-Яа-яЁё][A-Za-zА-Яа-яЁё ]*\*\*[A-Za-zА-Яа-яЁё]")
     # …и вторая форма того же класса: строка поля, записанная абзацем вместо пункта списка.
     # Метка при этом цела, значение сверяется, но список рвётся надвое — читатель видит
     # поле выпавшим из блока.
-    para = re.compile(r"^\*\*(?:%s):?\*\*" % "|".join(
+    para = re.compile(r"^(?:> ?)?\*\*(?:%s):?\*\*" % "|".join(
         sorted(set(V['en_labels']) | set(V['ru_labels'])
                | {V['cr_label_en'], V['cr_label_ru']}, key=len, reverse=True)))
     for lang, folder in (("en", en_dir), ("ru", ru_dir)):
@@ -1081,8 +1101,10 @@ def check_version_labeled(V: dict) -> None:
                         for m in failures[start:]]
 
 
-FIELD_COUNTS_51 = {"abilities": 319, "ac": 319, "condition_immunities": 89, "cr": 318, "damage_immunities": 127, "damage_resistances": 64, "damage_vulnerabilities": 15, "header": 319, "hp": 319, "languages": 319, "saves": 92, "senses": 319, "skills": 188, "speed": 319}
-STRUCTURE_SHA_51 = "aa45b415a9148ec56a84320459aeae1369e624b30649391573915a7db2b3e5f8"
+# 320 блоков: 317 существ главы, две врезки-существа и статблок ОБЪЕКТА (аппарат краба),
+# у которого есть только КД, хиты, скорость и иммунитеты к урону.
+FIELD_COUNTS_51 = {"abilities": 319, "ac": 320, "condition_immunities": 89, "cr": 318, "damage_immunities": 128, "damage_resistances": 64, "damage_vulnerabilities": 15, "header": 319, "hp": 320, "languages": 319, "saves": 92, "senses": 319, "skills": 188, "speed": 320}
+STRUCTURE_SHA_51 = "ea3fbf5e0359157a7f2cac902aa08eaba94e7846ac2d62f345c0d47306cc2156"
 EXTRACTION_SHA_51 = "efdc7c73984135716608cfb0ff341f4d4562bdec7945f836cc1110466707105a"
 
 
@@ -1153,7 +1175,7 @@ VERSIONS = [
         "indexes": (("04_Monsters.md", True),),
         "en_labels": EN_LABELS_51,
         "ru_labels": RU_LABELS_51,
-        "outside": ["Avatar of Death", "Giant Fly"],
+        "outside": ["Apparatus of the Crab", "Avatar of Death", "Giant Fly"],
         "required": ("header", "abilities", "ac", "hp", "speed", "senses", "languages"),
         "field_counts": FIELD_COUNTS_51,
         "structure_sha": STRUCTURE_SHA_51,
@@ -1193,6 +1215,14 @@ VERSIONS = [
         "saves_pairs": 315,
     },
 ]
+
+# Эталон, положенный рядом, но не объявленный в VERSIONS, иначе игнорируется молча —
+# при том что соседний гейт шапок находит свои фикстуры глобом и сразу их читает.
+_declared = {v['fixture'].name for v in VERSIONS}
+for _found in sorted((SCRIPTS / "fixtures").glob("srd-*-statblock-fields.json")):
+    if _found.name not in _declared:
+        failures.append(f"эталон {_found.name} лежит рядом, но не объявлен в VERSIONS — "
+                        f"его не читает никто")
 
 for _V in VERSIONS:
     # Метки ЧУЖОЙ редакции: строка «- **Initiative:**» в главе 5.1 (и «- **Saving Throws:**»

@@ -15,6 +15,14 @@
   "note": "Опечатки самого PDF объявляются у блока пометками cr_note/cr_repo, xp_note, pb_note и abilities_note/abilities_repo. Пометка обязана называть спорные числа и говорить словами, что напечатано в PDF. Опечатка в строке спасбросков объявляется парой saves_note/saves_repo. Шапки блоков хранятся КАК В PDF, поэтому у одного и того же Аватара смерти регистр в эталонах редакций разный: 5.1 печатает «Medium undead, neutral evil», 5.2 — «Medium Undead, Neutral evil». Это не опечатка выемки: к нашей форме шапка 5.1 приводится нормализацией titlecase_header."
  },
  "blocks": {
+  "Apparatus of the Crab": {
+   "ac": "20",
+   "hp": "200",
+   "speed": "30 ft., swim 30 ft. (or 0 ft. for both if the legs and tail aren't extended)",
+   "damage_immunities": "poison, psychic",
+   "object_block": true,
+   "outside_chapters": true
+  },
   "Aboleth": {
    "header": "Large aberration, lawful evil",
    "ac": "17 (natural armor)",

@@ -10,8 +10,12 @@ import re
 # Служебные ключи эталона: это не поля статблока, а пометки о самом эталоне —
 # объявленные опечатки PDF (`cr_note`/`cr_repo`/`xp_note`/`pb_note`/`saves_note`/
 # `saves_repo`/`abilities_note`/`abilities_repo`) и признак врезки.
-META_KEYS = ("cr_note", "cr_repo", "xp_note", "pb_note", "abilities_note", "abilities_repo",
-             "saves_note", "saves_repo", "outside_chapters")
+NOTE_KEYS = ("cr_note", "cr_repo", "xp_note", "pb_note", "abilities_note", "abilities_repo",
+             "saves_note", "saves_repo")
+# …и пометки СТРУКТУРЫ блока: они не объявляют опечатку источника, а говорят, какого рода
+# сам блок (врезка вне глав, статблок объекта без шапки и характеристик).
+STRUCTURE_KEYS = ("outside_chapters", "object_block")
+META_KEYS = NOTE_KEYS + STRUCTURE_KEYS
 
 STRIP_TAIL = re.compile(r"\s*\([^()]*\)$")
 
