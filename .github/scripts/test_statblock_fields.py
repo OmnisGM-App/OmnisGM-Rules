@@ -501,6 +501,14 @@ def check_version(V: dict) -> None:
         failures.append(f"эталон: _source.regenerate «{_src.get('regenerate')}» ≠ «{V['regenerate']}»")
     elif not (ROOT / V['regenerate']).is_file():
         failures.append(f"эталон: скрипта пересборки «{V['regenerate']}» нет")
+    # Состав шапки целиком: удаление служебной заметки (или дописывание своих ключей)
+    # иначе не оставляет следа — пришпилены только перечисленные выше пары.
+    if set(_src) != {"pdf", "sha256", "pages", "page_size_pt", "license", "extraction",
+                     "regenerate", "note"}:
+        failures.append(f"эталон: набор ключей _source = {sorted(_src)}")
+    elif len(re.sub(r"[^A-Za-zА-Яа-яЁё]", "", str(_src.get("note")))) < 40:
+        failures.append("эталон: _source.note не объясняет словами, как объявляются "
+                        "опечатки самого PDF")
     _extraction = _src.get("extraction")
     # Записи сверяются ЦЕЛИКОМ (отпечатком): по первым двадцати символам две команды
     # `pdftotext` неразличимы, и подмена параметров резки проходила молча.
@@ -888,6 +896,18 @@ def check_version(V: dict) -> None:
         value = block.get("speed", "").strip()
         if value and value[-1] not in ".)":
             failures.append(f"EN «{name}»: скорость «{value}» не кончается точкой или скобкой")
+    # Битая жирная метка («**Sense**s darkvision 60 ft.» вместо «- **Senses:** …»): такую
+    # строку не разбирает ни одна метка словаря, поэтому для сверки её как бы нет — а
+    # читатель видит поле дважды. Ловим саму ФОРМУ носителя во всех главах версии.
+    for lang, folder in (("en", en_dir), ("ru", ru_dir)):
+        for chapter in V['chapters'] + V['sidebar_chapters']:
+            path = folder / chapter
+            if not path.exists():
+                continue
+            for line in path.read_text(encoding="utf-8").split("\n"):
+                if re.match(r"^\*\*[A-Za-zА-Яа-яЁё]+\*\*[a-zа-яё]", line.strip()):
+                    failures.append(f"{lang}/{chapter}: строка «{line.strip()[:40]}» — "
+                                    f"жирная метка разорвана, поле в сверку не попадает")
     # Метки полей: «Gear»/«CR» без двоеточия, остальные с ним — и одинаково в обоих языках.
     # Проверяем ВСЕ метки глав; врезки живут по другой форме (там двоеточия нет ни у одной
     # метки), поэтому их строки сюда не входят.
