@@ -9,7 +9,8 @@
 `fixtures/srd-5.2-statblock-fields.json`, печатая поячеечный отчёт: сколько значений
 эталона выемки воспроизводят и какие расходятся. Фикстуру он НЕ перезаписывает: эталон
 правится осознанно, а не автоперезаписью с выхлопа конвертера. Сегодня выемки
-воспроизводят ВСЕ 3181 значение, поэтому любой ненулевой остаток — расхождение, и код
+воспроизводят КАЖДОЕ значение обоих эталонов (9229 у 5.2 и 6635 у 5.1), поэтому любой
+ненулевой остаток — расхождение, и код
 возврата ненулевой: «эталон воспроизводится» — утверждение, которое можно прогнать.
 
 Как пользоваться:
@@ -291,9 +292,26 @@ def interleave_columns() -> Path:
     if len(left) < 2:
         sys.exit("в левой колонне одна страница — похоже, забыт -H 783 у pdftotext")
     pages = [page for pair in zip(left, right) for page in pair]
-    out = Path(os.environ.get("SRD_COLS", "/tmp/srd-5.2.1_cols.txt"))
-    print(f"склеенная колонная выемка → {out} ({len(left)} страниц, файл перезаписан)")
+    out = guarded_out("SRD_COLS", "/tmp/srd-5.2.1_cols.txt")
     out.write_text("\n".join(pages), encoding="utf-8")
+    print(f"склеенная колонная выемка → {out} ({len(left)} страниц)")
+    return out
+
+
+def guarded_out(env: str, default: str) -> Path:
+    """Путь для склеенной выемки — с отказом затирать ЧУЖОЙ файл.
+
+    Проверять «похоже ли содержимое на выемку» бесполезно: маркер SRD стоит и в колонных
+    половинах, и в выхлопе конвертеров — то есть ровно в тех файлах, которые жальче всего
+    потерять. Поэтому правило простое: существующий файл не перезаписывается без --force,
+    а каталог по пути — это ошибка с сообщением, а не трейсбек.
+    """
+    out = Path(os.environ.get(env, default))
+    if out.is_dir():
+        sys.exit(f"{env}={out} — это каталог, а не файл")
+    if out.exists() and "--force" not in sys.argv:
+        sys.exit(f"{out} уже существует — перезапись отменена. Уберите файл, задайте "
+                 f"другой путь в {env} или прогоните с --force")
     return out
 
 
@@ -399,13 +417,9 @@ def interleave_columns_51() -> Path:
     left, right = prep(left), prep(right)
     if len(left) != len(right):
         sys.exit(f"колонки 5.1 не сошлись: слева {len(left)}, справа {len(right)}")
-    out = Path(os.environ.get("SRD51_COLS", "/tmp/51_cols.txt"))
-    if out.exists() and "--force" not in sys.argv and "System Reference Document 5.1" not in \
-            out.read_text(encoding="utf-8", errors="replace")[:2000]:
-        sys.exit(f"{out} существует и не похож на колонную выемку 5.1 — "
-                 f"перезапись отменена (--force, если файл всё же нужно затереть)")
+    out = guarded_out("SRD51_COLS", "/tmp/51_cols.txt")
     out.write_text("\n".join(p for pair in zip(left, right) for p in pair), encoding="utf-8")
-    print(f"склеенная колонная выемка 5.1 → {out} ({len(left)} страниц, файл перезаписан)")
+    print(f"склеенная колонная выемка 5.1 → {out} ({len(left)} страниц)")
     return out
 
 
@@ -490,10 +504,17 @@ if __name__ == "__main__":
     # в эталоне — с ним («Adult Black Dragon (Chromatic)»): сводим по имени без хвоста.
     by_stripped = {STRIP_TAIL.sub("", n).strip(): n for n in fixture}
     for source_map in (pdf, repo):
+        # Источники разной формы: выемка — словарь «имя → поля», текст репозитория 5.1 —
+        # список имён. Ветка обязана работать с обоими: хвост несут 77 из 319 имён 5.1,
+        # то есть падал бы ровно тот класс, ради которого она написана.
         for name in [n for n in source_map if n not in fixture]:
             target = by_stripped.get(STRIP_TAIL.sub("", name).strip())
-            if target and target not in source_map:
+            if not target or target in source_map:
+                continue
+            if isinstance(source_map, dict):
                 source_map[target] = source_map.pop(name)
+            else:
+                source_map[source_map.index(name)] = target
     print(f"{version}: блоков — выемки {len(pdf)}, репозиторий {len(repo)}, "
           f"эталон {len(fixture)}, "
           f"общих с эталоном {len(set(pdf) & set(fixture))}")
