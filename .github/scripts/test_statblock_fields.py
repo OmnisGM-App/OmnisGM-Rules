@@ -1238,7 +1238,7 @@ VERSIONS = [
         "pages": 403,
         "page_size": "612 x 792",
         "license": "CC BY 4.0; формула атрибуции — src/dnd/srd-5.1/LICENSE.md",
-        "license_sha": "329002e56e7e01aefe2be626ee598c4cadd5e5722e45365fdb3a14d55c6b0b8d",
+        "license_sha": "39dc3d747ac3a357525aca274b6e5ec7e2f8f63af77634f5ecf9cd60e2dc8b18",
         "regenerate": ".github/scripts/build_statblock_fields.py",
         "extraction_sha": EXTRACTION_SHA_51,
         "chapters": ("15_MonstersA-Z.md",),
