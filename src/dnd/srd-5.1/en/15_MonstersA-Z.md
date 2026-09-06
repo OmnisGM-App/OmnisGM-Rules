@@ -6998,9 +6998,7 @@ A **blink dog** takes its name from its ability to blink in and out of existence
 
 - **Saving Throws:** Int +9, Wis +6
 - **Skills:** Arcana +13, History +13
-
-**Damage Resistance** damage from spells; nonmagical bludgeoning, piercing, and slashing (from *Stoneskin*)
-
+- **Damage Resistances:** damage from spells; nonmagical bludgeoning, piercing, and slashing (from *Stoneskin*)
 - **Senses:** Passive Perception 12
 - **Languages:** any six languages
 - **Challenge:** 12 (8,400 XP)

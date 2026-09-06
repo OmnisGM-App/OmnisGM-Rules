@@ -24,8 +24,7 @@ EN_LABELS_51 = {"Armor Class": "ac", "Hit Points": "hp", "Speed": "speed",
                 "Languages": "languages", "Damage Immunities": "damage_immunities",
                 "Condition Immunities": "condition_immunities",
                 "Damage Resistances": "damage_resistances",
-                "Damage Vulnerabilities": "damage_vulnerabilities",
-                "Damage Resistance": "damage_resistances"}
+                "Damage Vulnerabilities": "damage_vulnerabilities"}
 # RU обе формы «Сопротивление к урону» пишет одной меткой, поэтому здесь их на одну меньше.
 RU_LABELS_51 = {"Класс Доспеха": "ac", "Хиты": "hp", "Скорость": "speed",
                 "Спасброски": "saves", "Навыки": "skills", "Чувства": "senses",

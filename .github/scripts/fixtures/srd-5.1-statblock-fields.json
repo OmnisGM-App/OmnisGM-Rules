@@ -12,7 +12,7 @@
    "мягкие переносы (U+00AD) и типографские дефисы нормализованы: PDF 5.1 режет ими слова и имена"
   ],
   "regenerate": ".github/scripts/build_statblock_fields.py",
-  "note": "Опечатки самого PDF объявляются у блока пометками cr_note/cr_repo, xp_note, pb_note и abilities_note/abilities_repo. Пометка обязана называть спорные числа и говорить словами, что напечатано в PDF."
+  "note": "Опечатки самого PDF объявляются у блока пометками cr_note/cr_repo, xp_note, pb_note и abilities_note/abilities_repo. Пометка обязана называть спорные числа и говорить словами, что напечатано в PDF. Опечатка в строке спасбросков объявляется парой saves_note/saves_repo."
  },
  "blocks": {
   "Aboleth": {

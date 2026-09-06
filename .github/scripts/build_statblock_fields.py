@@ -327,7 +327,9 @@ def extractions() -> dict:
 # остаётся сверка выемки с эталоном (см. main).
 # Метки полей 5.1 — из общего модуля, чтобы сборщик и гейт не разъехались молча (метка
 # ПО живёт в гейте отдельным параметром, поэтому здесь она добавляется руками).
-LAB_51 = list(EN_LABELS_51) + ["Challenge"]
+# «Challenge» и «Damage Resistance» (единственное число, у одного Архимага) — формы
+# ИСТОЧНИКА: в гейте первая живёт отдельным параметром, второй в нашем корпусе нет вовсе.
+LAB_51 = list(EN_LABELS_51) + ["Challenge", "Damage Resistance"]
 KEY_51 = {l: l.lower().replace(" ", "_") for l in LAB_51}
 def blocks_51(lines):
     heads=[i for i,l in enumerate(lines) if re.match(rf"^{SIZE} [a-z]",l)]
