@@ -1058,7 +1058,10 @@ def check_version(V: dict) -> None:
         if _en_align:
             chapter_aligns.setdefault(_en_align.lower(), set()).add(_parts[1])
     for _value, _forms in sorted(chapter_aligns.items()):
-        if len(_forms) > 1:
+        # Редакция с объявленным послаблением по роду ЗНАЕТ, что формы у неё смешаны, —
+        # требовать от неё однородности значило бы красить объявленное послабление; врезке
+        # тогда достаточно совпасть с любой из форм главы (ревью #281).
+        if len(_forms) > 1 and not neuter_ok:
             failures.append(f"глава монстров: мировоззрение «{_value}» пишется по-разному "
                             f"({sorted(_forms)}) — конвенция главы неоднородна, и форма "
                             f"врезки сверяется не с чем")
