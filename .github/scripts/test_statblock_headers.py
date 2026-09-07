@@ -55,7 +55,8 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
 # для расхождения.
 from statblock_terms import (DICT, SPLIT_ALIGN, SUBTYPE_DICT,  # noqa: E402
                             align_to_en as _align_to_en, dict_table as _dict_table,
-                            parts_en, size_agreement as _size_agreement, GENDER_RU)
+                            parts_en, size_agreement as _size_agreement, GENDER_RU,
+                            check_dictionary_sections)
 # Прилагательное согласуется с родом типа существа, поэтому вариантов больше, чем размеров.
 # Словарь один — продукционный, из парсера: копия здесь уже жила и могла разъехаться.
 SIZES_RU = SIZES_RU_TO_EN
@@ -100,6 +101,9 @@ def dict_table(path: Path, section, report: bool = True) -> dict:
 
 
 TYPES_RU = dict_table(DICT, "Типы существ")
+# Мировоззрения и размеры: код держит формы по родам, словарь — базовую; расхождение
+# базовой формы молчало до ревью #281.
+failures.extend(check_dictionary_sections())
 SUBTYPES_RU = dict_table(SUBTYPE_DICT, None)
 # Пропажу ФАЙЛА уже сообщил dict_table — сыпать сверх этого «нет подтипа X» по каждому
 # существу значит утопить причину в следствиях. Но пустая таблица при живом файле
@@ -650,7 +654,15 @@ def check_version(version: str, fixture: Path) -> None:
     # уход от конвенции, как «нейтрально-злой», а классификация по первому символу его не
     # видела (ревью #281). Ожидаемая форма выводится из самого значения: вся строчная либо
     # строчная с прописной первой буквой — по конвенции этого места.
-    for _what, _values in (("шапках", [h.rpartition(", ")[2].strip() for h in ru_headers.values()]),
+    # Шапка без разделителя «, » (пропавший пробел — мусор конвертации) не даёт
+    # мировоззрения вовсе: `rpartition` вернул бы ВСЮ строку, и проверка формы советовала
+    # бы понизить регистр типа — то есть воспроизвести дефект #256/#271 (ревью #281).
+    _no_sep = sorted(n for n, h in ru_headers.items() if ", " not in h)
+    if _no_sep:
+        failures.append(f"{version} RU: в шапках нет разделителя «, » перед мировоззрением "
+                        f"({len(_no_sep)}): {_no_sep[:5]}")
+    _head_aligns = [h.rpartition(", ")[2].strip() for h in ru_headers.values() if ", " in h]
+    for _what, _values in (("шапках", _head_aligns),
                            ("указателях", ru_index_aligns)):
         want_upper = ALIGN_CASE.get((version, _what))
         ALIGN_ASKED.add((version, _what))

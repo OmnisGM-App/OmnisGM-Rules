@@ -54,6 +54,39 @@ SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")   # запятая мировозз
 DASH = {"-", "—"}
 
 
+def check_dictionary_sections() -> list:
+    """Расхождения кода со словарём по мировоззрениям и размерам.
+
+    `ALIGN_RU` и `SIZE_FORMS` — формы, которых словарь не хранит (склонение по роду и
+    строчная запись мировоззрения), поэтому копиями они и остаются. Но БАЗОВАЯ форма у
+    словаря есть, и молча разъезжаться она не должна: до этой сверки правка «Lawful Evil →
+    Законно-злой» в словаре не красила ни один гейт, хотя ровно этот класс (#256) считался
+    закрытым (ревью #281).
+    """
+    problems = []
+    aligns, trouble = dict_table(DICT, "Мировоззрение (Alignment)")
+    sizes, trouble_sizes = dict_table(DICT, "Размеры (Sizes)")
+    problems += trouble + trouble_sizes
+    for en, ru in sorted(aligns.items()):
+        # Синонимы источника («Neutral / True Neutral») ведут на один перевод; берём
+        # первую форму — именно её печатают шапки.
+        key = en.split(" / ")[0]
+        got = ALIGN_RU.get(ru.lower())
+        if got is None:
+            problems.append(f"{DICT.name}: перевод мировоззрения «{ru}» (для «{key}») "
+                            f"коду неизвестен — ALIGN_RU его не разберёт")
+        elif got != key:
+            problems.append(f"{DICT.name}: «{ru}» — это «{key}» по словарю и «{got}» "
+                            f"по ALIGN_RU: перевод разъехался с кодом")
+    for en, ru in sorted(sizes.items()):
+        if en not in SIZE_FORMS:
+            continue
+        if ru not in SIZE_FORMS[en]:
+            problems.append(f"{DICT.name}: размер «{en}» → «{ru}» в словаре, а SIZE_FORMS "
+                            f"знает формы {SIZE_FORMS[en]} — перевод разъехался с кодом")
+    return problems
+
+
 def relative(path: Path) -> str:
     """Путь от корня репозитория, если он внутри; иначе — как есть."""
     try:

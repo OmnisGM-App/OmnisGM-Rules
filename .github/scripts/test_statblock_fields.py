@@ -69,7 +69,8 @@ from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
 # Шапку врезки гейт шапок не видит (он читает главы монстров и указатели), поэтому её
 # тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271).
 from statblock_terms import (DICT, SUBTYPE_DICT, align_to_en,  # noqa: E402
-                             dict_table, size_agreement, skeleton, split_header)
+                             check_dictionary_sections, dict_table, size_agreement,
+                             skeleton, split_header)
 
 # Тип существа переводится только словарём: копия в коде разошлась бы с ним молча (#256).
 # Поломку САМОГО словаря гейт обязан назвать сам: он объявляет словарь источником правды,
@@ -79,7 +80,10 @@ TYPES_RU, DICT_PROBLEMS = dict_table(DICT, "Типы существ")
 # Подтипы лежат отдельным файлом (их ключи совпадают с именами классов и рас) — и тоже
 # читаются, а не копируются: подтип врезки сверяется наравне с типом.
 SUBTYPES_RU, _SUB_PROBLEMS = dict_table(SUBTYPE_DICT, None)
-DICT_PROBLEMS = DICT_PROBLEMS + _SUB_PROBLEMS
+# Мировоззрения и размеры словарь тоже держит: код хранит их формы по родам, которых в
+# словаре нет, но базовая форма обязана сходиться — иначе правка перевода в словаре
+# молчит (ревью #281).
+DICT_PROBLEMS = DICT_PROBLEMS + _SUB_PROBLEMS + check_dictionary_sections()
 
 # Отпечаток `_source.extraction` эталона: способ выемки — часть провенанса, и подменять
 # его молча нельзя (у 5.2 это четыре выемки, у 5.1 — две команды резки и две заметки).
@@ -504,6 +508,15 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
     иначе врезка молча жила бы по своей конвенции, как и было до #271.
     """
     out = []
+    # Пробельный мусор конвертации: разделитель шапки — запятая с ОДНИМ обычным пробелом.
+    # Сравнение его не видит по построению (разрез нормализует, токенайзер пробелы
+    # отбрасывает), поэтому сверяем сырую строку до разбора (ревью #281).
+    if "\u00a0" in ru_header:
+        out.append(f"RU «{name}» шапка: неразрывный пробел (U+00A0) — мусор конвертации")
+    if re.search(r"\s{2,}", ru_header):
+        out.append(f"RU «{name}» шапка: двойной пробел — мусор конвертации")
+    if not re.search(r",\u0020", ru_header) and "," in ru_header:
+        out.append(f"RU «{name}» шапка: после запятой мировоззрения нет пробела")
     en_parts, ru_parts = split_header(en_header), split_header(ru_header)
     if en_parts is None or ru_parts is None:
         side = "у EN" if en_parts is None else "у перевода"
@@ -1428,6 +1441,10 @@ for _V in VERSIONS:
                       | {o[f'cr_label_{lang}'] for o in _other})
                      - set(_V[f'{lang}_labels']) - {_V[f'cr_label_{lang}']})
         for lang in ("en", "ru")}
+# Поломка словаря — причина, а не следствие: она попадает в отчёт первой, до расхождений
+# редакций (у её строк нет префикса версии, поэтому и потолок печати у них свой).
+failures.extend(DICT_PROBLEMS)
+
 # --- Самопроверка сверки врезки ---------------------------------------------------------
 # Живой корпус сегодня ВЕРЕН, поэтому `sidebar_header` на нём молчит — и молчала бы, даже
 # если бы её вырезали целиком (мутация `return []` проходила все гейты зелёной, ревью
@@ -1478,10 +1495,6 @@ for _label, _en, _ru, _want in SIDEBAR_CASES:
     if len(_got) != _want:
         failures.append(f"самопроверка врезки «{_label}»: сообщений {len(_got)}, "
                         f"ожидалось {_want} — {_got}")
-
-# Поломка словаря — причина, а не следствие: она попадает в отчёт первой, до расхождений
-# редакций (у её строк нет префикса версии, поэтому и потолок печати у них свой).
-failures.extend(DICT_PROBLEMS)
 for _V in VERSIONS:
     check_version_labeled(_V)
 
