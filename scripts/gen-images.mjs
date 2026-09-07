@@ -100,12 +100,16 @@ const KINDS = {
 // проверяемый — вид, появившийся в KINDS и забытый здесь, никогда бы не попал в крон и
 // молча ждал бы ручного запуска (#291).
 const ORDER = ['spells', 'magic-items', 'gear', 'domain-cards', 'creatures'];
-const forgotten = Object.keys(KINDS).filter((k) => !ORDER.includes(k));
-const unknown = ORDER.filter((k) => !KINDS[k]);
-if (forgotten.length || unknown.length) {
-  console.error(`ORDER разошёлся с KINDS: нет в порядке — ${forgotten.join(', ') || '—'}; ` +
-                `нет среди видов — ${unknown.join(', ') || '—'}`);
-  process.exit(2);
+
+// Полнота порядка — ФУНКЦИЯ, а не падение при импорте: падение при импорте делало бы
+// юнит-тест недостижимым (он бы никогда не выполнил ни строки) и выдавало бы страж скрипта
+// за независимую вторую проверку (ревью #292).
+export function orderProblems() {
+  const forgotten = Object.keys(KINDS).filter((k) => !ORDER.includes(k));
+  const unknown = ORDER.filter((k) => !KINDS[k]);
+  if (!forgotten.length && !unknown.length) return null;
+  return `ORDER разошёлся с KINDS: нет в порядке — ${forgotten.join(', ') || '—'}; ` +
+         `нет среди видов — ${unknown.join(', ') || '—'}`;
 }
 
 let KIND = process.env.KIND || 'creatures';
@@ -395,12 +399,6 @@ function remainingByKind() {
 // Первый вид с непустой очередью, либо null — работы нет вовсе. Именно этого не хватало
 // крону: он вечно брал заклинания и, закрыв их, каждые 6 часов рапортовал «всё готово»,
 // пока у трёх других видов лежало больше тысячи сущностей без картинок (#291).
-function pickKind() {
-  const rows = remainingByKind();
-  summary('Очередь по видам: ' + rows.map((r) => `${KINDS[r.kind].label} — ${r.left} из ${r.total}`).join(', ') + '.');
-  return nextKind(rows);
-}
-
 // Сам выбор — чистая функция от остатков: только её и проверяет юнит-тест, потому что
 // остальное упирается в данные API и файлы картинок (scripts/test_gen_images_kind.mjs).
 export function nextKind(rows) {
@@ -411,8 +409,24 @@ export function nextKind(rows) {
 export { ORDER, KINDS };
 
 async function main() {
+  const orderProblem = orderProblems();
+  if (orderProblem) {
+    console.error(orderProblem);
+    process.exit(2);
+  }
   if (KIND === 'auto') {
-    const picked = pickKind();
+    const rows = remainingByKind();
+    summary('Очередь по видам: ' +
+            rows.map((r) => `${KINDS[r.kind].label} — ${r.left} из ${r.total}`).join(', ') + '.');
+    // «Данных нет» и «всё закрыто» — разные исходы, и различает их total, а не остаток:
+    // `generate_api.py` при потерянных главах выходит нулём с пустыми коллекциями, и без
+    // этой ветки крон рапортовал бы «всё готово» на пустом API (ревью #292).
+    if (rows.every((r) => r.total === 0)) {
+      summary(`### ❌ Очередь пуста: не нашёл данных в ${API_ROOT}\n` +
+              'Сгенерируй их перед запуском: `node web/scripts/gen-entity-data.mjs`');
+      process.exit(1);
+    }
+    const picked = nextKind(rows);
     if (!picked) {
       summary('### Все виды закрыты — генерировать нечего. ✅');
       if (process.env.GITHUB_OUTPUT) {

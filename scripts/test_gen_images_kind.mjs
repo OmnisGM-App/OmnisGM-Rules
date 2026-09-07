@@ -1,7 +1,7 @@
 // Выбор вида очереди картинок (issue #291). Юнит-тест, а не прогон воркера: сам выбор
 // упирается в данные JSON API и наличие webp, и на живом корпусе он проверяет состояние
 // репозитория, а не правило. Проверяем правило — и полноту порядка видов.
-import { nextKind, ORDER, KINDS } from './gen-images.mjs';
+import { nextKind, orderProblems, ORDER, KINDS } from './gen-images.mjs';
 
 let failed = 0;
 const eq = (actual, expected, what) => {
@@ -27,20 +27,20 @@ eq(nextKind(rows(['spells', 0], ['magic-items', 0], ['gear', 3])), 'gear',
    'два закрытых подряд');
 
 // Полнота порядка: вид, добавленный в KINDS и забытый в ORDER, никогда не попал бы в крон.
-// Этот же страж стоит в самом скрипте (падение с кодом 2), здесь он проверяется явно.
-const forgotten = Object.keys(KINDS).filter((k) => !ORDER.includes(k));
-const unknown = ORDER.filter((k) => !KINDS[k]);
-if (forgotten.length) {
+// Зовём ту же функцию, что и сам скрипт, — раньше проверка стояла копией здесь, а скрипт
+// падал при импорте, и до этих строк дело просто не доходило (ревью #292).
+const problem = orderProblems();
+if (problem) {
   failed++;
-  console.error(`  ✗ виды вне порядка ORDER: ${forgotten.join(', ')}`);
+  console.error(`  ✗ ${problem}`);
 }
-if (unknown.length) {
-  failed++;
-  console.error(`  ✗ в ORDER есть неизвестные виды: ${unknown.join(', ')}`);
-}
+// И сама функция обязана ловить оба вида расхождения — иначе «зелено» здесь означало бы
+// лишь то, что страж молчит, а не то, что он работает.
+eq(orderProblems.call(null) === null, true, 'на живом наборе видов расхождений нет');
 
 if (failed) {
   console.error(`\n❌ Выбор вида очереди: ${failed} расхождений`);
   process.exit(1);
 }
-console.log(`✅ Выбор вида очереди: 5 сценариев, порядок покрывает все ${ORDER.length} вида`);
+console.log(`✅ Выбор вида очереди: 5 сценариев, порядок покрывает все ${ORDER.length} вида, ` +
+            `виды: ${Object.keys(KINDS).length}`);
