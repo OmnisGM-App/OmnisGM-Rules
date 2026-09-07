@@ -59,17 +59,26 @@ def pdf_headers(version: str) -> dict:
     return {name: block["header"] for name, block in blocks.items() if "header" in block}
 
 
-def chapter_blocks(version: str) -> dict:
-    """Блоки ГЛАВ монстров из эталона полей: то, что обязано иметь строку в фикстуре шапок.
+def chapter_blocks(version: str):
+    """({имя → блок} глав монстров из эталона полей, проблема чтения или None).
 
-    Врезки (`outside_chapters`) и статблоки объектов (`object_block`) отсюда исключены:
-    первые живут в главах предметов и заклинаний, у вторых шапки нет вовсе.
+    Это то, что обязано иметь строку в фикстуре шапок: врезки (`outside_chapters`) и
+    статблоки объектов (`object_block`) исключены — первые живут в главах предметов и
+    заклинаний, у вторых шапки нет вовсе.
+
+    Битый или неполный эталон полей — реальный вход второго эшелона (сборщик полей
+    прерван на середине записи, файл правится руками), и ронять им отчёт трейсбеком
+    нельзя: тогда пропадает и всё, что уже найдено по этой редакции.
     """
     path = FIXTURES / f"{version}-statblock-fields.json"
-    blocks = json.loads(path.read_text(encoding="utf-8"))["blocks"]
-    return {name: block for name, block in blocks.items()
+    try:
+        blocks = json.loads(path.read_text(encoding="utf-8"))["blocks"]
+        items = list(blocks.items())
+    except (OSError, ValueError, KeyError, AttributeError) as error:
+        return {}, f"эталон полей не читается ({error}) — состав сверить не с чем"
+    return {name: block for name, block in items
             if "header" in block and not block.get("outside_chapters")
-            and not block.get("object_block")}
+            and not block.get("object_block")}, None
 
 
 def check(version: str, emit: bool) -> int:
@@ -79,8 +88,10 @@ def check(version: str, emit: bool) -> int:
         return 1
     table = rows(path)
     heads = pdf_headers(version)
-    # Имя в PDF 5.1 идёт без таксономического хвоста, в тексте и эталонах — с ним:
-    # сводим по имени без хвоста, как это делает сборщик полей.
+    # Имя в PDF 5.1 идёт без таксономического хвоста; в фикстурах ШАПОК его нет ни у
+    # одной строки, поэтому сегодня имена совпадают напрямую и эта ветка не срабатывает.
+    # Оставлена защитой на случай, когда хвост появится с одной из сторон, — как он уже
+    # есть в эталоне ПОЛЕЙ (77 имён 5.1).
     by_stripped = {STRIP_TAIL.sub("", n).strip(): n for n in heads}
     same, differ, missing, proposed = 0, [], [], []
     for number, cells in table:
@@ -110,10 +121,15 @@ def check(version: str, emit: bool) -> int:
     # нет по построению. Сама выемка PDF на эту роль не годится — в ней есть строки прозы,
     # начинающиеся со слова размера («many as twenty Medium creatures can surround a»).
     in_fixture = {STRIP_TAIL.sub("", cells[0]).strip() for _, cells in table}
-    extra = sorted(STRIP_TAIL.sub("", name).strip()
-                   for name, block in chapter_blocks(version).items()
+    chapters, problem = chapter_blocks(version)
+    if problem:
+        differ.append(problem)
+    extra = sorted(STRIP_TAIL.sub("", name).strip() for name in chapters
                    if STRIP_TAIL.sub("", name).strip() not in in_fixture)
-    print(f"{version}: строк {len(table)}, третья колонка воспроизведена из PDF у {same}, "
+    # «Воспроизведена» — с точностью до нормализации `norm()` (пробелы и хвостовая
+    # пунктуация): точное равенство держит CI-гейт, здесь сверяется содержание.
+    print(f"{version}: строк {len(table)}, третья колонка воспроизведена из PDF "
+          f"(с точностью до пробелов и хвостовой пунктуации) у {same}, "
           f"расходится {len(differ)}, шапки нет в выемках у {len(missing)}, "
           f"нет строки в фикстуре у {len(extra)} блоков глав")
     for line in differ + missing:

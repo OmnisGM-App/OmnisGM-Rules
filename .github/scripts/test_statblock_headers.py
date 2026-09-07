@@ -503,8 +503,12 @@ def check_provenance(version: str, provenance: dict) -> None:
         if not licence.is_file():
             failures.append(f"{version}: лицензии {path.group(0)} нет на диске")
         elif hashlib.sha256(licence.read_bytes()).hexdigest() != want["license_sha"]:
-            failures.append(f"{version}: {path.group(0)} изменён — отпечаток не сходится "
-                            f"с тем, что держит гейт")
+            # Две причины расхождения — правка файла и подмена ПУТИ в провенансе на
+            # другой (существующий) файл лицензии. Сообщение называет обе, иначе оно
+            # отправляет чинить файл, который никто не трогал.
+            failures.append(f"{version}: отпечаток {path.group(0)} не сходится с тем, что "
+                            f"держит гейт — либо файл изменён, либо провенанс называет "
+                            f"чужую лицензию (у гейта путь из ключа license)")
 
 
 def cross_check_fields(version: str, raw_pdf: dict) -> None:
@@ -635,9 +639,11 @@ def check_version(version: str, fixture: Path) -> None:
     # строк обеих редакций: пока она была необязательной, её отсутствие у целой редакции
     # (5.2 до #273) выключало инвариант, ничего не сообщая.
     if len(raw_pdf) != len(expected):
+        without = sorted(set(expected) - set(raw_pdf))
         failures.append(
             f"{version}: третья колонка (строка PDF) есть у {len(raw_pdf)} строк "
-            f"из {len(expected)} — она обязательна у каждой")
+            f"из {len(expected)} — она обязательна у каждой; без неё: "
+            f"{without[:5]}{' и ещё ' + str(len(without) - 5) if len(without) > 5 else ''}")
     check_provenance(version, provenance)
     cross_check_fields(version, raw_pdf)
     for name, raw in raw_pdf.items():
