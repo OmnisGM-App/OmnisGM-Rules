@@ -53,6 +53,27 @@ jobs:
           curl -sL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
 
+      # Экономия ходов Клода: контекст PR снимается скриптом ДО старта (аналог
+      # fetch_pr.sh локального конвейера) — Клод начинает сразу с чтения файлов.
+      - name: Prepare review context
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number }}
+          REPO: ${{ github.repository }}
+          BASE: ${{ github.base_ref }}
+        run: |
+          mkdir -p /tmp/review
+          gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > /tmp/review/00-pr.md
+          git diff "origin/${BASE}...HEAD" > /tmp/review/01-diff.patch
+          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- коммент \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- ревью \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > /tmp/review/02-comments.md || true
+          git diff --name-status "origin/${BASE}...HEAD" > /tmp/review/04-files.txt
+          for n in $(grep -oE '#[0-9]+' /tmp/review/00-pr.md | tr -d '#' | sort -un | head -5); do
+            [ "$n" = "$PR" ] && continue
+            gh issue view "$n" --repo "$REPO" --json number,title,body,state,comments --jq '"# Ишья #\(.number) (\(.state)): \(.title)\n\n\(.body)\n\n" + ([.comments[] | "--- коммент \(.author.login)\n\(.body)\n\n"] | join(""))' > "/tmp/review/03-issue-$n.md" 2>/dev/null || rm -f "/tmp/review/03-issue-$n.md"
+          done
+          ls -la /tmp/review/ && wc -l /tmp/review/01-diff.patch
+
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         env:
@@ -81,9 +102,11 @@ jobs:
             0. Если в репе есть frontend/package.json или свои юнит-тесты — поставь
                зависимости ОДИН раз (`npm ci` в нужной папке) до запуска агентов, чтобы им
                были доступны tsc/vitest; упало — работай без юнит-прогонов, отметь в шапке.
-            1. Контекст: рабочая копия — вычекнутая ветка PR в $GITHUB_WORKSPACE; дифф —
-               `git diff origin/${{ github.base_ref }}...HEAD`; описание PR и связанные ишьи —
-               через gh. Сложи всё в /tmp/review/ (00-pr.md, 01-diff.patch, 03-issue-*.md).
+            1. Контекст УЖЕ подготовлен шагом workflow в /tmp/review/: 00-pr.md (описание и
+               голова PR), 01-diff.patch (полный дифф), 02-comments.md (комменты и прошлые
+               ревью), 03-issue-*.md (упомянутые ишьи), 04-files.txt. НЕ добывай это заново
+               через gh — прочитай 00-pr.md и 01-diff.patch и сразу запускай агентов; gh
+               оставь для точечных уточнений и публикации.
             2. ВОСЕМЬ субагентов Task ПАРАЛЛЕЛЬНО (одним сообщением), каждый с model: opus
                — как в локальном конвейере: A process, B regression,
                C bugs, D architecture, E tests, G comments, H security, F hunter («Найди ошибки»,
