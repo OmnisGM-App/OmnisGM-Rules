@@ -493,7 +493,10 @@ SAVED = Counter()
 
 
 def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: dict) -> list:
-    """Расхождения ТИПА и МИРОВОЗЗРЕНИЯ в шапке врезки. Размер сверяется отдельно, выше.
+    """Расхождения ТИПА, МИРОВОЗЗРЕНИЯ и согласования РАЗМЕРА в шапке врезки.
+
+    Значение размера (сведение к EN) сверяется выше, у вызывающего; здесь — род
+    прилагательного и регистр, как это делает гейт шапок для главы.
 
     Тип сверяется со словарём перевода — тем же, что у гейта шапок, — и порегистрово:
     в шапке он пишется словарным термином с прописной. Мировоззрение сверяется дважды:
@@ -510,7 +513,7 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
     # Род и регистр прилагательного размера — та же сверка, что у главы: до ревью #281
     # у врезки размер сводился к EN («средний» и «Средняя» одинаково дают Medium), и
     # ни «*Средний Нежить*», ни «*большой Дракон*» не были видны.
-    problem, _unknown = size_agreement(ru_header, TYPES_RU.values(), SIZES_RU_TO_EN)
+    problem, _unknown, _kind = size_agreement(ru_header, TYPES_RU.values(), SIZES_RU_TO_EN)
     if problem:
         out.append(f"RU «{name}» шапка: {problem}")
     if ru_parts[0][:1].islower():
@@ -1017,7 +1020,10 @@ def check_version(V: dict) -> None:
         _parts = split_header(_b["header"])
         if not _parts:
             continue
-        _en_align, _ = align_to_en(_parts[1])
+        # Форму главы мы здесь ЧИТАЕМ, а не судим, поэтому средний род принимается:
+        # редакция, объявившая послабление в фикстуре шапок, иначе получала бы от гейта
+        # полей «сверить не с чем» на правильной врезке (ревью #281).
+        _en_align, _ = align_to_en(_parts[1], neuter_ok=True)
         if _en_align:
             chapter_aligns.setdefault(_en_align.lower(), set()).add(_parts[1])
     for _value, _forms in sorted(chapter_aligns.items()):

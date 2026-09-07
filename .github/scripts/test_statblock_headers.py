@@ -53,8 +53,7 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
 # для расхождения.
 from statblock_terms import (DICT, SPLIT_ALIGN, SUBTYPE_DICT,  # noqa: E402
                             align_to_en as _align_to_en, dict_table as _dict_table,
-                            parts_en, size_agreement as _size_agreement,
-                            GENDER_RU, SIZE_FORMS)
+                            parts_en, size_agreement as _size_agreement, GENDER_RU)
 # Прилагательное согласуется с родом типа существа, поэтому вариантов больше, чем размеров.
 # Словарь один — продукционный, из парсера: копия здесь уже жила и могла разъехаться.
 SIZES_RU = SIZES_RU_TO_EN
@@ -210,13 +209,13 @@ def size_agreement(header: str, version: str):
     Само правило живёт в `statblock_terms`: его зовёт и гейт полей — для врезок, у
     которых до ревью #281 род и регистр размера не проверялись вовсе.
     """
-    problem, unknown_gender = _size_agreement(header, TYPES_RU.values(), SIZES_RU)
+    problem, unknown_gender, kind = _size_agreement(header, TYPES_RU.values(), SIZES_RU)
     if unknown_gender:
         # Одна дыра в таблице родов давала сообщение на КАЖДОЕ существо этого типа
         # (170 одинаковых строк на «Зверь») и вытесняла из отчёта настоящие дефекты.
         missing_gender.add(unknown_gender)
         return None
-    if problem and "не согласован" in problem and version in SIZE_DRIFT:
+    if problem and kind == "род" and version in SIZE_DRIFT:
         SIZE_USED[version] += 1
         return None
     return problem
@@ -247,9 +246,6 @@ def statblock_files(version_dir: Path) -> list:
     return files
 
 
-# Объявления в шапке фикстуры: «# опция: <имя>». Сегодня объявленных послаблений нет —
-# обе опции 5.1 сняты вместе с правкой её шапок (#256); имена оставлены, чтобы опечатка
-# в новой опции не прошла молча.
 # Регистр мировоззрения в RU-переводе: конвенция, решённая в логе перевода
 # (`src/dnd/translate/logs/`). True — с прописной («Принципиально-злой»), False — со
 # строчной. Ключ — редакция И МЕСТО: у 5.2 шапка пишется со строчной, а тот же термин
@@ -278,6 +274,9 @@ def align_form(value: str, upper: bool) -> str:
         low = chunk.lower()
         return low[:1].upper() + low[1:] if upper else low
     return " или ".join(one(part) for part in value.split(" или "))
+# Объявления в шапке фикстуры: «# опция: <имя>». Сегодня объявленных послаблений нет —
+# обе опции 5.1 сняты вместе с правкой её шапок (#256); имена оставлены, чтобы опечатка
+# в новой опции не прошла молча.
 OPTION_RE = re.compile(r"^#\s*опция:\s*(\S+)\s*$")
 OPTIONS = {"род-мировоззрения-несогласован", "род-размера-несогласован"}
 

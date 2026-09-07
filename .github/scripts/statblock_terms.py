@@ -147,6 +147,17 @@ def dict_table(path: Path, section, report: bool = True):
                     reported = True
                 continue
             out[en] = cells[2]
+    # Коллизия в ОБРАТНУЮ сторону: два разных EN-термина с одним RU-переводом. Направление
+    # RU→EN читает сверка врезки, и без этой проверки дефект словаря предъявлялся бы как
+    # дефект текста — на правильных врезках (ревью #281).
+    if report:
+        seen: dict = {}
+        for en, ru in sorted(out.items()):
+            if ru in seen:
+                problems.append(f"{path.name}: «{seen[ru]}» и «{en}» переведены одинаково "
+                                f"(«{ru}») — обратный перевод неоднозначен")
+            else:
+                seen[ru] = en
     return out, problems
 
 
@@ -223,8 +234,20 @@ def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) 
     out, rest, groups = [], expr, []
     for group in re.findall(r"\(([^()]*)\)", expr):
         rest = rest.replace(f"({group})", " ⟪PAREN⟫ ", 1)
+        # Составной подтип пишется через запятую («(Demon, Shapechanger)»): режем группу
+        # так же, как гейт шапок, иначе целая форма из семи шапок 5.1 не разбирается —
+        # и «сверять не с чем» звучало бы одинаково и на верном тексте, и на подмене.
+        parts = [part.strip() for part in group.split(",")] if "," in group else None
+        if parts and all(part in subtypes or part in to_en_sub for part in parts):
+            groups.append(("subtype", ", ".join(part if lang == "en" else to_en_sub[part]
+                                                for part in parts)))
+            continue
         raw = group.strip()
         if lang == "en":
+            # EN-половина читается из PDF, и регистр служебной оговорки там свой
+            # («(Your Choice)»); RU-форма — наша конвенция, поэтому сверяется порегистрово,
+            # как и термины: «(На ваш выбор)» — такое же расхождение, как «(демон)» вместо
+            # «(перевёртыш)» (ревью #281).
             if raw in subtypes:
                 groups.append(("subtype", raw))
             elif raw.lower() in PAREN_SERVICE:
@@ -233,8 +256,8 @@ def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) 
                 groups.append(("?", raw))
         elif raw in to_en_sub:
             groups.append(("subtype", to_en_sub[raw]))
-        elif raw.lower() in paren_to_en:
-            groups.append(("paren", paren_to_en[raw.lower()]))
+        elif raw in paren_to_en:
+            groups.append(("paren", paren_to_en[raw]))
         else:
             groups.append(("?", raw))
     # Термины типа (в том числе многословные) вынимаем ДО разбора по словам: иначе
@@ -266,8 +289,10 @@ def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) 
             out.append(("size", token))
         elif lang == "ru" and token.lower() in sizes_ru:
             out.append(("size", sizes_ru[token.lower()]))
-        elif token.lower() in SERVICE[lang]:
-            out.append(("service", SERVICE[lang][token.lower()]))
+        elif lang == "ru" and token in SERVICE["ru"]:
+            out.append(("service", SERVICE["ru"][token]))
+        elif lang == "en" and token.lower() in SERVICE["en"]:
+            out.append(("service", SERVICE["en"][token.lower()]))
         else:
             out.append(("?", token))
     # Серийная запятая — английская типографика («Celestial, Fey, or Fiend»); в русском её
@@ -302,26 +327,33 @@ GENDER_RU = {
 }
 
 
+# Формы связки границы диапазона по роду — тот же порядок, что у SIZE_FORMS.
+SMALLER_FORMS = ("меньший", "меньшая", "меньшее")
+
+
 def size_agreement(header: str, types_ru, sizes_ru: dict):
     """(сообщение или None, тип без рода в таблице или None) — согласование размера.
 
     «Большая Фея» верно, «Большое Фея» — нет. Составной размер проверяется по обоим
     прилагательным («Средняя или Маленькая Нежить»). Второе значение кортежа — термин,
     которого нет в таблице родов: звать его дефектом шапки нельзя, это дыра таблицы,
-    и вызывающий копит такие термины отдельно.
+    и вызывающий копит такие термины отдельно. Третье — ВИД дефекта («род» или «тип»):
+    версионное послабление выбирается по нему, а не грепом русского текста сообщения.
     """
     left = SPLIT_ALIGN.split(header, maxsplit=1)[0]
-    words, sizes, i = left.split(), [], 0
+    words, sizes, smaller, i = left.split(), [], [], 0
     while i < len(words):
         if words[i].lower() in sizes_ru:
             sizes.append(words[i]); i += 1
-        elif words[i].lower() in ("или", "меньший", "меньшая", "меньшее") and sizes:
+        elif words[i].lower() == "или" and sizes:
             i += 1
+        elif words[i].lower() in SMALLER_FORMS and sizes:
+            smaller.append(words[i]); i += 1
         else:
             break
     rest = words[i:]
     if not sizes or not rest:
-        return None, None
+        return None, None, None
     term = rest[0].strip("(),")
     gender = GENDER_RU.get(term)
     if gender is None:
@@ -331,11 +363,20 @@ def size_agreement(header: str, types_ru, sizes_ru: dict):
         # Сравниваем по первому слову словарного термина: тип роя записан целиком
         # («Рой Крошечных зверей»), а в шапке от него стоит «Рой».
         if term in {v.split()[0] for v in types_ru}:
-            return None, term
+            return None, term, None
         return (f"тип «{term}» не из словаря — в шапке он пишется словарным термином "
-                f"с прописной (#256)"), None
+                f"с прописной (#256)"), None, "тип"
     for word in sizes:
         want = SIZE_FORMS[sizes_ru[word.lower()]][gender]
         if word != want:
-            return f"размер «{word}» не согласован с «{term}» — ожидалось «{want}»", None
-    return None, None
+            return (f"размер «{word}» не согласован с «{term}» — "
+                    f"ожидалось «{want}»"), None, "род"
+    # Связка границы диапазона — то же прилагательное и тот же род: «Огромный или меньший
+    # Конструкт», но «Огромная или меньшая тварь». Без этой сверки род связки был свободен
+    # (ревью #281).
+    for word in smaller:
+        want = SMALLER_FORMS[gender]
+        if word != want:
+            return (f"граница диапазона «{word}» не согласована с «{term}» — "
+                    f"ожидалось «{want}»"), None, "род"
+    return None, None, None
