@@ -71,3 +71,9 @@ KIND=magic-items COUNT=1 DUMP_PROMPT=1 node scripts/gen-images.mjs
 ```
 
 Локально нужны `codex` (залогиненный), `cwebp` и сгенерированные данные API — `node web/scripts/gen-entity-data.mjs`.
+
+Посмотреть, какой вид возьмёт крон, и остатки по всем видам — без генерации:
+
+```bash
+CHECK_ONLY=1 KIND=auto node scripts/gen-images.mjs
+```

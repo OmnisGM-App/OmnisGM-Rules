@@ -27,7 +27,7 @@
 import { execFileSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, appendFileSync, readFileSync, statSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
-import { fileURLToPath } from 'node:url';
+import { fileURLToPath, pathToFileURL } from 'node:url';
 import { homedir } from 'node:os';
 
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
@@ -96,9 +96,21 @@ const KINDS = {
   },
 };
 
-const KIND = process.env.KIND || 'creatures';
-if (!KINDS[KIND]) {
-  console.error(`Неизвестный KIND="${KIND}". Допустимые: ${Object.keys(KINDS).join(', ')}`);
+// Порядок видов для режима KIND=auto: очередь закрывается сверху вниз. Список ПОЛНЫЙ и
+// проверяемый — вид, появившийся в KINDS и забытый здесь, никогда бы не попал в крон и
+// молча ждал бы ручного запуска (#291).
+const ORDER = ['spells', 'magic-items', 'gear', 'domain-cards', 'creatures'];
+const forgotten = Object.keys(KINDS).filter((k) => !ORDER.includes(k));
+const unknown = ORDER.filter((k) => !KINDS[k]);
+if (forgotten.length || unknown.length) {
+  console.error(`ORDER разошёлся с KINDS: нет в порядке — ${forgotten.join(', ') || '—'}; ` +
+                `нет среди видов — ${unknown.join(', ') || '—'}`);
+  process.exit(2);
+}
+
+let KIND = process.env.KIND || 'creatures';
+if (KIND !== 'auto' && !KINDS[KIND]) {
+  console.error(`Неизвестный KIND="${KIND}". Допустимые: ${Object.keys(KINDS).join(', ')}, auto`);
   process.exit(2);
 }
 
@@ -358,8 +370,8 @@ function fromMarkdown(sources, add) {
   }
 }
 
-function loadQueue() {
-  const { api, md } = KINDS[KIND];
+function loadQueue(kind = KIND) {
+  const { api, md } = KINDS[kind];
   const bySlug = new Map();
   // Слаг уникален внутри игры; версии и источники дедуплицируем — картинка одна на сущность.
   const add = (e) => { if (e.slug && !bySlug.has(`${e.game}/${e.slug}`)) bySlug.set(`${e.game}/${e.slug}`, e); };
@@ -368,10 +380,49 @@ function loadQueue() {
   return [...bySlug.values()].sort((a, b) => (a.game + a.slug).localeCompare(b.game + b.slug));
 }
 
-const relPath = (e) => `web/public/img/${e.game}/${KINDS[KIND].dir}/${e.slug}.webp`;
-const hasImage = (e) => existsSync(resolve(REPO, relPath(e)));
+const relPath = (e, kind = KIND) => `web/public/img/${e.game}/${KINDS[kind].dir}/${e.slug}.webp`;
+const hasImage = (e, kind = KIND) => existsSync(resolve(REPO, relPath(e, kind)));
+
+// Остаток очереди по каждому виду: и выбор вида, и сводка прогона считаются ОДНОЙ функцией,
+// иначе «выбрали X» и «в X осталось N» могли бы разъехаться.
+function remainingByKind() {
+  return ORDER.map((kind) => {
+    const all = loadQueue(kind);
+    return { kind, total: all.length, left: all.filter((e) => !hasImage(e, kind)).length };
+  });
+}
+
+// Первый вид с непустой очередью, либо null — работы нет вовсе. Именно этого не хватало
+// крону: он вечно брал заклинания и, закрыв их, каждые 6 часов рапортовал «всё готово»,
+// пока у трёх других видов лежало больше тысячи сущностей без картинок (#291).
+function pickKind() {
+  const rows = remainingByKind();
+  summary('Очередь по видам: ' + rows.map((r) => `${KINDS[r.kind].label} — ${r.left} из ${r.total}`).join(', ') + '.');
+  return nextKind(rows);
+}
+
+// Сам выбор — чистая функция от остатков: только её и проверяет юнит-тест, потому что
+// остальное упирается в данные API и файлы картинок (scripts/test_gen_images_kind.mjs).
+export function nextKind(rows) {
+  const next = rows.find((r) => r.left > 0);
+  return next ? next.kind : null;
+}
+
+export { ORDER, KINDS };
 
 async function main() {
+  if (KIND === 'auto') {
+    const picked = pickKind();
+    if (!picked) {
+      summary('### Все виды закрыты — генерировать нечего. ✅');
+      if (process.env.GITHUB_OUTPUT) {
+        appendFileSync(process.env.GITHUB_OUTPUT, 'has_work=0\n');
+      }
+      return;
+    }
+    KIND = picked;
+    summary(`Выбран вид: **${KINDS[KIND].label}** (\`${KIND}\`) — первый с непустой очередью.`);
+  }
   const all = loadQueue();
   if (all.length === 0) {
     summary(`### ❌ Очередь пуста: не нашёл данных в ${API_ROOT}\n` +
@@ -397,6 +448,9 @@ async function main() {
   if (process.env.CHECK_ONLY) {
     if (process.env.GITHUB_OUTPUT) {
       appendFileSync(process.env.GITHUB_OUTPUT, `has_work=${queue.length > 0 ? '1' : '0'}\n`);
+      // Шаг генерации — ОТДЕЛЬНЫЙ запуск скрипта, поэтому выбранный вид передаём наружу:
+      // иначе «auto» второй раз считал бы очередь заново и мог бы выбрать другой вид.
+      appendFileSync(process.env.GITHUB_OUTPUT, `kind=${KIND}\n`);
     }
     return;
   }
@@ -465,7 +519,11 @@ async function main() {
   }
 }
 
-main().catch((err) => {
-  summary(`### ❌ Непредвиденная ошибка\n\`\`\`\n${err?.stack || err}\n\`\`\``);
-  process.exit(1);
-});
+// Модуль импортируется юнит-тестом ради `nextKind`, поэтому очередь запускается только
+// при прямом запуске: иначе тест полез бы в codex.
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+  main().catch((err) => {
+    summary(`### ❌ Непредвиденная ошибка\n\`\`\`\n${err?.stack || err}\n\`\`\``);
+    process.exit(1);
+  });
+}
