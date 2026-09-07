@@ -76,6 +76,15 @@ def chapter_blocks(version: str):
         items = list(blocks.items())
     except (OSError, ValueError, KeyError, AttributeError) as error:
         return {}, f"эталон полей не читается ({error}) — состав сверить не с чем"
+    # Порча бывает и ПОШТУЧНАЯ: у блока стёрли содержимое (`null`), оставили обрывок
+    # строки. Проверяем каждый блок явно — фильтр «"header" in block» на строке даёт
+    # подстрочный поиск и True, а следующий же `.get` роняет прогон трейсбеком: тот же
+    # класс, что и битый файл, только этажом ниже (ревью #282).
+    broken = sorted(name for name, block in items if not isinstance(block, dict))
+    if broken:
+        word = "блок" if len(broken) == 1 else "блоков"
+        return {}, (f"эталон полей: {len(broken)} {word} не {'является' if len(broken) == 1 else 'являются'} "
+                    f"объектом ({broken[:3]}) — состав сверить не с чем")
     return {name: block for name, block in items
             if "header" in block and not block.get("outside_chapters")
             and not block.get("object_block")}, None

@@ -531,6 +531,12 @@ def cross_check_fields(version: str, raw_pdf: dict) -> None:
     for name, raw in sorted(raw_pdf.items()):
         block = blocks.get(name) or blocks.get(
             by_stripped.get(STRIP_TAIL.sub("", name).strip(), ""), {})
+        # Блок может оказаться не объектом (стёрли содержимое, оставили обрывок строки):
+        # `.get` на нём роняет весь прогон трейсбеком вместе с накопленным отчётом.
+        if not isinstance(block, dict):
+            failures.append(f"{version} эталон полей: блок «{name}» не объект "
+                            f"({type(block).__name__}) — сверить шапку не с чем")
+            continue
         want = block.get("header")
         if want is None:
             failures.append(f"{version} эталон «{name}»: шапка есть в фикстуре шапок, "
