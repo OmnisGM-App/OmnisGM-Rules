@@ -63,6 +63,9 @@ jobs:
           REPO: ${{ github.repository }}
           BASE: ${{ github.base_ref }}
         run: |
+          # self-hosted раннер персистентен: артефакты прошлого прогона в /tmp сбивают
+          # ревьюера («всё уже опубликовано» на старую голову — случай Table#529).
+          rm -rf /tmp/review /tmp/wt
           mkdir -p /tmp/review
           gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > /tmp/review/00-pr.md
           git diff "origin/${BASE}...HEAD" > /tmp/review/01-diff.patch
