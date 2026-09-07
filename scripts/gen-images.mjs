@@ -406,6 +406,13 @@ export function nextKind(rows) {
   return next ? next.kind : null;
 }
 
+// Виды, у которых очередь не «закрыта», а ПУСТА: размер списка ноль — значит данных нет
+// вовсе. Тоже чистая функция от остатков и тоже под юнит-тестом: это единственный сторож,
+// отличающий обнулившийся API от честного «всё готово» (ревью #292).
+export function emptyKinds(rows) {
+  return rows.filter((r) => r.total === 0).map((r) => r.kind);
+}
+
 export { ORDER, KINDS };
 
 async function main() {
@@ -424,7 +431,7 @@ async function main() {
     // этой ветки крон рапортовал бы «всё готово» на обнулившемся API (ревью #292).
     // Требовать нули у ВСЕХ видов было бы бесполезно: часть очередей идёт из markdown
     // и переживает поломку API, маскируя её.
-    const empty = rows.filter((r) => r.total === 0).map((r) => r.kind);
+    const empty = emptyKinds(rows);
     if (empty.length) {
       summary(`### ❌ Нет данных для видов: ${empty.join(', ')} (искал в ${API_ROOT})\n` +
               'Сгенерируй их перед запуском: `node web/scripts/gen-entity-data.mjs`');

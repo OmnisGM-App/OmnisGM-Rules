@@ -1,7 +1,7 @@
 // Выбор вида очереди картинок (issue #291). Юнит-тест, а не прогон воркера: сам выбор
 // упирается в данные JSON API и наличие webp, и на живом корпусе он проверяет состояние
 // репозитория, а не правило. Проверяем правило — и полноту порядка видов.
-import { nextKind, orderProblems, ORDER, KINDS } from './gen-images.mjs';
+import { nextKind, emptyKinds, orderProblems, ORDER, KINDS } from './gen-images.mjs';
 
 let failed = 0;
 const eq = (actual, expected, what) => {
@@ -26,6 +26,20 @@ eq(nextKind([]), null, 'пустой список видов');
 eq(nextKind(rows(['spells', 0], ['magic-items', 0], ['gear', 3])), 'gear',
    'два закрытых подряд');
 
+// Пустая очередь — не «закрытая»: ноль в РАЗМЕРЕ списка значит, что данных нет вовсе.
+// Пары задаём явными total: helper `rows` даёт total = left + 10 и нулевого размера не
+// строит по построению.
+const sized = (...triples) => triples.map(([kind, left, total]) => ({ kind, left, total }));
+eq(emptyKinds(sized(['spells', 0, 0], ['magic-items', 377, 383])).join(','), 'spells',
+   'вид без данных назван, соседний с данными — нет');
+// Ровно тот вариант, что был отклонён в #292: у части видов очередь идёт из markdown и
+// переживает поломку API. Условие «нули у ВСЕХ» здесь молчало бы.
+eq(emptyKinds(sized(['spells', 0, 0], ['magic-items', 377, 383], ['creatures', 0, 0])).join(','),
+   'spells,creatures', 'смешанный случай: API потерян, markdown-виды целы');
+eq(emptyKinds(sized(['spells', 0, 341], ['magic-items', 0, 383])).length, 0,
+   'закрытые, но непустые очереди — не «нет данных»');
+eq(emptyKinds([]).length, 0, 'пустой список видов');
+
 // Полнота порядка проверяется ДВАЖДЫ, и это не дублирование:
 //  1) зовём прод-функцию — это её контракт, тот же вызов делает сам скрипт;
 //  2) считаем расхождение НЕЗАВИСИМО — иначе ослабленная функция (ранний `return null`)
@@ -48,5 +62,5 @@ if (failed) {
   console.error(`\n❌ Выбор вида очереди: ${failed} расхождений`);
   process.exit(1);
 }
-console.log(`✅ Выбор вида очереди: 5 сценариев, порядок покрывает все ${ORDER.length} вида, ` +
+console.log(`✅ Выбор вида очереди: 9 сценариев, порядок покрывает все ${ORDER.length} вида, ` +
             `виды: ${Object.keys(KINDS).length}`);
