@@ -191,3 +191,77 @@ def type_terms(expr: str, terms) -> list:
         return []
     pattern = re.compile(rf"(?<![A-Za-zА-Яа-яЁё])(?:{alt})(?![A-Za-zА-Яа-яЁё])")
     return [m.group(0) for m in pattern.finditer(expr)]
+
+
+# Служебные слова шапки — всё, что в ней стоит помимо размера, типа и подтипа. Список
+# ЗАКРЫТЫЙ: он и есть граница проверки «шапка сверяется строкой целиком», а не набором
+# найденных терминов. Незнакомое слово в шапке — расхождение, а не служебная связка.
+SERVICE = {
+    "en": {"or": "OR", "smaller": "SMALLER", "and": "AND", "any": "ANY"},
+    "ru": {"или": "OR", "меньший": "SMALLER", "меньшая": "SMALLER", "меньшее": "SMALLER",
+           "и": "AND", "любой": "ANY", "любая": "ANY", "любое": "ANY"},
+}
+# Скобочные группы, которые НЕ являются подтипом («(Your Choice)» у Потустороннего
+# скакуна): подтипы переводятся своим словарём, а это — служебная оговорка выбора.
+PAREN_SERVICE = {"your choice": "на ваш выбор"}
+
+
+def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) -> list:
+    """Выражение типа как последовательность помеченных кусков, сведённых к EN.
+
+    Каждое слово шапки относится ровно к одной категории: размер, термин типа, подтип
+    в скобках, служебная связка. Всё, что не опознано, попадает в список как («?», слово)
+    и потому не может совпасть с другой половиной: именно так дописка постороннего слова
+    («Зверь-мутант») перестаёт быть невидимой. Значения приводятся к EN, поэтому списки
+    половин сравниваются напрямую.
+
+    `types` и `subtypes` — словарные карты EN → RU; `sizes_ru` — формы размера RU → EN.
+    """
+    to_en_type = {ru: en for en, ru in types.items()}
+    to_en_sub = {ru: en for en, ru in subtypes.items()}
+    paren_to_en = {ru: en for en, ru in PAREN_SERVICE.items()}
+    out, rest, groups = [], expr, []
+    for group in re.findall(r"\(([^()]*)\)", expr):
+        rest = rest.replace(f"({group})", " ⟪PAREN⟫ ", 1)
+        raw = group.strip()
+        if lang == "en":
+            if raw in subtypes:
+                groups.append(("subtype", raw))
+            elif raw.lower() in PAREN_SERVICE:
+                groups.append(("paren", raw.lower()))
+            else:
+                groups.append(("?", raw))
+        elif raw in to_en_sub:
+            groups.append(("subtype", to_en_sub[raw]))
+        elif raw.lower() in paren_to_en:
+            groups.append(("paren", paren_to_en[raw.lower()]))
+        else:
+            groups.append(("?", raw))
+    # Термины типа (в том числе многословные) вынимаем ДО разбора по словам: иначе
+    # «Рой Крошечных зверей» рассыпался бы на неопознанные слова.
+    terms = type_terms(rest, types.keys() if lang == "en" else types.values())
+    for term in terms:
+        rest = rest.replace(term, " ⟪TERM⟫ ", 1)
+    term_i = paren_i = 0
+    for token in re.findall(r"⟪TERM⟫|⟪PAREN⟫|[A-Za-zА-Яа-яЁё]+|,", rest):
+        if token == "⟪TERM⟫":
+            term = terms[term_i]
+            term_i += 1
+            out.append(("type", term if lang == "en" else to_en_type.get(term, f"?{term}")))
+        elif token == "⟪PAREN⟫":
+            out.append(groups[paren_i])
+            paren_i += 1
+        elif token == ",":
+            out.append(("sep", ","))
+        elif lang == "en" and token in SIZES_EN:
+            out.append(("size", token))
+        elif lang == "ru" and token.lower() in sizes_ru:
+            out.append(("size", sizes_ru[token.lower()]))
+        elif token.lower() in SERVICE[lang]:
+            out.append(("service", SERVICE[lang][token.lower()]))
+        else:
+            out.append(("?", token))
+    # Серийная запятая — английская типографика («Celestial, Fey, or Fiend»), в русском
+    # её нет. Это оформление, а не состав, поэтому снимаем её у обеих половин.
+    return [item for n, item in enumerate(out)
+            if not (item == ("sep", ",") and out[n + 1:n + 2] == [("service", "OR")])]

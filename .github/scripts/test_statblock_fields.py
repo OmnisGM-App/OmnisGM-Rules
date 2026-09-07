@@ -64,14 +64,18 @@ from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
                             en_name_from_ru_heading, titlecase_header)
 # Шапку врезки гейт шапок не видит (он читает главы монстров и указатели), поэтому её
 # тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271).
-from statblock_terms import (DICT, align_to_en, dict_table,  # noqa: E402
-                             split_header, type_terms)
+from statblock_terms import (DICT, SUBTYPE_DICT, align_to_en,  # noqa: E402
+                             dict_table, skeleton, split_header)
 
 # Тип существа переводится только словарём: копия в коде разошлась бы с ним молча (#256).
 # Поломку САМОГО словаря гейт обязан назвать сам: он объявляет словарь источником правды,
 # а гоняется отдельным шагом CI — молчать о битом источнике и краснеть его следствиями
 # («EN-тип не из словаря») значит показывать симптом вместо причины.
 TYPES_RU, DICT_PROBLEMS = dict_table(DICT, "Типы существ")
+# Подтипы лежат отдельным файлом (их ключи совпадают с именами классов и рас) — и тоже
+# читаются, а не копируются: подтип врезки сверяется наравне с типом.
+SUBTYPES_RU, _SUB_PROBLEMS = dict_table(SUBTYPE_DICT, None)
+DICT_PROBLEMS = DICT_PROBLEMS + _SUB_PROBLEMS
 
 # Отпечаток `_source.extraction` эталона: способ выемки — часть провенанса, и подменять
 # его молча нельзя (у 5.2 это четыре выемки, у 5.1 — две команды резки и две заметки).
@@ -499,15 +503,19 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
         out.append(f"RU «{name}» шапка: мировоззрение не отделено запятой {side}: "
                    f"«{en_header if en_parts is None else ru_header}»")
         return out
-    en_types = type_terms(en_parts[0], TYPES_RU.keys())
-    ru_types = type_terms(ru_parts[0], TYPES_RU.values())
-    want_types = [TYPES_RU[t] for t in en_types]
-    if not en_types:
-        out.append(f"RU «{name}» шапка: EN-тип «{en_parts[0]}» не из словаря — сверять "
-                   f"перевод не с чем")
-    elif ru_types != want_types:
-        out.append(f"RU «{name}» шапка: тип «{ru_parts[0]}» ≠ EN «{en_parts[0]}» — "
-                   f"ожидались словарные термины {want_types}, найдены {ru_types}")
+    en_skeleton = skeleton(en_parts[0], "en", TYPES_RU, SUBTYPES_RU, SIZES_RU_TO_EN)
+    ru_skeleton = skeleton(ru_parts[0], "ru", TYPES_RU, SUBTYPES_RU, SIZES_RU_TO_EN)
+    unknown = [word for kind, word in ru_skeleton if kind == "?"]
+    if any(kind == "?" for kind, _ in en_skeleton):
+        out.append(f"RU «{name}» шапка: EN-тип «{en_parts[0]}» разбирается не целиком "
+                   f"({[w for k, w in en_skeleton if k == '?']}) — сверять перевод не с чем")
+    elif ru_skeleton != en_skeleton:
+        # Сравниваем шапку ЦЕЛИКОМ, а не набор найденных терминов: иначе постороннее
+        # слово («Зверь-мутант»), подмена связки («или» → «и») и правка подтипа в скобках
+        # остаются невидимыми — тип сверялся бы слабее, чем в главе.
+        detail = (f"не из словаря: {unknown}" if unknown
+                  else f"разбор «{ru_skeleton}» ≠ EN «{en_skeleton}»")
+        out.append(f"RU «{name}» шапка: тип «{ru_parts[0]}» ≠ EN «{en_parts[0]}» — {detail}")
     ru_align, _ = align_to_en(ru_parts[1])
     if ru_align is None:
         out.append(f"RU «{name}» шапка: мировоззрение «{ru_parts[1]}» не из словаря "
@@ -517,9 +525,13 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
                    f"≠ EN «{en_parts[1]}»")
     else:
         forms = chapter_aligns.get(ru_align.lower())
-        if forms and ru_parts[1] not in forms:
+        if not forms:
+            out.append(f"RU «{name}» шапка: форму мировоззрения «{ru_parts[1]}» сверить "
+                       f"не с чем — глава монстров не пишет «{ru_align}» ни разу")
+        elif ru_parts[1] not in forms:
             out.append(f"RU «{name}» шапка: мировоззрение «{ru_parts[1]}» написано не как "
-                       f"в главе монстров — там {sorted(forms)}")
+                       f"в главе монстров — там {sorted(forms)}; форма главы гейтом не "
+                       f"пришпилена, расходится одна из двух сторон")
     return out
 
 
@@ -974,10 +986,21 @@ def check_version(V: dict) -> None:
 
     # Формы мировоззрения, как их пишет ГЛАВА монстров этой редакции: 5.1 переводит их
     # с прописной («Нейтрально-злой»), 5.2 — со строчной («нейтрально-злой»). Врезка
-    # обязана писать так же, как глава своей редакции, — и это утверждение читается из
-    # корпуса, а не пришпиливается в конфигурации: главы уже сверены гейтом шапок.
+    # обязана писать так же, как глава своей редакции.
+    #
+    # Чего это НЕ утверждает: что форма главы правильна. Гейт шапок сверяет мировоззрение
+    # по ЗНАЧЕНИЮ (`align_to_en` приводит строку к нижнему регистру) и отдельно — единство
+    # регистра внутри редакции; абсолютной формы не держит никто, она записана решением в
+    # логе перевода. Поэтому здесь проверяется согласие врезки с главой, а не правота
+    # главы, и об этом же говорит текст расхождения: он называет обе стороны.
+    #
+    # Два условия делают эту опору честной. Первое: форма у значения обязана быть ОДНА —
+    # разнобой внутри главы означал бы, что «как в главе» не определено, и сверять врезку
+    # не с чем. Второе: если глава не пишет такого мировоззрения вовсе, форма врезки
+    # молча НЕ проверялась бы — вместо тишины гейт говорит об этом прямо (у 5.2 глава не
+    # использует «Любое … мировоззрение», и врезка с ним попала бы ровно в эту дыру).
     chapter_aligns: dict = {}
-    for _n, _b in ru_blocks.items():
+    for _n, _b in sorted(ru_blocks.items()):
         if _n in V['outside'] or "header" not in _b:
             continue
         _parts = split_header(_b["header"])
@@ -986,6 +1009,11 @@ def check_version(V: dict) -> None:
         _en_align, _ = align_to_en(_parts[1])
         if _en_align:
             chapter_aligns.setdefault(_en_align.lower(), set()).add(_parts[1])
+    for _value, _forms in sorted(chapter_aligns.items()):
+        if len(_forms) > 1:
+            failures.append(f"глава монстров: мировоззрение «{_value}» пишется по-разному "
+                            f"({sorted(_forms)}) — конвенция главы неоднородна, и форма "
+                            f"врезки сверяется не с чем")
 
     # --- 2. RU-зеркало --------------------------------------------------------------------
     for name, fields in sorted(en_blocks.items()):
