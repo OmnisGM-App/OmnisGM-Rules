@@ -68,6 +68,7 @@ jobs:
             omnisgm@omnisgm
           claude_args: |
             --max-turns 200
+            --add-dir /tmp
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR #${{ github.event.pull_request.number }}
@@ -87,6 +88,11 @@ jobs:
                C bugs, D architecture, E tests, G comments, H security, F hunter («Найди ошибки»,
                промт F не расширять). Каждому дай: CI-шапку (ниже) + его профильный промт
                ДОСЛОВНО из references/agents.md + пути контекста. Результаты — /tmp/review/1?-*.md.
+               ⚠️ Агенты выполняются В ФОНЕ, а уведомления доходят только пока сессия жива:
+               НЕ завершай ход «в ожидании» (прогон закончится без ревью — уже случалось) и
+               НЕ используй ScheduleWakeup (в CI не работает). Держи сессию активной опросом:
+               повторяй `python3 -c "import time,glob; time.sleep(90); print(sorted(glob.glob('/tmp/review/1*.md')))"`,
+               пока не появятся все отчёты (таймаут ~25 минут — дальше работай с тем, что есть).
             3. Валидатор-скептик (Task, model: opus, промт V из agents.md): опровергает каждую находку по
                рабочей копии, вердикты CONFIRMED/REFUTED/PLAUSIBLE, дубли слить →
                /tmp/review/80-validation.md. Находок после слияния больше ~15 — ДВА
@@ -114,6 +120,10 @@ jobs:
               Playwright/браузеры, пиксельные кадры, деплой, сеть кроме gh — эти классы
               честно помечай «не проверялось в CI». На self-hosted раннере: чужие процессы
               НЕ убивать, вне work-каталога и /tmp НЕ писать, занятые порты не расчищать.
+            - Гигиена команд (песочница CI режет иначе): НЕ использовать `cd` (вместо него
+              git -C / npm --prefix / tar -C / абсолютные пути); редиректы вывода — ТОЛЬКО в
+              /tmp/…; не вкладывать `$(…)`/`${…}` в команды (режется как обфускация) —
+              промежуточные значения через файлы в /tmp или python3-скрипт.
             - Каждая находка: доказательство (файл:строка / вывод), тяжесть (❗/среднее/ремарка),
               уверенность, «внесено диффом / пре-существует». НЕ находки: пре-существующее,
               вкусовое, «потенциальное» без конкретного входа, ловимое линтером.
