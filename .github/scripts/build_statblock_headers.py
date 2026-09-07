@@ -113,7 +113,10 @@ def check(version: str, emit: bool) -> int:
                           f"колонок {len(cells)}")
             continue
         raw = cells[2] if len(cells) > 2 and cells[2].strip() else None
-        got = heads.get(name) or heads.get(by_stripped.get(STRIP_TAIL.sub("", name).strip(), ""))
+        # По членству, а не по truthy: пустая шапка в выемке — это «шапки нет», а не повод
+        # молча подставить блок с хвостовым именем (ревью #282).
+        got = (heads[name] if name in heads
+               else heads.get(by_stripped.get(STRIP_TAIL.sub("", name).strip(), "")))
         proposed.append("\t".join([name, cells[1], got if got else (raw or "")]))
         if got is None:
             missing.append(f"строка {number}: «{name}» — выемки PDF не дают шапки")

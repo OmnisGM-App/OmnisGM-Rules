@@ -529,8 +529,11 @@ def cross_check_fields(version: str, raw_pdf: dict) -> None:
         return
     by_stripped = {STRIP_TAIL.sub("", n).strip(): n for n in blocks}
     for name, raw in sorted(raw_pdf.items()):
-        block = blocks.get(name) or blocks.get(
-            by_stripped.get(STRIP_TAIL.sub("", name).strip(), ""), {})
+        # Различаем «ключа нет» и «ключ есть, но пустой»: `or` уводил испорченный блок
+        # (стёртый в `null`) на ветку хвостового имени и подставлял ЧУЖОЙ блок вместо
+        # диагностики о порче — то есть обходил проверку типа ниже (ревью #282).
+        block = (blocks[name] if name in blocks else
+                 blocks.get(by_stripped.get(STRIP_TAIL.sub("", name).strip(), ""), {}))
         # Блок может оказаться не объектом (стёрли содержимое, оставили обрывок строки):
         # `.get` на нём роняет весь прогон трейсбеком вместе с накопленным отчётом.
         if not isinstance(block, dict):
