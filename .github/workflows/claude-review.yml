@@ -133,3 +133,29 @@ jobs:
             срабатывания, недостающий класс) — одним комментом в журнал
             `GH_TOKEN=$GH_PLUGINS_TOKEN gh issue comment 1 --repo OmnisGM-App/claude-plugins`
             по формату из тела ишьи. Нечего сказать — не пиши.
+
+      - name: Dump execution transcript (debug)
+        if: always()
+        shell: bash
+        run: |
+          f="$RUNNER_TEMP/claude-execution-output.json"
+          [ -f "$f" ] || { echo "нет $f"; exit 0; }
+          python3 - "$f" <<'PYEOF'
+          import json, sys
+          msgs = json.load(open(sys.argv[1]))
+          for m in msgs:
+              t = m.get("type")
+              if t == "assistant":
+                  for c in m.get("message", {}).get("content", []):
+                      if c.get("type") == "text" and c.get("text", "").strip():
+                          print(f"--- ASSISTANT TEXT:\n{c['text'][:1500]}")
+                      elif c.get("type") == "tool_use":
+                          print(f"TOOL {c.get('name')}: {json.dumps(c.get('input', {}), ensure_ascii=False)[:220]}")
+              elif t == "user":
+                  for c in m.get("message", {}).get("content", []):
+                      if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error"):
+                          body = c.get("content")
+                          if isinstance(body, list):
+                              body = " ".join(x.get("text", "") for x in body if isinstance(x, dict))
+                          print(f"  !! DENIED/ERROR: {str(body)[:300]}")
+          PYEOF
