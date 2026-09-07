@@ -51,9 +51,9 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
 # Разбор шапки и словари типов/мировоззрений — общие с гейтом полей: он сверяет ими
 # ВРЕЗКИ, которых этот гейт не видит (#271). Копия здесь была бы вторым местом
 # для расхождения.
-from statblock_terms import (DICT, SIZE_RE, SIZES_EN, SPLIT_ALIGN,  # noqa: E402
-                            SUBTYPE_DICT, align_to_en as _align_to_en, dict_table as
-                            _dict_table, parts_en)
+from statblock_terms import (DICT, SPLIT_ALIGN, SUBTYPE_DICT,  # noqa: E402
+                            align_to_en as _align_to_en, dict_table as _dict_table,
+                            parts_en)
 # Прилагательное согласуется с родом типа существа, поэтому вариантов больше, чем размеров.
 # Словарь один — продукционный, из парсера: копия здесь уже жила и могла разъехаться.
 SIZES_RU = SIZES_RU_TO_EN

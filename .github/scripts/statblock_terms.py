@@ -54,6 +54,14 @@ SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")   # запятая мировозз
 DASH = {"-", "—"}
 
 
+def relative(path: Path) -> str:
+    """Путь от корня репозитория, если он внутри; иначе — как есть."""
+    try:
+        return str(path.relative_to(ROOT))
+    except ValueError:
+        return str(path)
+
+
 def align_to_en(text: str, neuter_ok: bool = False):
     """(EN-мировоззрение или None, сработало ли послабление среднего рода).
 
@@ -98,7 +106,9 @@ def dict_table(path: Path, section, report: bool = True):
     """
     problems = []
     if not path.exists():
-        problems.append(f"словарь не найден: {path} — сверять не с чем")
+        # Путь ОТ КОРНЯ репозитория: абсолютный путь раннера («/home/runner/work/…»)
+        # в логе CI не говорит читателю ничего.
+        problems.append(f"словарь не найден: {relative(path)} — сверять не с чем")
         return {}, problems
     out, inside = {}, section is None
     for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
