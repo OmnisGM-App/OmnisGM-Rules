@@ -13,8 +13,11 @@
 переменными окружения и той же нормализацией. Своя копия разбора PDF была бы вторым
 местом для расхождения ровно там, где мы боремся именно с расхождениями.
 
-Фикстуру скрипт НЕ перезаписывает: эталон правится осознанно. `--emit` кладёт РЯДОМ
-файл-предложение (`<фикстура>.proposed`), который человек сравнивает и переносит руками.
+Фикстуру скрипт НЕ перезаписывает: эталон правится осознанно. `--emit` кладёт файл-
+предложение во временный каталог (`/tmp/<редакция>-headers.proposed.tsv`, путь можно
+задать переменными `SRD51_HEADERS_OUT` / `SRD52_HEADERS_OUT`), который человек сравнивает
+и переносит руками. Чужой файл по этому пути не затирается — только своё прежнее
+предложение, узнаваемое по первой строке-маркеру (перезаписать всё равно — `--force`).
 
 Как пользоваться (после рецепта из build_statblock_fields.py — те же выемки):
 
@@ -22,9 +25,12 @@
     python3 .github/scripts/build_statblock_headers.py srd-5.1    # одна
     python3 .github/scripts/build_statblock_headers.py --emit     # + файлы-предложения
 
-Код возврата: 0 — все строки воспроизведены; 1 — есть расхождения или недостающие
-строки; 2 — нет входных выемок (внятная ошибка вместо стектрейса).
+Код возврата: 0 — все строки воспроизведены и состав сошёлся с эталоном полей;
+1 — расхождение, недостающая строка или лишний блок. Отсутствие входной выемки — не код
+возврата, а внятное сообщение с выходом (`sys.exit` со строкой), как и отказ записать
+предложение поверх чужого файла.
 """
+import json
 import os
 import sys
 from pathlib import Path
@@ -53,6 +59,19 @@ def pdf_headers(version: str) -> dict:
     return {name: block["header"] for name, block in blocks.items() if "header" in block}
 
 
+def chapter_blocks(version: str) -> dict:
+    """Блоки ГЛАВ монстров из эталона полей: то, что обязано иметь строку в фикстуре шапок.
+
+    Врезки (`outside_chapters`) и статблоки объектов (`object_block`) отсюда исключены:
+    первые живут в главах предметов и заклинаний, у вторых шапки нет вовсе.
+    """
+    path = FIXTURES / f"{version}-statblock-fields.json"
+    blocks = json.loads(path.read_text(encoding="utf-8"))["blocks"]
+    return {name: block for name, block in blocks.items()
+            if "header" in block and not block.get("outside_chapters")
+            and not block.get("object_block")}
+
+
 def check(version: str, emit: bool) -> int:
     path = FIXTURES / f"{version}-statblock-headers.tsv"
     if not path.exists():
@@ -66,6 +85,13 @@ def check(version: str, emit: bool) -> int:
     same, differ, missing, proposed = 0, [], [], []
     for number, cells in table:
         name = cells[0]
+        # Битую строку не роняем трейсбеком, а называем: фикстура правится руками, и
+        # первая же строка из одной колонки иначе уносила бы весь прогон, включая
+        # вторую редакцию.
+        if len(cells) < 2 or not cells[1].strip():
+            differ.append(f"строка {number}: «{name}» — строка фикстуры не разбирается, "
+                          f"колонок {len(cells)}")
+            continue
         raw = cells[2] if len(cells) > 2 and cells[2].strip() else None
         got = heads.get(name) or heads.get(by_stripped.get(STRIP_TAIL.sub("", name).strip(), ""))
         proposed.append("\t".join([name, cells[1], got if got else (raw or "")]))
@@ -78,22 +104,66 @@ def check(version: str, emit: bool) -> int:
             differ.append(f"строка {number}: «{name}»: фикстура «{raw}» ≠ PDF «{got}»")
         else:
             same += 1
+    # Полнота — В ОБЕ стороны: недобравший эталон иначе неотличим от полного. Что именно
+    # обязано быть в фикстуре шапок, спрашиваем у эталона ПОЛЕЙ: он знает состав блоков
+    # поимённо и отдельно помечает врезки (`outside_chapters`), которых в фикстуре шапок
+    # нет по построению. Сама выемка PDF на эту роль не годится — в ней есть строки прозы,
+    # начинающиеся со слова размера («many as twenty Medium creatures can surround a»).
+    in_fixture = {STRIP_TAIL.sub("", cells[0]).strip() for _, cells in table}
+    extra = sorted(STRIP_TAIL.sub("", name).strip()
+                   for name, block in chapter_blocks(version).items()
+                   if STRIP_TAIL.sub("", name).strip() not in in_fixture)
     print(f"{version}: строк {len(table)}, третья колонка воспроизведена из PDF у {same}, "
-          f"расходится {len(differ)}, шапки нет в выемках у {len(missing)}")
+          f"расходится {len(differ)}, шапки нет в выемках у {len(missing)}, "
+          f"нет строки в фикстуре у {len(extra)} блоков глав")
     for line in differ + missing:
         print(f"  ≠ {line}")
+    for name in extra:
+        print(f"  + «{name}» — блок главы есть в эталоне полей, строки в фикстуре шапок нет")
     if emit:
-        # Предложение кладём во временный каталог, а не рядом с фикстурой: файл рядом
-        # с эталоном рано или поздно уезжает в коммит и начинает выглядеть эталоном.
-        out = Path(os.environ.get("SRD_HEADERS_OUT", f"/tmp/{version}-headers.proposed.tsv"))
-        head = [line for line in path.read_text(encoding="utf-8").split("\n")
-                if line.startswith("#")]
-        out.write_text("\n".join(head + proposed) + "\n", encoding="utf-8")
-        print(f"  → предложение: {out}")
-    return 1 if differ or missing else 0
+        write_proposal(version, path, proposed)
+    return 1 if differ or missing or extra else 0
+
+
+MARKER = "# предложение build_statblock_headers.py — НЕ эталон, переносить руками"
+
+
+def write_proposal(version: str, fixture: Path, proposed: list) -> None:
+    """Файл-предложение на диск: свой прежний перезаписываем, чужой — нет.
+
+    Путь у каждой редакции СВОЙ (переменные `SRD51_HEADERS_OUT` / `SRD52_HEADERS_OUT`):
+    общий путь на обе редакции молча оставлял в файле только последнюю. Провенанс из
+    шапки фикстуры не копируем: предложение пересобирают как раз тогда, когда сменился
+    PDF, и старые `_source` в нём — метаданные ПРЕЖНЕГО источника.
+    """
+    env = "SRD51_HEADERS_OUT" if version == "srd-5.1" else "SRD52_HEADERS_OUT"
+    out = Path(os.environ.get(env, f"/tmp/{version}-headers.proposed.tsv"))
+    if os.path.isdir(out):
+        sys.exit(f"{env}={out} — это каталог, а не файл: предложение не записано")
+    # lexists, а не exists: висячий симлинк «не существует» для exists(), и запись по нему
+    # создала бы цель ссылки — худшая форма «затереть чужое».
+    if os.path.lexists(out) and "--force" not in sys.argv:
+        try:
+            with open(out, encoding="utf-8", errors="replace") as fh:
+                head = fh.readline()
+        except OSError as error:
+            sys.exit(f"{env}={out} существует, но не читается ({error}) — перезапись отменена")
+        if head.rstrip("\r\n") != MARKER:
+            sys.exit(f"{out} — не выход этого скрипта по {env} (первая строка не та): "
+                     f"перезапись отменена. Задайте другой путь в {env} или прогоните "
+                     f"с --force")
+    body = [MARKER, f"# редакция {version}, эталон рядом: {fixture.name}"] + proposed
+    tmp = out.with_name(out.name + ".tmp")
+    tmp.write_text("\n".join(body) + "\n", encoding="utf-8")
+    os.replace(tmp, out)
+    print(f"  → предложение: {out}")
 
 
 if __name__ == "__main__":
+    unknown = [a for a in sys.argv[1:]
+               if a.startswith("srd-") and a not in VERSIONS]
+    if unknown:
+        sys.exit(f"неизвестная редакция: {', '.join(unknown)} — известны {', '.join(VERSIONS)}")
     wanted = [v for v in VERSIONS if v in sys.argv] or list(VERSIONS)
     emit = "--emit" in sys.argv
     try:
@@ -101,5 +171,7 @@ if __name__ == "__main__":
     except SystemExit:
         raise
     except FileNotFoundError as error:
-        sys.exit(f"нет входной выемки: {error} — сначала рецепт из build_statblock_fields.py")
+        # Только ЧТЕНИЕ входов: ошибки записи предложения свои и сообщают о себе сами,
+        # иначе успешная сверка заканчивалась бы советом «прогоните конвертеры».
+        sys.exit(f"нет входа: {error} — сначала рецепт из build_statblock_fields.py")
     sys.exit(code)

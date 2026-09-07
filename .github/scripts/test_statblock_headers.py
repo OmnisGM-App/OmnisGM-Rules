@@ -413,8 +413,9 @@ SOURCE_RE = re.compile(r"^#\s*_source:\s*([a-z0-9_]+)\s*=\s*(.+)$")
 # Провенанс эталона шапок: PDF, его отпечаток, объём, вёрстка и способ пересборки.
 # Значения пришпилены ЗДЕСЬ, а не только в фикстуре: «эталон снят с этого PDF» —
 # утверждение, и подмена его в самой фикстуре не должна проходить молча (#273).
-# Те же значения держит и эталон ПОЛЕЙ: расхождение двух артефактов одной выемки —
-# дефект, поэтому числа и адреса совпадают с `_source` фикстур полей.
+# Те же значения держит и эталон ПОЛЕЙ — и это не пожелание, а сверка: общие ключи
+# `_source` обеих фикстур сравниваются в `check_provenance`, иначе репозиторий мог бы
+# называть два разных отпечатка одного PDF, оставаясь зелёным.
 PROVENANCE = {
     "srd-5.1": {
         "pdf": "https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf",
@@ -440,7 +441,14 @@ PROVENANCE = {
 
 def check_provenance(version: str, provenance: dict) -> None:
     """Провенанс фикстуры шапок: набор ключей, значения и живая лицензия."""
-    want = PROVENANCE[version]
+    want = PROVENANCE.get(version)
+    if want is None:
+        # Новая редакция подхватывается глобом фикстур, и до #273 гейт для неё просто
+        # работал. Обращение к реестру по ключу роняло бы весь прогон трейсбеком ровно
+        # в тот момент, когда диагностика нужнее всего — на первом импорте новой SRD.
+        failures.append(f"{version}: провенанс не заявлен в PROVENANCE — добавьте запись "
+                        f"(PDF, отпечаток, объём, вёрстка, способ выемки, пересборка)")
+        return
     keys = set(want) - {"license_sha", "extraction_sha"} | {"extraction"}
     if set(provenance) != keys:
         failures.append(
@@ -460,6 +468,31 @@ def check_provenance(version: str, provenance: dict) -> None:
     elif hashlib.sha256(extraction.encode("utf-8")).hexdigest() != want["extraction_sha"]:
         failures.append(f"{version}: описание выемки изменено — отпечаток не сходится "
                         f"с тем, что держит гейт")
+    # Провенанс живёт в двух фикстурах одной выемки — сверяем их между собой по общим
+    # ключам: согласованная подмена пары «код + фикстура шапок» иначе проходит молча,
+    # а репозиторий начинает называть два разных PDF для одной редакции.
+    fields_fixture = SCRIPTS / f"fixtures/{version}-statblock-fields.json"
+    try:
+        fields_source = json.loads(fields_fixture.read_text(encoding="utf-8"))["_source"]
+    except (OSError, ValueError, KeyError) as error:
+        failures.append(f"{version}: провенанс эталона полей не читается ({error}) — "
+                        f"сверить с ним провенанс шапок не с чем")
+    else:
+        for key in ("pdf", "sha256", "pages", "page_size_pt", "license"):
+            mine, theirs = provenance.get(key), fields_source.get(key)
+            if theirs is None:
+                failures.append(f"{version}: у эталона полей нет ключа провенанса «{key}»")
+            elif mine is not None and str(theirs) != mine:
+                failures.append(f"{version}: провенанс «{key}» — у эталона шапок «{mine}», "
+                                f"у эталона полей «{theirs}»")
+    # Скрипт пересборки — тоже файл, а не строка: провенанс без работающего «как
+    # пересобрать» рано или поздно окажется ссылкой на удалённый скрипт, и узнают об этом
+    # только при ручном прогоне. Сверка та же, что у эталона полей.
+    script = (provenance.get("regenerate") or "").split()
+    if not script:
+        failures.append(f"{version}: провенанс не называет скрипт пересборки")
+    elif not (ROOT / script[0]).is_file():
+        failures.append(f"{version}: скрипта пересборки {script[0]} нет на диске")
     # Лицензия — не строка в комментарии, а файл: сверяем отпечатком, чтобы правка
     # формулы атрибуции не прошла мимо эталона (#268, #277).
     path = re.search(r"src/dnd/\S+/LICENSE\.md", provenance.get("license", "") or "")
@@ -479,8 +512,9 @@ def cross_check_fields(version: str, raw_pdf: dict) -> None:
 
     Сам гейт до PDF не дотягивается (на раннере нет ни файла, ни конвертеров), поэтому
     согласованная правка обеих колонок фикстуры шапок ему не видна. Эталон полей держит
-    ту же строку под ключом `header` и пришпилен своими счётчиками и отпечатком
-    структуры — расхождение двух эталонов и есть тот сторож (#273).
+    ту же строку под ключом `header` — и сторожем служит именно расхождение двух
+    артефактов одной выемки, а не счётчики полей с отпечатком структуры: они держат
+    НАБОР ключей блока, но не значение шапки (#273).
     """
     path = SCRIPTS / f"fixtures/{version}-statblock-fields.json"
     try:
@@ -580,9 +614,9 @@ def check_version(version: str, fixture: Path) -> None:
             continue
         if not line.strip():
             continue
-        # Колонок минимум две; третья (сырая строка PDF) не обязательна, но если она есть
-        # у одной строки — обязана быть у всех (см. сверку ниже). Разбор битой строки
-        # не роняем трейсбеком: фикстура правится руками.
+        # Колонок ровно три; третья (сырая строка PDF) обязательна у каждой строки —
+        # её отсутствие проверяет сверка ниже. Разбор битой строки не роняем трейсбеком:
+        # фикстура правится руками.
         parts = line.split("\t")
         if len(parts) < 2 or not parts[0].strip() or not parts[1].strip():
             failures.append(f"{version}: строка {number} фикстуры не разбирается: {line!r}")
