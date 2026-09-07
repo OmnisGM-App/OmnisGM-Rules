@@ -110,7 +110,7 @@ def dict_table(path: Path, section, report: bool = True):
         # в логе CI не говорит читателю ничего.
         problems.append(f"словарь не найден: {relative(path)} — сверять не с чем")
         return {}, problems
-    out, inside = {}, section is None
+    out, inside, rows_ru = {}, section is None, []
     for number, line in enumerate(path.read_text(encoding="utf-8").split("\n"), 1):
         if section is not None and line.startswith("## "):
             inside = section in line
@@ -132,6 +132,7 @@ def dict_table(path: Path, section, report: bool = True):
             if report:
                 problems.append(f"{path.name}, строка {number}: пустой перевод: {line!r}")
             continue
+        rows_ru.append((number, cells[2], " / ".join(c for c in cells[:2] if c and c not in DASH)))
         reported = False
         for en in cells[:2]:
             if not en or en in DASH:
@@ -150,14 +151,18 @@ def dict_table(path: Path, section, report: bool = True):
     # Коллизия в ОБРАТНУЮ сторону: два разных EN-термина с одним RU-переводом. Направление
     # RU→EN читает сверка врезки, и без этой проверки дефект словаря предъявлялся бы как
     # дефект текста — на правильных врезках (ревью #281).
+    #
+    # Считается только коллизия МЕЖДУ СТРОКАМИ: две колонки оригинала в одной строке —
+    # это и есть формат («5.2 назвал так, 5.1 иначе»), и переименование термина между
+    # редакциями не дефект (ревью #281, раунд 4).
     if report:
         seen: dict = {}
-        for en, ru in sorted(out.items()):
-            if ru in seen:
-                problems.append(f"{path.name}: «{seen[ru]}» и «{en}» переведены одинаково "
-                                f"(«{ru}») — обратный перевод неоднозначен")
-            else:
-                seen[ru] = en
+        for number, ru, keys in rows_ru:
+            if ru in seen and seen[ru][0] != number:
+                problems.append(f"{path.name}, строки {seen[ru][0]} и {number}: "
+                                f"«{seen[ru][1]}» и «{keys}» переведены одинаково («{ru}») "
+                                f"— обратный перевод неоднозначен")
+            seen.setdefault(ru, (number, keys))
     return out, problems
 
 
@@ -238,7 +243,11 @@ def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) 
         # так же, как гейт шапок, иначе целая форма из семи шапок 5.1 не разбирается —
         # и «сверять не с чем» звучало бы одинаково и на верном тексте, и на подмене.
         parts = [part.strip() for part in group.split(",")] if "," in group else None
-        if parts and all(part in subtypes or part in to_en_sub for part in parts):
+        # Словарь выбирается ПО ЯЗЫКУ: «часть есть хоть в одной карте» пускало сюда
+        # EN-часть недопереведённого RU-подтипа («(Demon, перевёртыш)»), и обратная карта
+        # роняла прогон KeyError'ом вместо строки отчёта (ревью #281).
+        known = subtypes if lang == "en" else to_en_sub
+        if parts and all(part in known for part in parts):
             groups.append(("subtype", ", ".join(part if lang == "en" else to_en_sub[part]
                                                 for part in parts)))
             continue
