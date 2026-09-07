@@ -9,19 +9,20 @@ name: Generate images
 # владелец смотрит порциями и мёржит командой. Крон работает только на дефолтной ветке.
 
 on:
-  # Пилот одобрен владельцем (#202) — крон включён. Порядок видов не автоматический:
-  # по крону идёт KIND по умолчанию (заклинания); когда очередь опустеет, скрипт
-  # отрапортует «нечего генерировать», и вид переключается вручную через dispatch.
+  # Пилот одобрен владельцем (#202) — крон включён. Вид по крону выбирается САМ: `auto`
+  # берёт первый вид с непустой очередью по порядку из scripts/gen-images.mjs. До #291
+  # крон вечно брал заклинания и, закрыв их, полгода рапортовал бы «всё готово», пока у
+  # соседних видов лежит больше тысячи сущностей без картинок.
   schedule:
     - cron: '0 */6 * * *' # каждые 6 часов, ~5 картинок за прогон
   workflow_dispatch:
     inputs:
       kind:
-        description: 'Что генерим'
+        description: 'Что генерим (auto — первый непустой по порядку)'
         required: true
-        default: spells
+        default: auto
         type: choice
-        options: [spells, magic-items, gear, domain-cards, creatures]
+        options: [auto, spells, magic-items, gear, domain-cards, creatures]
       count:
         description: 'Сколько картинок за прогон'
         required: false
@@ -40,9 +41,9 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 40
     env:
-      # По крону вида нет — берём заклинания (самая длинная очередь); когда она опустеет,
-      # скрипт сам отрапортует «нечего генерировать», и вид переключается вручную.
-      KIND: ${{ inputs.kind || 'spells' }}
+      # По крону вида нет — просим скрипт выбрать самому (#291). Ручной запуск может
+      # назвать конкретный вид: очередь-то не всегда идёт сверху вниз.
+      KIND: ${{ inputs.kind || 'auto' }}
     steps:
       - uses: actions/checkout@v7
         with:
@@ -82,7 +83,9 @@ jobs:
       - name: Build entity data
         run: node web/scripts/gen-entity-data.mjs
 
-      # Дешёвая проверка очереди — codex/webp ставим только при непустой.
+      # Дешёвая проверка очереди — codex/webp ставим только при непустой. Этот же шаг
+      # разрешает `auto` в конкретный вид и отдаёт его дальше: шаг генерации — отдельный
+      # запуск скрипта, и второй раз «auto» мог бы выбрать другой вид (#291).
       - name: Check queue
         id: check
         run: CHECK_ONLY=1 node scripts/gen-images.mjs
@@ -120,6 +123,9 @@ jobs:
         id: gen
         if: ${{ steps.check.outputs.has_work == '1' }}
         env:
+          # Вид берём тот, что выбрал шаг проверки очереди, а не env джобы: у `auto`
+          # это разные вещи.
+          KIND: ${{ steps.check.outputs.kind }}
           COUNT: ${{ inputs.count || '5' }}
           PUSH_EACH: '1'
           GIT_BRANCH: images-queue
