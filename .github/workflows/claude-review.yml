@@ -35,6 +35,23 @@ jobs:
           # Полная история: ревью сверяет опоры по базовой ветке (git diff base...head).
           fetch-depth: 0
 
+      # Самодостаточность на self-hosted: Node 22 (jsdom/undici требуют >=22)
+      # и gh CLI (на self-hosted его нет в PATH). На ubuntu-latest оба шага
+      # почти no-op: node ставится из кэша, gh уже есть.
+      - name: Setup Node 22
+        uses: actions/setup-node@v4
+        with:
+          node-version: 22
+
+      - name: Ensure gh CLI in PATH
+        shell: bash
+        run: |
+          command -v gh >/dev/null && { gh --version | head -1; exit 0; }
+          v=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "нет сборки gh для $(uname -m)"; exit 1;; esac
+          curl -sL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         env:
@@ -50,13 +67,13 @@ jobs:
           plugins: |
             omnisgm@omnisgm
           claude_args: |
-            --max-turns 120
-            --allowedTools "Task,Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
+            --max-turns 200
+            --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR #${{ github.event.pull_request.number }}
             в ${{ github.repository }}. Работа строится по скиллу omnisgm-review установленного
             плагина omnisgm: найди его каталог (`ls ~/.claude/plugins/`; внутри —
-            skills/omnisgm-review/SKILL.md и references/agents.md) и прочитай оба файла.
+            skills/omnisgm-review/SKILL.md и references/agents.md) и прочитай ОБА файла инструментом Read по абсолютным путям (не Bash cat).
 
             КОНВЕЙЕР (адаптация мультиагентного прогона скилла к CI):
             0. Если в репе есть frontend/package.json или свои юнит-тесты — поставь
@@ -101,6 +118,11 @@ jobs:
               уверенность, «внесено диффом / пре-существует». НЕ находки: пре-существующее,
               вкусовое, «потенциальное» без конкретного входа, ловимое линтером.
             - Результат — файл /tmp/review/NN-key.md; нет находок — «чисто» + что проверил.
+
+            ПУБЛИКАЦИЯ ОБЯЗАТЕЛЬНА: прогон без опубликованного review-объекта = провал.
+            Если конвейер деградировал (инструмент недоступен, агенты не поднялись, лимит
+            ходов близко) — переходи на одиночный проход и публикуй то, что есть, с честной
+            оговоркой о деградации в шапке. Не завершай работу молча.
 
             ЖЁСТКИЕ РАМКИ: НЕ одобрять (no APPROVE), НЕ давать LGTM, НЕ мёржить, НЕ править код —
             финальный гейт за живой сессией владельца. Пиши по-русски. Если дифф тривиален
