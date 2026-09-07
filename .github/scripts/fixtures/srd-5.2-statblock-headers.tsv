@@ -13,11 +13,14 @@
 # _source: extraction = pdftotext -layout -x 0 -W 297 -H 783 и -x 297 -W 297 -H 783, страницы колонок чередуются попарно (склейку делает build_statblock_fields.py); плюс выемки marker, pymupdf4llm и docling — те же четыре, что у эталона полей
 # _source: regenerate = .github/scripts/build_statblock_headers.py srd-5.2
 #
-# Третья колонка — строка PDF как есть. У 5.2 она СОВПАДАЕТ со второй во всех
-# 330 строках: PDF 5.2.1 печатает шапку в том же регистре, в каком её держит
-# импорт. Это утверждение об источнике, а не копия ради формы: его каждый раз
-# заново проверяет build_statblock_headers.py, а гейт сверяет третью колонку
-# с эталоном ПОЛЕЙ — вторым артефактом той же выемки (#273).
+# Третья колонка — строка PDF как есть. Во всех 330 строках ЭТОЙ фикстуры она совпадает
+# со второй: в главах монстров PDF 5.2.1 печатает шапку в том же регистре, в каком её
+# держит импорт. Более широкого утверждения «PDF 5.2.1 всегда пишет в нашем регистре» из
+# этого не следует: у врезки Аватара смерти (её строки здесь нет, она в эталоне ПОЛЕЙ) в
+# PDF стоит «Medium Undead, Neutral evil» — и эталон полей знает этот случай отдельно.
+# Совпадение колонок — не копия ради формы: его каждый раз заново проверяет
+# build_statblock_headers.py, а гейт сверяет третью колонку с эталоном ПОЛЕЙ —
+# вторым артефактом той же выемки (#273).
 Aboleth	Large Aberration, Lawful Evil	Large Aberration, Lawful Evil
 Adult Black Dragon	Huge Dragon (Chromatic), Chaotic Evil	Huge Dragon (Chromatic), Chaotic Evil
 Adult Blue Dragon	Huge Dragon (Chromatic), Lawful Evil	Huge Dragon (Chromatic), Lawful Evil
