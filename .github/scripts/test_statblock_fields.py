@@ -65,7 +65,7 @@ from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
 # Шапку врезки гейт шапок не видит (он читает главы монстров и указатели), поэтому её
 # тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271).
 from statblock_terms import (DICT, SUBTYPE_DICT, align_to_en,  # noqa: E402
-                             dict_table, skeleton, split_header)
+                             dict_table, size_agreement, skeleton, split_header)
 
 # Тип существа переводится только словарём: копия в коде разошлась бы с ним молча (#256).
 # Поломку САМОГО словаря гейт обязан назвать сам: он объявляет словарь источником правды,
@@ -503,6 +503,15 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
         out.append(f"RU «{name}» шапка: мировоззрение не отделено запятой {side}: "
                    f"«{en_header if en_parts is None else ru_header}»")
         return out
+    # Род и регистр прилагательного размера — та же сверка, что у главы: до ревью #281
+    # у врезки размер сводился к EN («средний» и «Средняя» одинаково дают Medium), и
+    # ни «*Средний Нежить*», ни «*большой Дракон*» не были видны.
+    problem, _unknown = size_agreement(ru_header, TYPES_RU.values(), SIZES_RU_TO_EN)
+    if problem:
+        out.append(f"RU «{name}» шапка: {problem}")
+    if ru_parts[0][:1].islower():
+        out.append(f"RU «{name}» шапка: «{ru_parts[0]}» начинается со строчной — размер "
+                   f"в шапке пишется с прописной")
     en_skeleton = skeleton(en_parts[0], "en", TYPES_RU, SUBTYPES_RU, SIZES_RU_TO_EN)
     ru_skeleton = skeleton(ru_parts[0], "ru", TYPES_RU, SUBTYPES_RU, SIZES_RU_TO_EN)
     unknown = [word for kind, word in ru_skeleton if kind == "?"]

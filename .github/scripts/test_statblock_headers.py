@@ -53,29 +53,13 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
 # для расхождения.
 from statblock_terms import (DICT, SPLIT_ALIGN, SUBTYPE_DICT,  # noqa: E402
                             align_to_en as _align_to_en, dict_table as _dict_table,
-                            parts_en)
+                            parts_en, size_agreement as _size_agreement,
+                            GENDER_RU, SIZE_FORMS)
 # Прилагательное согласуется с родом типа существа, поэтому вариантов больше, чем размеров.
 # Словарь один — продукционный, из парсера: копия здесь уже жила и могла разъехаться.
 SIZES_RU = SIZES_RU_TO_EN
-# Формы размера по роду: (мужской, женский, средний). Обратная сторона SIZES_RU — она
-# сводит все три рода к одному EN-значению, поэтому рассогласование («Большое Фея»)
-# ей не видно вовсе.
-SIZE_FORMS = {
-    "Tiny": ("Крошечный", "Крошечная", "Крошечное"),
-    "Small": ("Маленький", "Маленькая", "Маленькое"),
-    "Medium": ("Средний", "Средняя", "Среднее"),
-    "Large": ("Большой", "Большая", "Большое"),
-    "Huge": ("Огромный", "Огромная", "Огромное"),
-    "Gargantuan": ("Громадный", "Громадная", "Громадное"),
-}
-# Род русского термина типа — грамматика, а не терминология, поэтому таблица живёт здесь,
-# а не в словаре. Полнота таблицы проверяется: тип из словаря, которого тут нет, — failure.
-GENDER_RU = {
-    "Зверь": 0, "Дракон": 0, "Гуманоид": 0, "Великан": 0, "Конструкт": 0,
-    "Элементаль": 0, "Небожитель": 0, "Рой": 0,
-    "Аберрация": 1, "Фея": 1, "Слизь": 1, "Нежить": 1,
-    "Растение": 2, "Исчадие": 2, "Чудовище": 2,
-}
+# Формы размера по роду и таблица родов типов живут в `statblock_terms`: их зовёт и
+# гейт полей — для врезок (ревью #281).
 # Мировоззрение и разбор шапки живут в `statblock_terms`: см. импорт выше. Здесь остаётся
 # только версионное послабление по роду — оно про фикстуры, а не про язык.
 failures = []
@@ -221,46 +205,21 @@ missing_gender: set = set()
 
 
 def size_agreement(header: str, version: str):
-    """Ошибка согласования размера с родом типа, либо None.
+    """Согласование размера с родом типа (общий разбор) + версионное послабление.
 
-    «Большая Фея» верно, «Большое Фея» — нет. Составной размер проверяется по обоим
-    прилагательным: «Средняя или Маленькая Нежить».
+    Само правило живёт в `statblock_terms`: его зовёт и гейт полей — для врезок, у
+    которых до ревью #281 род и регистр размера не проверялись вовсе.
     """
-    left = SPLIT_ALIGN.split(header, maxsplit=1)[0]
-    words, sizes, i = left.split(), [], 0
-    while i < len(words):
-        if words[i].lower() in SIZES_RU:
-            sizes.append(words[i]); i += 1
-        elif words[i].lower() == "или" and sizes:
-            i += 1
-        else:
-            break
-    rest = words[i:]
-    if not sizes or not rest:
+    problem, unknown_gender = _size_agreement(header, TYPES_RU.values(), SIZES_RU)
+    if unknown_gender:
+        # Одна дыра в таблице родов давала сообщение на КАЖДОЕ существо этого типа
+        # (170 одинаковых строк на «Зверь») и вытесняла из отчёта настоящие дефекты.
+        missing_gender.add(unknown_gender)
         return None
-    term = rest[0].strip("(),")
-    gender = GENDER_RU.get(term)
-    if gender is None:
-        # Два разных дефекта — два разных сообщения. Если термин В СЛОВАРЕ есть, виновата
-        # таблица родов; если нет — виновата шапка, и советовать «допишите в GENDER_RU»
-        # значило бы предложить снять проверку, которую #256 только что поставил.
-        # Сравниваем по первому слову словарного термина: тип роя записан целиком
-        # («Рой Крошечных зверей»), а в шапке от него стоит «Рой».
-        if term in {v.split()[0] for v in TYPES_RU.values()}:
-            # Одна дыра в таблице родов давала сообщение на КАЖДОЕ существо этого типа
-            # (170 одинаковых строк на «Зверь») и вытесняла из отчёта настоящие дефекты.
-            missing_gender.add(term)
-            return None
-        return (f"тип «{term}» не из словаря — в шапке он пишется словарным термином "
-                f"с прописной (#256)")
-    for word in sizes:
-        want = SIZE_FORMS[SIZES_RU[word.lower()]][gender]
-        if word != want:
-            if version in SIZE_DRIFT:
-                SIZE_USED[version] += 1
-                return None
-            return f"размер «{word}» не согласован с «{term}» — ожидалось «{want}»"
-    return None
+    if problem and "не согласован" in problem and version in SIZE_DRIFT:
+        SIZE_USED[version] += 1
+        return None
+    return problem
 
 
 def index_rows(path: Path) -> list:
