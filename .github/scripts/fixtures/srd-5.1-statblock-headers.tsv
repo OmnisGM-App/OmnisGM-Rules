@@ -15,6 +15,18 @@
 # (11 шапок вида «Средний Нежить») — сняты вместе с правкой самого текста: гейт потребовал
 # их убрать сам, как только они перестали срабатывать. Обе версии SRD теперь держатся
 # одинаково строго.
+#
+# Провенанс эталона — парами «ключ = значение», сверяются гейтом:
+# _source: pdf = https://media.wizards.com/2023/downloads/dnd/SRD_CC_v5.1.pdf
+# _source: sha256 = 2504d2a0abb0a4d491a939be4f17910a2dde0312570ab8d208080225ccf0a1f0
+# _source: pages = 403
+# _source: page_size_pt = 612 x 792
+# _source: license = CC BY 4.0; формула атрибуции — src/dnd/srd-5.1/LICENSE.md
+# _source: extraction = pdftotext -layout -x 0 -W 306 -H 792 (левая колонка) и -x 306 -W 306 -H 792 (правая), страницы колонок чередуются попарно (склейку делает build_statblock_fields.py); мягкие переносы (U+00AD) и типографские дефисы нормализованы
+# _source: regenerate = .github/scripts/build_statblock_headers.py srd-5.1
+#
+# Третью колонку заново воспроизводит build_statblock_headers.py из выемок PDF,
+# а гейт сверяет её с эталоном ПОЛЕЙ — вторым артефактом той же выемки (#273).
 Aboleth	Large Aberration, Lawful Evil	Large aberration, lawful evil
 Acolyte	Medium Humanoid (Any Race), Any Alignment	Medium humanoid (any race), any alignment
 Adult Black Dragon	Huge Dragon, Chaotic Evil	Huge dragon, chaotic evil
