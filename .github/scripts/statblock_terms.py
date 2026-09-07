@@ -243,14 +243,23 @@ def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) 
     for term in terms:
         rest = rest.replace(term, " ⟪TERM⟫ ", 1)
     term_i = paren_i = 0
-    for token in re.findall(r"⟪TERM⟫|⟪PAREN⟫|[A-Za-zА-Яа-яЁё]+|,", rest):
-        if token == "⟪TERM⟫":
+    # В поток токенов попадает ВСЁ, кроме пробелов: цифра или знак препинания, приклеенные
+    # к слову конвертером PDF («Дракон 12», «Нежить!!!»), обязаны стать видимым «?»-токеном,
+    # а не исчезнуть до классификации (ревью #281). Ровно этот класс мусора и есть причина,
+    # по которой гейт вообще написан (#196).
+    for token in re.findall(r"⟪TERM⟫|⟪PAREN⟫|[A-Za-zА-Яа-яЁё]+|\S", rest):
+        if token == "⟪TERM⟫" and term_i < len(terms):
             term = terms[term_i]
             term_i += 1
             out.append(("type", term if lang == "en" else to_en_type.get(term, f"?{term}")))
-        elif token == "⟪PAREN⟫":
+        elif token == "⟪PAREN⟫" and paren_i < len(groups):
             out.append(groups[paren_i])
             paren_i += 1
+        elif token in ("⟪TERM⟫", "⟪PAREN⟫"):
+            # Такой же маркер, но ПРИШЕДШИЙ ИЗ ТЕКСТА: своих кусков на него не осталось.
+            # Индексация без охраны роняла бы весь прогон трейсбеком — вместе с уже
+            # накопленным отчётом о настоящих дефектах.
+            out.append(("?", token))
         elif token == ",":
             out.append(("sep", ","))
         elif lang == "en" and token in SIZES_EN:
@@ -261,7 +270,11 @@ def skeleton(expr: str, lang: str, types: dict, subtypes: dict, sizes_ru: dict) 
             out.append(("service", SERVICE[lang][token.lower()]))
         else:
             out.append(("?", token))
-    # Серийная запятая — английская типографика («Celestial, Fey, or Fiend»), в русском
-    # её нет. Это оформление, а не состав, поэтому снимаем её у обеих половин.
+    # Серийная запятая — английская типографика («Celestial, Fey, or Fiend»); в русском её
+    # нет. Поэтому снимаем её ТОЛЬКО у английской половины: сняв у обеих, мы разрешили бы
+    # лишнюю запятую в переводе («Фея, или Исчадие») — а это уже не типографика источника,
+    # а расхождение перевода (ревью #281).
+    if lang != "en":
+        return out
     return [item for n, item in enumerate(out)
             if not (item == ("sep", ",") and out[n + 1:n + 2] == [("service", "OR")])]

@@ -28,6 +28,18 @@ sys.path.insert(0, str(SCRIPTS))
 import config  # noqa: E402
 from parsers.monster import _parse_speed, _parse_type_line, parse_monsters  # noqa: E402
 
+# Строки, кроме перечисленных в SYNTHETIC, взяты из корпуса ДОСЛОВНО — и это проверяется
+# ниже, а не обещается комментарием: правка корпуса без правки таблицы отнимала у неё
+# свойство «эталон воспроизводит источник» молча (так разъехалась строка «Огромный или
+# меньший Конструкт» при сведении регистра врезок — #271, ревью #281).
+SYNTHETIC = {
+    # Подтип с запятой внутри скобок: такой пары в корпусе нет, форма из PDF 5.1.
+    "*Medium Fiend (Demon, Shapechanger), Chaotic Evil*",
+    # Женский и средний род границы диапазона: в корпусе живёт только мужской, а согласие
+    # рода — правило языка, а не факт корпуса.
+    "*Огромная или меньшая тварь, без мировоззрения*",
+    "*Огромное или меньшее чудовище, без мировоззрения*",
+}
 CASES = [
     # (строка, язык, размер, тип, подтип, мировоззрение)
     ("*Large Aberration, Lawful Evil*", "en",
@@ -44,8 +56,8 @@ CASES = [
     # Запятая ВНУТРИ скобок разделителем не считается (5.1).
     ("*Medium Fiend (Demon, Shapechanger), Chaotic Evil*", "en",
      "Medium", "Fiend", "Demon, Shapechanger", "Chaotic Evil"),
-    ("*Огромный или меньший конструкт, без мировоззрения*", "ru",
-     "Огромный или меньший", "конструкт", None, "без мировоззрения"),
+    ("*Огромный или меньший Конструкт, без мировоззрения*", "ru",
+     "Огромный или меньший", "Конструкт", None, "без мировоззрения"),
     # Род границы согласуется с типом: женский и средний — такие же законные формы.
     ("*Огромная или меньшая тварь, без мировоззрения*", "ru",
      "Огромная или меньшая", "тварь", None, "без мировоззрения"),
@@ -93,6 +105,18 @@ for line, lang, size in NEGATIVE:
     got = _parse_type_line(line, lang)
     if got.get("size") != size:
         failures.append(f"«{line}» [{lang}] size: получили {got.get('size')!r}, ждали {size!r}")
+# Провенанс таблицы: несинтетическая строка обязана встречаться в корпусе ДОСЛОВНО.
+# Иначе таблица тихо превращается в набор придуманных форм — а её ценность именно в том,
+# что разбор проверяется на том, что реально написано в главах.
+_corpus = "\n".join(p.read_text(encoding="utf-8")
+                    for p in sorted((ROOT / "src/dnd").rglob("*.md")))
+for line, *_ in CASES:
+    if line not in SYNTHETIC and line not in _corpus:
+        failures.append(f"«{line}» — строки нет в корпусе: либо правьте таблицу под текст, "
+                        f"либо объявите её синтетической в SYNTHETIC")
+    if line in SYNTHETIC and line in _corpus:
+        failures.append(f"«{line}» объявлена синтетической, но в корпусе она есть — "
+                        f"снимите её из SYNTHETIC")
 for line, lang, size, ctype, subtype, alignment in CASES:
     got = _parse_type_line(line, lang)
     want = {"size": size, "type": ctype, "subtype": subtype, "alignment": alignment}
@@ -162,6 +186,7 @@ if failures:
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print(f"✅ Разбор статблока: {len(CASES)} форм строки типа, {len(NEGATIVE)} отрицательных "
+print(f"✅ Разбор статблока: {len(CASES)} форм строки типа "
+      f"({len(CASES) - len(SYNTHETIC)} из корпуса дословно), {len(NEGATIVE)} отрицательных "
       f"случая, {len(SPEEDS)} формы скорости; зеркало полей EN↔RU сходится на "
       f"{len(by_source)} главах корпуса")
