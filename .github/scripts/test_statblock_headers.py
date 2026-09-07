@@ -969,6 +969,76 @@ for _ru in sorted(set(TYPES_RU.values())):
     if _ru.split()[0] not in GENDER_RU:
         failures.append(f"GENDER_RU: нет рода для типа «{_ru}» из словаря")
 
+# --- Самопроверка разреза шапки: он ОДИН на все пути (#290) --------------------------
+# Свойство проверяемо синтетическим входом, и держать его обязан тест, а не состояние
+# корпуса: составной тип вне скобок стоит сегодня в единственной шапке («Large Celestial,
+# Fey, or Fiend (Your Choice), Neutral», врезка заклинания Find Steed), и этот гейт её
+# не видит вовсе — врезки читает гейт полей. Верни любому из путей собственную регулярку
+# разреза — таблица покраснеет на этой самой форме.
+SPLIT_CASES = [
+    # (метка, EN-шапка, RU-шапка, ожидание parts_en, ожидание parts_ru)
+    ("простая", "Large Aberration, Lawful Evil", "Большая Аберрация, Принципиально-злой",
+     ("Large", "Aberration", None, "Lawful Evil"),
+     ("Large", None, "Lawful Evil", "Аберрация")),
+    ("запятая ВНУТРИ скобок подтипа", "Tiny Fiend (Devil, Shapechanger), Lawful Evil",
+     "Крошечное Исчадие (дьявол, перевёртыш), Принципиально-злой",
+     ("Tiny", "Fiend", "Devil, Shapechanger", "Lawful Evil"),
+     ("Tiny", "дьявол, перевёртыш", "Lawful Evil", "Исчадие (дьявол, перевёртыш)")),
+    # Ровно та форма, ради которой разрез и сводится: запятых вне скобок ДВЕ, и разрез
+    # по первой уносил половину типа в мировоззрение.
+    ("составной тип вне скобок", "Large Celestial, Fey, or Fiend (Your Choice), Neutral",
+     "Большой Небожитель, Фея или Исчадие (на ваш выбор), нейтральный",
+     ("Large", "Celestial, Fey, or Fiend", "Your Choice", "Neutral"),
+     ("Large", "на ваш выбор", "Neutral", "Небожитель, Фея или Исчадие (на ваш выбор)")),
+    ("составной размер", "Medium or Small Humanoid, Neutral",
+     "Средний или Маленький Гуманоид, нейтральный",
+     ("Medium or Small", "Humanoid", None, "Neutral"),
+     ("Medium or Small", None, "Neutral", "Гуманоид")),
+    ("рой", "Large Swarm of Tiny Beasts, Unaligned",
+     "Большой Рой Крошечных зверей, без мировоззрения",
+     ("Large", "Swarm of Tiny Beasts", None, "Unaligned"),
+     ("Large", None, "Unaligned", "Рой Крошечных зверей")),
+    # Запятой нет вовсе — мировоззрения нет ни у одного пути: «шапка не разбирается»
+    # должно звучать одинаково, а не «мировоззрение не из списка» у одного из них.
+    ("без запятой", "Large Aberration Lawful Evil", "Большая Аберрация Принципиально-злой",
+     None, None),
+]
+
+
+def _ru_size_to_en(size: str) -> str:
+    """«Средний или Маленький» → «Medium or Small» — как это делает parts_ru."""
+    return " or ".join(SIZES_RU.get(w.lower(), w) for w in size.split() if w.lower() != "или")
+
+
+for _label, _en, _ru, _want_en, _want_ru in SPLIT_CASES:
+    _got_en, _got_ru = parts_en(_en), parts_ru(_ru, "")
+    if _got_en != _want_en:
+        failures.append(f"самопроверка разреза «{_label}»: parts_en → {_got_en}, "
+                        f"ожидалось {_want_en}")
+    if _got_ru != _want_ru:
+        failures.append(f"самопроверка разреза «{_label}»: parts_ru → {_got_ru}, "
+                        f"ожидалось {_want_ru}")
+    # …и продукционный парсер режет ТУ ЖЕ шапку так же — иначе «один разрез» держался бы
+    # только на двух путях из трёх.
+    _p_en = _parse_type_line(f"*{_en}*", "en")
+    _p_ru = _parse_type_line(f"*{_ru}*", "ru")
+    _parsed_en = (_p_en["size"], _p_en["type"], _p_en["subtype"], _p_en["alignment"])
+    _parsed_ru = (_ru_size_to_en(_p_ru["size"]),
+                  _p_ru["subtype"],
+                  align_to_en(_p_ru["alignment"], "") if _p_ru["alignment"] else None,
+                  f'{_p_ru["type"]} ({_p_ru["subtype"]})' if _p_ru["subtype"] else _p_ru["type"])
+    if _want_en is None:
+        if _p_en["alignment"] is not None or _p_ru["alignment"] is not None:
+            failures.append(f"самопроверка разреза «{_label}»: парсер JSON API нашёл "
+                            f"мировоззрение там, где запятой нет")
+        continue
+    if _parsed_en != _want_en:
+        failures.append(f"самопроверка разреза «{_label}»: парсер JSON API (EN) → "
+                        f"{_parsed_en}, ожидалось {_want_en}")
+    if _parsed_ru != _want_ru:
+        failures.append(f"самопроверка разреза «{_label}»: парсер JSON API (RU) → "
+                        f"{_parsed_ru}, ожидалось {_want_ru}")
+
 fixtures = sorted(SCRIPTS.glob("fixtures/srd-*-statblock-headers.tsv"))
 if not fixtures:
     print("❌ не найдено ни одной фикстуры шапок — проверять нечего")
@@ -1010,4 +1080,4 @@ if failures:
     sys.exit(1)
 
 print(f"✅ Шапки статблоков ({', '.join(versions)}): сверены с PDF, разбор парсером и "
-      f"RU-зеркало сходятся")
+      f"RU-зеркало сходятся; {len(SPLIT_CASES)} самопроверок разреза")
