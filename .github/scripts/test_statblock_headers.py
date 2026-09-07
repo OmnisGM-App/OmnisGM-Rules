@@ -52,8 +52,9 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
                             en_name_from_ru_heading, paren_groups, titlecase_header)
 # Разбор шапки и словари типов/мировоззрений — общие с гейтом полей: он сверяет ими
 # ВРЕЗКИ, которых этот гейт не видит (#271). Копия здесь была бы вторым местом
-# для расхождения.
-from statblock_terms import (DICT, SPLIT_ALIGN, SUBTYPE_DICT,  # noqa: E402
+# для расхождения. Сам разрез шапки приходит оттуда из продукционного парсера — один
+# на все гейты (#290).
+from statblock_terms import (DICT, SUBTYPE_DICT, split_header,  # noqa: E402
                             align_to_en as _align_to_en, dict_table as _dict_table,
                             parts_en, size_agreement as _size_agreement, GENDER_RU,
                             check_dictionary_sections)
@@ -185,10 +186,14 @@ def parts_ru(header: str, version: str):
     типа как есть: по ней проверяется признак роя, а сам термин сверяется со словарём
     выше по коду (#256 расщепление вычистил).
     """
-    chunks = SPLIT_ALIGN.split(header, maxsplit=1)
-    if len(chunks) != 2:
+    # Разрез — общий с парсером и гейтом полей (`split_header`, #290): своя регулярка
+    # здесь резала по ПЕРВОЙ запятой, и составной тип вне скобок («Large Celestial, Fey,
+    # or Fiend (Your Choice), Neutral») отдавал бы мировоззрением половину типа. Разбор
+    # левой части остаётся своим — им сверяется продукционный парсер.
+    split = split_header(header)
+    if not split:
         return None
-    first, alignment = chunks[0].strip(), chunks[1].strip()
+    first, alignment = split
     words = first.split()
     # Составной размер разбирается ТЕМ ЖЕ шаблоном, что EN «X or Y»: союз обязателен,
     # иначе «Средний Маленький гуманоид» (потерянное «или») прошло бы молча, а парсер

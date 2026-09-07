@@ -46,20 +46,34 @@ def _split_size(words: list, lang: str) -> tuple:
     return (words[0] if words else ""), " ".join(words[1:])
 
 
+# Split on the alignment comma ONLY — a comma INSIDE the subtype parentheses
+# (5.1: '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*') must not be treated
+# as the separator, else the type keeps a dangling '(Devil'. Negative lookahead
+# skips any comma still enclosed by an unclosed '(' . 5.2 lines have no comma
+# inside the type-parens, so this is a no-op there.
+SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")
+
+
+def split_header(header: str):
+    """(«размер тип», мировоззрение) или None, если запятой мировоззрения нет.
+
+    Единственный разрез шапки на весь репозиторий: его зовёт и этот парсер, и оба гейта
+    статблоков (#290). Копий было три, и одна из них резала по ПЕРВОЙ запятой — на
+    составном типе «Large Celestial, Fey, or Fiend (Your Choice), Neutral» (заклинание
+    Find Steed) это уносило половину типа в мировоззрение (#260). Мировоззрение — хвост
+    после ПОСЛЕДНЕЙ запятой вне скобок, левая часть склеивается обратно как есть.
+    """
+    chunks = SPLIT_ALIGN.split(header.strip())
+    if len(chunks) < 2:
+        return None
+    return ", ".join(c.strip() for c in chunks[:-1]), chunks[-1].strip()
+
+
 def _parse_type_line(line: str, lang: str) -> dict:
     """Parse the type/alignment line: '*Large Aberration, Lawful Evil*'."""
     text = line.strip().strip("*").strip()
-    # Split on the alignment comma ONLY — a comma INSIDE the subtype parentheses
-    # (5.1: '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*') must not be treated
-    # as the separator, else the type keeps a dangling '(Devil'. Negative lookahead
-    # skips any comma still enclosed by an unclosed '(' . 5.2 lines have no comma
-    # inside the type-parens, so this is a no-op there.
-    # Мировоззрение — хвост после ПОСЛЕДНЕЙ запятой вне скобок: у составного типа
-    # «Large Celestial, Fey, or Fiend (Your Choice), Neutral» (заклинание Find Steed)
-    # запятых вне скобок несколько, и по первой из них тип разрывался пополам (#260).
-    chunks = re.split(r",\s*(?![^(]*\))", text)
-    first = ", ".join(c.strip() for c in chunks[:-1]) if len(chunks) > 1 else chunks[0].strip()
-    alignment = chunks[-1].strip() if len(chunks) > 1 else None
+    split = split_header(text)
+    first, alignment = split if split else (text, None)
 
     words = first.split()
     size = ""

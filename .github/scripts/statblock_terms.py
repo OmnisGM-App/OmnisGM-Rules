@@ -8,11 +8,23 @@
 Копировать разбор во второй гейт значило бы завести второе место для расхождения —
 поэтому он здесь, а оба гейта его импортируют.
 
+Разрез шапки («размер тип» | мировоззрение) сюда НЕ скопирован: его единственная
+реализация — `parsers.monster.split_header`, продукционная, и оба гейта зовут её отсюда
+(#290). Своя была здесь третьей копией, а третья, в `parts_ru` гейта шапок, резала по
+первой запятой и на составном типе уносила его половину в мировоззрение.
+
 Тип существа переводится ТОЛЬКО словарём `src/dnd/translate/01_dictionary_base.md`:
 он читается, а не копируется в код (#256).
 """
 import re
+import sys
 from pathlib import Path
+
+sys.path.insert(0, str(Path(__file__).resolve().parent))
+# Разрез шапки на «размер тип» и мировоззрение — ОДИН на репозиторий и берётся из
+# продукционного парсера: своя регулярка здесь была третьей копией, и та из трёх, что
+# резала по первой запятой, разрывала составной тип пополам (#290).
+from parsers.monster import split_header  # noqa: E402
 
 ROOT = Path(__file__).resolve().parents[2]
 DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"
@@ -50,7 +62,6 @@ ANY_RU = {
 ANY_RE = re.compile(r"^любое(?: (.+?))? мировоззрение$")
 PERCENT_RE = re.compile(r"^(.*?)\s*(\(\d+%\))$")
 
-SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")   # запятая мировоззрения, но не внутри скобок
 DASH = {"-", "—"}
 
 
@@ -200,30 +211,23 @@ def dict_table(path: Path, section, report: bool = True):
 
 
 def parts_en(header: str):
-    """«Large Swarm of Tiny Beasts, Unaligned» → (размер, тип, подтип, мировоззрение)."""
-    chunks = SPLIT_ALIGN.split(header, maxsplit=1)
-    if len(chunks) != 2:
+    """«Large Swarm of Tiny Beasts, Unaligned» → (размер, тип, подтип, мировоззрение).
+
+    Разрез общий (`split_header`), а РАЗБОР левой части — свой: этой функцией гейт шапок
+    сверяет продукционный парсер, и построй её поверх `_parse_type_line`, проверка стала
+    бы сверкой парсера с самим собой.
+    """
+    split = split_header(header)
+    if not split:
         return None
-    m = SIZE_RE.match(chunks[0].strip())
+    left, alignment = split
+    m = SIZE_RE.match(left)
     if not m:
         return None
     rest = m.group(2).strip()
     sub = re.match(r"^(.+?)\s*\((.+)\)$", rest)
     return (m.group(1), sub.group(1).strip() if sub else rest,
-            sub.group(2).strip() if sub else None, chunks[1].strip())
-
-
-def split_header(header: str):
-    """(левая часть «размер тип», мировоззрение) или None.
-
-    Мировоззрение — ПОСЛЕДНЯЯ часть, отрезанная запятой вне скобок: у составного типа
-    («Large Celestial, Fey, or Fiend (Your Choice), Neutral») запятых в шапке две, и
-    разрез по первой уносил бы половину типа в мировоззрение.
-    """
-    chunks = SPLIT_ALIGN.split(header.strip())
-    if len(chunks) < 2:
-        return None
-    return ", ".join(c.strip() for c in chunks[:-1]), chunks[-1].strip()
+            sub.group(2).strip() if sub else None, alignment)
 
 
 def type_terms(expr: str, terms) -> list:
@@ -382,7 +386,8 @@ def size_agreement(header: str, types_ru, sizes_ru: dict):
     и вызывающий копит такие термины отдельно. Третье — ВИД дефекта («род» или «тип»):
     версионное послабление выбирается по нему, а не грепом русского текста сообщения.
     """
-    left = SPLIT_ALIGN.split(header, maxsplit=1)[0]
+    split = split_header(header)
+    left = split[0] if split else header.strip()
     words, sizes, smaller, i = left.split(), [], [], 0
     while i < len(words):
         if words[i].lower() in sizes_ru:
