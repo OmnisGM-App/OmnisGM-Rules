@@ -1,0 +1,84 @@
+name: Health check
+
+# Наблюдатель за ПРОДОМ (issue #284). Три проверки уже были написаны и лежали в репозитории
+# без единого вызывающего: `grep` по workflow был пуст, то есть регрессия конфига Cloudflare
+# или заголовков жила бы до следующего ручного прогона. А регрессировать там есть чему и
+# молча: правило кэша живёт в панели CF (его можно снести мимо репозитория), security-заголовки
+# едут из firebase.json, но их легко перебить порядком правил, а CSP ломается ЧУЖИМИ
+# изменениями — новый сторонний скрипт на эдже не спрашивает наш репозиторий.
+#
+# Чёрный ящик: только внешние запросы к https://rules.omnisgm.com, без секретов и доступа к
+# Firebase. Красная джоба = штатное письмо GitHub владельцу, своего вебхука не нужно.
+#
+# GitHub-hosted (не self-hosted): наблюдатель не должен зависеть от инфраструктуры, здоровье
+# которой проверяет. Репа публичная — минуты бесплатны.
+
+on:
+  schedule:
+    - cron: '0 6 * * *'   # ежедневно, 06:00 UTC — после ночных деплоев, до рабочего дня владельца
+  workflow_dispatch:
+
+concurrency:
+  group: health
+  cancel-in-progress: false
+
+permissions:
+  contents: read
+  packages: read   # установка приватного @omnisgm-app/brand из GitHub Packages (npm ci)
+
+jobs:
+  health:
+    name: Prod health
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v7
+
+      - uses: ./.github/actions/setup-web
+        with:
+          npm-token: ${{ secrets.GITHUB_TOKEN }}
+
+      # Единственная проверка, которой нужен браузер: нарушения CSP пишет сам браузер, и
+      # API консоли их не видит (#225). Ставим только chromium.
+      - name: Install Chromium for Playwright
+        working-directory: web
+        run: npx playwright install --with-deps chromium
+
+      # Три проверки идут ДО КОНЦА, а не до первой красной: каждая смотрит свой слой (эдж,
+      # заголовки origin, политика в браузере), и знать разом, что сломалось всё три или
+      # только одно — половина диагноза. Итог сводит последний шаг.
+      - name: Edge-кэш Cloudflare
+        id: edge
+        continue-on-error: true
+        run: bash web/scripts/check_edge_cache.sh
+
+      - name: Security-заголовки
+        id: headers
+        continue-on-error: true
+        run: bash web/scripts/check_security_headers.sh
+
+      - name: Нарушения CSP на живых страницах
+        id: csp
+        continue-on-error: true
+        working-directory: web
+        run: node scripts/check_csp.mjs
+
+      - name: Итог
+        run: |
+          fail=0
+          # printf, а не echo: у echo с русским текстом и «ёлочками» в одной строке с
+          # подстановкой съедается байт (воспроизведено локально) — сообщение об аварии
+          # обязано читаться.
+          for pair in "edge-кэш:${{ steps.edge.outcome }}" \
+                      "security-заголовки:${{ steps.headers.outcome }}" \
+                      "CSP:${{ steps.csp.outcome }}"; do
+            name=${pair%%:*}; outcome=${pair##*:}
+            if [ "$outcome" != "success" ]; then
+              printf '::error::Прод-проверка «%s» упала (%s) — смотри её шаг выше\n' "$name" "$outcome"
+              fail=1
+            fi
+          done
+          if [ "$fail" = 0 ]; then
+            printf 'Прод здоров: эдж-кэш, заголовки и CSP в порядке.\n'
+          fi
+          exit $fail
