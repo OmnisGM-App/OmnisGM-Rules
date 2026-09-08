@@ -1064,7 +1064,7 @@ SPLIT_CASES = [
      (f"Аберрация {_RU_ALIGN['Lawful Evil']}", None)),
 ]
 # Пришпилен СОСТАВ, а не длина: длина молчала бы на подмене ряда-носителя #290 дублем
-# другой корпусной формы — строк по-прежнему семь (ревью #293). Таблица — единственный
+# другой корпусной формы — число строк при этом не меняется (ревью #293). Таблица — единственный
 # носитель свойства «разрез один» у `parts_en`/`parts_ru`, поэтому её состав и есть
 # предмет договорённости.
 SPLIT_LABELS = {"простая", "запятая ВНУТРИ скобок подтипа", "составной тип вне скобок",
@@ -1079,6 +1079,19 @@ if _got_labels != SPLIT_LABELS:
 if len(SPLIT_CASES) != len(_got_labels):
     failures.append(f"SPLIT_CASES: строк {len(SPLIT_CASES)}, а меток {len(_got_labels)} — "
                     f"две строки под одной меткой, пин состава их не различит")
+# Числа в правиле — тоже заявление, и оно уже протухало: `verify-import.md` обещал «семь
+# форм, из них пять корпусных», когда в таблице стало восемь и шесть (ревью #295). Сверяем
+# их с фактическим составом: правило — тот канон, по которому следующий автор судит о
+# полноте вычистки, и расходиться с кодом ему нельзя.
+_RULE = ROOT / ".claude/rules/verify-import.md"
+_rule_text = _RULE.read_text(encoding="utf-8") if _RULE.exists() else ""
+_claim = re.search(r"на (\d+) формах, из которых (\d+) взяты", _rule_text)
+if not _rule_text:
+    failures.append(f"{_RULE.name}: правило не найдено — заявление о покрытии сверить не с чем")
+elif not _claim:
+    failures.append(f"{_RULE.name}: фразы «на N формах, из которых M взяты» нет — "
+                    f"заявление о покрытии таблицы разреза потерялось")
+
 # Провенанс EN-форм, как у соседа `test_monster_parser.py`: несинтетическая шапка обязана
 # встречаться в корпусе ДОСЛОВНО, синтетическая — обязана в нём отсутствовать. RU-формы
 # провенансом не пинуются: они собираются из словаря (см. `_RU_ALIGN`), и их регистр —
@@ -1099,6 +1112,14 @@ for _en_header in sorted({f"*{c[1]}*" for c in SPLIT_CASES}):
                         f"она есть — снимите её из SPLIT_SYNTHETIC")
 for _extra in sorted(SPLIT_SYNTHETIC - {c[1] for c in SPLIT_CASES}):
     failures.append(f"SPLIT_SYNTHETIC: «{_extra}» в таблице разреза нет — уберите строку")
+if _claim:
+    _want_total, _want_corpus = int(_claim.group(1)), int(_claim.group(2))
+    _corpus_forms = len({c[1] for c in SPLIT_CASES} - SPLIT_SYNTHETIC)
+    if (_want_total, _want_corpus) != (len(SPLIT_CASES), _corpus_forms):
+        failures.append(
+            f"{_RULE.name}: правило обещает {_want_total} форм ({_want_corpus} корпусных), "
+            f"а в SPLIT_CASES их {len(SPLIT_CASES)} ({_corpus_forms} корпусных) — "
+            f"поправьте правило")
 
 
 # Вторая, СЛАБАЯ половина того же свойства: буквального написания разреза вне парсера нет.
