@@ -11,7 +11,11 @@ name: Claude auto-review
 # Работает на личной подписке владельца: CLAUDE_CODE_OAUTH_TOKEN из `claude setup-token`.
 on:
   pull_request:
-    types: [opened, synchronize, reopened, ready_for_review]
+    # edited — ради ретаргета base: когда первый PR цепочки вливается, GitHub переключает
+    # base следующего на default-ветку, и он получает своё ревью (фильтр в if ниже отсекает
+    # правки заголовка/описания). closed — трюк: ран в той же concurrency-группе отменяет
+    # идущее ревью при мёрже/закрытии PR и сам завершается скипом.
+    types: [opened, synchronize, reopened, ready_for_review, edited, closed]
 
 concurrency:
   # Один прогон на PR: прилетел новый коммит — текущее ревью стопается и стартует заново.
@@ -20,8 +24,15 @@ concurrency:
 
 jobs:
   review:
-    # Драфты и PR ботов (dependabot) не ревьюим — бампы зависимостей смотрит владелец.
-    if: github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'
+    # Ревьюим только PR в default-ветку (dev/master/main — у каждой репы своя): стек-PR
+    # дождётся ретаргета base после вливания первого в цепочке. Драфты и dependabot — скип.
+    # closed не ревьюится (он только отменяет группу); edited — только смена base.
+    if: >-
+      github.event.action != 'closed' &&
+      (github.event.action != 'edited' || github.event.changes.base) &&
+      github.event.pull_request.draft == false &&
+      github.event.pull_request.user.login != 'dependabot[bot]' &&
+      github.event.pull_request.base.ref == github.event.repository.default_branch
     timeout-minutes: 90
     runs-on: ubuntu-latest
     permissions:
@@ -41,7 +52,7 @@ jobs:
       # и gh CLI (на self-hosted его нет в PATH). На ubuntu-latest оба шага
       # почти no-op: node ставится из кэша, gh уже есть.
       - name: Setup Node 22
-        uses: actions/setup-node@v7
+        uses: actions/setup-node@v4
         with:
           node-version: 22
 
