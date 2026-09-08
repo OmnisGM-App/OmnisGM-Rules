@@ -101,11 +101,14 @@ export function ciUnits(text) {
 
     const run = line.match(/^(?:- )?run:\s*(.*)$/);
     if (run) {
-      if (/^[|>][-+\d]*$/.test(run[1].trim())) runIndent = indent;
+      // Индикатор блока может нести YAML-комментарий («run: | # собираем данные»), и
+      // требовать точного `|` значило бы потерять ВЕСЬ юнит внутри такого шага молча —
+      // ровно та слепота, ради которой страж и написан (ревью #299, раунд 4).
+      if (/^[|>][-+\d]*(?:\s+#.*)?$/.test(run[1].trim())) runIndent = indent;
       else take(run[1]);
       continue;
     }
-    const literal = line.match(/^(?:- )?[\w.-]+:\s*[|>][-+\d]*$/);
+    const literal = line.match(/^(?:- )?[\w.-]+:\s*[|>][-+\d]*(?:\s+#.*)?$/);
     if (literal) { literalIndent = indent; }
   }
   return out;
@@ -202,6 +205,15 @@ const SELF_CHECKS = [
   ['вложенный список в with',
    `${CI_HEAD}      - name: A\n        working-directory: web\n        with:\n          args:\n            - one\n            - two\n        run: node scripts/test_c.mjs\n`,
    ['web/scripts/test_c.mjs']],
+  // Комментарий на строке индикатора — обычный YAML, и юнит внутри такого блока обязан
+  // быть виден (ревью #299, раунд 4). Второй ряд — то же для ЧУЖОГО литерала: там юнит,
+  // наоборот, считаться не должен.
+  ['комментарий после `run: |`',
+   `${CI_HEAD}      - name: A\n        run: | # собираем данные\n          node scripts/test_c.mjs\n`,
+   ['scripts/test_c.mjs']],
+  ['комментарий после чужого `env: |`',
+   `${CI_HEAD}      - name: A\n        env:\n          NOTE: | # заметка\n            node scripts/test_ghost.mjs\n        run: node scripts/test_c.mjs\n`,
+   ['scripts/test_c.mjs']],
   ['юнит внутри чужого литерала не считается',
    `${CI_HEAD}      - name: A\n        env:\n          NOTE: |\n            node scripts/test_ghost.mjs\n        run: node scripts/test_c.mjs\n`,
    ['scripts/test_c.mjs']],
