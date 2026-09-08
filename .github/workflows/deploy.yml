@@ -14,6 +14,9 @@ on:
       # из них меняет JSON API, но раньше деплой триггерил только сам generate_api.py, поэтому
       # чинить схему/парсер приходилось ручным workflow_dispatch (грабли #20). Теперь авто-деплой.
       - '.github/scripts/**'
+      # Общий шаг setup — по той же причине, что и .github/scripts: его правка меняет
+      # окружение сборки, и ловить её на следующем несвязанном пуше поздно (ревью #300).
+      - '.github/actions/setup-web/**'
       - 'firebase.json'
   workflow_dispatch:
     inputs:

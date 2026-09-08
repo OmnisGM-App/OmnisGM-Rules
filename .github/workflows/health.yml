@@ -34,6 +34,29 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
+      # Проверки на curl идут ПЕРВЫМИ, до установки чего бы то ни было: им не нужны ни Node,
+      # ни Playwright, а типичный отказ CI-инфраструктуры (rate-limit GitHub Packages, блип
+      # apt или CDN Playwright) роняет джобу на установке — и вместе с ней утопил бы две
+      # проверки, которым эта инфраструктура ни к чему (ревью #301).
+      - name: Edge-кэш Cloudflare
+        id: edge
+        continue-on-error: true
+        run: bash web/scripts/check_edge_cache.sh
+
+      # Заголовки сверяются с ДВУХ сторон. Через боевой домен запрос идёт за Cloudflare, и
+      # эдж может отдавать старую копию: при истечении TTL он ревалидирует по ETag, получает
+      # 304 и оставляет ПРЕЖНИЕ заголовки (#227) — сломанный origin выглядел бы здоровым
+      # годами. Поэтому второй прогон — по origin напрямую (ревью #301).
+      - name: Security-заголовки (через Cloudflare)
+        id: headers
+        continue-on-error: true
+        run: bash web/scripts/check_security_headers.sh
+
+      - name: Security-заголовки (origin, мимо эджа)
+        id: headers_origin
+        continue-on-error: true
+        run: bash web/scripts/check_security_headers.sh https://omnisgm-rules.web.app
+
       - uses: ./.github/actions/setup-web
         with:
           npm-token: ${{ secrets.GITHUB_TOKEN }}
@@ -44,41 +67,41 @@ jobs:
         working-directory: web
         run: npx playwright install --with-deps chromium
 
-      # Три проверки идут ДО КОНЦА, а не до первой красной: каждая смотрит свой слой (эдж,
-      # заголовки origin, политика в браузере), и знать разом, что сломалось всё три или
-      # только одно — половина диагноза. Итог сводит последний шаг.
-      - name: Edge-кэш Cloudflare
-        id: edge
-        continue-on-error: true
-        run: bash web/scripts/check_edge_cache.sh
-
-      - name: Security-заголовки
-        id: headers
-        continue-on-error: true
-        run: bash web/scripts/check_security_headers.sh
-
       - name: Нарушения CSP на живых страницах
         id: csp
         continue-on-error: true
         working-directory: web
         run: node scripts/check_csp.mjs
 
+      # always(): упавшая установка не должна хоронить сводку — иначе владелец получает
+      # письмо «Health check failed» без единой строки о том, что на проде (ревью #301).
+      # Пропущенный из-за этого шаг называется отдельно: «skipped» — не «прошло».
       - name: Итог
+        if: always()
         run: |
           fail=0
           # printf, а не echo: у echo с русским текстом и «ёлочками» в одной строке с
           # подстановкой съедается байт (воспроизведено локально) — сообщение об аварии
           # обязано читаться.
           for pair in "edge-кэш:${{ steps.edge.outcome }}" \
-                      "security-заголовки:${{ steps.headers.outcome }}" \
+                      "security-заголовки (эдж):${{ steps.headers.outcome }}" \
+                      "security-заголовки (origin):${{ steps.headers_origin.outcome }}" \
                       "CSP:${{ steps.csp.outcome }}"; do
             name=${pair%%:*}; outcome=${pair##*:}
-            if [ "$outcome" != "success" ]; then
-              printf '::error::Прод-проверка «%s» упала (%s) — смотри её шаг выше\n' "$name" "$outcome"
-              fail=1
-            fi
+            case "$outcome" in
+              success) ;;
+              '' | skipped)
+                printf '::error::Прод-проверка «%s» НЕ ВЫПОЛНЯЛАСЬ (%s) — упал шаг установки выше\n' \
+                  "$name" "${outcome:-не запускалась}"
+                fail=1
+                ;;
+              *)
+                printf '::error::Прод-проверка «%s» упала (%s) — смотри её шаг выше\n' "$name" "$outcome"
+                fail=1
+                ;;
+            esac
           done
           if [ "$fail" = 0 ]; then
-            printf 'Прод здоров: эдж-кэш, заголовки и CSP в порядке.\n'
+            printf 'Прод здоров: эдж-кэш, заголовки (эдж и origin) и CSP в порядке.\n'
           fi
           exit $fail

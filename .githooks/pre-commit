@@ -20,7 +20,7 @@ changed=$(git diff --cached --name-only --diff-filter=ACMR)
 
 web_touched=$(printf '%s\n' "$changed" | grep -E '^web/(src|scripts|e2e)/|^web/[^/]+\.(ts|json|mjs)$' || true)
 py_touched=$(printf '%s\n' "$changed" | grep -E '^\.github/scripts/|^\.claude/skills/cleanup-artifacts/|^src/.*\.md$' || true)
-node_touched=$(printf '%s\n' "$changed" | grep -E '^scripts/.*\.mjs$|^package\.json$|^\.github/workflows/ci\.yml$' || true)
+node_touched=$(printf '%s\n' "$changed" | grep -E '^scripts/.*\.mjs$|^package\.json$|^\.github/(workflows|actions)/' || true)
 
 [ -z "$web_touched" ] && [ -z "$py_touched" ] && [ -z "$node_touched" ] && exit 0
 
