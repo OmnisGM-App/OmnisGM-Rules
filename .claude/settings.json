@@ -28,6 +28,14 @@
       "Bash(for:*)",
       "Bash(mkdir:*)",
       "Bash(chmod:*)"
+    ],
+    "deny": [
+      "Read(.env*)",
+      "Bash(rm -rf:*)"
     ]
+  },
+  "attribution": {
+    "pr": "",
+    "sessionUrl": false
   }
 }
