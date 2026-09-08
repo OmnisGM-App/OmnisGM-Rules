@@ -1,11 +1,21 @@
 import { test, expect } from '@playwright/test';
+import { isNarrow } from './viewport';
 
 // Переключение языка EN → RU: кнопка RU ведёт на контрагент-страницу, <html lang> меняется.
-test('тумблер языка переключает EN → RU', async ({ page }) => {
+test('тумблер языка переключает EN → RU @cross-engine', async ({ page }) => {
   await page.goto('/en/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
-  await page.locator('.rd-lang-btn', { hasText: 'RU' }).click();
+  // На узком экране пары кнопок нет — язык переключает нативный <select> (#286).
+  // ОГОВОРКА: Playwright-WebKit проверяет здесь ФУНКЦИЮ, а не вид. Квирки нативных
+  // контролов Safari он не воспроизводит — сломанную стилизацию <select> мы уже ловили
+  // только руками, и ручной смоук этот проект не отменяет.
+  if (isNarrow(page)) {
+    await expect(page.locator('.rd-lang')).toBeHidden();
+    await page.locator('.rd-lang-sel').selectOption('/ru/');
+  } else {
+    await page.locator('.rd-lang-btn', { hasText: 'RU' }).click();
+  }
 
   await expect(page).toHaveURL(/\/ru\//);
   await expect(page.locator('html')).toHaveAttribute('lang', 'ru');

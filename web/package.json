@@ -17,6 +17,7 @@
     "check": "astro check",
     "lint:tools": "tsc -p tsconfig.tools.json --noEmit",
     "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=mobile --project=webkit-mobile",
     "astro": "astro"
   },
   "dependencies": {
