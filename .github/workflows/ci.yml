@@ -158,10 +158,13 @@ jobs:
         working-directory: web
         run: npm run check
 
-      # Всё, что живёт ВНЕ Astro-приложения, `astro check` не видит: конфиг Playwright, 37
-      # e2e-спеков и скрипты сборки/деплоя. До #285 их не проверял никто, а результат
-      # деплой-критичных (add_sitemap_lastmod, cf_purge_urls, indexnow_manifest) уезжает на
-      # прод молча: битый sitemap и сброс не того кэша билд не роняют.
+      # `.mjs`-скрипты не видит никто, кроме этого шага: `astro check` читает `**/*`, то есть
+      # `.ts` (конфиг Playwright и e2e) он уже проверяет — заведомая ошибка типа в спеке его
+      # краснит, а та же ошибка в `add_sitemap_lastmod.mjs` оставляет зелёным (проверено
+      # прогонами, ревью #298). Тихие среди скриптов — `cf_purge_urls` и `indexnow_manifest`:
+      # порогов осмысленности результата у них нет, сброс не того кэша и пинг не тех URL
+      # никто не заметит. У `add_sitemap_lastmod` пороги свои, и tsc страхует опечатку в
+      # имени поля, а не структуру (#285).
       - name: Type-check (скрипты и e2e)
         working-directory: web
         run: npm run lint:tools

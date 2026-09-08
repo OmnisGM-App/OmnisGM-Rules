@@ -55,7 +55,8 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
 # ГЕЙТАМИ. Разрез шапки приходит оттуда же, из продукционного парсера, — один на все
 # гейты (#290). А вот разбор левой части у этого файла свой (`parts_ru` ниже) и таким
 # остаётся намеренно: им сверяется сам парсер (#290, verify-import.md).
-from statblock_terms import (ALIGN_RU, DICT, SUBTYPE_DICT, split_header,  # noqa: E402
+from statblock_terms import (ALIGN_RU, BOUND_RU, DICT, SUBTYPE_DICT,  # noqa: E402
+                            split_header,
                             align_to_en as _align_to_en, dict_table as _dict_table,
                             parts_en, size_agreement as _size_agreement, GENDER_RU,
                             check_dictionary_sections)
@@ -202,8 +203,14 @@ def parts_ru(header: str, version: str):
     # иначе «Средний Маленький гуманоид» (потерянное «или») прошло бы молча, а парсер
     # JSON API разобрал бы это как size=Средний, type=«Маленький гуманоид».
     if len(words) > 3 and words[1].lower() == "или" \
-            and words[0].lower() in SIZES_RU and words[2].lower() in SIZES_RU:
-        size = f"{SIZES_RU[words[0].lower()]} or {SIZES_RU[words[2].lower()]}"
+            and words[0].lower() in SIZES_RU \
+            and (words[2].lower() in SIZES_RU or words[2].lower() in BOUND_RU):
+        # Вторым словом связки бывает и размер («Средний или Маленький»), и ГРАНИЦА
+        # диапазона («Огромный или меньший») — EN пишет её словом Smaller/Larger, и
+        # размером в шапке является вся связка целиком. Продукционный `_split_size`
+        # обе формы разбирал одинаково с #260, здесь вторая появилась только в #294.
+        second = SIZES_RU.get(words[2].lower()) or BOUND_RU[words[2].lower()]
+        size = f"{SIZES_RU[words[0].lower()]} or {second}"
         rest = " ".join(words[3:])
     elif words and words[0].lower() in SIZES_RU:
         size, rest = SIZES_RU[words[0].lower()], " ".join(words[1:])
@@ -1044,6 +1051,12 @@ SPLIT_CASES = [
     ("подтип с запятой и БЕЗ мировоззрения", "Tiny Fiend (Devil, Shapechanger)",
      "Крошечное Исчадие (дьявол, перевёртыш)",
      ("Tiny", "Fiend", "Devil, Shapechanger", None), ("Исчадие", "дьявол, перевёртыш")),
+    # Граница диапазона: EN пишет её словом, и размером в шапке является ВСЯ связка.
+    # До #294 этот ряд краснел бы на ВЕРНОМ парсере: `parts_en` отдавала размер «Huge»,
+    # а тип — «or Smaller Construct».
+    ("граница диапазона размера", "Huge or Smaller Construct, Unaligned",
+     f"Огромный или меньший Конструкт, {_RU_ALIGN['Unaligned']}",
+     ("Huge or Smaller", "Construct", None, "Unaligned"), ("Конструкт", None)),
     # Запятой нет вовсе — мировоззрения нет ни у одного пути.
     ("без запятой", "Large Aberration Lawful Evil",
      f"Большая Аберрация {_RU_ALIGN['Lawful Evil']}",
@@ -1051,12 +1064,12 @@ SPLIT_CASES = [
      (f"Аберрация {_RU_ALIGN['Lawful Evil']}", None)),
 ]
 # Пришпилен СОСТАВ, а не длина: длина молчала бы на подмене ряда-носителя #290 дублем
-# другой корпусной формы — строк по-прежнему семь (ревью #293). Таблица — единственный
+# другой корпусной формы — число строк при этом не меняется (ревью #293). Таблица — единственный
 # носитель свойства «разрез один» у `parts_en`/`parts_ru`, поэтому её состав и есть
 # предмет договорённости.
 SPLIT_LABELS = {"простая", "запятая ВНУТРИ скобок подтипа", "составной тип вне скобок",
-                "составной размер", "рой", "подтип с запятой и БЕЗ мировоззрения",
-                "без запятой"}
+                "составной размер", "граница диапазона размера", "рой",
+                "подтип с запятой и БЕЗ мировоззрения", "без запятой"}
 _got_labels = {c[0] for c in SPLIT_CASES}
 if _got_labels != SPLIT_LABELS:
     _lost = ", ".join(sorted(SPLIT_LABELS - _got_labels)) or "—"
@@ -1066,6 +1079,19 @@ if _got_labels != SPLIT_LABELS:
 if len(SPLIT_CASES) != len(_got_labels):
     failures.append(f"SPLIT_CASES: строк {len(SPLIT_CASES)}, а меток {len(_got_labels)} — "
                     f"две строки под одной меткой, пин состава их не различит")
+# Числа в правиле — тоже заявление, и оно уже протухало: `verify-import.md` обещал «семь
+# форм, из них пять корпусных», когда в таблице стало восемь и шесть (ревью #295). Сверяем
+# их с фактическим составом: правило — тот канон, по которому следующий автор судит о
+# полноте вычистки, и расходиться с кодом ему нельзя.
+_RULE = ROOT / ".claude/rules/verify-import.md"
+_rule_text = _RULE.read_text(encoding="utf-8") if _RULE.exists() else ""
+_claim = re.search(r"на (\d+) формах, из которых (\d+) взяты", _rule_text)
+if not _rule_text:
+    failures.append(f"{_RULE.name}: правило не найдено — заявление о покрытии сверить не с чем")
+elif not _claim:
+    failures.append(f"{_RULE.name}: фразы «на N формах, из которых M взяты» нет — "
+                    f"заявление о покрытии таблицы разреза потерялось")
+
 # Провенанс EN-форм, как у соседа `test_monster_parser.py`: несинтетическая шапка обязана
 # встречаться в корпусе ДОСЛОВНО, синтетическая — обязана в нём отсутствовать. RU-формы
 # провенансом не пинуются: они собираются из словаря (см. `_RU_ALIGN`), и их регистр —
@@ -1086,6 +1112,14 @@ for _en_header in sorted({f"*{c[1]}*" for c in SPLIT_CASES}):
                         f"она есть — снимите её из SPLIT_SYNTHETIC")
 for _extra in sorted(SPLIT_SYNTHETIC - {c[1] for c in SPLIT_CASES}):
     failures.append(f"SPLIT_SYNTHETIC: «{_extra}» в таблице разреза нет — уберите строку")
+if _claim:
+    _want_total, _want_corpus = int(_claim.group(1)), int(_claim.group(2))
+    _corpus_forms = len({c[1] for c in SPLIT_CASES} - SPLIT_SYNTHETIC)
+    if (_want_total, _want_corpus) != (len(SPLIT_CASES), _corpus_forms):
+        failures.append(
+            f"{_RULE.name}: правило обещает {_want_total} форм ({_want_corpus} корпусных), "
+            f"а в SPLIT_CASES их {len(SPLIT_CASES)} ({_corpus_forms} корпусных) — "
+            f"поправьте правило")
 
 
 # Вторая, СЛАБАЯ половина того же свойства: буквального написания разреза вне парсера нет.
@@ -1113,13 +1147,8 @@ if _split_re_copies:
 
 
 # Границу диапазона («Огромный или меньший») EN пишет словом Smaller/Larger, и словаря
-# размеров для неё мало. Сводим её здесь же: без этого нормализация отдавала бы
-# «Huge or меньший» и красила бы ВЕРНЫЙ парсер, как только форма границы появится в
-# таблице (её ряд вынесен в #294, ревью #293).
-_RU_BOUND = {"меньший": "Smaller", "меньшая": "Smaller", "меньшее": "Smaller",
-             "больший": "Larger", "большая": "Larger", "большее": "Larger"}
-
-
+# размеров для неё мало — формы берём из общей таблицы `BOUND_RU` (её же читают разбор
+# шапки и сверка рода связки), а не из копии здесь (#294).
 def _ru_size_to_en(size: str) -> str:
     """«Средний или Маленький» → «Medium or Small», «Огромный или меньший» → «Huge or Smaller».
 
@@ -1132,7 +1161,7 @@ def _ru_size_to_en(size: str) -> str:
         low = word.lower()
         if low == "или":
             continue
-        out.append(SIZES_RU.get(low) or _RU_BOUND.get(low) or word)
+        out.append(SIZES_RU.get(low) or BOUND_RU.get(low) or word)
     return " or ".join(out)
 
 

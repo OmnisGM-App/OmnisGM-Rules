@@ -1,5 +1,5 @@
 ---
-description: "Оркестратор полного пайплайна перевода SRD. Вызывает build-glossary, translate-glossary, translate-verify, translate-content, verify-content, integrate-srd."
+description: "Оркестратор полного пайплайна перевода SRD. Вызывает build-glossary, translate-glossary, translate-verify, translate-content, verify-content; интеграция в сайт — вручную (#296)."
 user-invocable: true
 ---
 
@@ -178,17 +178,18 @@ user-invocable: true
 ✓ Phase 7.5 завершена: squash merge в main
 ```
 
-### Phase 8: Интеграция в сайт
+### Phase 8: Интеграция в сайт — ВРУЧНУЮ
 
-```
-→ /integrate-srd {game} {version}
-```
+Скилл `/integrate-srd` **устарел и не вызывается**: он интегрировал в MkDocs, а сайт
+публикует Astro (`web/`). Автоматической замены пока нет — переписывает его #296.
 
-Вызови skill `integrate-srd` с аргументами `{game} {version}`.
+Что сделать: подключить систему/версию в Astro (`web/src`: content collections, роуты,
+навигация ридера) и свериться с `documentation/content-pipeline.md`. Релиз соберётся сам —
+`.github/workflows/release.yml` триггерится push'ем в `main` по `src/**/*.md`.
 
 После завершения:
 ```
-✓ Phase 8 завершена: интеграция в сайт + релиз
+✓ Phase 8 завершена: система подключена в web/, релиз пересобран
 ✓ Полный пайплайн завершён для {game} {version}
 ```
 
@@ -204,7 +205,7 @@ user-invocable: true
 RU глоссарий не верифиц.→ /translate-verify (Phase 3)
 контент не переведён   → /translate-content (Phase 5)
 контент не верифиц.    → /verify-content   (Phase 6)
-всё готово             → /integrate-srd    (Phase 8)
+всё готово             → интеграция вручную в web/ (Phase 8; #296)
 ```
 
 ## Технические требования

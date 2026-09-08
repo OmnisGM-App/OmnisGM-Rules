@@ -20,7 +20,7 @@ export default defineConfig({
   // Визуальные снапшоты (e2e/visual.spec.ts): небольшой допуск под сглаживание.
   // Baseline привязаны к платформе (…-darwin.png) — гоняем локально на одной машине,
   // кросс-ОС расхождений нет (в CI e2e не запускаем). Обновление:
-  //   rm -rf node_modules/.vite && npm run test:e2e -- visual --update-snapshots
+  //   rm -r node_modules/.vite && npm run test:e2e -- visual --update-snapshots
   expect: {
     // maxDiffPixels (абсолют), а НЕ maxDiffPixelRatio: небольшое цветовое изменение
     // (напр. цвет ссылок ~2000 пикс.) — это <1% полной страницы, и ratio 0.01 такое

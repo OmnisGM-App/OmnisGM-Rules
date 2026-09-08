@@ -61,7 +61,7 @@
 
 - `src/{game}/{version}/{en,ru}/` — Markdown-контент (вход пайплайна импорта/перевода)
 - `web/` — статический ридер на [Astro](https://astro.build), публикуемый на rules.omnisgm.com
-- `.claude/` — пайплайн импорта и перевода (скиллы + правила). См. [CLAUDE.md](CLAUDE.md)
+- `.claude/` — пайплайн импорта и перевода (скиллы + правила). См. [documentation/content-pipeline.md](documentation/content-pipeline.md)
 
 ## Как участвовать
 

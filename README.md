@@ -59,7 +59,7 @@ Each SRD is distributed under its own license. See `LICENSE.md` in the correspon
 
 - `src/{game}/{version}/{en,ru}/` — Markdown content (input to the import/translation pipeline)
 - `web/` — the [Astro](https://astro.build) static-site reader published at rules.omnisgm.com
-- `.claude/` — import & translation pipeline (skills + rules). See [CLAUDE.md](CLAUDE.md)
+- `.claude/` — import & translation pipeline (skills + rules). See [documentation/content-pipeline.md](documentation/content-pipeline.md)
 
 ## Contributing
 
