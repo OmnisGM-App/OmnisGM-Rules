@@ -45,7 +45,7 @@ jobs:
       actions: read
     steps:
       - name: Checkout PR
-        uses: actions/checkout@v4
+        uses: actions/checkout@v7
         with:
           # Полная история: ревью сверяет опоры по базовой ветке (git diff base...head).
           fetch-depth: 0
