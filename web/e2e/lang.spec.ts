@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test';
+import { isNarrow } from './viewport';
 
 // Переключение языка EN → RU: кнопка RU ведёт на контрагент-страницу, <html lang> меняется.
 test('тумблер языка переключает EN → RU @cross-engine', async ({ page }) => {
@@ -9,8 +10,7 @@ test('тумблер языка переключает EN → RU @cross-engine',
   // ОГОВОРКА: Playwright-WebKit проверяет здесь ФУНКЦИЮ, а не вид. Квирки нативных
   // контролов Safari он не воспроизводит — сломанную стилизацию <select> мы уже ловили
   // только руками, и ручной смоук этот проект не отменяет.
-  const narrow = (page.viewportSize()?.width ?? 0) < 900;
-  if (narrow) {
+  if (isNarrow(page)) {
     await expect(page.locator('.rd-lang')).toBeHidden();
     await page.locator('.rd-lang-sel').selectOption('/ru/');
   } else {
