@@ -145,16 +145,14 @@ jobs:
                деградации), «Гейт» длиннее одной строки. Находка на строку диффа — ТОЛЬКО
                инлайном с полным текстом (тяжесть, доказательство, почему, предложение),
                в теле не дублируется; REFUTED не публикуется.
-            5. Публикация: ОДИН review-объект ОДНИМ атомарным POST через
-               `gh api repos/${{ github.repository }}/pulls/${{ github.event.pull_request.number }}/reviews`
-               (event=COMMENT, body + comments[] с path/line/side — ВМЕСТЕ, не по частям).
-               НИКАКИХ пробных/тестовых постов на PR («проверить права» POST-ом = мусорное
-               ревью, которое нельзя удалить — случай Rules#292; права записи известны из
-               workflow, проверять их не надо). Перед POST программно сверь каждую пару
-               (path, line) инлайнов с диапазонами хуков `@@` из 01-diff.patch; получил
-               422 — исправь comments[] и повтори ТОТ ЖЕ единый POST, тело отдельно не
-               публикуй. Если после валидации находок
-               нет — короткое ревью «CI-конвейер: находок нет» с числом агентов и головой.
+            5. РЕЗУЛЬТАТ — ФАЙЛЫ, НЕ ПУБЛИКАЦИЯ. Ты НЕ постишь в GitHub ничего.
+               Обязательный выход: /tmp/review/90-final-review.md (тело по п.4; нет находок —
+               ровно «Находок нет. Голова <sha>, агентов: N.») и /tmp/review/90-inline.json
+               (JSON-массив [{"path","line","side","body"}]; пустой [] — если инлайнов нет).
+               Публикует СЛЕДУЮЩИЙ ШАГ workflow одним атомарным POST; инлайны вне диапазонов
+               диффа он сам перенесёт в тело. Прогон без 90-final-review.md — красный.
+               Наблюдение для журнала улучшений (если есть) — файлом /tmp/review/95-journal.md
+               (его тоже постит workflow-шаг, сам не пости).
 
             CI-ШАПКА для каждого субагента (вместо локальной шапки agents.md):
             - Рабочая копия: $GITHUB_WORKSPACE (ветка PR уже вычекнута, origin/${{ github.base_ref }} доступен).
@@ -177,20 +175,82 @@ jobs:
               вкусовое, «потенциальное» без конкретного входа, ловимое линтером.
             - Результат — файл /tmp/review/NN-key.md; нет находок — «чисто» + что проверил.
 
-            ПУБЛИКАЦИЯ ОБЯЗАТЕЛЬНА: прогон без опубликованного review-объекта = провал.
-            Если конвейер деградировал (инструмент недоступен, агенты не поднялись, лимит
-            ходов близко) — переходи на одиночный проход и публикуй то, что есть, с честной
-            оговоркой о деградации в шапке. Не завершай работу молча.
+            ФАЙЛ РЕВЬЮ ОБЯЗАТЕЛЕН: прогон без /tmp/review/90-final-review.md = провал
+            (шаг публикации упадёт красным). Если конвейер деградировал (инструмент
+            недоступен, агенты не поднялись, лимит ходов близко) — переходи на одиночный
+            проход и запиши то, что есть, с одной строкой оговорки. Не завершай работу молча.
 
             ЖЁСТКИЕ РАМКИ: НЕ одобрять (no APPROVE), НЕ давать LGTM, НЕ мёржить, НЕ править код —
             финальный гейт за живой сессией владельца. Пиши по-русски. Если дифф тривиален
             (типо-правка, ≤5 строк без логики) — конвейер не разворачивай: одиночное ревью
             одним проходом, честно скажи это в шапке-вердикте.
 
-            ПОСЛЕ публикации — цикл улучшения: наблюдение (что мешало конвейеру в CI, ложные
-            срабатывания, недостающий класс) — одним комментом в журнал
-            `GH_TOKEN=$GH_PLUGINS_TOKEN gh issue comment 1 --repo OmnisGM-App/claude-plugins`
-            по формату из тела ишьи. Нечего сказать — не пиши.
+
+      - name: Publish review
+        if: always()
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number }}
+        shell: bash
+        run: |
+          python3 - <<'PY'
+          import json, os, re, subprocess, sys
+          rd = "/tmp/review"
+          bf = f"{rd}/90-final-review.md"
+          if not os.path.exists(bf):
+              print("::error::Клод не сформировал 90-final-review.md — ревью не опубликовано")
+              sys.exit(1)
+          body = open(bf).read().strip()
+          try:
+              inl = json.load(open(f"{rd}/90-inline.json"))
+              assert isinstance(inl, list)
+          except Exception:
+              inl = []
+          # валидные номера строк из диффа: RIGHT — после-версия, LEFT — до-версия
+          right, left, cur = {}, {}, None
+          for ln in open(f"{rd}/01-diff.patch", encoding="utf-8", errors="replace"):
+              m = re.match(r"\+\+\+ b/(.*)", ln)
+              if m:
+                  cur = m.group(1).strip(); right.setdefault(cur, set()); left.setdefault(cur, set()); continue
+              m = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", ln)
+              if m and cur:
+                  a, b = int(m.group(1)), int(m.group(2) or 1)
+                  c, d = int(m.group(3)), int(m.group(4) or 1)
+                  left[cur].update(range(a, a + b)); right[cur].update(range(c, c + d))
+          good, moved = [], []
+          for cm in inl:
+              p_, l_, side = cm.get("path"), cm.get("line"), (cm.get("side") or "RIGHT")
+              ok = (side == "RIGHT" and l_ in right.get(p_, ())) or (side == "LEFT" and l_ in left.get(p_, ()))
+              (good if ok else moved).append(cm)
+          def as_body_list(items):
+              return "\n".join(f"- `{c.get('path')}:{c.get('line')}` — {c.get('body','').strip()}" for c in items)
+          if moved:
+              body += "\n\n---\nНаходки вне диапазонов диффа:\n" + as_body_list(moved)
+          def post(payload):
+              open("/tmp/payload.json", "w").write(json.dumps(payload))
+              return subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
+                                     "-X", "POST", "--input", "/tmp/payload.json"], capture_output=True, text=True)
+          payload = {"event": "COMMENT", "body": body}
+          if good:
+              payload["comments"] = [{"path": c["path"], "line": c["line"], "side": c.get("side", "RIGHT"), "body": c["body"]} for c in good]
+          r = post(payload)
+          if r.returncode and good:
+              print("::warning::POST с инлайнами упал, публикую всё в теле:", r.stderr[:500])
+              r = post({"event": "COMMENT", "body": body + "\n\n---\nИнлайны (fallback):\n" + as_body_list(good)})
+          if r.returncode:
+              print("::error::публикация ревью не удалась:", r.stderr[:1000]); sys.exit(1)
+          print("ревью опубликовано")
+          PY
+
+      - name: Post journal observation
+        if: always()
+        env:
+          GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN }}
+        shell: bash
+        run: |
+          [ -f /tmp/review/95-journal.md ] || { echo "наблюдений нет"; exit 0; }
+          gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file /tmp/review/95-journal.md
 
       - name: Dump execution transcript (debug)
         if: always()
