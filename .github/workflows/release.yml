@@ -32,6 +32,8 @@ concurrency:
 jobs:
   release:
     runs-on: ubuntu-latest
+    # Сборка PDF и markdown идёт минуты; потолок — против зависшего шага (#287).
+    timeout-minutes: 30
     steps:
       - name: Checkout repository
         uses: actions/checkout@v7

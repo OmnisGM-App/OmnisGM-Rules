@@ -28,6 +28,7 @@ jobs:
   parity:
     name: EN↔RU parity
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       # ЕДИНЫЙ ИСТОЧНИК исключений структурной сверки — «pair|file|resource».
       # Строгая построчная парность легитимно нарушена → файл исключается из сверки строк/
@@ -110,12 +111,15 @@ jobs:
   tables:
     name: Table validity
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v7
+      # Здесь нужен только Node: markdownlint зовётся через npx, зависимости web
+      # не ставим (#287).
+      - uses: ./.github/actions/setup-web
         with:
-          node-version: '20'
+          install: 'false'
 
       # Валидность таблиц по всему src (все игры/версии, en+ru, вкл. глоссарии — их compare_structure
       # пропускает). Конфиг подключаем явно (--config), версия линтера запинена для воспроизводимости.

@@ -1,0 +1,57 @@
+name: Setup web
+description: Node (+ Python) и установка зависимостей web/ — общая связка четырёх workflow (#287)
+
+# Зачем composite. Связка «setup-node + cache + npm ci + setup-python» дублировалась в
+# ci/deploy/content/gen-images дословно, и дублирование уже дало дрейф: node 20 в трёх
+# workflow против 22 в четвёртом — молча, потому что сравнивать было негде. Здесь версия
+# объявлена ОДИН раз, а несогласие с ней придётся написать явным input'ом.
+#
+# checkout сюда НЕ входит: у workflow разные требования к истории (сборке нужен
+# fetch-depth: 0 ради дат контента, проверке таблиц хватает мелкого клона), и спрятать это
+# различие внутрь общего шага значило бы либо тащить полную историю везде, либо тихо
+# лишить сборку дат.
+
+inputs:
+  node-version:
+    description: Версия Node. По умолчанию — общая для репозитория.
+    required: false
+    default: '20'
+  python-version:
+    description: Версия Python; пустая строка — Python не нужен.
+    required: false
+    default: ''
+  install:
+    description: Ставить ли зависимости web/ (npm ci). Строка 'true'/'false'.
+    required: false
+    default: 'true'
+  npm-token:
+    description: >-
+      Токен для приватного @omnisgm-app/brand из GitHub Packages. Без него npm ci
+      упадёт на 401 — передавайте secrets.GITHUB_TOKEN.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        cache: npm
+        cache-dependency-path: web/package-lock.json
+
+    - if: inputs.python-version != ''
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - if: inputs.install == 'true'
+      name: Install web deps
+      shell: bash
+      working-directory: web
+      run: npm ci
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+        # Браузеры Playwright не нужны ни одному потребителю этого шага: e2e в CI не гоняются,
+        # а деплою и воркеру картинок они тем более ни к чему. Полтораста мегабайт на прогон.
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'

@@ -18,6 +18,9 @@ jobs:
   check-build:
     name: Check & Build
     runs-on: ubuntu-latest
+    # Потолок на случай зависшего шага: без него застрявший прогон держал бы очередь до
+    # дефолтных шести часов. Обычный прогон — около двух минут (#287).
+    timeout-minutes: 15
     steps:
       # fetch-depth: 0 — сборке нужны даты коммитов по контентным .md (#219): из них
       # datePublished/dateModified в JSON-LD. На мелком клоне истории нет, и страницы
@@ -28,14 +31,15 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
-      # Валидация JSON API по схеме — тем же generate_api.py, что гоняет firebase predeploy
-      # при деплое (schemas.py, additionalProperties:False). Локальный prebuild зовёт генератор
-      # с --no-validate (без jsonschema, чтобы dev-сборка была бездефолтной), поэтому дрейф схемы
-      # (новое поле парсера не заведено в schemas.py) на PR не всплывал и ронял уже ДЕПЛОЙ (#20,
-      # spell.area). Ставим python+jsonschema и валидируем здесь — раньше мёржа, а не после.
-      - uses: actions/setup-python@v7
+      # Node, Python и зависимости web — одним шагом (#287). Валидация JSON API по схеме
+      # ниже гоняет тот же generate_api.py, что и firebase predeploy при деплое (schemas.py,
+      # additionalProperties:False): локальный prebuild зовёт генератор с --no-validate, поэтому
+      # дрейф схемы (новое поле парсера не заведено в schemas.py) на PR не всплывал и ронял уже
+      # ДЕПЛОЙ (#20, spell.area).
+      - uses: ./.github/actions/setup-web
         with:
           python-version: '3.12'
+          npm-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Инвариант «поле image ставим ТОЛЬКО при наличии файла» (#201). На живых данных
       # его не поймать — портрет пока есть у всех существ, поэтому проверка на синтетике.
@@ -101,19 +105,6 @@ jobs:
           python3 .github/scripts/generate_api.py --game brp \
             --src-root src/brp --output-dir "$RUNNER_TEMP/api-validate-brp"
 
-      - uses: actions/setup-node@v7
-        with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install web deps
-        working-directory: web
-        run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'   # e2e в CI не гоняем — браузеры не качаем
-
       # Инварианты сборки <meta description> markdown-страниц (#213): сниппет берётся из
       # вступления/структуры страницы, а не из служебной таблицы или куска CSS. На живом
       # контенте это не различить (у всех глав сегодня есть вступление) — проверка на синтетике.
@@ -138,6 +129,11 @@ jobs:
       # прогон остаётся зелёным, проверяя меньше. Состав сверяется в обе стороны (#283).
       - name: Гейт — агрегаторы юнитов не разошлись с CI
         run: node scripts/test_unit_agenda.mjs
+
+      # Composite-шаг убрал копии связки setup, но не мешает завести их заново — запрет
+      # на прямой actions/setup-node и требование timeout-minutes живут здесь (#287).
+      - name: Гейт — связка setup и потолки времени в workflow
+        run: node scripts/test_workflow_setup.mjs
 
       # Отпечаток сборки (#255): страж свежести — единственное, что мешает прогону идти против
       # dist, собранного из кода, которого в дереве уже нет. Проверяется на игрушечном дереве
