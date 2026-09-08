@@ -57,34 +57,56 @@ const unitsInCommand = (command) =>
 export function ciUnits(text) {
   const out = new Set();
   let cwd = '';
-  let inRun = false;
-  for (const raw of text.split('\n')) {
+  let stepIndent = null;   // отступ элементов списка шагов текущей джобы
+  let runIndent = null;    // отступ ключа `run:` с блочным литералом
+  let literalIndent = null; // отступ ЧУЖОГО блочного литерала (env:, with: …)
+
+  const take = (command) => {
+    for (const path of unitsInCommand(command)) {
+      const full = norm(path, cwd);
+      if (full !== SELF) out.add(full);
+    }
+  };
+
+  for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
+    if (!raw.trim()) continue;
+    const indent = raw.length - raw.trimStart().length;
     const line = raw.trim();
     // Комментарий — проза о шаге, а не сам шаг. Именно она давала ложные срабатывания.
     if (line.startsWith('#')) continue;
-    // Новый элемент списка шагов сбрасывает и режим `run:`, и каталог. Именно каталог —
-    // тонкое место: `working-directory` относится к СВОЕМУ шагу, GitHub Actions его между
-    // шагами не наследует, а анонимный `- run:` после именованного шага с каталогом получал
-    // чужой префикс и давал ложное красное сразу по двум строкам (ревью #299).
-    if (line.startsWith('- ')) { inRun = false; cwd = ''; }
-    else if (/^[a-z-]+:$/.test(line)) inRun = false;
-    const wd = line.match(/^working-directory:\s*(\S+)/);
+
+    // Тело `run: |` — команды, их читаем. Тело чужого литерала (`env: |`, `with: |`) —
+    // данные, и внутри них бывает что угодно, включая строки «- bar», неотличимые от
+    // элемента списка шагов после trim: именно они сбрасывали каталог и уносили
+    // `working-directory` соседнего шага (ревью #299).
+    if (runIndent !== null) {
+      if (indent > runIndent) { take(line); continue; }
+      runIndent = null;
+    }
+    if (literalIndent !== null) {
+      if (indent > literalIndent) continue;
+      literalIndent = null;
+    }
+
+    if (/^steps:/.test(line)) { stepIndent = null; cwd = ''; continue; }
+    if (line.startsWith('- ') || line === '-') {
+      // Первый элемент списка задаёт отступ шагов джобы; всё, что глубже, — вложенные
+      // списки внутри шага, а не новый шаг.
+      if (stepIndent === null) stepIndent = indent;
+      if (indent === stepIndent) { cwd = ''; }
+    }
+
+    const wd = line.match(/^(?:- )?working-directory:\s*(\S+)/);
     if (wd) { cwd = wd[1]; continue; }
+
     const run = line.match(/^(?:- )?run:\s*(.*)$/);
     if (run) {
-      inRun = true;
-      for (const path of unitsInCommand(run[1])) {
-        const full = norm(path, cwd);
-        if (full !== SELF) out.add(full);
-      }
+      if (/^[|>][-+\d]*$/.test(run[1].trim())) runIndent = indent;
+      else take(run[1]);
       continue;
     }
-    if (inRun) {
-      for (const path of unitsInCommand(line)) {
-        const full = norm(path, cwd);
-        if (full !== SELF) out.add(full);
-      }
-    }
+    const literal = line.match(/^(?:- )?[\w.-]+:\s*[|>][-+\d]*$/);
+    if (literal) { literalIndent = indent; }
   }
   return out;
 }
@@ -172,6 +194,17 @@ const SELF_CHECKS = [
   ['сам страж не в счёт', `${CI_HEAD}      - name: Гейт\n        run: node ./scripts/test_unit_agenda.mjs\n`, []],
   ['working-directory сбрасывается', `${CI_HEAD}      - name: A\n        working-directory: web\n        run: node scripts/test_c.mjs\n      - name: B\n        run: node scripts/test_d.mjs\n`,
    ['web/scripts/test_c.mjs', 'scripts/test_d.mjs']],
+  // Чужой блочный литерал внутри шага: «- bar» после trim неотличим от элемента списка
+  // шагов, и по строке он сбрасывал каталог ЭТОГО ЖЕ шага (ревью #299, раунд 3).
+  ['список внутри чужого литерала',
+   `${CI_HEAD}      - name: A\n        working-directory: web\n        env:\n          FOO: |\n            - bar\n            - baz\n        run: node scripts/test_c.mjs\n`,
+   ['web/scripts/test_c.mjs']],
+  ['вложенный список в with',
+   `${CI_HEAD}      - name: A\n        working-directory: web\n        with:\n          args:\n            - one\n            - two\n        run: node scripts/test_c.mjs\n`,
+   ['web/scripts/test_c.mjs']],
+  ['юнит внутри чужого литерала не считается',
+   `${CI_HEAD}      - name: A\n        env:\n          NOTE: |\n            node scripts/test_ghost.mjs\n        run: node scripts/test_c.mjs\n`,
+   ['scripts/test_c.mjs']],
 ];
 
 const failures = [];
