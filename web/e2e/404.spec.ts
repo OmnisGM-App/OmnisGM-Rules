@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test';
 // Регресс-guard выноса бренда: 404 должна тянуть @omnisgm-app/brand/base.css (тёмный фон
 // body), а не остаться на дефолтном белом. Ровно этот баг был, когда на 404 забыли импорт
 // base.css — шапка/подвал тёмные, а середина белая. См. web/src/pages/404.astro.
-test('404 отдаёт статус 404 и тёмный бренд-фон', async ({ page }) => {
+test('404 отдаёт статус 404 и тёмный бренд-фон @cross-engine', async ({ page }) => {
   const resp = await page.goto('/no-such-page-xyz/');
   expect(resp?.status()).toBe(404);
 
