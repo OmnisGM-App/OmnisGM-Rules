@@ -54,7 +54,7 @@ jobs:
       # и gh CLI (на self-hosted его нет в PATH). На ubuntu-latest оба шага
       # почти no-op: node ставится из кэша, gh уже есть.
       - name: Setup Node 22
-        uses: actions/setup-node@v4
+        uses: actions/setup-node@v7
         with:
           node-version: 22
 
