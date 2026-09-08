@@ -67,7 +67,8 @@ from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
                             OBJECT_BLOCKS_51, RU_LABELS_51, STRIP_TAIL,
                             en_name_from_ru_heading, titlecase_header)
 # Шапку врезки гейт шапок не видит (он читает главы монстров и указатели), поэтому её
-# тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271).
+# тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271). Сам разрез
+# шапки приходит транзитом из продукционного парсера — один на все гейты (#290).
 from statblock_terms import (DICT, SUBTYPE_DICT, align_to_en,  # noqa: E402
                              check_dictionary_sections, dict_table, size_agreement,
                              skeleton, split_header)
@@ -530,9 +531,13 @@ def sidebar_header(name: str, en_header: str, ru_header: str, chapter_aligns: di
         out.append(f"RU «{name}» шапка: неразрывный пробел (U+00A0) — мусор конвертации")
     if re.search(r"\s{2,}", ru_header):
         out.append(f"RU «{name}» шапка: двойной пробел — мусор конвертации")
-    if not re.search(r",\u0020", ru_header) and "," in ru_header:
-        out.append(f"RU «{name}» шапка: после запятой мировоззрения нет пробела")
     en_parts, ru_parts = split_header(en_header), split_header(ru_header)
+    # Пробел проверяем У ЗАПЯТОЙ МИРОВОЗЗРЕНИЯ, а не «где-нибудь в строке»: у врезки со
+    # скобочной запятой подтипа («Крошечное Исчадие (дьявол, перевёртыш),Законно-злой»)
+    # прежнее условие гасилось запятой ВНУТРИ скобок и молчало — тот же класс, что
+    # починен у гейта шапок в этом же раунде (ревью #293).
+    if ru_parts and not ru_header.rstrip().endswith(", " + ru_parts[1]):
+        out.append(f"RU «{name}» шапка: после запятой мировоззрения нет пробела")
     if en_parts is None or ru_parts is None:
         side = "у EN" if en_parts is None else "у перевода"
         out.append(f"RU «{name}» шапка: мировоззрение не отделено запятой {side}: "
@@ -1525,6 +1530,10 @@ SIDEBAR_CASES = [
      ["'subtype', 'Angel, Shapechanger'"]),
     ("недопереведённый подтип", "Large Fiend (Demon, Shapechanger), Chaotic Evil",
      "Большое Исчадие (Demon, перевёртыш), Хаотично-злой", ["'Demon, перевёртыш'"]),
+    # Носитель нового условия: пропавший пробел ПРИ скобочной запятой подтипа. Прежняя
+    # проверка искала «, » где угодно в строке, и запятая внутри скобок её гасила.
+    ("нет пробела при составном подтипе", "Large Fiend (Demon, Shapechanger), Chaotic Evil",
+     "Большое Исчадие (демон, перевёртыш),Хаотично-злой", ["нет пробела"]),
 ]
 # Снимок конвенции главы СМЕШАННЫЙ намеренно: у большинства значений форма 5.1 (с
 # прописной), а у «neutral» — форма 5.2 (со строчной), потому что строки составного типа

@@ -46,20 +46,36 @@ def _split_size(words: list, lang: str) -> tuple:
     return (words[0] if words else ""), " ".join(words[1:])
 
 
+# Отрицательный просмотр отбрасывает запятую ВНУТРИ скобок подтипа (5.1:
+# '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*'): без него шапка БЕЗ мировоззрения
+# («Tiny Fiend (Devil, Shapechanger)») рвалась бы по скобочной запятой на 'Fiend (Devil'
+# и 'Shapechanger)'. У шапки С мировоззрением разрез идёт по последней запятой и без
+# просмотра, поэтому носителей у этого свойства в корпусе не осталось — его держит
+# самопроверка гейта шапок (ряд «подтип с запятой и БЕЗ мировоззрения», ревью #293).
+SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")
+
+
+def split_header(header: str):
+    """(«размер тип», мировоззрение) или None, если запятой мировоззрения нет.
+
+    Разрез шапки один на весь репозиторий: его зовут этот парсер и оба гейта статблоков
+    для шапок глав, указателей и врезок (#290). Мировоззрение — хвост после ПОСЛЕДНЕЙ
+    запятой вне скобок; сам парсер стал резать так в #260 (у составного типа «Large
+    Celestial, Fey, or Fiend (Your Choice), Neutral» из заклинания Find Steed запятых вне
+    скобок две, и по первой из них тип разрывался пополам), а у гейтов своя копия резала
+    по ПЕРВОЙ запятой до #290. Левая часть склеивается обратно как есть.
+    """
+    chunks = SPLIT_ALIGN.split(header.strip())
+    if len(chunks) < 2:
+        return None
+    return ", ".join(c.strip() for c in chunks[:-1]), chunks[-1].strip()
+
+
 def _parse_type_line(line: str, lang: str) -> dict:
     """Parse the type/alignment line: '*Large Aberration, Lawful Evil*'."""
     text = line.strip().strip("*").strip()
-    # Split on the alignment comma ONLY — a comma INSIDE the subtype parentheses
-    # (5.1: '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*') must not be treated
-    # as the separator, else the type keeps a dangling '(Devil'. Negative lookahead
-    # skips any comma still enclosed by an unclosed '(' . 5.2 lines have no comma
-    # inside the type-parens, so this is a no-op there.
-    # Мировоззрение — хвост после ПОСЛЕДНЕЙ запятой вне скобок: у составного типа
-    # «Large Celestial, Fey, or Fiend (Your Choice), Neutral» (заклинание Find Steed)
-    # запятых вне скобок несколько, и по первой из них тип разрывался пополам (#260).
-    chunks = re.split(r",\s*(?![^(]*\))", text)
-    first = ", ".join(c.strip() for c in chunks[:-1]) if len(chunks) > 1 else chunks[0].strip()
-    alignment = chunks[-1].strip() if len(chunks) > 1 else None
+    split = split_header(text)
+    first, alignment = split if split else (text, None)
 
     words = first.split()
     size = ""
