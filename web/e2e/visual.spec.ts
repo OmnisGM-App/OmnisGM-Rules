@@ -4,7 +4,7 @@ import { test, expect, type Page } from '@playwright/test';
 // в CI не тащим), baseline привязан к платформе (…-darwin.png) → на одной машине стабилен.
 //
 // Обновить baseline после осознанного изменения вида:
-//   rm -rf node_modules/.vite && npm run test:e2e -- visual --update-snapshots
+//   rm -r node_modules/.vite && npm run test:e2e -- visual --update-snapshots
 // (чистка .vite обязательна — иначе Astro/Vite отдаст старый бандл против нового кода; урок из Table.)
 
 // Ждём готовности шрифтов (async Google Fonts) — иначе снапшот дрожит на фолбэк-шрифтах.

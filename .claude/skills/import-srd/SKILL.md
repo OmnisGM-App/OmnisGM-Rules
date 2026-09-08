@@ -1,5 +1,5 @@
 ---
-description: "Оркестратор полного пайплайна импорта PDF в markdown. Вызывает convert-pdf, cleanup-artifacts, verify-import, integrate-srd."
+description: "Оркестратор полного пайплайна импорта PDF в markdown. Вызывает convert-pdf, cleanup-artifacts, verify-import; интеграция в сайт — вручную (#296)."
 user-invocable: true
 ---
 
@@ -93,15 +93,18 @@ user-invocable: true
 ✓ Phase 3.5 завершена: squash merge в main
 ```
 
-### Phase 4: Интеграция в сайт
+### Phase 4: Интеграция в сайт — ВРУЧНУЮ
 
-```
-→ /integrate-srd {game} {version}
-```
+Скилл `/integrate-srd` **устарел и не вызывается**: он интегрировал в MkDocs, а сайт
+публикует Astro (`web/`). Автоматической замены пока нет — переписывает его #296.
+
+Что сделать: подключить систему/версию в Astro (`web/src`: content collections, роуты,
+навигация ридера) и свериться с `documentation/content-pipeline.md`. Релиз соберётся сам —
+`.github/workflows/release.yml` триггерится push'ем в `main` по `src/**/*.md`.
 
 После завершения:
 ```
-✓ Phase 4 завершена: интеграция в сайт + релиз
+✓ Phase 4 завершена: система подключена в web/, релиз пересобран
 ✓ Полный пайплайн импорта завершён для {game} {version}
 ```
 
@@ -113,7 +116,7 @@ user-invocable: true
 PDF не конвертирован         → /convert-pdf       (Phase 1)
 PDF конвертирован (в /tmp/)  → /cleanup-artifacts (Phase 2)
 файлы созданы, не проверены  → /verify-import     (Phase 3)
-всё чисто и проверено        → /integrate-srd     (Phase 4, в main)
+всё чисто и проверено        → интеграция вручную в web/ (Phase 4, в main; #296)
 ```
 
 ## Технические требования
