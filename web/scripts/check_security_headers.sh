@@ -33,6 +33,14 @@
 set -u
 BASE="${1:-https://rules.omnisgm.com}"
 
+# HSTS у origin СВОЙ: Firebase отдаёт доменам *.web.app собственный
+# «max-age=31556926; includeSubDomains; preload» и наше правило из firebase.json на них не
+# видно. Поэтому по origin сверяем всё, кроме HSTS: иначе ежедневный монитор краснел бы
+# каждый день на заголовке, которым мы не управляем (ревью #301). За HSTS отвечает прогон
+# по боевому домену — там значение наше.
+SKIP_HSTS=0
+case "$BASE" in *.web.app*) SKIP_HSTS=1 ;; esac
+
 # Ожидаемые заголовки: имя → регексп значения.
 EXPECT_NAMES=(
   "x-content-type-options"
@@ -59,6 +67,10 @@ check_page() {  # $1 — путь
   echo "  $path"
   for i in "${!EXPECT_NAMES[@]}"; do
     local name="${EXPECT_NAMES[$i]}" want="${EXPECT_VALUES[$i]}"
+    if [ "$name" = "strict-transport-security" ] && [ "$SKIP_HSTS" = 1 ]; then
+      echo "    ~ $name — пропущено: у origin заголовок Firebase, не наш"
+      continue
+    fi
     local got=""
     got="$(header "$path" "$name")"
     if [ -z "$got" ]; then

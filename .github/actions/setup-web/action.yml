@@ -1,5 +1,5 @@
 name: Setup web
-description: Node (+ Python) и установка зависимостей web/ — общая связка четырёх workflow (#287)
+description: Node (+ Python) и установка зависимостей web/ — общая связка workflow (#287)
 
 # Зачем composite. Связка setup жила в четырёх workflow: полностью (setup-node + cache +
 # npm ci + setup-python) — в ci и deploy, частично — в content (голый setup-node) и
@@ -62,6 +62,8 @@ runs:
       run: npm ci
       env:
         NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
-        # Браузеры Playwright не нужны ни одному потребителю этого шага: e2e в CI не гоняются,
-        # а деплою и воркеру картинок они тем более ни к чему. Полтораста мегабайт на прогон.
+        # Браузеры Playwright здесь не ставятся: e2e в CI не гоняются, деплою и воркеру
+        # картинок они ни к чему, а единственному потребителю, которому браузер нужен
+        # (health.yml — проверка CSP), дешевле поставить один chromium своим шагом, чем всем
+        # остальным тащить полтораста мегабайт на прогон (#284).
         PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'
