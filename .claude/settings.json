@@ -35,6 +35,7 @@
     ]
   },
   "attribution": {
-    "pr": ""
+    "pr": "",
+    "sessionUrl": false
   }
 }
