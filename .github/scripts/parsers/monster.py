@@ -46,22 +46,24 @@ def _split_size(words: list, lang: str) -> tuple:
     return (words[0] if words else ""), " ".join(words[1:])
 
 
-# Split on the alignment comma ONLY — a comma INSIDE the subtype parentheses
-# (5.1: '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*') must not be treated
-# as the separator, else the type keeps a dangling '(Devil'. Negative lookahead
-# skips any comma still enclosed by an unclosed '(' . 5.2 lines have no comma
-# inside the type-parens, so this is a no-op there.
+# Отрицательный просмотр отбрасывает запятую ВНУТРИ скобок подтипа (5.1:
+# '*Tiny Fiend (Devil, Shapechanger), Lawful Evil*'): без него шапка БЕЗ мировоззрения
+# («Tiny Fiend (Devil, Shapechanger)») рвалась бы по скобочной запятой на 'Fiend (Devil'
+# и 'Shapechanger)'. У шапки С мировоззрением разрез идёт по последней запятой и без
+# просмотра, поэтому носителей у этого свойства в корпусе не осталось — его держит
+# самопроверка гейта шапок (ряд «подтип с запятой и БЕЗ мировоззрения», ревью #293).
 SPLIT_ALIGN = re.compile(r",\s*(?![^(]*\))")
 
 
 def split_header(header: str):
     """(«размер тип», мировоззрение) или None, если запятой мировоззрения нет.
 
-    Единственный разрез шапки на весь репозиторий: его зовёт и этот парсер, и оба гейта
-    статблоков (#290). Копий было три, и одна из них резала по ПЕРВОЙ запятой — на
-    составном типе «Large Celestial, Fey, or Fiend (Your Choice), Neutral» (заклинание
-    Find Steed) это уносило половину типа в мировоззрение (#260). Мировоззрение — хвост
-    после ПОСЛЕДНЕЙ запятой вне скобок, левая часть склеивается обратно как есть.
+    Разрез шапки один на весь репозиторий: его зовут этот парсер и оба гейта статблоков
+    для шапок глав, указателей и врезок (#290). Мировоззрение — хвост после ПОСЛЕДНЕЙ
+    запятой вне скобок; сам парсер стал резать так в #260 (у составного типа «Large
+    Celestial, Fey, or Fiend (Your Choice), Neutral» из заклинания Find Steed запятых вне
+    скобок две, и по первой из них тип разрывался пополам), а у гейтов своя копия резала
+    по ПЕРВОЙ запятой до #290. Левая часть склеивается обратно как есть.
     """
     chunks = SPLIT_ALIGN.split(header.strip())
     if len(chunks) < 2:

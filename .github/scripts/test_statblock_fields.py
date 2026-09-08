@@ -67,7 +67,8 @@ from statblock_meta import (EN_LABELS_51, META_KEYS, NOTE_KEYS,  # noqa: E402
                             OBJECT_BLOCKS_51, RU_LABELS_51, STRIP_TAIL,
                             en_name_from_ru_heading, titlecase_header)
 # Шапку врезки гейт шапок не видит (он читает главы монстров и указатели), поэтому её
-# тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271).
+# тип и мировоззрение сверяются здесь — ТЕМИ ЖЕ словарями, что и там (#271). Сам разрез
+# шапки приходит транзитом из продукционного парсера — один на все гейты (#290).
 from statblock_terms import (DICT, SUBTYPE_DICT, align_to_en,  # noqa: E402
                              check_dictionary_sections, dict_table, size_agreement,
                              skeleton, split_header)
