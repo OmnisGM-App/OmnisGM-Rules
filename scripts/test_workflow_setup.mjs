@@ -23,8 +23,8 @@
 // обязана быть распознана как ключ джобы: нераспознанная — не «не наш случай», а причина
 // покраснеть. Расширения — обе формы GitHub (`.yml` и `.yaml`), у composite-действий тоже,
 // и их каталог обходится на уровень вглубь: именно оттуда растёт исходный дрейф версий.
-// Сам `setup-web` не сканируется намеренно — он и есть объявленное место версий, второй
-// `setup-node` внутри него виден в одном файле рядом с первым (ревью #300).
+// Сканируется и сам `setup-web` — по своим правилам: в нём вызов setup-* законен, но ровно
+// один на инструмент, иначе версия снова объявлена дважды (ревью #300).
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -139,10 +139,25 @@ export function setupProblems(files, actions) {
       if (!hasTimeout) problems.push(`${name}: у джобы «${job}» нет timeout-minutes (#287)`);
     }
   }
-  for (const { name, text } of actions) {
-    for (const used of directSetups(text)) {
-      problems.push(`${name}: прямой ${used} в composite-действии — вторая точка объявления ` +
-                    `версии, ровно то, из чего вырос #287`);
+  for (const { name, text, home } of actions) {
+    const used = directSetups(text);
+    if (!home) {
+      for (const u of used) {
+        problems.push(`${name}: прямой ${u} в composite-действии — вторая точка объявления ` +
+                      `версии, ровно то, из чего вырос #287`);
+      }
+      continue;
+    }
+    // Сам `setup-web` — законное место вызова setup-*, но ровно ПО ОДНОМУ на инструмент:
+    // второй `setup-node` внутри него — та же вторая точка объявления версии, просто в том
+    // файле, который PR и заводил, чтобы она была одна. Раньше файл вообще выпадал из
+    // скана, то есть единственный в репозитории полагался на глаз ревьюера (ревью #300).
+    for (const tool of ['actions/setup-node', 'actions/setup-python']) {
+      const n = used.filter((u) => u === tool).length;
+      if (n > 1) {
+        problems.push(`${name}: ${tool} вызван ${n} раза — в самом ${HOME} он должен быть ` +
+                      `один, иначе версия снова объявлена дважды (#287)`);
+      }
     }
   }
   return problems;
@@ -158,17 +173,19 @@ function readWorkflows(dir) {
 
 /**
  * Composite-действия: `action.yml` и `action.yaml`, на уровень вглубь (группирующий каталог
- * — законная раскладка). Сам `setup-web` пропускаем: он и есть место объявления версий.
+ * — законная раскладка). Сам `setup-web` тоже сканируется, но по своим правилам: помечается
+ * `home`, и в нём законен ровно один вызов каждого setup-*.
  */
 function readActions(dir, rel = '.github/actions', depth = 1) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true }).flatMap((e) => {
-    if (!e.isDirectory() || e.name === HOME) return [];
+    if (!e.isDirectory()) return [];
     const here = readdirSync(resolve(dir, e.name), { withFileTypes: true })
       .filter((f) => f.isFile() && /^action\.ya?ml$/.test(f.name))
       .map((f) => ({
         name: `${rel}/${e.name}/${f.name}`,
         text: readFileSync(resolve(dir, e.name, f.name), 'utf8'),
+        home: e.name === HOME,
       }));
     const deeper = depth > 0 ? readActions(resolve(dir, e.name), `${rel}/${e.name}`, depth - 1) : [];
     return [...here, ...deeper];
@@ -223,6 +240,14 @@ for (const [label, text, want] of [
 if (setupProblems([], [{ name: 'a/action.yml', text: 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n' }]).length !== 1) {
   failures.push('самопроверка «composite с прямым setup-node»: не замечен');
 }
+// Сам общий шаг: один вызов на инструмент — норма, два — вторая точка объявления версии.
+const HOME_ONE = 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n    - uses: actions/setup-python@v7\n';
+if (setupProblems([], [{ name: `${HOME}/action.yml`, text: HOME_ONE, home: true }]).length !== 0) {
+  failures.push(`самопроверка «${HOME}: по одному setup-*»: помечен нарушением`);
+}
+if (setupProblems([], [{ name: `${HOME}/action.yml`, text: HOME_ONE + '    - uses: actions/setup-node@v8\n', home: true }]).length !== 1) {
+  failures.push(`самопроверка «${HOME}: второй setup-node»: не замечен`);
+}
 
 // `process.argv[1]` пуст при `node --input-type=module -e` — импорт гейта из другого
 // скрипта не должен падать на самом определении «запущен ли я напрямую» (ревью #300).
@@ -236,5 +261,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(1);
   }
   console.log(`✅ Workflow (${files.length}) и composite (${actions.length}): прямых setup-* нет, ` +
-              `timeout-minutes у всех джоб; ${SELF_CHECKS.length + 10} самопроверок разбора`);
+              `timeout-minutes у всех джоб; ${SELF_CHECKS.length + 13} самопроверок разбора`);
 }
