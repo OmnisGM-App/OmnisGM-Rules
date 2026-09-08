@@ -28,6 +28,14 @@
       "Bash(for:*)",
       "Bash(mkdir:*)",
       "Bash(chmod:*)"
+    ],
+    "deny": [
+      "Read(.env*)",
+      "Bash(rm -rf:*)"
     ]
+  },
+  "attribution": {
+    "commit": "Co-Authored-By: Claude <noreply@anthropic.com>",
+    "pr": ""
   }
 }
