@@ -61,12 +61,14 @@ const violationsOf = (page) =>
 const context = await browser.newContext();
 // Слушатель ставится до любых скриптов страницы — иначе ранние нарушения не увидим.
 await context.addInitScript(() => {
-  // Каст точечный, а не `@ts-expect-error` на строку: директива подавила бы ВСЮ строку
-  // вместе с вызовом, и опечатка в имени метода прошла бы молча — ровно то, ради чего
-  // затевался тайпчек скриптов (ревью #298).
-  /** @type {any} */ (window).__cspViolations = [];
+  // Каст двойной, и второй слой обязателен: `any` на `window` делает `any` ВСЮ цепочку, и
+  // опечатка в `.push` или в имени поля записи проходила бы молча — то есть накопитель
+  // молча возвращал бы пустой массив, а скрипт печатал «нарушений нет» при живом нарушении
+  // (ревью #298). Внутренний каст снимает незнание типа у `window`, внешний возвращает
+  // проверку тому, ради чего тайпчек и заводился.
+  /** @type {CspViolation[]} */ (/** @type {any} */ (window).__cspViolations = []);
   document.addEventListener('securitypolicyviolation', (e) => {
-    /** @type {any} */ (window).__cspViolations.push({
+    /** @type {CspViolation[]} */ (/** @type {any} */ (window).__cspViolations).push({
       directive: e.effectiveDirective || e.violatedDirective,
       blocked: e.blockedURI,
       disposition: e.disposition,
