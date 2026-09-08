@@ -10,5 +10,11 @@ DND-SRD-5.2.1-RU.md
 /docs/
 /mkdocs.yml
 /overrides/
+# Корневой npm-проект — только прокси-скрипты и хук (#283): зависимостей у него нет,
+# но `npm install` в корне (единственный способ активировать pre-commit) создаёт и то,
+# и другое. В web/.gitignore они уже перечислены, в корневом — не были (ревью #299).
+/node_modules/
+/package-lock.json
+
 firebase-debug.log
 .firebase/
