@@ -20,7 +20,8 @@ concurrency:
 
 jobs:
   review:
-    if: github.event.pull_request.draft == false
+    # Драфты и PR ботов (dependabot) не ревьюим — бампы зависимостей смотрит владелец.
+    if: github.event.pull_request.draft == false && github.event.pull_request.user.login != 'dependabot[bot]'
     timeout-minutes: 90
     runs-on: ubuntu-latest
     permissions:
