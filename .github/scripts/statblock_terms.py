@@ -44,7 +44,17 @@ SUBTYPE_DICT = ROOT / "src/dnd/translate/statblock_subtypes.md"
 
 SIZES_EN = ["Tiny", "Small", "Medium", "Large", "Huge", "Gargantuan"]
 SIZE_ALT = "|".join(SIZES_EN)
-SIZE_RE = re.compile(rf"^((?:{SIZE_ALT})(?: or (?:{SIZE_ALT}))?)\s+(.*)$")
+# Границу диапазона («Huge or Smaller Construct», врезка заклинания Animate Objects) EN
+# пишет словом, а не вторым размером, и размером в шапке является ВСЯ связка: тип здесь
+# «Construct». Формы по роду — RU-сторона: прилагательное согласуется с типом существа
+# («Огромный или меньший Конструкт», «Огромная или меньшая тварь»), поэтому таблица не
+# плоская. Продукционный `_split_size` знал обе формы с #260, а этот разбор — нет, и на
+# живой врезке два разбора расходились: «Huge» + тип «or Smaller Construct» (#294).
+BOUND_FORMS = {"Smaller": ("меньший", "меньшая", "меньшее"),
+               "Larger": ("больший", "большая", "большее")}
+BOUND_RU = {form: en for en, forms in BOUND_FORMS.items() for form in forms}
+BOUND_ALT = "|".join(BOUND_FORMS)
+SIZE_RE = re.compile(rf"^((?:{SIZE_ALT})(?: or (?:{SIZE_ALT}|{BOUND_ALT}))?)\s+(.*)$")
 
 # Мировоззрение RU → EN. Только мужской род: средние формы принимаются лишь у версий,
 # объявивших послабление (см. `neuter_ok`).
@@ -382,8 +392,9 @@ GENDER_RU = {
 }
 
 
-# Формы связки границы диапазона по роду — тот же порядок, что у SIZE_FORMS.
-SMALLER_FORMS = ("меньший", "меньшая", "меньшее")
+# Формы связки границы диапазона по роду — тот же порядок, что у SIZE_FORMS; таблица
+# объявлена выше, рядом с SIZE_RE, потому что её же читает разбор шапки (#294).
+SMALLER_FORMS = BOUND_FORMS["Smaller"]
 
 
 def size_agreement(header: str, types_ru, sizes_ru: dict):
@@ -403,7 +414,7 @@ def size_agreement(header: str, types_ru, sizes_ru: dict):
             sizes.append(words[i]); i += 1
         elif words[i].lower() == "или" and sizes:
             i += 1
-        elif words[i].lower() in SMALLER_FORMS and sizes:
+        elif words[i].lower() in BOUND_RU and sizes:
             smaller.append(words[i]); i += 1
         else:
             break
@@ -431,7 +442,9 @@ def size_agreement(header: str, types_ru, sizes_ru: dict):
     # Конструкт», но «Огромная или меньшая тварь». Без этой сверки род связки был свободен
     # (ревью #281).
     for word in smaller:
-        want = SMALLER_FORMS[gender]
+        # Связка своя у каждой границы: «меньший» и «больший» — разные слова, и сверять
+        # род нужно с формами ТОЙ ЖЕ связки, а не всегда с «меньшим» (#294).
+        want = BOUND_FORMS[BOUND_RU[word.lower()]][gender]
         if word != want:
             return (f"граница диапазона «{word}» не согласована с «{term}» — "
                     f"ожидалось «{want}»"), None, "род"
