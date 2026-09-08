@@ -4584,7 +4584,7 @@ The dragon can take 3 legendary actions, choosing from the options below. Only o
 | 6 (-2)   | 17 (+3)  | 13 (+1)  | 11 (+0)  | 12 (+1)  | 14 (+2)  |
 
 - **Skills:** Deception +4, Insight +3, Persuasion +4, Stealth +5
-- **Damage Resistances:** Cold; Bludgeoning, Piercing, and Slashing from nonmagical attacks not made with silvered weapons
+- **Damage Resistances:** Cold; Bludgeoning, Piercing, and Slashing from nonmagical attacks that aren't silvered
 - **Damage Immunities:** Fire, Poison
 - **Condition Immunities:** Poisoned
 - **Senses:** darkvision 120 ft.; Passive Perception 11
@@ -4974,13 +4974,13 @@ The unicorn can take 3 legendary actions, choosing from the options below. Only 
 
 - **Armor Class:** 13 (chain shirt)
 - **Hit Points:** 27 (5d8 + 5)
-- **Speed:** 30 ft.
+- **Speed:** 25 ft.
 
 | STR      | DEX      | CON      | INT      | WIS      | CHA      |
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | 10 (+0)  | 10 (+0)  | 12 (+1)  | 13 (+1)  | 16 (+3)  | 13 (+1)  |
 
-- **Skills:** Medicine +7, Persuasion +3, Religion +5
+- **Skills:** Medicine +7, Persuasion +3, Religion +4
 - **Senses:** Passive Perception 13
 - **Languages:** any two languages
 - **Challenge:** 2 (450 XP)
@@ -5092,7 +5092,7 @@ A priest typically has one or more acolytes to help with religious ceremonies an
 
 - **Armor Class:** 14
 - **Hit Points:** 5 (2d4)
-- **Speed:** 30 ft., Fly 60 ft., Swim 30 ft
+- **Speed:** 30 ft., Fly 60 ft., Swim 30 ft.
 
 | STR      | DEX      | CON      | INT      | WIS      | CHA      |
 |:---:|:---:|:---:|:---:|:---:|:---:|
@@ -5819,6 +5819,7 @@ At will: *Detect Magic*, *Magic Missile*
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | 21 (+5)  | 9 (-1)   | 17 (+3)  | 2 (-4)   | 10 (+0)  | 7 (-2)   |
 
+- **Skills:** Stealth +5
 - **Senses:** Passive Perception 10
 - **Languages:** -
 - **Challenge:** 5 (1,800 XP)
@@ -6095,7 +6096,7 @@ At will: *Disguise Self* (any humanoid form), *Major Image*
 | 11 (+0)  | 16 (+3)  | 16 (+3)  | 20 (+5)  | 14 (+2)  | 16 (+3)  |
 
 - **Saving Throws:** Con +10, Int +12, Wis +9
-- **Skills:** Arcana +19, History +12, Insight +9, Perception +9
+- **Skills:** Arcana +18, History +12, Insight +9, Perception +9
 - **Damage Resistances:** Cold, Lightning, Necrotic
 - **Damage Immunities:** Poison; Bludgeoning, Piercing, and Slashing from nonmagical attacks
 - **Condition Immunities:** Charmed, Exhaustion, Frightened, Paralyzed, Poisoned
@@ -6997,9 +6998,7 @@ A **blink dog** takes its name from its ability to blink in and out of existence
 
 - **Saving Throws:** Int +9, Wis +6
 - **Skills:** Arcana +13, History +13
-
-**Damage Resistance** damage from spells; nonmagical bludgeoning, piercing, and slashing (from *Stoneskin*)
-
+- **Damage Resistances:** damage from spells; nonmagical bludgeoning, piercing, and slashing (from *Stoneskin*)
 - **Senses:** Passive Perception 12
 - **Languages:** any six languages
 - **Challenge:** 12 (8,400 XP)
@@ -7529,6 +7528,7 @@ The mummy lord can take 3 legendary actions, choosing from the options below. On
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | 18 (+4)  | 17 (+3)  | 14 (+2)  | 16 (+3)  | 15 (+2)  | 16 (+3)  |
 
+- **Saving Throws:** Dex +6, Con +5, Wis +5, Cha +6
 - **Damage Immunities:** Poison
 - **Condition Immunities:** Charmed, Poisoned
 - **Senses:** darkvision 60 ft.; Passive Perception 12
@@ -7564,7 +7564,6 @@ Cantrips (at will): *Mage Hand*, *Minor Illusion*, *Ray of Frost*
 |:---:|:---:|:---:|:---:|:---:|:---:|
 | 19 (+4)  | 18 (+4)  | 16 (+3)  | 16 (+3)  | 19 (+4)  | 18 (+4)  |
 
-- **Saving Throws:** Dex +6, Con +5, Wis +5, Cha +6
 - **Saving Throws:** Dex +8, Con +7, Int +7, Wis +8, Cha +8
 - **Damage Immunities:** Poison
 - **Condition Immunities:** Charmed, Poisoned
@@ -8793,9 +8792,7 @@ If the object touched is either metal armor or a metal shield being worn or carr
 - **Damage Vulnerabilities:** Cold
 - **Damage Resistances:** Bludgeoning, Piercing, and Slashing from nonmagical attacks
 - **Damage Immunities:** Fire
-
-**Sense**s darkvision 60 ft.; Passive Perception 10
-
+- **Senses:** darkvision 60 ft.; Passive Perception 10
 - **Languages:** Ignan
 - **Challenge:** 5 (1,800 XP)
 
@@ -8826,9 +8823,7 @@ If the object touched is either metal armor or a metal shield being worn or carr
 | 12 (+1)  | 16 (+3)  | 11 (+0)  | 12 (+1)  | 10 (+0)  | 14 (+2)  |
 
 - **Skills:** Perception +2, Performance +6, Stealth +5
-
-**Sense**s Passive Perception 12
-
+- **Senses:** Passive Perception 12
 - **Languages:** Common, Elvish, Sylvan
 - **Challenge:** 1/2 (100 XP)
 

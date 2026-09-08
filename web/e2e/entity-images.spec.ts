@@ -61,18 +61,34 @@ test('авторство картинок — отдельной строкой 
 // поэтому проверяем ТОТ ЖЕ артефакт, что генерит prebuild из generate_api.py.
 const api = (p: string) => JSON.parse(fs.readFileSync(`src/data/api/${p}`, 'utf-8'));
 
+// Сущность БЕЗ картинки берём по факту и сразу из нескольких разделов: очередь генератора
+// доливает иконки порциями и однажды закрывает раздел целиком — так и вышло с заклинаниями
+// 5.2 (после мёржа очереди #266 иконки есть у всех 339, и оба теста покраснели не от
+// поломки, а от заполнения). Разделы перечислены от самого «дырявого» к менее дырявому;
+// пустым станет весь список — тогда и правим тест, а не при закрытии одного раздела.
+const PENDING_SOURCES = [
+  { json: 'dnd/srd52/ru/magic-items/all.json', page: (s: string) => `/ru/dnd/srd-5.2/magic-items/${s}/` },
+  { json: 'dnd/srd51/ru/magic-items/all.json', page: (s: string) => `/ru/dnd/srd-5.1/magic-items/${s}/` },
+  { json: 'dnd/srd52/ru/spells/all.json', page: (s: string) => `/ru/dnd/srd-5.2/spells/${s}/` },
+];
+
+/** Первая сущность без поля image и адрес её страницы. */
+function pendingEntity() {
+  for (const src of PENDING_SOURCES) {
+    const found = api(src.json).find((e: { image?: string }) => !e.image);
+    if (found) return { entity: found, url: src.page(found.slug) };
+  }
+  return null;
+}
+
 test('JSON API: image есть у существ с файлом и отсутствует у остальных', () => {
   const monsters = api('dnd/srd52/ru/monsters/all.json');
   const aboleth = monsters.find((m: { slug: string }) => m.slug === 'aboleth');
   expect(aboleth.image).toBe('https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp');
   // Поля нет вовсе, а не пустая строка/null — потребитель проверяет наличие ключа.
-  // Заклинание без иконки выбираем ПО ФАКТУ, а не по имени: очередь генератора доливает
-  // картинки порциями, и любой зафиксированный слаг рано или поздно её получает (на fireball
-  // так и вышло — тест покраснел от мёржа очереди, а не от поломки).
-  const spells = api('dnd/srd52/ru/spells/all.json');
-  const pending = spells.find((s: { image?: string }) => !s.image);
-  expect(pending, 'все заклинания уже с иконками — возьми другой раздел для этой проверки').toBeTruthy();
-  expect(pending).not.toHaveProperty('image');
+  const pending = pendingEntity();
+  expect(pending, 'во всех разделах PENDING_SOURCES иконки уже у всех — добавь раздел').toBeTruthy();
+  expect(pending!.entity).not.toHaveProperty('image');
   // Окружения Daggerheart делят схему с противниками, но картинок у них нет.
   expect(api('daggerheart/srd10/ru/environments/all.json')[0]).not.toHaveProperty('image');
   expect(api('daggerheart/srd10/ru/adversaries/all.json')[0].image).toContain('/img/daggerheart/creatures/');
@@ -123,10 +139,10 @@ test('заклинание и магпредмет с иконкой — тот 
 
 test('сущность без картинки: страница как раньше', async ({ page }) => {
   // Слаг берём из данных, а не из головы: очередь генератора доливает иконки порциями,
-  // и захардкоженное заклинание однажды перестаёт быть «без картинки».
-  const pending = api('dnd/srd52/ru/spells/all.json').find((s: { image?: string }) => !s.image);
-  expect(pending, 'все заклинания уже с иконками — возьми другой раздел для этой проверки').toBeTruthy();
-  await page.goto(`/ru/dnd/srd-5.2/spells/${pending.slug}/`);
+  // и захардкоженная сущность однажды перестаёт быть «без картинки».
+  const pending = pendingEntity();
+  expect(pending, 'во всех разделах PENDING_SOURCES иконки уже у всех — добавь раздел').toBeTruthy();
+  await page.goto(pending!.url);
   await expect(page.locator('img.ent-portrait')).toHaveCount(0);
   await expect(page.locator('head meta[property="og:image"]')).toHaveAttribute(
     'content', 'https://rules.omnisgm.com/og.png',
