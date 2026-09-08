@@ -18,8 +18,10 @@ on:
     types: [opened, synchronize, reopened, ready_for_review, edited, closed]
 
 concurrency:
-  # Один прогон на PR: прилетел новый коммит — текущее ревью стопается и стартует заново.
-  group: claude-review-${{ github.event.pull_request.number }}
+  # Один прогон на PR: новый коммит (или closed) отменяет текущее ревью. Событие edited БЕЗ
+  # смены base уходит в отдельную группу-пустышку: иначе правка описания PR отменяла живое
+  # ревью, а её собственная джоба скипалась (случай Rules#300).
+  group: claude-review-${{ github.event.pull_request.number }}${{ (github.event.action == 'edited' && !github.event.changes.base) && '-noop' || '' }}
   cancel-in-progress: true
 
 jobs:
