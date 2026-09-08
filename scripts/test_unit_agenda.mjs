@@ -62,10 +62,12 @@ export function ciUnits(text) {
     const line = raw.trim();
     // Комментарий — проза о шаге, а не сам шаг. Именно она давала ложные срабатывания.
     if (line.startsWith('#')) continue;
-    if (line.startsWith('- ') || /^[a-z-]+:$/.test(line)) inRun = false;
-    if (line.startsWith('- name:') || line.startsWith('- uses:') || line.startsWith('- run:')) {
-      if (line.startsWith('- name:') || line.startsWith('- uses:')) cwd = '';
-    }
+    // Новый элемент списка шагов сбрасывает и режим `run:`, и каталог. Именно каталог —
+    // тонкое место: `working-directory` относится к СВОЕМУ шагу, GitHub Actions его между
+    // шагами не наследует, а анонимный `- run:` после именованного шага с каталогом получал
+    // чужой префикс и давал ложное красное сразу по двум строкам (ревью #299).
+    if (line.startsWith('- ')) { inRun = false; cwd = ''; }
+    else if (/^[a-z-]+:$/.test(line)) inRun = false;
     const wd = line.match(/^working-directory:\s*(\S+)/);
     if (wd) { cwd = wd[1]; continue; }
     const run = line.match(/^(?:- )?run:\s*(.*)$/);
@@ -156,6 +158,12 @@ const SELF_CHECKS = [
   ['working-directory', `${CI_HEAD}      - name: Unit\n        working-directory: web\n        run: node scripts/test_c.mjs\n`,
    ['web/scripts/test_c.mjs']],
   ['шаг без name', `${CI_HEAD}      - run: node scripts/test_d.mjs\n`, ['scripts/test_d.mjs']],
+  // Анонимный шаг ПОСЛЕ шага с каталогом: своего `working-directory` у него нет, и чужой
+  // он не наследует. Прежняя самопроверка ставила анонимный шаг первым, где `cwd` и так
+  // пуст, поэтому случай проходил мимо (ревью #299).
+  ['анонимный шаг после working-directory',
+   `${CI_HEAD}      - name: A\n        working-directory: web\n        run: node scripts/test_c.mjs\n      - run: node scripts/test_d.mjs\n`,
+   ['web/scripts/test_c.mjs', 'scripts/test_d.mjs']],
   ['комментарий не шаг', `${CI_HEAD}      # см. node scripts/test_ghost.mjs\n      - name: Unit\n        run: node scripts/test_a.mjs\n`,
    ['scripts/test_a.mjs']],
   ['закомментированный шаг', `${CI_HEAD}      # - name: Unit\n      #   run: node scripts/test_ghost.mjs\n`, []],
@@ -190,7 +198,7 @@ if (gatesProblems({ 'test:gates': 'npm run test:unit && npm run test:unit:py && 
   failures.push('самопроверка test:gates: полный состав объявлен неполным');
 }
 
-if (import.meta.url === pathToFileURL(process.argv[1]).href) {
+if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const scripts = JSON.parse(readFileSync(PKG, 'utf8')).scripts ?? {};
   const { problems, count } = agendaProblems(readFileSync(CI, 'utf8'), scripts);
   const all = [...failures, ...problems];
