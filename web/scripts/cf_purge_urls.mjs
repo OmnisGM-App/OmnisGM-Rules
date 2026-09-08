@@ -27,11 +27,22 @@ const here = dirname(fileURLToPath(import.meta.url));
 const DIST = resolve(here, '../dist');
 const ORIGIN = 'https://rules.omnisgm.com';
 
+/**
+ * Значение аргумента `--name`.
+ * @param {string} name
+ * @param {string|null} [fallback]
+ * @returns {string|null}
+ */
 const arg = (name, fallback = null) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
 
+/**
+ * Непустые строки файла (или пустой список, если файла нет).
+ * @param {string|null} path
+ * @returns {string[]}
+ */
 const lines = (path) =>
   path && existsSync(resolve(path))
     ? readFileSync(resolve(path), 'utf8').split('\n').map((s) => s.trim()).filter(Boolean)
@@ -66,6 +77,10 @@ for (const f of readdirSync(DIST)) {
 
 // JSON API целиком (обычно ~230 файлов) — вместе с его index.html-навигацией.
 const apiDir = resolve(DIST, 'api');
+/**
+ * @param {string} dir
+ * @returns {Generator<string>}
+ */
 function* walk(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = resolve(dir, e.name);
@@ -87,6 +102,10 @@ if (existsSync(apiDir) && statSync(apiDir).isDirectory()) {
 // второй НЕ редиректит (отдаёт 200 — проверено на проде), значит в кэше это две независимые
 // записи, и purge одной не трогает другую. Ссылок на index.html у нас нет, но краулер мог его
 // однажды дёрнуть — и тогда именно эта версия зависла бы до конца TTL (ревью #192).
+/**
+ * @param {string} url
+ * @returns {string[]}
+ */
 const withIndexHtml = (url) => (url.endsWith('/') ? [url, `${url}index.html`] : [url]);
 
 for (const u of lines(arg('changed'))) withIndexHtml(u).forEach((x) => urls.add(x));

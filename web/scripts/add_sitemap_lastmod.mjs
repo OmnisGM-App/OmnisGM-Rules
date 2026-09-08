@@ -20,13 +20,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 const DIST = resolve(here, '../dist');
 const ORIGIN = 'https://rules.omnisgm.com';
 
-/** Путь к HTML-файлу страницы по её URL из sitemap. */
+/**
+ * Путь к HTML-файлу страницы по её URL из sitemap.
+ * @param {string} url
+ * @returns {string}
+ */
 const fileOf = (url) => {
   const path = url.replace(ORIGIN, '').replace(/^\//, '');
   return resolve(DIST, path.endsWith('/') || path === '' ? `${path}index.html` : path);
 };
 
-/** dateModified из JSON-LD страницы (null, если Article на ней нет). */
+/**
+ * dateModified из JSON-LD страницы (null, если Article на ней нет).
+ * @param {string} url
+ * @returns {string|null}
+ */
 function pageDate(url) {
   let html;
   try {
@@ -37,7 +45,9 @@ function pageDate(url) {
   const ld = html.match(/<script type="application\/ld\+json">([\s\S]*?)<\/script>/);
   if (!ld) return null;
   try {
-    const article = (JSON.parse(ld[1])['@graph'] ?? []).find((n) => n['@type'] === 'Article');
+    /** @type {{'@type'?: string, dateModified?: string}[]} */
+    const graph = JSON.parse(ld[1])['@graph'] ?? [];
+    const article = graph.find((n) => n['@type'] === 'Article');
     return article?.dateModified ?? null;
   } catch {
     return null;

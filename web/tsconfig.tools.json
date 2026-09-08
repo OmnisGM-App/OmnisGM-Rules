@@ -1,0 +1,40 @@
+{
+  // Проверка типов для того, что живёт ВНЕ Astro-приложения (#285): конфиг Playwright,
+  // e2e-обвязка и скрипты сборки/деплоя. До этого файла их не проверял НИКТО: `astro check`
+  // диагностирует .astro/.ts внутри `src`, а 16 скриптов в `scripts/` и 37 e2e-спеков
+  // оставались вне любой проверки. Цена дыры видна по деплой-критичным скриптам: опечатка в
+  // `add_sitemap_lastmod.mjs` или `cf_purge_urls.mjs` не ломает билд — она тихо портит
+  // sitemap или сбрасывает не тот кэш уже на проде.
+  //
+  // Донор — `news/tsconfig.tools.json` (#63) вместе с его уроком: маска `scripts/**` затянула
+  // бы транзитивные импорты и утопила первый заход в сотнях TS7006, поэтому include поимённый.
+  "compilerOptions": {
+    "target": "ES2022",
+    "lib": ["ES2022", "DOM", "DOM.Iterable"],
+    "module": "ESNext",
+    "moduleResolution": "bundler",
+    "skipLibCheck": true,
+    "resolveJsonModule": true,
+    "allowSyntheticDefaultImports": true,
+    "noEmit": true,
+    "strict": true,
+    // Скрипты — .mjs: без `allowJs` TypeScript не заглянул бы в них вовсе, а с `checkJs`
+    // проверяется и то, что ВНУТРИ них, а не только их импорт у потребителя.
+    "allowJs": true,
+    "checkJs": true,
+    "types": ["node"]
+  },
+  // Поимённо. Первыми — деплой-критичные: их результат уезжает на прод и молчит.
+  "include": [
+    "playwright.config.ts",
+    "e2e/**/*.ts",
+    "scripts/add_sitemap_lastmod.mjs",
+    "scripts/cf_purge_urls.mjs",
+    "scripts/indexnow_manifest.mjs",
+    "scripts/build_fingerprint.mjs",
+    "scripts/gen-content-dates.mjs",
+    "scripts/copy-brand-assets.mjs",
+    "scripts/check_csp.mjs",
+    "scripts/verify_no_hardcoded_urls.mjs"
+  ]
+}

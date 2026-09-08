@@ -152,6 +152,14 @@ jobs:
         working-directory: web
         run: npm run check
 
+      # Всё, что живёт ВНЕ Astro-приложения, `astro check` не видит: конфиг Playwright, 37
+      # e2e-спеков и скрипты сборки/деплоя. До #285 их не проверял никто, а результат
+      # деплой-критичных (add_sitemap_lastmod, cf_purge_urls, indexnow_manifest) уезжает на
+      # прод молча: битый sitemap и сброс не того кэша билд не роняют.
+      - name: Type-check (скрипты и e2e)
+        working-directory: web
+        run: npm run lint:tools
+
       - name: Build
         working-directory: web
         run: npm run build

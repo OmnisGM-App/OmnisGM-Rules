@@ -12,6 +12,7 @@
     "postbuild": "node scripts/add_sitemap_lastmod.mjs && node scripts/build_fingerprint.mjs --commit",
     "preview": "astro preview",
     "check": "astro check",
+    "lint:tools": "tsc -p tsconfig.tools.json --noEmit",
     "test:e2e": "playwright test",
     "astro": "astro"
   },
