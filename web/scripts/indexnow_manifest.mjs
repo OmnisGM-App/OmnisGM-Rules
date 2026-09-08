@@ -26,11 +26,21 @@ const here = dirname(fileURLToPath(import.meta.url));
 const DIST = resolve(here, '../dist');
 const ORIGIN = 'https://rules.omnisgm.com';
 
+/**
+ * Значение аргумента `--name`.
+ * @param {string} name
+ * @param {string|null} [fallback]
+ * @returns {string|null}
+ */
 const arg = (name, fallback = null) => {
   const i = process.argv.indexOf(`--${name}`);
   return i > -1 && process.argv[i + 1] ? process.argv[i + 1] : fallback;
 };
 
+/**
+ * @param {string} dir
+ * @returns {Generator<string>}
+ */
 function* htmlFiles(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = resolve(dir, e.name);
@@ -40,12 +50,20 @@ function* htmlFiles(dir) {
 }
 
 // Файл dist → канонический URL страницы (index.html → директория со слэшем).
+/**
+ * @param {string} file
+ * @returns {string}
+ */
 const urlFor = (file) => {
   const rel = relative(DIST, file).split(sep).join('/');
   return `${ORIGIN}/${rel === 'index.html' ? '' : rel.replace(/index\.html$/, '')}`;
 };
 
 // Видимый поисковику текст: снимаем script/style целиком, затем теги, схлопываем пробелы.
+/**
+ * @param {string} html
+ * @returns {string}
+ */
 const textOf = (html) =>
   html
     .replace(/<script[\s\S]*?<\/script>/gi, ' ')
@@ -54,6 +72,10 @@ const textOf = (html) =>
     .replace(/\s+/g, ' ')
     .trim();
 
+/**
+ * @param {string} html
+ * @returns {string}
+ */
 const signature = (html) => {
   const head = html.slice(0, html.indexOf('</head>'));
   const body = html.slice(html.indexOf('</head>'));
@@ -72,9 +94,14 @@ for (const f of readdirSync(DIST)) {
     sitemapUrls.add(m[1].trim());
   }
 }
+/**
+ * @param {string} url
+ * @returns {boolean}
+ */
 const indexable = (url) =>
   sitemapUrls.size ? sitemapUrls.has(url) : !url.endsWith('/404.html');
 
+/** @type {Record<string, string>} */
 const manifest = {};
 let skipped = 0;
 for (const file of htmlFiles(DIST)) {
@@ -108,6 +135,7 @@ if (!existsSync(resolve(prevPath))) {
   process.exit(0);
 }
 
+/** @type {Record<string, string>} */
 const prev = JSON.parse(readFileSync(resolve(prevPath), 'utf8'));
 const changed = Object.keys(manifest).filter((url) => prev[url] !== manifest[url]);
 const added = changed.filter((url) => !(url in prev));

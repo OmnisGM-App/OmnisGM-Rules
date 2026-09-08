@@ -49,6 +49,9 @@ export const FINGERPRINT_FILE = 'build-id.txt';
  * (`test_build_fingerprint.mjs`) собирает игрушечное дерево во временном каталоге и проверяет
  * инварианты, не трогая рабочее. Поведение по умолчанию при этом прежнее.
  */
+/**
+ * @param {string} web — корень `web/`
+ */
 function inputsOf(web) {
   const repoRoot = resolve(web, '..');
 
@@ -75,6 +78,11 @@ function inputsOf(web) {
  */
 const JUNK = /^(\.DS_Store|Thumbs\.db|\._.*)$/;
 
+/**
+ * @param {string} dir
+ * @param {string[]} out
+ * @returns {Promise<string[]>}
+ */
 async function walk(dir, out = []) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     if (JUNK.test(entry.name)) continue;

@@ -25,10 +25,15 @@ const here = dirname(fileURLToPath(import.meta.url));
 const repoRoot = resolve(here, '../..');
 const outFile = resolve(here, '../src/data/content-dates.json');
 
+/**
+ * @param {...string} args
+ * @returns {string}
+ */
 const git = (...args) =>
   execFileSync('git', args, { cwd: repoRoot, encoding: 'utf8', maxBuffer: 64 * 1024 * 1024 });
 
 let shallow = false;
+/** @type {Record<string, {published: string, modified: string}>} */
 let files = {};
 
 try {
@@ -57,7 +62,8 @@ try {
   }
 } catch (err) {
   // Сборка без git (архив исходников, чужая песочница) — не повод валить билд.
-  console.warn(`[gen-content-dates] git недоступен (${err.message.split('\n')[0]}) — даты не проставляем.`);
+  const reason = err instanceof Error ? err.message.split('\n')[0] : String(err);
+  console.warn(`[gen-content-dates] git недоступен (${reason}) — даты не проставляем.`);
   files = {};
   shallow = true;
 }

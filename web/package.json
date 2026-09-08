@@ -12,6 +12,7 @@
     "postbuild": "node scripts/add_sitemap_lastmod.mjs && node scripts/build_fingerprint.mjs --commit",
     "preview": "astro preview",
     "check": "astro check",
+    "lint:tools": "tsc -p tsconfig.tools.json --noEmit",
     "test:e2e": "playwright test",
     "astro": "astro"
   },
@@ -28,6 +29,7 @@
     "@astrojs/check": "^0.9.10",
     "@playwright/test": "^1.63.0",
     "@types/hast": "^3.0.5",
+    "@types/node": "^20.19.9",
     "@vite-pwa/astro": "^1.2.0",
     "astro-pagefind": "^1.8.0",
     "typescript": "^6.0.3"

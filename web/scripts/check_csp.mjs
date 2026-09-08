@@ -20,9 +20,18 @@ import { fileURLToPath } from 'node:url';
 import { chromium } from '@playwright/test';
 
 const here = dirname(fileURLToPath(import.meta.url));
+
+/**
+ * Нарушения CSP пишет БРАУЗЕР, и API консоли их не видит — их ловит слушатель
+ * `securitypolicyviolation` на самой странице и копит в `window`. Отсюда и объявление:
+ * поле нештатное, но именно оно — канал доставки (#225).
+ * @typedef {{directive: string, blocked: string, source: string, disposition: string, page?: string}} CspViolation
+ */
+
 const BASE = process.argv[2] ?? 'https://rules.omnisgm.com';
 
 // Политика — из firebase.json, чтобы скрипт и прод не разъезжались.
+/** @type {{headers: {headers: {key: string, value: string}[]}[]}} */
 const hosting = JSON.parse(readFileSync(resolve(here, '../../firebase.json'), 'utf8')).hosting;
 const cspHeader = hosting.headers[0].headers.find((h) => h.key.startsWith('Content-Security-Policy'));
 if (!cspHeader) {
@@ -41,12 +50,25 @@ const PAGES = [
 ];
 
 const browser = await chromium.launch();
+/**
+ * Нарушения, накопленные страницей.
+ * @param {import('@playwright/test').Page} page
+ * @returns {Promise<CspViolation[]>}
+ */
+const violationsOf = (page) =>
+  page.evaluate(() => /** @type {any} */ (window).__cspViolations ?? []);
+
 const context = await browser.newContext();
 // Слушатель ставится до любых скриптов страницы — иначе ранние нарушения не увидим.
 await context.addInitScript(() => {
-  window.__cspViolations = [];
+  // Каст двойной, и второй слой обязателен: `any` на `window` делает `any` ВСЮ цепочку, и
+  // опечатка в `.push` или в имени поля записи проходила бы молча — то есть накопитель
+  // молча возвращал бы пустой массив, а скрипт печатал «нарушений нет» при живом нарушении
+  // (ревью #298). Внутренний каст снимает незнание типа у `window`, внешний возвращает
+  // проверку тому, ради чего тайпчек и заводился.
+  /** @type {CspViolation[]} */ (/** @type {any} */ (window).__cspViolations = []);
   document.addEventListener('securitypolicyviolation', (e) => {
-    window.__cspViolations.push({
+    /** @type {CspViolation[]} */ (/** @type {any} */ (window).__cspViolations).push({
       directive: e.effectiveDirective || e.violatedDirective,
       blocked: e.blockedURI,
       disposition: e.disposition,
@@ -89,13 +111,14 @@ async function offlineRun() {
   } catch (err) {
     console.log(`  ✗ оффлайн: страница не отдалась из кэша (${String(err).split('\n')[0]})`);
   }
-  const v = await page.evaluate(() => window.__cspViolations ?? []);
+  const v = await violationsOf(page);
   console.log(`  ${served && !v.length ? '✔' : '✗'} оффлайн из кэша — /ru/ (отдалась: ${served ? 'да' : 'нет'}${v.length ? `, нарушений: ${v.length}` : ''})`);
   await context.setOffline(false);
   await page.close();
   return v.map((x) => ({ ...x, page: '/ru/ (оффлайн)' }));
 }
 
+/** @type {CspViolation[]} */
 const all = [];
 for (const p of PAGES) {
   const page = await context.newPage();
@@ -104,7 +127,7 @@ for (const p of PAGES) {
     await page.locator('input[type="text"]').first().fill(p.search);
     await page.waitForTimeout(2500); // Pagefind грузит воркер, wasm и индексы
   }
-  const v = await page.evaluate(() => window.__cspViolations ?? []);
+  const v = await violationsOf(page);
   console.log(`  ${v.length ? '✗' : '✔'} ${p.what} — ${p.url}${v.length ? ` (нарушений: ${v.length})` : ''}`);
   all.push(...v.map((x) => ({ ...x, page: p.url })));
   await page.close();

@@ -58,6 +58,11 @@ if (basePorts.length === 0) {
 }
 const BARE_PORTS = new RegExp(`\\b(?:${basePorts.join('|')})\\b`, 'g');
 
+/**
+ * @param {string} dir
+ * @param {string[]} out
+ * @returns {Promise<string[]>}
+ */
 async function walk(dir, out = []) {
   for (const entry of await readdir(dir, { withFileTypes: true })) {
     const full = join(dir, entry.name);
@@ -67,6 +72,7 @@ async function walk(dir, out = []) {
   return out;
 }
 
+/** @type {string[]} */
 const findings = [];
 let checked = 0;
 for (const file of (await walk(e2eDir)).sort()) {

@@ -1,0 +1,82 @@
+#!/bin/sh
+#
+# Быстрые гейты перед коммитом (#283). Донор — table/.githooks/pre-commit, но проверка
+# другая: там сборка ловит SCSS, который тайпчеку не виден, а здесь дорогого эквивалента
+# нет — `astro build` идёт минуты, и хук такой цены не стоит. Поэтому: `astro check`,
+# `tsc` по скриптам и e2e, node-юниты и python-гейты — всё вместе около пятнадцати секунд.
+#
+# Хук ЗАВИСИТ ОТ ТОГО, ЧТО ТРОНУТО: правка документации и рабочих заметок проходит
+# мгновенно — её не проверяет ни один гейт. А вот markdown КОРПУСА (`src/**/*.md`) поднимает
+# python-ветку (пара секунд): гейты импорта читают текст глав, и правка контента ломает их
+# так же, как правка кода гейта.
+#
+# Обойти: `git commit --no-verify` или `SKIP_HOOK=1 git commit`. Нужно редко — например,
+# когда коммитишь заведомо промежуточное состояние на своей ветке.
+
+if [ -n "$SKIP_HOOK" ]; then
+  exit 0
+fi
+
+# ACMRD, а не ACMR: коммит из одних УДАЛЕНИЙ иначе давал пустой список и проходил молча —
+# `git rm` главы корпуса роняет гейт шапок на 249 расхождениях, и узнать об этом стоило бы
+# только в CI (ревью #299).
+changed=$(git diff --cached --name-only --diff-filter=ACMRD)
+[ -z "$changed" ] && exit 0
+
+web_touched=$(printf '%s\n' "$changed" | grep -E '^web/(src|scripts|e2e)/|^web/[^/]+\.(ts|json|mjs)$' || true)
+py_touched=$(printf '%s\n' "$changed" | grep -E '^\.github/scripts/|^\.claude/skills/|^src/.*\.md$' || true)
+node_touched=$(printf '%s\n' "$changed" | grep -E '^scripts/.*\.mjs$|^package\.json$|^\.github/workflows/ci\.yml$' || true)
+
+[ -z "$web_touched" ] && [ -z "$py_touched" ] && [ -z "$node_touched" ] && exit 0
+
+# Инструмента может не быть в PATH — GUI-клиент git, nvm без обвязки shell. Без этой
+# проверки `npm: not found` уходил бы в /dev/null и печатался как «гейты упали», то есть
+# отсутствие инструмента выдавалось бы за красный тест (ревью #299).
+for tool in npm python3; do
+  command -v "$tool" >/dev/null 2>&1 || {
+    echo "pre-commit: $tool не найден в PATH — гейты ПРОПУЩЕНЫ (проверит CI)"
+    exit 0
+  }
+done
+
+fail() {
+  echo ""
+  echo "pre-commit: $1 — коммит остановлен."
+  echo "  повторить:  $2"
+  echo "  обойти:     git commit --no-verify"
+  exit 1
+}
+
+# Гейты импорта читают КОРПУС, а не только скрипты: правка markdown в src/ ломает их так же,
+# как правка кода гейта, и ловить это на CI через десять минут — потеря времени. Стоят они
+# пару секунд.
+if [ -n "$py_touched" ]; then
+  echo "pre-commit: python-гейты…"
+  npm run --silent test:unit:py >/dev/null 2>&1 || fail "python-гейты упали" "npm run test:unit:py"
+fi
+
+if [ -n "$node_touched" ] || [ -n "$web_touched" ]; then
+  echo "pre-commit: node-юниты…"
+  npm run --silent test:unit >/dev/null 2>&1 || fail "node-юниты упали" "npm run test:unit"
+  npm run --silent test:agenda >/dev/null 2>&1 || fail "агрегатор разошёлся с ci.yml" "npm run test:agenda"
+fi
+
+# Тайпчек — только когда тронут сам web: в свежем worktree (`git worktree add`) зависимостей
+# нет, и `astro check` упал бы «astro: not found», то есть хук блокировал бы коммит по причине,
+# к правке отношения не имеющей. Молча не пропускаем: тихий пропуск хуже отсутствия хука.
+if [ -n "$web_touched" ]; then
+  if [ ! -d web/node_modules ]; then
+    echo "pre-commit: web/node_modules нет — тайпчек ПРОПУЩЕН (сделай npm ci --prefix web)"
+    exit 0
+  fi
+  echo "pre-commit: astro check + tsc…"
+  npm run --silent check >/dev/null 2>&1 || fail "astro check упал" "npm run check"
+  npm run --silent lint:tools >/dev/null 2>&1 || fail "tsc по скриптам и e2e упал" "npm run lint:tools"
+  # Гейт литеральных адресов — сюда, а не в агрегатор: он требует `@omnisgm-app/core`, то
+  # есть в свежем worktree упал бы раньше проверки `web/node_modules`. А ловит он ровно тот
+  # класс правок, что стоит в этой ветке — литерал порта в e2e (#252, ревью #299).
+  node web/scripts/verify_no_hardcoded_urls.mjs >/dev/null 2>&1 \
+    || fail "литеральные адреса в e2e" "node web/scripts/verify_no_hardcoded_urls.mjs"
+fi
+
+exit 0
