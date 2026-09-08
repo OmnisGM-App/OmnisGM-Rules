@@ -3,7 +3,7 @@
   "private": true,
   "description": "Корень репозитория Rules: прокси к web/ и агрегаторы гейтов (#283)",
   "scripts": {
-    "prepare": "git config core.hooksPath .githooks || true",
+    "prepare": "node scripts/install_hooks.mjs",
     "dev": "npm run dev --prefix web",
     "build": "npm run build --prefix web",
     "check": "npm run check --prefix web",
