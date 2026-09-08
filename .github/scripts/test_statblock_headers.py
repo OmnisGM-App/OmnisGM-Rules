@@ -1182,6 +1182,13 @@ for _label, _en, _ru, _want, _ru_type in SPLIT_CASES:
                         f"к EN) → {_parsed_ru}, ожидалось {(_size, _type_ru, _sub_ru, _align)}; "
                         f"сырой возврат парсера: {_p_ru}")
 
+# …и цикл обязан пройти ВСЕ строки: счётчик печатается в строке успеха, и урезанный
+# обход («SPLIT_CASES[:2]») иначе выглядел бы как честный прогон — просто с меньшим
+# числом (ревью #293).
+if _split_checked != len(SPLIT_CASES):
+    failures.append(f"SPLIT_CASES: исполнено {_split_checked} строк из {len(SPLIT_CASES)} — "
+                    f"обход таблицы урезан")
+
 fixtures = sorted(SCRIPTS.glob("fixtures/srd-*-statblock-headers.tsv"))
 if not fixtures:
     print("❌ не найдено ни одной фикстуры шапок — проверять нечего")
