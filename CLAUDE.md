@@ -30,19 +30,26 @@
 (`pages.yml` удалён). Контентный пайплайн импорта/перевода от движка не зависит — он производит
 `.md`, которые потребляет сайт.
 
-Почему Astro: (1) дизайнер отдал готовые **React-компоненты**; (2) **PWA обязателен**
-(first-class `@vite-pwa/astro`); (3) единый React-стек с экосистемой. Astro статичен по умолчанию
-(zero-JS HTML) → SEO целы; риск «React убьёт SEO» снят, т.к. рендер на билде.
+Почему Astro: (1) дизайнер отдал готовые **React-компоненты**, и Astro умеет и принять их
+островами, и отдать статикой; (2) **PWA обязателен** (first-class `@vite-pwa/astro`);
+(3) общий стек с экосистемой. По факту сборки островов не понадобилось: компоненты перенесены
+как `.astro`, и страницы уезжают zero-JS — SEO целы по построению.
 
-Остатки MkDocs (`src/site/`, `.github/scripts/prepare_docs.sh`, скилл `/integrate-srd`) ничем
-не вызываются и ждут сноса — #296.
+Остатки MkDocs ждут сноса — #296: `src/site/`, `.github/scripts/prepare_docs.sh`,
+`.github/scripts/split_sitemap.py`, записи `/site/ /docs/ /mkdocs.yml /overrides/` в
+`.gitignore` и скилл `/integrate-srd`. Ни один workflow их не зовёт, но скилл до #297 стоял
+фазой в обоих оркестраторах пайплайна и внутри звал `prepare_docs.sh` — то есть «ничем не
+вызывается» было неправдой; теперь он помечен устаревшим, а фазы в оркестраторах ведут не
+к нему.
 
 - **Раскладка:** Astro-приложение в отдельной папке **`web/`**. `src/` репо — это Markdown-контент
   (`src/{game}/{version}/{en,ru}/*.md`), вход контентного пайплайна — **не трогать**. Content collections
   Astro ссылаются на `src/{game}/...md`. Динамические роуты `/{lang}/{game}/{version}/{...slug}` через
   `getStaticPaths` (статика). Markdown рендерится **на билде**, не в браузере.
-- **Интеграции:** `@astrojs/react` (компоненты дизайнера как islands), `@vite-pwa/astro` (PWA — обязателен),
-  **Pagefind** (статический поиск). i18n EN/RU + hreflang, sitemap, JSON-LD.
+- **Интеграции:** `@vite-pwa/astro` (PWA — обязателен), **Pagefind** (статический поиск),
+  `@astrojs/sitemap`. i18n EN/RU + hreflang, sitemap, JSON-LD. React в стеке НЕТ: компоненты
+  дизайнера перенесены как `.astro`, островов в проекте ни одного (ревью #297) — если он
+  понадобится, это отдельное решение, а не «уже подключено».
 - **SEO-воронка:** CTA-блок «в лист персонажа» на каждой странице; событие Analytics на клик CTA.
 
 ### Дизайн
@@ -63,8 +70,9 @@ Markdown, справа TOC «На этой странице» → prev/next, с�
   (variables, НЕ secrets — web apiKey не credential).
 - **Analytics:** подключаем (`measurementId G-RRH57ELLZS`) — мерить трафик + конверсию CTA-воронки.
   В Astro — отдельный client-island, не влияет на статический HTML / SEO.
-- **Деплой:** `astro build` + `firebase deploy --only hosting`
-  (проект `omnisgm-rules`). JSON API (`generate_api.py`) и release-воркфлоу — решить отдельно при сборке.
+- **Деплой:** `astro build` + `firebase deploy --only hosting` (проект `omnisgm-rules`).
+  JSON API собирает `hosting.predeploy` в `firebase.json` (`generate_api.py` по разу на игру),
+  релизы — `.github/workflows/release.yml` (rolling-тег `latest`).
 
 ### Параллельные прогоны: слот портов (Table#469)
 Порты считаются от слота `OMNISGM_SLOT` (целое 0–3, дефолт 0): e2e-preview — **4321 + слот × 10**,

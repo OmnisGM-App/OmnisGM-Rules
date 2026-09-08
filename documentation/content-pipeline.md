@@ -147,7 +147,7 @@ npm run test:e2e # Playwright
 - Все агенты используют **model: "opus"**
 - Большие файлы (>3000 строк) — чанками через offset/limit
 - Коммиты после каждого файла, сообщения на русском
-- Сайт: Astro (SSG) + React-острова + Pagefind; хостинг Firebase, эдж — Cloudflare
+- Сайт: Astro (SSG) + PWA (`@vite-pwa/astro`) + Pagefind; хостинг Firebase, эдж — Cloudflare
 - Релиз: один rolling-релиз с тегом `latest` (`.github/workflows/release.yml`). Триггерится
   `push` в `main` при изменении `src/**/*.md` и пересобирает/перезаписывает **только** документы
   затронутой системы/версии (D&D 5.2/5.1/converting, Daggerheart, BRP); `workflow_dispatch` —
