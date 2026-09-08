@@ -213,10 +213,17 @@ const SELF_CHECKS = [
    'jobs:\n  a:\n    timeout-minutes: 1\nfoo:\n  bar: 1\n', 0],
 ];
 const failures = [];
-for (const [label, text, want] of SELF_CHECKS) {
-  const got = setupProblems([{ name: 't.yml', text }], []).length;
+// Счётчик — не константа: `SELF_CHECKS.length + N` уже разъехался с фактом на единицу, а
+// у гейта, чья ценность в точности самоотчёта, число в логе обязано считаться, а не
+// заявляться (ревью #300).
+let checksRun = 0;
+/** Одна самопроверка: сколько расхождений ждём от `setupProblems` на этом входе. */
+const check = (label, want, files, actions = []) => {
+  checksRun++;
+  const got = setupProblems(files, actions).length;
   if (got !== want) failures.push(`самопроверка «${label}»: проблем ${got}, ожидалось ${want}`);
-}
+};
+for (const [label, text, want] of SELF_CHECKS) check(label, want, [{ name: 't.yml', text }]);
 for (const [label, text, want] of [
   ['прямой setup-node', 'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: actions/setup-node@v7\n', 1],
   ['он же в кавычках', "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: 'actions/setup-node@v7'\n", 1],
@@ -233,21 +240,16 @@ for (const [label, text, want] of [
    "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: ./.github/actions/setup-web\n        with:\n          python-version: '3.11'\n", 1],
   ['явный отказ от Node — законен',
    "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: ./.github/actions/setup-web\n        with:\n          node-version: ''\n", 0],
-]) {
-  const got = setupProblems([{ name: 't.yml', text }], []).length;
-  if (got !== want) failures.push(`самопроверка «${label}»: проблем ${got}, ожидалось ${want}`);
-}
-if (setupProblems([], [{ name: 'a/action.yml', text: 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n' }]).length !== 1) {
-  failures.push('самопроверка «composite с прямым setup-node»: не замечен');
-}
+]) check(label, want, [{ name: 't.yml', text }]);
+
+check('composite с прямым setup-node', 1, [],
+      [{ name: 'a/action.yml', text: 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n' }]);
 // Сам общий шаг: один вызов на инструмент — норма, два — вторая точка объявления версии.
 const HOME_ONE = 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n    - uses: actions/setup-python@v7\n';
-if (setupProblems([], [{ name: `${HOME}/action.yml`, text: HOME_ONE, home: true }]).length !== 0) {
-  failures.push(`самопроверка «${HOME}: по одному setup-*»: помечен нарушением`);
-}
-if (setupProblems([], [{ name: `${HOME}/action.yml`, text: HOME_ONE + '    - uses: actions/setup-node@v8\n', home: true }]).length !== 1) {
-  failures.push(`самопроверка «${HOME}: второй setup-node»: не замечен`);
-}
+check(`${HOME}: по одному setup-*`, 0, [],
+      [{ name: `${HOME}/action.yml`, text: HOME_ONE, home: true }]);
+check(`${HOME}: второй setup-node`, 1, [],
+      [{ name: `${HOME}/action.yml`, text: HOME_ONE + '    - uses: actions/setup-node@v8\n', home: true }]);
 
 // `process.argv[1]` пуст при `node --input-type=module -e` — импорт гейта из другого
 // скрипта не должен падать на самом определении «запущен ли я напрямую» (ревью #300).
@@ -261,5 +263,5 @@ if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) 
     process.exit(1);
   }
   console.log(`✅ Workflow (${files.length}) и composite (${actions.length}): прямых setup-* нет, ` +
-              `timeout-minutes у всех джоб; ${SELF_CHECKS.length + 13} самопроверок разбора`);
+              `timeout-minutes у всех джоб; ${checksRun} самопроверок разбора`);
 }
