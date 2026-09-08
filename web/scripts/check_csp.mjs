@@ -25,7 +25,7 @@ const here = dirname(fileURLToPath(import.meta.url));
  * Нарушения CSP пишет БРАУЗЕР, и API консоли их не видит — их ловит слушатель
  * `securitypolicyviolation` на самой странице и копит в `window`. Отсюда и объявление:
  * поле нештатное, но именно оно — канал доставки (#225).
- * @typedef {{directive: string, blocked: string, disposition: string, page?: string}} CspViolation
+ * @typedef {{directive: string, blocked: string, source: string, disposition: string, page?: string}} CspViolation
  */
 
 const BASE = process.argv[2] ?? 'https://rules.omnisgm.com';
@@ -56,17 +56,17 @@ const browser = await chromium.launch();
  * @returns {Promise<CspViolation[]>}
  */
 const violationsOf = (page) =>
-  // @ts-expect-error — читаем то самое нештатное поле window
-  page.evaluate(() => window.__cspViolations ?? []);
+  page.evaluate(() => /** @type {any} */ (window).__cspViolations ?? []);
 
 const context = await browser.newContext();
 // Слушатель ставится до любых скриптов страницы — иначе ранние нарушения не увидим.
 await context.addInitScript(() => {
-  // @ts-expect-error — поле заводим мы сами, в типах Window его нет
-  window.__cspViolations = [];
+  // Каст точечный, а не `@ts-expect-error` на строку: директива подавила бы ВСЮ строку
+  // вместе с вызовом, и опечатка в имени метода прошла бы молча — ровно то, ради чего
+  // затевался тайпчек скриптов (ревью #298).
+  /** @type {any} */ (window).__cspViolations = [];
   document.addEventListener('securitypolicyviolation', (e) => {
-    // @ts-expect-error — то же поле, объявленное строкой выше
-    window.__cspViolations.push({
+    /** @type {any} */ (window).__cspViolations.push({
       directive: e.effectiveDirective || e.violatedDirective,
       blocked: e.blockedURI,
       disposition: e.disposition,
