@@ -55,7 +55,6 @@ jobs:
       # причины: у @openai/codex требование `node >=16`.
       - uses: ./.github/actions/setup-web
         with:
-          python-version: '3.12'
           install: 'false'
 
       # runner.temp недоступен в job-level env → задаём CODEX_HOME шагом.

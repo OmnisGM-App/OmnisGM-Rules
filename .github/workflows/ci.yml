@@ -38,7 +38,6 @@ jobs:
       # ДЕПЛОЙ (#20, spell.area).
       - uses: ./.github/actions/setup-web
         with:
-          python-version: '3.12'
           npm-token: ${{ secrets.GITHUB_TOKEN }}
 
       # Инвариант «поле image ставим ТОЛЬКО при наличии файла» (#201). На живых данных

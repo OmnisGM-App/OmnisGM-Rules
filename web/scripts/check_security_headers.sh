@@ -35,11 +35,16 @@ BASE="${1:-https://rules.omnisgm.com}"
 
 # HSTS у origin СВОЙ: Firebase отдаёт доменам *.web.app собственный
 # «max-age=31556926; includeSubDomains; preload» и наше правило из firebase.json на них не
-# видно. Поэтому по origin сверяем всё, кроме HSTS: иначе ежедневный монитор краснел бы
-# каждый день на заголовке, которым мы не управляем (ревью #301). За HSTS отвечает прогон
-# по боевому домену — там значение наше.
-SKIP_HSTS=0
-case "$BASE" in *.web.app*) SKIP_HSTS=1 ;; esac
+# видно. Ждать по origin нашего значения нельзя — монитор краснел бы каждый день на
+# заголовке, которым мы не управляем (ревью #301). Но и пропускать проверку целиком не
+# годится: origin-прогон заведён ровно как второй наблюдатель на случай залипшего эджа
+# (#227), а без него у HSTS второго наблюдателя не остаётся вовсе (ревью #300). Поэтому по
+# origin сверяем с ФОРМОЙ заголовка Firebase: пропавший или обнулённый HSTS ловится
+# по-прежнему, расхождение в самом значении — нет, оно и не наше.
+case "$BASE" in
+  *.web.app*) HSTS_WANT="max-age=[0-9]+; includeSubDomains" ;;
+  *)          HSTS_WANT="max-age=31536000; includeSubDomains" ;;
+esac
 
 # Ожидаемые заголовки: имя → регексп значения.
 EXPECT_NAMES=(
@@ -53,7 +58,7 @@ EXPECT_VALUES=(
   "^nosniff$"
   "^strict-origin-when-cross-origin$"
   "^SAMEORIGIN$"
-  "max-age=31536000; includeSubDomains"
+  "$HSTS_WANT"
   "default-src 'self'"
 )
 
@@ -67,10 +72,6 @@ check_page() {  # $1 — путь
   echo "  $path"
   for i in "${!EXPECT_NAMES[@]}"; do
     local name="${EXPECT_NAMES[$i]}" want="${EXPECT_VALUES[$i]}"
-    if [ "$name" = "strict-transport-security" ] && [ "$SKIP_HSTS" = 1 ]; then
-      echo "    ~ $name — пропущено: у origin заголовок Firebase, не наш"
-      continue
-    fi
     local got=""
     got="$(header "$path" "$name")"
     if [ -z "$got" ]; then

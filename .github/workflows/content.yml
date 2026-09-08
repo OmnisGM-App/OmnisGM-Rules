@@ -57,7 +57,6 @@ jobs:
       - uses: ./.github/actions/setup-web
         with:
           node-version: ''
-          python-version: '3.12'
           install: 'false'
 
       # Инвариант полноты: каждое entity-исключение (resource непустой) обязано покрываться
@@ -126,6 +125,7 @@ jobs:
       # не ставим (#287).
       - uses: ./.github/actions/setup-web
         with:
+          python-version: ''
           install: 'false'
 
       # Валидность таблиц по всему src (все игры/версии, en+ru, вкл. глоссарии — их compare_structure

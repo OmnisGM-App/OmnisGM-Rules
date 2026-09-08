@@ -56,7 +56,6 @@ jobs:
       # Node, Python и зависимости web — тот же шаг, что в CI (#287).
       - uses: ./.github/actions/setup-web
         with:
-          python-version: '3.12'
           npm-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install API generator deps

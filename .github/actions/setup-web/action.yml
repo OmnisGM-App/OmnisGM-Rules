@@ -20,9 +20,12 @@ inputs:
     required: false
     default: '20'
   python-version:
-    description: Версия Python; пустая строка — Python не нужен.
+    description: >-
+      Версия Python; пустая строка — Python не нужен. По умолчанию — общая для
+      репозитория, как и у Node: канонического значения не должно быть нигде, кроме этой
+      строки, иначе повторится дрейф 20/22, только на Python (ревью #300).
     required: false
-    default: ''
+    default: '3.12'
   install:
     description: Ставить ли зависимости web/ (npm ci). Строка 'true'/'false'.
     required: false
@@ -43,10 +46,12 @@ runs:
         node-version: ${{ inputs.node-version }}
         # Кэш — только тем, кто реально ставит зависимости. Ключ у `setup-node` один на
         # репозиторий (хэш `web/package-lock.json`, без имени джобы и версии Node), а
-        # сохраняется он у того, кто первым получил точное попадание. Джоба с
-        # `install: 'false'` натащила бы в `~/.npm` своё (markdownlint через npx, codex
-        # глобально) и заняла бы канонический ключ — сборка и деплой получали бы попадание
-        # с бесполезным содержимым и свой кэш уже не сохраняли (ревью #300).
+        # ПИШЕТ его тот, кто по этому ключу промахнулся: при точном попадании пост-шаг
+        # `setup-node` печатает «Cache hit occurred on the primary key …, not saving cache»
+        # и содержимое не трогает. То есть содержимое канонического ключа задаёт первый
+        # промахнувшийся прогон. Джоба с `install: 'false'` натащила бы туда своё
+        # (markdownlint через npx, codex глобально), и дальше сборка с деплоем получали бы
+        # попадание с бесполезным содержимым — своего уже не сохранив (ревью #300).
         cache: ${{ inputs.install == 'true' && 'npm' || '' }}
         cache-dependency-path: ${{ inputs.install == 'true' && 'web/package-lock.json' || '' }}
 
