@@ -33,6 +33,19 @@
 set -u
 BASE="${1:-https://rules.omnisgm.com}"
 
+# HSTS у origin СВОЙ: Firebase отдаёт доменам *.web.app собственный
+# «max-age=31556926; includeSubDomains; preload» и наше правило из firebase.json на них не
+# видно. Ждать по origin нашего значения нельзя — монитор краснел бы каждый день на
+# заголовке, которым мы не управляем (ревью #301). Но и пропускать проверку целиком не
+# годится: origin-прогон заведён ровно как второй наблюдатель на случай залипшего эджа
+# (#227), а без него у HSTS второго наблюдателя не остаётся вовсе (ревью #300). Поэтому по
+# origin сверяем с ФОРМОЙ заголовка Firebase: пропавший или обнулённый HSTS ловится
+# по-прежнему, расхождение в самом значении — нет, оно и не наше.
+case "$BASE" in
+  *.web.app*) HSTS_WANT="max-age=[0-9]+; includeSubDomains" ;;
+  *)          HSTS_WANT="max-age=31536000; includeSubDomains" ;;
+esac
+
 # Ожидаемые заголовки: имя → регексп значения.
 EXPECT_NAMES=(
   "x-content-type-options"
@@ -45,7 +58,7 @@ EXPECT_VALUES=(
   "^nosniff$"
   "^strict-origin-when-cross-origin$"
   "^SAMEORIGIN$"
-  "max-age=31536000; includeSubDomains"
+  "$HSTS_WANT"
   "default-src 'self'"
 )
 

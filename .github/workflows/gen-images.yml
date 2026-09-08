@@ -49,13 +49,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v7
+      # Node и Python — тем же шагом, что у остальных workflow (#287). Зависимости web
+      # воркеру не нужны: скрипт очереди — только node builtins, а данные сущностей строит
+      # python-генератор. До #287 здесь стоял node 22 против 20 у соседей — дрейф без
+      # причины: у @openai/codex требование `node >=16`.
+      - uses: ./.github/actions/setup-web
         with:
-          node-version: 22
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
+          install: 'false'
 
       # runner.temp недоступен в job-level env → задаём CODEX_HOME шагом.
       - name: Set CODEX_HOME

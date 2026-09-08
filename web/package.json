@@ -1,6 +1,9 @@
 {
   "name": "omnisgm-rules-web",
   "version": "0.1.0",
+  "engines": {
+    "node": "^20.19.5 || >=22.12.0"
+  },
   "private": true,
   "type": "module",
   "description": "rules.omnisgm.com — Astro (SSG) SRD reader for the OmnisGM ecosystem",
@@ -14,6 +17,7 @@
     "check": "astro check",
     "lint:tools": "tsc -p tsconfig.tools.json --noEmit",
     "test:e2e": "playwright test",
+    "test:e2e:mobile": "playwright test --project=mobile --project=webkit-mobile",
     "astro": "astro"
   },
   "dependencies": {

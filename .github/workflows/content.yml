@@ -16,6 +16,9 @@ on:
       - '.claude/skills/verify-content/**'    # сами скрипты проверок
       - '.github/markdownlint-cli2.jsonc'     # конфиг проверки таблиц
       - '.github/workflows/content.yml'
+      # Общий шаг setup: его правка меняет то, КАК гоняется этот workflow, а без фильтра
+      # ломающая правка всплыла бы на несвязанном коммите позже (ревью #300).
+      - '.github/actions/setup-web/**'
 
 permissions:
   contents: read
@@ -28,6 +31,7 @@ jobs:
   parity:
     name: EN↔RU parity
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     env:
       # ЕДИНЫЙ ИСТОЧНИК исключений структурной сверки — «pair|file|resource».
       # Строгая построчная парность легитимно нарушена → файл исключается из сверки строк/
@@ -48,9 +52,12 @@ jobs:
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v7
+      # Только Python: Node этой джобе не нужен, и версия приходит из общего шага, а не
+      # своей строкой — иначе дрейф 3.12/3.11 повторил бы историю node 20/22 (ревью #300).
+      - uses: ./.github/actions/setup-web
         with:
-          python-version: '3.12'
+          node-version: ''
+          install: 'false'
 
       # Инвариант полноты: каждое entity-исключение (resource непустой) обязано покрываться
       # slug-парностью → ресурс присутствует в DEFAULT_RESOURCES. Ловит люк «исключили главу с
@@ -110,12 +117,16 @@ jobs:
   tables:
     name: Table validity
     runs-on: ubuntu-latest
+    timeout-minutes: 10
     steps:
       - uses: actions/checkout@v7
 
-      - uses: actions/setup-node@v7
+      # Здесь нужен только Node: markdownlint зовётся через npx, зависимости web
+      # не ставим (#287).
+      - uses: ./.github/actions/setup-web
         with:
-          node-version: '20'
+          python-version: ''
+          install: 'false'
 
       # Валидность таблиц по всему src (все игры/версии, en+ru, вкл. глоссарии — их compare_structure
       # пропускает). Конфиг подключаем явно (--config), версия линтера запинена для воспроизводимости.

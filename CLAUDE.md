@@ -249,6 +249,23 @@ done
 Первый шаг (согласован): каркас Astro в `web/` на ветке + **вертикальный срез D&D SRD 5.2** от и до
 (скин дизайнера, реальный рендер MD, PWA, поиск) → визуальная сверка с дизайном → масштаб на 5.1/Daggerheart/BRP.
 
+### Связка setup в workflow — один общий шаг (#287)
+`setup-node` + кэш + `npm ci` + `setup-python` живут в composite-действии
+`.github/actions/setup-web`; workflow зовут `- uses: ./.github/actions/setup-web`. Версии Node
+и Python объявлены ТОЛЬКО там (дефолты входов), а отказ от них пишется явно — `node-version: ''`
+у джобы на одном Python. Держит `scripts/test_workflow_setup.mjs`:
+он запрещает прямые `actions/setup-node`/`setup-python` в наших workflow и в composite-действиях,
+запрещает свои литералы версий у вызывающих и требует `timeout-minutes` у каждой джобы (без него
+зависший шаг держит очередь до дефолтных шести часов — `release` однажды упёрся в 360 минут).
+Исключение одно: вендорный `claude-review.yml`.
+
+### Наблюдатель за продом (#284)
+`.github/workflows/health.yml` — ежедневный крон (06:00 UTC) + ручной запуск. Гоняет уже
+написанные проверки, у которых до этого не было вызывающего: edge-кэш Cloudflare, security-заголовки
+(дважды — через боевой домен и по origin `omnisgm-rules.web.app`, см. ловушку #227 выше) и нарушения
+CSP браузером. Curl-проверки идут ПЕРВЫМИ, до установки Node и Chromium: блип инфраструктуры не
+должен утопить проверки, которым она не нужна. Красная джоба = письмо GitHub владельцу.
+
 ### Локальные гейты и pre-commit
 `npm run test:unit` (node-юниты), `npm run test:unit:py` (python-гейты), `npm run test:gates` —
 всё сразу; состав сверяется с `ci.yml` стражем `scripts/test_unit_agenda.mjs`.

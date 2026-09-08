@@ -14,6 +14,9 @@ on:
       # из них меняет JSON API, но раньше деплой триггерил только сам generate_api.py, поэтому
       # чинить схему/парсер приходилось ручным workflow_dispatch (грабли #20). Теперь авто-деплой.
       - '.github/scripts/**'
+      # Общий шаг setup — по той же причине, что и .github/scripts: его правка меняет
+      # окружение сборки, и ловить её на следующем несвязанном пуше поздно (ревью #300).
+      - '.github/actions/setup-web/**'
       - 'firebase.json'
   workflow_dispatch:
     inputs:
@@ -37,6 +40,9 @@ concurrency:
 jobs:
   deploy:
     runs-on: ubuntu-latest
+    # Деплой идёт около четырёх минут; потолок — чтобы зависший шаг не держал
+    # очередь до дефолтных шести часов (#287).
+    timeout-minutes: 30
     steps:
       # fetch-depth: 0 — сборке нужны даты коммитов по контентным .md (#219): из них
       # datePublished/dateModified в JSON-LD. На мелком клоне истории нет, и страницы
@@ -47,22 +53,10 @@ jobs:
           fetch-depth: 0
           filter: blob:none
 
-      - uses: actions/setup-node@v7
+      # Node, Python и зависимости web — тот же шаг, что в CI (#287).
+      - uses: ./.github/actions/setup-web
         with:
-          node-version: '20'
-          cache: npm
-          cache-dependency-path: web/package-lock.json
-
-      - name: Install web deps
-        working-directory: web
-        run: npm ci
-        env:
-          NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-          PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'   # e2e тут не гоняем — не тянем Chromium в деплой
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
+          npm-token: ${{ secrets.GITHUB_TOKEN }}
 
       - name: Install API generator deps
         run: pip install jsonschema
