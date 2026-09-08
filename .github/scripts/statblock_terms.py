@@ -21,11 +21,19 @@ import re
 import sys
 from pathlib import Path
 
-sys.path.insert(0, str(Path(__file__).resolve().parent))
 # Разрез шапки на «размер тип» и мировоззрение — ОДИН на репозиторий и берётся из
 # продукционного парсера: здесь своих было две, и одна из них — внутри `parts_en` —
 # резала по первой запятой и разрывала составной тип пополам (#290).
-from parsers.monster import split_header  # noqa: E402
+#
+# `sys.path` трогаем только В ЗАПАСНОМ пути: это модуль-библиотека, а не входной скрипт,
+# и у сегодняшних импортёров (оба гейта) каталог уже в пути — глобальную правку они не
+# заслужили. Ветка нужна стороннему импортёру, который положит в путь корень репозитория,
+# а не `.github/scripts` (ревью #293).
+try:
+    from parsers.monster import split_header
+except ImportError:  # pragma: no cover — сторонний импортёр
+    sys.path.insert(0, str(Path(__file__).resolve().parent))
+    from parsers.monster import split_header
 
 ROOT = Path(__file__).resolve().parents[2]
 DICT = ROOT / "src/dnd/translate/01_dictionary_base.md"

@@ -50,10 +50,11 @@ from parsers.monster import SIZES_RU_TO_EN, _parse_type_line  # noqa: E402
 # гейта полей и сборщика эталона: третья копия уже была бы третьим местом для расхождения.
 from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
                             en_name_from_ru_heading, paren_groups, titlecase_header)
-# Разбор шапки и словари типов/мировоззрений — общие с гейтом полей: он сверяет ими
-# ВРЕЗКИ, которых этот гейт не видит (#271). Копия здесь была бы вторым местом
-# для расхождения. Сам разрез шапки приходит оттуда из продукционного парсера — один
-# на все гейты (#290).
+# Термины типов и мировоззрений — общие с гейтом полей: он сверяет ими ВРЕЗКИ, которых
+# этот гейт не видит (#271), и копия здесь была бы вторым местом для расхождения МЕЖДУ
+# ГЕЙТАМИ. Разрез шапки приходит оттуда же, из продукционного парсера, — один на все
+# гейты (#290). А вот разбор левой части у этого файла свой (`parts_ru` ниже) и таким
+# остаётся намеренно: им сверяется сам парсер (#290, verify-import.md).
 from statblock_terms import (ALIGN_RU, DICT, SUBTYPE_DICT, split_header,  # noqa: E402
                             align_to_en as _align_to_en, dict_table as _dict_table,
                             parts_en, size_agreement as _size_agreement, GENDER_RU,
@@ -679,7 +680,8 @@ def check_version(version: str, fixture: Path) -> None:
             _no_space.append(_n)
         _head_aligns.append(_split[1])
     if _no_align:
-        failures.append(f"{version} RU: мировоззрение не отделено запятой вне скобок "
+        failures.append(f"{version} RU: шапка не разрезается на «размер тип» и "
+                        f"мировоззрение — нет запятой вне скобок либо скобки непарные "
                         f"({len(_no_align)}): {_no_align[:5]}")
     if _no_space:
         failures.append(f"{version} RU: в шапках нет разделителя «, » перед мировоззрением "
@@ -1002,6 +1004,15 @@ for _ru in sorted(set(TYPES_RU.values())):
 # легальная терминологическая правка («Принципиально-злой» → «Законно-злой») красила бы
 # самопроверку разреза — симптом вместо причины, и первым в отчёте (ревью #293).
 _RU_ALIGN = {en: ru for ru, en in ALIGN_RU.items()}
+# Нужные таблице значения спрашиваем ЗАРАНЕЕ и мягко: `_RU_ALIGN['Lawful Evil']` прямо в
+# литерале ронял бы весь гейт трейсбеком при первой же рассинхронизации карты — вместе с
+# накопленным отчётом, где `check_dictionary_sections` как раз назвал бы причину (ревью #293).
+for _need in ("Lawful Evil", "Neutral", "Unaligned"):
+    if _need not in _RU_ALIGN:
+        failures.append(f"ALIGN_RU: нет перевода для «{_need}» — таблице разреза не из чего "
+                        f"собрать RU-шапку")
+_RU_ALIGN = {k: _RU_ALIGN.get(k, f"?{k}") for k in set(_RU_ALIGN) | {"Lawful Evil", "Neutral",
+                                                                     "Unaligned"}}
 SPLIT_CASES = [
     # (метка, EN-шапка, RU-шапка, (размер, тип EN, подтип EN, мировоззрение EN),
     #  (тип RU, подтип RU)); мировоззрение None — «разреза в шапке нет вовсе».
@@ -1039,12 +1050,22 @@ SPLIT_CASES = [
      ("Large", "Aberration Lawful Evil", None, None),
      (f"Аберрация {_RU_ALIGN['Lawful Evil']}", None)),
 ]
-# Число строк пришпилено: таблица — ЕДИНСТВЕННЫЙ носитель свойства «разрез один», и
-# снос строки (например той, что ловит #290) иначе проходит молча — счётчик в строке
-# успеха просто печатает меньшее число (ревью #293).
-if len(SPLIT_CASES) != 7:
-    failures.append(f"SPLIT_CASES: строк {len(SPLIT_CASES)}, пришпилено 7 — "
-                    f"строка добавлена или снята, поправьте пин осознанно")
+# Пришпилен СОСТАВ, а не длина: длина молчала бы на подмене ряда-носителя #290 дублем
+# другой корпусной формы — строк по-прежнему семь (ревью #293). Таблица — единственный
+# носитель свойства «разрез один» у `parts_en`/`parts_ru`, поэтому её состав и есть
+# предмет договорённости.
+SPLIT_LABELS = {"простая", "запятая ВНУТРИ скобок подтипа", "составной тип вне скобок",
+                "составной размер", "рой", "подтип с запятой и БЕЗ мировоззрения",
+                "без запятой"}
+_got_labels = {c[0] for c in SPLIT_CASES}
+if _got_labels != SPLIT_LABELS:
+    _lost = ", ".join(sorted(SPLIT_LABELS - _got_labels)) or "—"
+    _new = ", ".join(sorted(_got_labels - SPLIT_LABELS)) or "—"
+    failures.append(f"SPLIT_CASES разошлась с пином состава: пропали — {_lost}; "
+                    f"добавлены — {_new}. Поправьте SPLIT_LABELS осознанно")
+if len(SPLIT_CASES) != len(_got_labels):
+    failures.append(f"SPLIT_CASES: строк {len(SPLIT_CASES)}, а меток {len(_got_labels)} — "
+                    f"две строки под одной меткой, пин состава их не различит")
 # Провенанс EN-форм, как у соседа `test_monster_parser.py`: несинтетическая шапка обязана
 # встречаться в корпусе ДОСЛОВНО, синтетическая — обязана в нём отсутствовать. RU-формы
 # провенансом не пинуются: они собираются из словаря (см. `_RU_ALIGN`), и их регистр —
@@ -1067,29 +1088,57 @@ for _extra in sorted(SPLIT_SYNTHETIC - {c[1] for c in SPLIT_CASES}):
     failures.append(f"SPLIT_SYNTHETIC: «{_extra}» в таблице разреза нет — уберите строку")
 
 
-# Вторая половина того же свойства: копий регулярки разреза не осталось НИ ОДНОЙ. Таблица
-# выше ловит расхождение поведения, но не «копию, которая пока ведёт себя так же» —
+# Вторая, СЛАБАЯ половина того же свойства: буквального написания разреза вне парсера нет.
+# Таблица выше ловит расхождение поведения, но не «копию, которая пока ведёт себя так же» —
 # а именно из такой копии #290 и вырос: `size_agreement` четвёртый вызывающий разреза, и
 # верни ей собственную регулярку с прежней семантикой, все шесть гейтов остались бы
-# зелёными (ревью #293). Носитель свойства — исходники, поэтому и проверка по ним.
+# зелёными (ревью #293).
+# Чего сканер НЕ ловит и на что не претендует (проверено мутациями, ревью #293): копию с
+# другим написанием класса символов («[^()]»), копию без регулярки вовсе (`rpartition`,
+# `rsplit`) и файл вне `.github/scripts`. Он ставит цену на самый дешёвый способ завести
+# копию — «скопировал строку», — а не доказывает их отсутствие.
 # Маркер собирается из кусков намеренно: написанный целиком, он нашёлся бы в этом же
 # файле и проверка сработала бы на самой себе.
 _SPLIT_RE_MARK = "(?!" + "[^(]*"
+_SPLIT_RE_HOME = SCRIPTS / "parsers" / "monster.py"
 _split_re_copies = sorted(
     str(f.relative_to(ROOT)) for f in sorted(SCRIPTS.rglob("*.py"))
-    if f.name != "monster.py" and "__pycache__" not in f.parts
+    if f != _SPLIT_RE_HOME and "__pycache__" not in f.parts
     and _SPLIT_RE_MARK in f.read_text(encoding="utf-8"))
 if _split_re_copies:
-    failures.append(f"регулярка разреза шапки скопирована вне parsers/monster.py: "
-                    f"{', '.join(_split_re_copies)} — разрез один, зовите split_header (#290)")
+    failures.append(f"написание разреза шапки встречается вне parsers/monster.py: "
+                    f"{', '.join(_split_re_copies)} — если это копия разреза, зовите "
+                    f"split_header (#290); если другая регулярка — переименуйте класс "
+                    f"символов, чтобы не совпадать с разрезом")
+
+
+# Границу диапазона («Огромный или меньший») EN пишет словом Smaller/Larger, и словаря
+# размеров для неё мало. Сводим её здесь же: без этого нормализация отдавала бы
+# «Huge or меньший» и красила бы ВЕРНЫЙ парсер, как только форма границы появится в
+# таблице (её ряд вынесен в #294, ревью #293).
+_RU_BOUND = {"меньший": "Smaller", "меньшая": "Smaller", "меньшее": "Smaller",
+             "больший": "Larger", "большая": "Larger", "большее": "Larger"}
 
 
 def _ru_size_to_en(size: str) -> str:
-    """«Средний или Маленький» → «Medium or Small» — как это делает parts_ru."""
-    return " or ".join(SIZES_RU.get(w.lower(), w) for w in size.split() if w.lower() != "или")
+    """«Средний или Маленький» → «Medium or Small», «Огромный или меньший» → «Huge or Smaller».
+
+    Сведение ПОСЛОВНОЕ и только для сравнения с EN-половиной таблицы: `parts_ru` строит
+    своё значение иначе (требует союзной формы из двух размеров), поэтому одинаковый
+    результат у них — совпадение форм, а не общий код.
+    """
+    out = []
+    for word in size.split():
+        low = word.lower()
+        if low == "или":
+            continue
+        out.append(SIZES_RU.get(low) or _RU_BOUND.get(low) or word)
+    return " or ".join(out)
 
 
+_split_checked = 0
 for _label, _en, _ru, _want, _ru_type in SPLIT_CASES:
+    _split_checked += 1
     _size, _type_en, _sub_en, _align = _want
     _type_ru, _sub_ru = _ru_type
     _raw_ru = f"{_type_ru} ({_sub_ru})" if _sub_ru else _type_ru
@@ -1128,8 +1177,10 @@ for _label, _en, _ru, _want, _ru_type in SPLIT_CASES:
         failures.append(f"самопроверка разреза «{_label}»: парсер JSON API (EN) → "
                         f"{_parsed_en}, ожидалось {_want}")
     if _parsed_ru != (_size, _type_ru, _sub_ru, _align):
-        failures.append(f"самопроверка разреза «{_label}»: парсер JSON API (RU) → "
-                        f"{_parsed_ru}, ожидалось {(_size, _type_ru, _sub_ru, _align)}")
+        failures.append(f"самопроверка разреза «{_label}»: парсер JSON API (RU), "
+                        f"нормализовано для сравнения (размер и мировоззрение сведены "
+                        f"к EN) → {_parsed_ru}, ожидалось {(_size, _type_ru, _sub_ru, _align)}; "
+                        f"сырой возврат парсера: {_p_ru}")
 
 fixtures = sorted(SCRIPTS.glob("fixtures/srd-*-statblock-headers.tsv"))
 if not fixtures:
@@ -1172,4 +1223,4 @@ if failures:
     sys.exit(1)
 
 print(f"✅ Шапки статблоков ({', '.join(versions)}): сверены с PDF, разбор парсером и "
-      f"RU-зеркало сходятся; {len(SPLIT_CASES)} самопроверок разреза")
+      f"RU-зеркало сходятся; {_split_checked} самопроверок разреза")
