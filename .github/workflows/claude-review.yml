@@ -132,11 +132,46 @@ jobs:
           python3 - <<'PY'
           import json, os, re, subprocess, sys
           rd = "/tmp/review"
-          bf = f"{rd}/90-final-review.md"
-          if not os.path.exists(bf):
-              print("::error::Клод не сформировал 90-final-review.md — ревью не опубликовано")
+          # Тело ревью собирается ДЕТЕРМИНИРОВАННО из 90-verdict.json — модель тело не пишет
+          # и дописать в него ничего не может (сага «много текста» v2.8/2.12/2.16 закрыта формой).
+          vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
+          if os.path.exists(vf):
+              v = json.load(open(vf))
+              head = str(v.get("head", ""))[:7]
+              c = v.get("counts") or {}
+              major, med, rem = int(c.get("major") or 0), int(c.get("medium") or 0), int(c.get("remark") or 0)
+              inline_n = int(v.get("inline_count") or 0)
+              mode = v.get("mode", "pipeline")
+              total = major + med + rem
+              if total == 0:
+                  if mode == "fix-round":
+                      body = (f"Находок нет. Голова `{head}`, фикс-раунд после `{str(v.get('prev_head',''))[:7]}`: "
+                              f"закрыты все {v.get('prev_total', v.get('prev_closed', 0))} находок прошлого ревью.")
+                  elif mode == "single":
+                      body = f"Находок нет. Голова `{head}`, одиночное ревью."
+                  else:
+                      body = f"Находок нет. Голова `{head}`, агентов: {v.get('agents', 0)}."
+              else:
+                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} средних"] * (med > 0) + [f"{rem} ремарок"] * (rem > 0)
+                  hdr = f"Голова `{head}`"
+                  if mode == "fix-round":
+                      hdr += f", фикс-раунд после `{str(v.get('prev_head',''))[:7]}`"
+                  elif mode == "single":
+                      hdr += ", одиночное ревью"
+                  else:
+                      hdr += f", агентов: {v.get('agents', 0)}"
+                      if v.get("triage_skips"):
+                          hdr += f" (триаж: {v['triage_skips']})"
+                  body = hdr + ". Находки: " + " / ".join(parts) + (f", +{inline_n} инлайнов." if inline_n else ".")
+                  bff = f"{rd}/90-body-findings.md"
+                  if os.path.exists(bff):
+                      body += "\n\n" + open(bff).read().strip()
+          elif os.path.exists(bf):
+              # Деградационный фолбэк: свободное тело одиночного прохода старого контракта.
+              body = open(bf).read().strip()
+          else:
+              print("::error::Клод не сформировал 90-verdict.json — ревью не опубликовано")
               sys.exit(1)
-          body = open(bf).read().strip()
           try:
               inl = json.load(open(f"{rd}/90-inline.json"))
               assert isinstance(inl, list)
