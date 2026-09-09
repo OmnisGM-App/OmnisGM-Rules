@@ -75,8 +75,11 @@ jobs:
           else
             git checkout -B images-queue origin/main
           fi
-          git checkout origin/main -- scripts/ .github/scripts/ web/scripts/
-          git restore --staged scripts/ .github/scripts/ web/scripts/ 2>/dev/null || true
+          # .github/actions/ тоже из main: Post-хук composite-экшена setup-web перечитывает
+          # action.yml из workspace В КОНЦЕ джобы — а workspace к тому моменту на images-queue,
+          # где экшена нет (ветка старше PR#300) → красный Post при зелёной генерации.
+          git checkout origin/main -- scripts/ .github/scripts/ .github/actions/ web/scripts/
+          git restore --staged scripts/ .github/scripts/ .github/actions/ web/scripts/ 2>/dev/null || true
 
       # Данные для очереди (web/src/data/api — gitignored, генерятся из тех же парсеров).
       # Зависимостей не требует: gen-entity-data.mjs — только node builtins + python3.
