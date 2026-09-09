@@ -54,7 +54,7 @@ web/                           — Astro-приложение (сайт rules.om
 
 | Команда | Описание |
 |---|---|
-| `/integrate-srd` | ⚠️ УСТАРЕЛ: описывает интеграцию в MkDocs (`pages.yml` удалён, `mkdocs.yml` не собирается). Новую систему подключают к Astro вручную — см. `web/src/`. Перепишем отдельно (#296) |
+| `/integrate-srd` | Чеклист ручной интеграции системы в сайт: JSON API, Astro-роуты/NAV, `content.yml`, релизная группа |
 
 ## Правила (rules)
 
@@ -64,7 +64,7 @@ web/                           — Astro-приложение (сайт rules.om
 
 | Правило | Описание | Подключается к |
 |---|---|---|
-| `file-naming-conventions.md` | Соглашения об именовании файлов и директорий | `src/**`, cleanup/build/integrate скиллы |
+| `file-naming-conventions.md` | Соглашения об именовании файлов и директорий | `src/**`, cleanup/build-glossary скиллы |
 | `glossary-format.md` | Формат таблиц глоссария | `src/**/*_Glossary/**`, build/translate-glossary |
 | `layout-recovery.md` | Восстановление структуры документа из PDF | cleanup-artifacts |
 | `merge-extraction.md` | Сведение результатов PDF-конвертеров | cleanup-artifacts |
@@ -97,7 +97,7 @@ Phase 1:   /convert-pdf        — PDF → 3 markdown в /tmp/
 Phase 2:   /cleanup-artifacts  — сведение + разбивка + чистка → src/{game}/{version}/en/
 Phase 3:   /verify-import      — циклическая верификация + ручная проверка
 Phase 3.5: Squash merge в main
-Phase 4:   интеграция в сайт   — вручную в Astro (`/integrate-srd` устарел, #296)
+Phase 4:   интеграция в сайт   — вручную по чеклисту `/integrate-srd`
 ```
 
 ## Пайплайн перевода
@@ -115,7 +115,7 @@ Phase 5:   /translate-content  — перевод контента по слов
 Phase 6:   /verify-content     — верификация контента (3 агента, 3+ раундов)
 Phase 7:   Ручная проверка контента
 Phase 7.5: Squash merge в main
-Phase 8:   интеграция в сайт   — вручную в Astro (`/integrate-srd` устарел, #296)
+Phase 8:   интеграция в сайт   — вручную по чеклисту `/integrate-srd`
 ```
 
 ## Сборка сайта
