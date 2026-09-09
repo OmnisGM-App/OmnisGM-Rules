@@ -1114,9 +1114,11 @@ elif not _claim:
 # провенансом не пинуются: они собираются из словаря (см. `_RU_ALIGN`), и их регистр —
 # конвенция редакции, а не текст одной строки.
 SPLIT_SYNTHETIC = {"Tiny Fiend (Devil, Shapechanger)", "Large Aberration Lawful Evil",
-                   # Носителя у обеих форм в корпусе нет: `or Larger` не встречается ни в
-                   # одной редакции, а «Huge or Large» — его прописной омоним, заведённый
-                   # ради той же развилки (#303).
+                   # Носителя у обеих форм в корпусе нет ни одного. `or Larger` не
+                   # встречается ни в одной редакции; «Huge or Large» — EN-половина честного
+                   # диапазона из двух размеров, чей RU-перевод («Большая») омонимичен связке
+                   # верхней границы («большая»). Омонимия — на RU-стороне, EN-строки просто
+                   # разные; ряд заведён ради той же развилки (#303).
                    "Huge or Larger Undead, Unaligned", "Huge or Large Undead, Unaligned"}
 _synthetic_marked = {f"*{h}*" for h in SPLIT_SYNTHETIC}
 _en_corpus = "\n".join(p.read_text(encoding="utf-8")
