@@ -109,6 +109,25 @@ for (const lang of LANGS) {
   }
 }
 
+// Манифест PWA: локализованные названия (`translations`) — поле из ПРЕДЛОЖЕНИЯ к спецификации,
+// в типах @vite-pwa его нет, и в astro.config.mjs над ним стоит `@ts-expect-error`. Директива
+// гасит всю строку целиком — опечатка в самом ключе тоже прошла бы молча, а второго сторожа у
+// содержимого манифеста не было вовсе (ревью #315). Теперь есть: сборка знает, что поле дошло.
+const manifestFile = resolve(DIST, 'manifest.webmanifest');
+if (!existsSync(manifestFile)) {
+  errors.push('manifest.webmanifest: файла нет в dist — PWA собралась без манифеста');
+} else {
+  try {
+    const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+    if (!manifest.translations?.ru?.name) {
+      errors.push('manifest.webmanifest: нет translations.ru.name — локализованные названия PWA ' +
+                  'не доехали (проверьте ключ `translations` в astro.config.mjs)');
+    }
+  } catch (e) {
+    errors.push(`manifest.webmanifest: не парсится — ${e instanceof Error ? e.message : e}`);
+  }
+}
+
 const checked = LANGS.length * SAMPLE.length;
 if (errors.length) {
   console.error(`\n❌ SEO-мета: ${errors.length} проблем(ы) на ${checked} страницах сэмпла:\n`);

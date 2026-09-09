@@ -18,21 +18,29 @@ import path from 'node:path';
 const DATA_ROOT = path.resolve(process.cwd(), 'src/data');
 
 /**
+ * Разбор JSON с фолбэком. Возврат имеет ФОРМУ фолбэка, а не `any`: иначе `dates` и `sources`
+ * оставались бы `any`, и опечатка «dates.fils?.[key]» проходила бы молча — а этот файл кормит
+ * даты JSON-LD для 6000 страниц (ревью #315).
+ *
  * @template T
  * @param {string} file
  * @param {T} fallback
- * @returns {any}
+ * @returns {T}
  */
 const readJson = (file, fallback) => {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return /** @type {T} */ (JSON.parse(fs.readFileSync(file, 'utf-8')));
   } catch {
     return fallback;
   }
 };
 
-const dates = readJson(path.join(DATA_ROOT, 'content-dates.json'), { shallow: true, files: {} });
-const sources = readJson(path.join(DATA_ROOT, 'api', '_sources.json'), {});
+/** @type {{shallow: boolean, files: Record<string, {published: string, modified: string}>}} */
+const DATES_EMPTY = { shallow: true, files: {} };
+/** @type {Record<string, string[]>} */
+const SOURCES_EMPTY = {};
+const dates = readJson(path.join(DATA_ROOT, 'content-dates.json'), DATES_EMPTY);
+const sources = readJson(path.join(DATA_ROOT, 'api', '_sources.json'), SOURCES_EMPTY);
 
 /** Есть ли вообще даты в этой сборке (false на мелком клоне / без git). */
 export const hasContentDates = () => Object.keys(dates.files ?? {}).length > 0;

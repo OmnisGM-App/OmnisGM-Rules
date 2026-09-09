@@ -119,7 +119,8 @@ export function ciUnits(text) {
  * Юниты и проблемы сцепки из строки агрегатора.
  *
  * @param {string} name — имя npm-скрипта (для сообщений)
- * @param {string} command
+ * @param {string | undefined} command — скрипта в package.json может не быть, и это своя
+ *   строка отчёта, а не падение
  * @returns {{paths: Set<string>, problems: string[]}}
  */
 export function agendaUnits(name, command) {
@@ -140,7 +141,8 @@ export function agendaUnits(name, command) {
 }
 
 /** Проблемы состава `test:gates`: он обязан звать все три агрегатора. */
-/** @param {Record<string, string>} scripts */
+/** @param {Record<string, string | undefined>} scripts — индекс может отсутствовать, и код
+ *  на это рассчитан (`?? ''`, ветка «скрипта нет в package.json»); тип обязан это признавать. */
 export function gatesProblems(scripts) {
   const command = scripts['test:gates'] ?? '';
   const want = ['test:unit', 'test:unit:py', 'test:agenda'];
@@ -153,7 +155,7 @@ export function gatesProblems(scripts) {
 /** Все расхождения между ci.yml и агрегаторами. */
 /**
  * @param {string} ciText
- * @param {Record<string, string>} scripts
+ * @param {Record<string, string | undefined>} scripts
  */
 export function agendaProblems(ciText, scripts) {
   const problems = [];

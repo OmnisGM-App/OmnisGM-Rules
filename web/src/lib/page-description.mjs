@@ -112,7 +112,10 @@ export function outline(/** @type {string|null|undefined} */ body, limit = 14) {
     const name = plain(m[2]).replace(/[:.]+$/, '');
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    byLevel.get(m[1].length)?.push(name);
+    // Без `?.`: `byLevel` типизирован, и ключ вне [2,3,4] означает, что регулярку выше
+ // расширили, а таблицу — нет. Тихий пропуск здесь хуже падения: заголовок ушёл бы и из
+ // outline, и в `seen` (то есть повторный проход его тоже не вернёт) — ревью #315.
+    /** @type {string[]} */ (byLevel.get(m[1].length)).push(name);
   }
   /** @type {string[]} */
   let best = [];
@@ -184,7 +187,11 @@ export function clamp(/** @type {string} */ text, limit = MAX) {
  * `body` необязателен: у записи коллекции Astro тело типизировано как `string | undefined`,
  * а пустая страница — законный случай (в описание уходит бойлерплейт).
  *
- * @param {{name: string, body?: string, lang?: string, sysLabel: string, docLabel: string}} page
+ * `body` объявлен как `string | undefined`, а не необязательным полем: тело записи коллекции
+ * Astro именно такое, а вот ЗАБЫТЬ его в новом шаблоне нельзя — иначе сотни страниц молча
+ * получат один и тот же бойлерплейт вместо описания (ревью #315).
+ *
+ * @param {{name: string, body: string | undefined, lang?: string, sysLabel: string, docLabel: string}} page
  * @returns {string}
  */
 export function pageDescription({ name, body, lang, sysLabel, docLabel }) {

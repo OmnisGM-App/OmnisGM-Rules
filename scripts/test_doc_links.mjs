@@ -43,9 +43,10 @@ const SLASH = /\/([a-z][a-z0-9-]{2,})(?=`)/g;
 const NOT_A_SKILL = new Set(['api', 'img', 'sitemap-index', 'srd-5', 'srd-1']);
 
 /** Ссылки на инструменты в одном документе: путь → как он записан. */
-export function toolRefs(text) {
+export function toolRefs(/** @type {string} */ text) {
+  /** @type {Set<string>} */
   const refs = new Set();
-  const scan = (chunk) => {
+  const scan = (/** @type {string} */ chunk) => {
     for (const re of TOOL_PATHS) {
       for (const m of chunk.matchAll(re)) refs.add(m[0]);
     }
@@ -72,7 +73,13 @@ export function toolRefs(text) {
 }
 
 /** Расхождения: названный инструмент, которого нет на диске. */
+/**
+ * @param {{name: string, text: string}[]} docs
+ * @param {(ref: string) => boolean} exists
+ * @returns {string[]}
+ */
 export function linkProblems(docs, exists) {
+  /** @type {string[]} */
   const problems = [];
   for (const { name, text } of docs) {
     for (const ref of toolRefs(text)) {
@@ -83,13 +90,14 @@ export function linkProblems(docs, exists) {
 }
 
 /** Документы, которые обязаны говорить правду про инструментарий. */
-function readDocs(root) {
+function readDocs(/** @type {string} */ root) {
+  /** @type {{name: string, text: string}[]} */
   const out = [];
-  const add = (rel) => {
+  const add = (/** @type {string} */ rel) => {
     const abs = resolve(root, rel);
     if (existsSync(abs) && statSync(abs).isFile()) out.push({ name: rel, text: readFileSync(abs, 'utf8') });
   };
-  const walk = (rel) => {
+  const walk = (/** @type {string} */ rel) => {
     const abs = resolve(root, rel);
     if (!existsSync(abs)) return;
     for (const e of readdirSync(abs, { withFileTypes: true })) {
@@ -106,9 +114,11 @@ function readDocs(root) {
 }
 
 // ── Самопроверки разбора: числа считаются, а не заявляются (ревью #300) ─────────────────
+/** @type {string[]} */
 const failures = [];
 let checksRun = 0;
-const check = (label, want, text, present = []) => {
+const check = (/** @type {string} */ label, /** @type {number} */ want, /** @type {string} */ text,
+               /** @type {string[]} */ present = []) => {
   checksRun++;
   const has = new Set(present);
   const got = linkProblems([{ name: 'd.md', text }], (r) => has.has(r)).length;
@@ -118,7 +128,7 @@ const check = (label, want, text, present = []) => {
 // Счёт расхождений — половина правды: ослепни один паттерн целиком, все проверки «сколько
 // проблем» останутся зелёными (ревью #314). Поэтому вторая таблица сверяет РАСПОЗНАННОЕ:
 // на каждую форму из TOOL_PATHS — свой ряд, и на каждую он один.
-const recognizes = (label, text, want) => {
+const recognizes = (/** @type {string} */ label, /** @type {string} */ text, /** @type {string[]} */ want) => {
   checksRun++;
   const got = toolRefs(text).sort().join('|');
   if (got !== [...want].sort().join('|')) {
