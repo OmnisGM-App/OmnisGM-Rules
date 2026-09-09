@@ -10,7 +10,7 @@
     "lint:tools": "npm run lint:tools --prefix web",
     "test:e2e": "npm run test:e2e --prefix web",
     "test:e2e:mobile": "npm run test:e2e:mobile --prefix web",
-    "test:unit": "node web/scripts/test_page_description.mjs && node web/scripts/test_plural.mjs && node scripts/test_gen_images_kind.mjs && node web/scripts/test_build_fingerprint.mjs && node scripts/test_workflow_setup.mjs",
+    "test:unit": "node web/scripts/test_page_description.mjs && node web/scripts/test_plural.mjs && node scripts/test_gen_images_kind.mjs && node web/scripts/test_build_fingerprint.mjs && node scripts/test_workflow_setup.mjs && node scripts/test_doc_links.mjs",
     "test:unit:py": "python3 .github/scripts/test_attach_images.py && python3 .github/scripts/test_statblock_headers.py && python3 .github/scripts/test_statblock_fields.py && python3 .github/scripts/test_monster_parser.py && python3 .claude/skills/cleanup-artifacts/test_layout_recovery.py && python3 .github/scripts/test_conversion_renames.py && python3 .github/scripts/test_term_map.py",
     "test:gates": "npm run test:unit && npm run test:unit:py && npm run test:agenda",
     "test:agenda": "node scripts/test_unit_agenda.mjs"

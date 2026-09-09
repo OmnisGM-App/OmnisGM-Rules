@@ -2,7 +2,6 @@
 paths:
   - ".claude/skills/cleanup-artifacts/**"
   - ".claude/skills/build-glossary/**"
-  - ".claude/skills/integrate-srd/**"
   - "src/**"
 ---
 
