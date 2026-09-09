@@ -122,7 +122,6 @@ const recognizes = (label, text, want) => {
   checksRun++;
   const got = toolRefs(text).sort().join('|');
   if (got !== [...want].sort().join('|')) {
-    failures.append?.(null); // (заглушка недостижима — failures это массив)
     failures.push(`распознавание «${label}»: [${got}], ожидалось [${want.sort().join('|')}]`);
   }
 };
