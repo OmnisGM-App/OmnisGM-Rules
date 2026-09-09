@@ -2,9 +2,13 @@
 // таблица скроллилась внутри себя (а не растягивала/скроллила всю страницу). Ручной обход —
 // как rehype-promote-headings, без доп. зависимостей.
 export default function rehypeWrapTables() {
-  return (tree) => {
-    const walk = (node) => {
-      if (!node || !node.children) return;
+  return (/** @type {import('hast').Root} */ tree) => {
+    // Типы hast, а не `any`: ровно в этих файлах `any` не проверял НИЧЕГО — опечатка
+    // `child.tagNme` проходила молча, и обёртка просто переставала применяться на части
+    // из 6000 страниц (ревью #315). `@types/hast` уже в devDependencies.
+    // Узел любой: у текстового нет `children`, и обход обязан спокойно на нём кончаться.
+    const walk = (/** @type {import('hast').Nodes} */ node) => {
+      if (!node || !('children' in node)) return;
       for (let i = 0; i < node.children.length; i++) {
         const child = node.children[i];
         if (child.type === 'element' && child.tagName === 'table') {

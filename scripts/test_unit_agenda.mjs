@@ -41,10 +41,11 @@ const PKG = resolve(REPO, 'package.json');
 const SELF = 'scripts/test_unit_agenda.mjs';
 
 /** Путь к файлу юнита из токена команды, нормализованный от корня репозитория. */
-const norm = (path, cwd) => resolve(cwd ? resolve(REPO, cwd) : REPO, path).slice(REPO.length + 1);
+const norm = (/** @type {string} */ path, /** @type {string} */ cwd) =>
+  resolve(cwd ? resolve(REPO, cwd) : REPO, path).slice(REPO.length + 1);
 
 /** Имена файлов-юнитов внутри строки команды (любая форма вызова: `node --test`, `python3 -u`). */
-const unitsInCommand = (command) =>
+const unitsInCommand = (/** @type {string} */ command) =>
   [...command.matchAll(/(?:^|[\s"'])([\w./-]*test_[\w.-]+\.(?:mjs|py))(?=$|[\s"';&|])/g)]
     .map((m) => m[1]);
 
@@ -61,7 +62,7 @@ export function ciUnits(text) {
   let runIndent = null;    // отступ ключа `run:` с блочным литералом
   let literalIndent = null; // отступ ЧУЖОГО блочного литерала (env:, with: …)
 
-  const take = (command) => {
+  const take = (/** @type {string} */ command) => {
     for (const path of unitsInCommand(command)) {
       const full = norm(path, cwd);
       if (full !== SELF) out.add(full);
@@ -118,7 +119,8 @@ export function ciUnits(text) {
  * Юниты и проблемы сцепки из строки агрегатора.
  *
  * @param {string} name — имя npm-скрипта (для сообщений)
- * @param {string} command
+ * @param {string | undefined} command — скрипта в package.json может не быть, и это своя
+ *   строка отчёта, а не падение
  * @returns {{paths: Set<string>, problems: string[]}}
  */
 export function agendaUnits(name, command) {
@@ -139,6 +141,8 @@ export function agendaUnits(name, command) {
 }
 
 /** Проблемы состава `test:gates`: он обязан звать все три агрегатора. */
+/** @param {Record<string, string | undefined>} scripts — индекс может отсутствовать, и код
+ *  на это рассчитан (`?? ''`, ветка «скрипта нет в package.json»); тип обязан это признавать. */
 export function gatesProblems(scripts) {
   const command = scripts['test:gates'] ?? '';
   const want = ['test:unit', 'test:unit:py', 'test:agenda'];
@@ -149,6 +153,10 @@ export function gatesProblems(scripts) {
 }
 
 /** Все расхождения между ci.yml и агрегаторами. */
+/**
+ * @param {string} ciText
+ * @param {Record<string, string | undefined>} scripts
+ */
 export function agendaProblems(ciText, scripts) {
   const problems = [];
   const unit = agendaUnits('test:unit', scripts['test:unit']);
@@ -173,6 +181,7 @@ export function agendaProblems(ciText, scripts) {
 // Разбор ci.yml — это правило, а не состояние репозитория, и проверять его живым ci.yml
 // значит проверять сегодняшний файл. Формы взяты из реальных граблей ревью #299.
 const CI_HEAD = 'jobs:\n  check-build:\n    steps:\n';
+/** @type {[string, string, string[]][]} */
 const SELF_CHECKS = [
   ['простой шаг', `${CI_HEAD}      - name: Unit\n        run: node scripts/test_a.mjs\n`,
    ['scripts/test_a.mjs']],
@@ -226,11 +235,11 @@ for (const [label, text, want] of SELF_CHECKS) {
     failures.push(`самопроверка разбора «${label}»: ${JSON.stringify(got)}, ожидалось ${JSON.stringify([...want].sort())}`);
   }
 }
-for (const [label, command, wantProblem] of [
+for (const [label, command, wantProblem] of /** @type {[string, string, boolean][]} */ ([
   ['&& — норма', 'node a/test_x.mjs && node b/test_y.mjs', false],
   ['; вместо &&', 'node a/test_x.mjs ; node b/test_y.mjs', true],
   ['|| вместо &&', 'node a/test_x.mjs || node b/test_y.mjs', true],
-]) {
+])) {
   const got = agendaUnits('test:unit', command).problems.length > 0;
   if (got !== wantProblem) {
     failures.push(`самопроверка сцепки «${label}»: проблем ${got ? 'есть' : 'нет'}, ожидалось обратное`);

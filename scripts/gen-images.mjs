@@ -47,6 +47,13 @@ const GIT_BRANCH = process.env.GIT_BRANCH || 'images-queue';
 // (parsers/base.py slugify), поэтому, когда коллекция появится в API, файлы совпадут по имени.
 //
 // Папка существ — общая на игру (слаг живёт в нескольких коллекциях), см. documentation/entity-images.md.
+/**
+ * @type {Record<string, {
+ *   dir: string, label: string, prompt: string,
+ *   api?: Record<string, string[]>,
+ *   md?: Record<string, string[]>,
+ * }>}
+ */
 const KINDS = {
   creatures: {
     dir: 'creatures',
@@ -121,7 +128,7 @@ if (KIND !== 'auto' && !KINDS[KIND]) {
 const GEN_DIR = resolve(process.env.CODEX_HOME || resolve(homedir(), '.codex'), 'generated_images');
 const EXIT_AUTH = 78; // отдельный код: протухший codex-токен
 
-function summary(md) {
+function summary(/** @type {string} */ md) {
   const f = process.env.GITHUB_STEP_SUMMARY;
   if (f) appendFileSync(f, md + '\n');
   console.log(md);
@@ -140,7 +147,7 @@ const AUTH_FIX = [
   '```',
 ].join('\n');
 
-function isAuthError(err) {
+function isAuthError(/** @type {any} */ err) {
   const s = `${err?.stdout || ''}${err?.stderr || ''}${err?.message || ''}`;
   return /refresh_token_reused|token_revoked|\b401\b|unauthorized/i.test(s);
 }
@@ -158,6 +165,7 @@ const STYLE_TAIL =
   'design aesthetic. No text, no letters, no borders, no decorative frames. High contrast between the ' +
   'subject and the faint glow. Square format, 1024x1024 pixels.';
 
+/** @type {Record<string, (d: string) => string>} */
 const PROMPTS = {
   creatures: (d) =>
     `A mysterious dark silhouette portrait of ${d} ` +
@@ -189,6 +197,7 @@ const PROMPTS = {
 // Текст SRD агенту НЕ передаётся: он опирается на имя и пару фактов, а описание формулирует
 // сам. Так картинка не становится производной лицензионного текста, а промт остаётся коротким.
 
+/** @type {Record<string, (e: any) => string>} */
 const DESCRIBE = {
   creatures: (e) => {
     const hint = [e.size, e.type].filter(Boolean).join(' ');
@@ -238,7 +247,7 @@ const DESCRIBE = {
 
 // ── codex ──────────────────────────────────────────────────────────────────────
 
-function runCodexText(instruction) {
+function runCodexText(/** @type {string} */ instruction) {
   return execFileSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'read-only', '--skip-git-repo-check', instruction],
@@ -247,7 +256,7 @@ function runCodexText(instruction) {
 }
 
 // codex exec подмешивает служебные строки (таймстемпы, «tokens used») — оставляем содержательные.
-function describe(entity) {
+function describe(/** @type {any} */ entity) {
   const raw = runCodexText(DESCRIBE[KINDS[KIND].prompt](entity));
   const desc = raw
     .split('\n')
@@ -262,7 +271,7 @@ function describe(entity) {
 
 // Агент только исполняет: промт готов и подставлен скриптом. Файл не просим сохранять по пути —
 // image-tool кладёт его в generated_images/, откуда скрипт заберёт свежий PNG.
-function codexInstruction(prompt) {
+function codexInstruction(/** @type {string} */ prompt) {
   return [
     'You are an image-generation executor. Do NOT reason about, research, or describe the subject.',
     'Call the image generation tool exactly once with the following prompt, verbatim and unmodified:',
@@ -273,7 +282,7 @@ function codexInstruction(prompt) {
   ].join('\n');
 }
 
-function runCodex(instruction) {
+function runCodex(/** @type {string} */ instruction) {
   return execFileSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'workspace-write', '--skip-git-repo-check', instruction],
@@ -286,23 +295,24 @@ function genPngs() {
   try {
     return readdirSync(GEN_DIR, { recursive: true })
       .filter((p) => typeof p === 'string' && p.toLowerCase().endsWith('.png'))
-      .map((p) => resolve(GEN_DIR, p));
+      .map((p) => resolve(GEN_DIR, /** @type {string} */ (p)));
   } catch {
     return [];
   }
 }
 
-function git(args) {
+function git(/** @type {string[]} */ args) {
   return execFileSync('git', args, { cwd: REPO, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] });
 }
 
-function commitAndPush(rel, name) {
+function commitAndPush(/** @type {string} */ rel, /** @type {string} */ name) {
   git(['add', resolve(REPO, rel)]);
   git(['commit', '-m', `chore(images): ${KINDS[KIND].label} — «${name}» (#202)`]);
   try {
     git(['push', 'origin', `HEAD:${GIT_BRANCH}`]);
   } catch (e) {
-    console.error(`  push не удался (коммит останется локально, уедет со следующим): ${e?.message || e}`);
+    console.error('  push не удался (коммит останется локально, уедет со следующим): ' +
+                  `${e instanceof Error ? e.message : e}`);
   }
 }
 
@@ -311,7 +321,7 @@ function commitAndPush(rel, name) {
 // нижний регистр, NFKD, всё кроме букв/цифр/подчёркивания/пробела/дефиса → пробел,
 // пробелы и дефисы схлопываются в один дефис. Иначе картинка легла бы под именем,
 // которого сущность в API никогда не получит.
-const slugify = (name) =>
+const slugify = (/** @type {string} */ name) =>
   name
     .toLowerCase()
     .normalize('NFKD')
@@ -320,6 +330,10 @@ const slugify = (name) =>
     .replace(/^-+|-+$/g, '');
 
 // Источник 1 — коллекции JSON API. EN-срез: промт англоязычный, а слаги в EN и RU одни.
+/**
+ * @param {Record<string, string[]>|undefined} sources
+ * @param {(e: any) => void} add
+ */
 function fromApi(sources, add) {
   for (const [game, resources] of Object.entries(sources || {})) {
     const gameDir = resolve(API_ROOT, game);
@@ -350,6 +364,10 @@ function fromApi(sources, add) {
 // Daggerheart и BRP). Формат везде один: первая строка блока — заголовок колонок,
 // вторая — разделитель, дальше строки, где ПЕРВАЯ ячейка это имя, а вторая обычно
 // тип/категория. Файлы берём английские — по ним же строится слаг.
+/**
+ * @param {Record<string, string[]>|undefined} sources
+ * @param {(e: any) => void} add
+ */
 function fromMarkdown(sources, add) {
   for (const [game, files] of Object.entries(sources || {})) {
     for (const rel of files) {
@@ -376,16 +394,17 @@ function fromMarkdown(sources, add) {
 
 function loadQueue(kind = KIND) {
   const { api, md } = KINDS[kind];
+  /** @type {Map<string, any>} */
   const bySlug = new Map();
   // Слаг уникален внутри игры; версии и источники дедуплицируем — картинка одна на сущность.
-  const add = (e) => { if (e.slug && !bySlug.has(`${e.game}/${e.slug}`)) bySlug.set(`${e.game}/${e.slug}`, e); };
+  const add = (/** @type {any} */ e) => { if (e.slug && !bySlug.has(`${e.game}/${e.slug}`)) bySlug.set(`${e.game}/${e.slug}`, e); };
   fromApi(api, add);
   fromMarkdown(md, add);
-  return [...bySlug.values()].sort((a, b) => (a.game + a.slug).localeCompare(b.game + b.slug));
+  return [...bySlug.values()].sort((/** @type {any} */ a, /** @type {any} */ b) => (a.game + a.slug).localeCompare(b.game + b.slug));
 }
 
-const relPath = (e, kind = KIND) => `web/public/img/${e.game}/${KINDS[kind].dir}/${e.slug}.webp`;
-const hasImage = (e, kind = KIND) => existsSync(resolve(REPO, relPath(e, kind)));
+const relPath = (/** @type {any} */ e, kind = KIND) => `web/public/img/${e.game}/${KINDS[kind].dir}/${e.slug}.webp`;
+const hasImage = (/** @type {any} */ e, kind = KIND) => existsSync(resolve(REPO, relPath(e, kind)));
 
 // Остаток очереди по каждому виду: и выбор вида, и сводка прогона считаются ОДНОЙ функцией,
 // иначе «выбрали X» и «в X осталось N» могли бы разъехаться.
@@ -401,6 +420,10 @@ function remainingByKind() {
 // пока у трёх других видов лежало больше тысячи сущностей без картинок (#291).
 // Сам выбор — чистая функция от остатков: только её и проверяет юнит-тест, потому что
 // остальное упирается в данные API и файлы картинок (scripts/test_gen_images_kind.mjs).
+/**
+ * @param {{kind: string, left: number, total: number}[]} rows
+ * @returns {string|null}
+ */
 export function nextKind(rows) {
   const next = rows.find((r) => r.left > 0);
   return next ? next.kind : null;
@@ -409,6 +432,10 @@ export function nextKind(rows) {
 // Виды, у которых очередь не «закрыта», а ПУСТА: размер списка ноль — значит данных нет
 // вовсе. Тоже чистая функция от остатков и тоже под юнит-тестом: это единственный сторож,
 // отличающий обнулившийся API от честного «всё готово» (ревью #292).
+/**
+ * @param {{kind: string, left: number, total: number}[]} rows
+ * @returns {string[]}
+ */
 export function emptyKinds(rows) {
   return rows.filter((r) => r.total === 0).map((r) => r.kind);
 }
@@ -522,7 +549,7 @@ async function main() {
         summary(AUTH_FIX);
         process.exit(EXIT_AUTH);
       }
-      console.error(`  ошибка на ${e.slug}: ${err?.message || err}`);
+      console.error(`  ошибка на ${e.slug}: ${err instanceof Error ? err.message : err}`);
       failed.push(e.slug);
     }
   }

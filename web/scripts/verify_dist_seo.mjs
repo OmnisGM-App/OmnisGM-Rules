@@ -42,10 +42,10 @@ const NOINDEX_ALLOW = new Set();
 const errors = [];
 const titles = new Map(); // title → "lang tail" (проверка уникальности)
 
-const distFile = (lang, tail) => resolve(DIST, lang, tail, 'index.html');
-const urlFor = (lang, tail) => `${ORIGIN}/${lang}/${tail}`;
+const distFile = (/** @type {string} */ lang, /** @type {string} */ tail) => resolve(DIST, lang, tail, 'index.html');
+const urlFor = (/** @type {string} */ lang, /** @type {string} */ tail) => `${ORIGIN}/${lang}/${tail}`;
 // URL rules.omnisgm.com → путь файла в dist (для проверки существования взаимных ссылок).
-const urlToDist = (url) => {
+const urlToDist = (/** @type {string} */ url) => {
   if (!url.startsWith(ORIGIN + '/')) return null;
   let p = url.slice(ORIGIN.length + 1); // «en/dnd/.../» или «» (корень)
   return resolve(DIST, p, 'index.html');
@@ -97,13 +97,34 @@ for (const lang of LANGS) {
     const blocks = [...head.matchAll(/<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     if (blocks.length === 0) errors.push(`${id}: нет JSON-LD блока`);
     blocks.forEach((b, i) => {
-      try { JSON.parse(b); } catch (e) { errors.push(`${id}: JSON-LD блок #${i + 1} не парсится: ${e.message}`); }
+      try { JSON.parse(b); } catch (e) {
+        errors.push(`${id}: JSON-LD блок #${i + 1} не парсится: ${e instanceof Error ? e.message : e}`);
+      }
     });
 
     // — noindex —
     const robots = [...head.matchAll(/<meta\s+name="robots"\s+content="([^"]*)"/g)].map((m) => m[1].toLowerCase());
     const hasNoindex = robots.some((c) => c.includes('noindex'));
     if (hasNoindex && !NOINDEX_ALLOW.has(tail)) errors.push(`${id}: noindex, а страница должна индексироваться`);
+  }
+}
+
+// Манифест PWA: локализованные названия (`translations`) — поле из ПРЕДЛОЖЕНИЯ к спецификации,
+// в типах @vite-pwa его нет, и в astro.config.mjs над ним стоит `@ts-expect-error`. Директива
+// гасит всю строку целиком — опечатка в самом ключе тоже прошла бы молча, а второго сторожа у
+// содержимого манифеста не было вовсе (ревью #315). Теперь есть: сборка знает, что поле дошло.
+const manifestFile = resolve(DIST, 'manifest.webmanifest');
+if (!existsSync(manifestFile)) {
+  errors.push('manifest.webmanifest: файла нет в dist — PWA собралась без манифеста');
+} else {
+  try {
+    const manifest = JSON.parse(readFileSync(manifestFile, 'utf8'));
+    if (!manifest.translations?.ru?.name) {
+      errors.push('manifest.webmanifest: нет translations.ru.name — локализованные названия PWA ' +
+                  'не доехали (проверьте ключ `translations` в astro.config.mjs)');
+    }
+  } catch (e) {
+    errors.push(`manifest.webmanifest: не парсится — ${e instanceof Error ? e.message : e}`);
   }
 }
 
