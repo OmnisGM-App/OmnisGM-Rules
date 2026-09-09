@@ -55,7 +55,7 @@ from statblock_meta import (STRIP_TAIL, en_group_from_ru_heading,  # noqa: E402
 # ГЕЙТАМИ. Разрез шапки приходит оттуда же, из продукционного парсера, — один на все
 # гейты (#290). А вот разбор левой части у этого файла свой (`parts_ru` ниже) и таким
 # остаётся намеренно: им сверяется сам парсер (#290, verify-import.md).
-from statblock_terms import (ALIGN_RU, BOUND_RU, DICT, SUBTYPE_DICT,  # noqa: E402
+from statblock_terms import (ALIGN_RU, BOUND_RU, is_bound_ru, DICT, SUBTYPE_DICT,  # noqa: E402
                             split_header,
                             align_to_en as _align_to_en, dict_table as _dict_table,
                             parts_en, size_agreement as _size_agreement, GENDER_RU,
@@ -209,7 +209,10 @@ def parts_ru(header: str, version: str):
         # диапазона («Огромный или меньший») — EN пишет её словом Smaller/Larger, и
         # размером в шапке является вся связка целиком. Продукционный `_split_size`
         # обе формы разбирал одинаково с #260, здесь вторая появилась только в #294.
-        second = SIZES_RU.get(words[2].lower()) or BOUND_RU[words[2].lower()]
+        # Регистр решает, кто именно стоит вторым: «Большая» — размер Large, «большая» —
+        # верхняя граница. Порядок «сначала размеры» отдал бы обе формы размеру (#303).
+        second = (BOUND_RU[words[2].lower()] if is_bound_ru(words[2])
+                  else SIZES_RU[words[2].lower()])
         size = f"{SIZES_RU[words[0].lower()]} or {second}"
         rest = " ".join(words[3:])
     elif words and words[0].lower() in SIZES_RU:
@@ -1057,6 +1060,19 @@ SPLIT_CASES = [
     ("граница диапазона размера", "Huge or Smaller Construct, Unaligned",
      f"Огромный или меньший Конструкт, {_RU_ALIGN['Unaligned']}",
      ("Huge or Smaller", "Construct", None, "Unaligned"), ("Конструкт", None)),
+    # ВЕРХНЯЯ граница (#303). Носителя в корпусе нет — форма заведена впрок, потому что
+    # продукционный парсер её разбирает с #260, и первая такая шапка обвинила бы в неверном
+    # разборе верный парсер. Женский род взят намеренно: именно у него связка («большая»)
+    # совпадает с размером Large по всему, кроме регистра, — этот ряд и есть носитель
+    # свойства «регистр разводит границу и размер».
+    ("верхняя граница диапазона", "Huge or Larger Undead, Unaligned",
+     f"Огромная или большая Нежить, {_RU_ALIGN['Unaligned']}",
+     ("Huge or Larger", "Undead", None, "Unaligned"), ("Нежить", None)),
+    # Обратная сторона того же свойства: с ПРОПИСНОЙ это честный диапазон из двух размеров,
+    # и он обязан читаться как размеры, а не как граница.
+    ("диапазон из двух размеров с омонимом", "Huge or Large Undead, Unaligned",
+     f"Огромная или Большая Нежить, {_RU_ALIGN['Unaligned']}",
+     ("Huge or Large", "Undead", None, "Unaligned"), ("Нежить", None)),
     # Запятой нет вовсе — мировоззрения нет ни у одного пути.
     ("без запятой", "Large Aberration Lawful Evil",
      f"Большая Аберрация {_RU_ALIGN['Lawful Evil']}",
@@ -1068,7 +1084,8 @@ SPLIT_CASES = [
 # носитель свойства «разрез один» у `parts_en`/`parts_ru`, поэтому её состав и есть
 # предмет договорённости.
 SPLIT_LABELS = {"простая", "запятая ВНУТРИ скобок подтипа", "составной тип вне скобок",
-                "составной размер", "граница диапазона размера", "рой",
+                "составной размер", "граница диапазона размера", "верхняя граница диапазона",
+                "диапазон из двух размеров с омонимом", "рой",
                 "подтип с запятой и БЕЗ мировоззрения", "без запятой"}
 _got_labels = {c[0] for c in SPLIT_CASES}
 if _got_labels != SPLIT_LABELS:
@@ -1096,7 +1113,11 @@ elif not _claim:
 # встречаться в корпусе ДОСЛОВНО, синтетическая — обязана в нём отсутствовать. RU-формы
 # провенансом не пинуются: они собираются из словаря (см. `_RU_ALIGN`), и их регистр —
 # конвенция редакции, а не текст одной строки.
-SPLIT_SYNTHETIC = {"Tiny Fiend (Devil, Shapechanger)", "Large Aberration Lawful Evil"}
+SPLIT_SYNTHETIC = {"Tiny Fiend (Devil, Shapechanger)", "Large Aberration Lawful Evil",
+                   # Носителя у обеих форм в корпусе нет: `or Larger` не встречается ни в
+                   # одной редакции, а «Huge or Large» — его прописной омоним, заведённый
+                   # ради той же развилки (#303).
+                   "Huge or Larger Undead, Unaligned", "Huge or Large Undead, Unaligned"}
 _synthetic_marked = {f"*{h}*" for h in SPLIT_SYNTHETIC}
 _en_corpus = "\n".join(p.read_text(encoding="utf-8")
                        for p in sorted((ROOT / "src/dnd").glob("srd-*/en/**/*.md")))
@@ -1161,7 +1182,12 @@ def _ru_size_to_en(size: str) -> str:
         low = word.lower()
         if low == "или":
             continue
-        out.append(SIZES_RU.get(low) or BOUND_RU.get(low) or word)
+        # Связка границы спрашивается ПЕРВОЙ и по регистру: «большая» — верхняя граница,
+        # «Большая» — словарный размер Large, и словарь размеров ответил бы на оба (#303).
+        if is_bound_ru(word):
+            out.append(BOUND_RU[low])
+            continue
+        out.append(SIZES_RU.get(low) or word)
     return " or ".join(out)
 
 
