@@ -95,11 +95,8 @@ user-invocable: true
 
 ### Phase 4: Интеграция в сайт — ВРУЧНУЮ
 
-Скилл `/integrate-srd` **устарел и не вызывается**: он интегрировал в MkDocs, а сайт
-публикует Astro (`web/`). Автоматической замены пока нет — переписывает его #296.
-
-Что сделать: подключить систему/версию в Astro (`web/src`: content collections, роуты,
-навигация ридера) и свериться с `documentation/content-pipeline.md`. Релиз соберётся сам —
+Интеграция ручная — по чеклисту `/integrate-srd` (JSON API, Astro-роуты и NAV,
+`content.yml`, релизная группа). Релиз соберётся сам —
 `.github/workflows/release.yml` триггерится push'ем в `main` по `src/**/*.md`.
 
 После завершения:
