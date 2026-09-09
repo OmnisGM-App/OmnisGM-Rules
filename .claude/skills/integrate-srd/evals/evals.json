@@ -1,0 +1,47 @@
+{
+  "skill_name": "integrate-srd",
+  "evals": [
+    {
+      "id": 1,
+      "name": "build-combined-md-creates-file",
+      "prompt": "/integrate-srd dnd srd-5.2 — проверь что build_combined_md.sh используется для создания объединённого markdown-файла",
+      "expected_output": "Скрипт build_combined_md.sh создаёт объединённый MD-файл из отдельных файлов SRD",
+      "files": [],
+      "assertions": [
+        {
+          "name": "script_used",
+          "type": "contains",
+          "description": "build_combined_md.sh используется",
+          "expected": "build_combined_md.sh"
+        },
+        {
+          "name": "file_created",
+          "type": "output_contains",
+          "description": "Объединённый файл создан",
+          "expected": "build_combined"
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "main-branch-check",
+      "prompt": "/integrate-srd daggerheart srd-1.0 — проверь что перед интеграцией проверяется текущая ветка main",
+      "expected_output": "Шаг 0: проверка что текущая ветка — main, если нет — остановка",
+      "files": [],
+      "assertions": [
+        {
+          "name": "branch_check",
+          "type": "output_contains",
+          "description": "Проверяется текущая ветка",
+          "expected": "main"
+        },
+        {
+          "name": "git_branch_command",
+          "type": "contains",
+          "description": "Используется git branch для проверки",
+          "expected": "git branch"
+        }
+      ]
+    }
+  ]
+}
