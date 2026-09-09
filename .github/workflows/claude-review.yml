@@ -120,6 +120,7 @@ jobs:
 
             ПРОГОН: PR=#${{ github.event.pull_request.number }}
             REPO=${{ github.repository }} BASE=${{ github.base_ref }}
+            HEADREF=${{ github.head_ref }}
             REPO_DIR=$GITHUB_WORKSPACE OUT=/tmp/review
 
       - name: Publish review
@@ -136,12 +137,18 @@ jobs:
           # Тело ревью собирается ДЕТЕРМИНИРОВАННО из 90-verdict.json — модель тело не пишет
           # и дописать в него ничего не может (сага «много текста» v2.8/2.12/2.16 закрыта формой).
           vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
+          try:
+              inl_early = json.load(open(f"{rd}/90-inline.json"))
+              assert isinstance(inl_early, list)
+          except Exception:
+              inl_early = None
           if os.path.exists(vf):
               v = json.load(open(vf))
               head = str(v.get("head", ""))[:7]
               c = v.get("counts") or {}
               major, med, rem = int(c.get("major") or 0), int(c.get("medium") or 0), int(c.get("remark") or 0)
-              inline_n = int(v.get("inline_count") or 0)
+              # Фактический счёт из 90-inline.json надёжнее поля verdict.json (S мог разойтись).
+              inline_n = len(inl_early) if inl_early is not None else int(v.get("inline_count") or 0)
               mode = v.get("mode", "pipeline")
               total = major + med + rem
               if total == 0:
