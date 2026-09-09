@@ -69,7 +69,8 @@ web/                           — Astro-приложение (сайт rules.om
 | `layout-recovery.md` | Восстановление структуры документа из PDF | cleanup-artifacts |
 | `merge-extraction.md` | Сведение результатов PDF-конвертеров | cleanup-artifacts |
 | `pdf-cleanup.md` | Нормализация markdown после конвертации | cleanup-artifacts, `src/**/en/**` |
-| `verify-import.md` | Правила верификации импорта | verify-import, `src/**/en/**` |
+| `verify-import.md` | Правила верификации импорта (контентный чеклист) | verify-import, `src/**/en/**`, `src/**/ru/**` |
+| `verify-import-gates.md` | Механика CI-гейтов импорта: фикстуры, эталоны, послабления, провенанс | `.github/scripts/**` |
 
 ### Перевод
 
