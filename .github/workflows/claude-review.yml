@@ -83,12 +83,13 @@ jobs:
           mkdir -p /tmp/review
           gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > /tmp/review/00-pr.md
           git diff "origin/${BASE}...HEAD" > /tmp/review/01-diff.patch
-          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- коммент \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- ревью \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > /tmp/review/02-comments.md || true
+          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- коммент \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- ревью \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > /tmp/review/02-pr-comments.md || true
           git diff --name-status "origin/${BASE}...HEAD" > /tmp/review/04-files.txt
           for n in $(grep -oE '#[0-9]+' /tmp/review/00-pr.md | tr -d '#' | sort -un | head -5); do
             [ "$n" = "$PR" ] && continue
             gh issue view "$n" --repo "$REPO" --json number,title,body,state,comments --jq '"# Ишья #\(.number) (\(.state)): \(.title)\n\n\(.body)\n\n" + ([.comments[] | "--- коммент \(.author.login)\n\(.body)\n\n"] | join(""))' > "/tmp/review/03-issue-$n.md" 2>/dev/null || rm -f "/tmp/review/03-issue-$n.md"
           done
+          { echo "# INDEX прогона (контекст подготовлен CI)"; echo; wc -l /tmp/review/*.md /tmp/review/*.patch /tmp/review/*.txt 2>/dev/null; } > /tmp/review/INDEX.md
           ls -la /tmp/review/ && wc -l /tmp/review/01-diff.patch
 
       - name: Claude review
@@ -108,7 +109,7 @@ jobs:
           claude_args: |
             --max-turns 200
             --add-dir /tmp
-            --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(gh issue comment:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
+            --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR. Найди каталог установленного
             плагина omnisgm (`ls ~/.claude/plugins/`; внутри — skills/omnisgm-review/) и
@@ -168,6 +169,7 @@ jobs:
                       body += "\n\n" + open(bff).read().strip()
           elif os.path.exists(bf):
               # Деградационный фолбэк: свободное тело одиночного прохода старого контракта.
+              print("::warning::90-verdict.json нет — опубликован фолбэк 90-final-review.md (деградация контракта)")
               body = open(bf).read().strip()
           else:
               print("::error::Клод не сформировал 90-verdict.json — ревью не опубликовано")
@@ -197,6 +199,9 @@ jobs:
               return "\n".join(f"- `{c.get('path')}:{c.get('line')}` — {c.get('body','').strip()}" for c in items)
           if moved:
               body += "\n\n---\nНаходки вне диапазонов диффа:\n" + as_body_list(moved)
+          # Честный счёт инлайнов в шапке: перенесённые в тело из «+N инлайнов» вычитаются.
+          if inl and f"+{len(inl)} инлайнов" in body and len(good) != len(inl):
+              body = body.replace(f"+{len(inl)} инлайнов", f"+{len(good)} инлайнов")
           def post(payload):
               open("/tmp/payload.json", "w").write(json.dumps(payload))
               return subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
