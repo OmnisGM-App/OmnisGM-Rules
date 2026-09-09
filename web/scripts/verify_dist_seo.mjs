@@ -42,10 +42,10 @@ const NOINDEX_ALLOW = new Set();
 const errors = [];
 const titles = new Map(); // title → "lang tail" (проверка уникальности)
 
-const distFile = (lang, tail) => resolve(DIST, lang, tail, 'index.html');
-const urlFor = (lang, tail) => `${ORIGIN}/${lang}/${tail}`;
+const distFile = (/** @type {string} */ lang, /** @type {string} */ tail) => resolve(DIST, lang, tail, 'index.html');
+const urlFor = (/** @type {string} */ lang, /** @type {string} */ tail) => `${ORIGIN}/${lang}/${tail}`;
 // URL rules.omnisgm.com → путь файла в dist (для проверки существования взаимных ссылок).
-const urlToDist = (url) => {
+const urlToDist = (/** @type {string} */ url) => {
   if (!url.startsWith(ORIGIN + '/')) return null;
   let p = url.slice(ORIGIN.length + 1); // «en/dnd/.../» или «» (корень)
   return resolve(DIST, p, 'index.html');
@@ -97,7 +97,9 @@ for (const lang of LANGS) {
     const blocks = [...head.matchAll(/<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     if (blocks.length === 0) errors.push(`${id}: нет JSON-LD блока`);
     blocks.forEach((b, i) => {
-      try { JSON.parse(b); } catch (e) { errors.push(`${id}: JSON-LD блок #${i + 1} не парсится: ${e.message}`); }
+      try { JSON.parse(b); } catch (e) {
+        errors.push(`${id}: JSON-LD блок #${i + 1} не парсится: ${e instanceof Error ? e.message : e}`);
+      }
     });
 
     // — noindex —

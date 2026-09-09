@@ -2,9 +2,10 @@
 // их вырезали из секции под общим "# Classes"), поднимает ВСЕ заголовки так, чтобы минимальный
 // стал h1. Тогда каждая страница имеет ровно один h1-титул, секции — h2/h3, и TOC чистый.
 export default function rehypePromoteHeadings() {
-  return (tree) => {
+  return (/** @type {any} */ tree) => {
+    /** @type {any[]} */
     const headings = [];
-    const walk = (node) => {
+    const walk = (/** @type {any} */ node) => {
       if (!node) return;
       if (node.type === 'element' && /^h[1-6]$/.test(node.tagName)) headings.push(node);
       for (const child of node.children || []) walk(child);

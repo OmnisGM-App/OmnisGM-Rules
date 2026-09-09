@@ -9,6 +9,13 @@ import path from 'node:path';
 
 const API_ROOT = path.resolve(process.cwd(), 'src/data/api');
 
+/**
+ * @param {string} game
+ * @param {string} version
+ * @param {string} lang
+ * @param {string|null|undefined} resource
+ * @returns {number|null}
+ */
 export function resourceTotal(game, version, lang, resource) {
   if (!resource) return null;
   try {

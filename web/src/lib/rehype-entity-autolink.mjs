@@ -134,18 +134,22 @@ const EXACT_ALIASES = {
 
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
 
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
-const verKeyOf = (version) => version.replace(/[.\-]/g, ''); // srd-5.2 → srd52
+const escapeRegExp = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const verKeyOf = (/** @type {string} */ version) => version.replace(/[.\-]/g, ''); // srd-5.2 → srd52
 
 // Кэш: `${game}/${version}/${lang}` → { text: {regexSource, byName} | null, exact: Map, verKey } | null
+/** @type {Map<string, any>} */
 const mapCache = new Map();
 
-function loadMap(game, version, lang) {
+function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** @type {string} */ lang) {
   const cacheKey = `${game}/${version}/${lang}`;
   if (mapCache.has(cacheKey)) return mapCache.get(cacheKey);
   const verKey = verKeyOf(version);
-  const aliases = ALIASES[`${game}/${lang}`] || {};
-  const exactAliases = EXACT_ALIASES[`${game}/${lang}`] || {};
+  const byGameLang = /** @type {(set: object) => Record<string, any>} */
+    ((set) => /** @type {Record<string, any>} */ (set)[`${game}/${lang}`] || {});
+  const aliases = byGameLang(ALIASES);
+  const exactAliases = byGameLang(EXACT_ALIASES);
+  /** @type {any[]} */
   const textEntries = [];
   // exact-карты по контейнеру: em (заклинания) и strong (монстры) — держим раздельно, чтобы
   // имя монстра в курсиве / имя заклинания в жирном не матчились не в своём контексте.
@@ -160,7 +164,8 @@ function loadMap(game, version, lang) {
   // коллизии: «Свиток заклинания» = equipment+magic-item, «Страж-щит» = magic-item+monster).
   // magic-items/monsters идут в RESOURCES раньше оружия → к моменту cells набор полон.
   const reserved = new Set();
-  for (const { key, urlParent, mode, container, versions, chapters } of (RESOURCES_BY_GAME[game] || [])) {
+  for (const { key, urlParent, mode, container, versions, chapters } of
+    (/** @type {Record<string, any[]>} */ (RESOURCES_BY_GAME)[game] || [])) {
     if (versions && !versions.includes(version)) continue;
     const file = path.join(DATA_ROOT, game, verKey, lang, key, 'all.json');
     let data;
@@ -176,7 +181,7 @@ function loadMap(game, version, lang) {
         // Ключ в lowercase: SRD размечает ссылки и СТРОЧНЫМИ («*лечение ран*»), и с заглавной
         // («*Благословение*», «**Скелет**») — ловим оба. Внутри разметки-контейнера полное
         // совпадение фразы с именем безопасно и без учёта регистра.
-        const m = exact[container];
+        const m = /** @type {Record<string, Map<string, any>>} */ (exact)[container];
         const k = e.name.toLowerCase();
         if (m && !m.has(k)) m.set(k, entry);
         // Склонённые/мн.-числа формы того же имени → на ту же сущность.
@@ -218,8 +223,15 @@ function loadMap(game, version, lang) {
   return result;
 }
 
+/**
+ * @param {string} value
+ * @param {{regexSource: string, byName: Map<string, any>}} textMap
+ * @param {Set<string>} skip
+ * @param {any} ctx
+ */
 function linkifyText(value, textMap, skip, ctx) {
   const re = new RegExp(textMap.regexSource, 'gu');
+  /** @type {any[]} */
   const nodes = [];
   let last = 0;
   let changed = false;
@@ -238,6 +250,11 @@ function linkifyText(value, textMap, skip, ctx) {
   return nodes;
 }
 
+/**
+ * @param {{slug: string, resource: string, urlParent: string}} entry
+ * @param {string} text
+ * @param {{game: string, lang: string, verSlug: string, verKey: string}} ctx
+ */
 function linkNode(entry, text, ctx) {
   return {
     type: 'element',
@@ -253,14 +270,14 @@ function linkNode(entry, text, ctx) {
 }
 
 // Полный текст элемента, только если ВСЕ прямые потомки — текстовые (иначе null).
-function directText(el) {
+function directText(/** @type {any} */ el) {
   if (!el.children || !el.children.length) return null;
-  if (!el.children.every((c) => c.type === 'text')) return null;
-  return el.children.map((c) => c.value).join('');
+  if (!el.children.every((/** @type {any} */ c) => c.type === 'text')) return null;
+  return el.children.map((/** @type {any} */ c) => c.value).join('');
 }
 
 // Все <tr> внутри таблицы (thead/tbody прозрачны).
-function collectRows(node, out) {
+function collectRows(/** @type {any} */ node, /** @type {any[]} */ out) {
   for (const c of node.children || []) {
     if (c.type !== 'element') continue;
     if (c.tagName === 'tr') out.push(c);
@@ -270,34 +287,41 @@ function collectRows(node, out) {
 
 // Ядро: линкует имена сущностей прямо в hast-дереве. Общая логика для глав (rehype) и страниц
 // сущностей (marked → hast). selfSlug — не линковать саму сущность на её же странице.
+/**
+ * @param {any} tree
+ * @param {{game: string, version: string, lang: string, selfSlug?: string, chapterPath?: string}} ctx
+ */
 export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath = '' }) {
   const map = loadMap(game, version, lang);
   if (!map) return tree;
+  /** @type {Set<string>} */
   const skip = new Set();
   if (selfSlug) skip.add(selfSlug);
   const ctx = { game, lang, verSlug: version, verKey: map.verKey };
 
-  const exactEntry = (rawText, container) => {
+  const exactEntry = (/** @type {string|null|undefined} */ rawText, /** @type {string} */ container) => {
     if (rawText == null) return null;
     const t = rawText.trim();
     const entry = map.exact[container].get(t.toLowerCase()); // регистро-независимо (текст ссылки — как в оригинале)
     return entry && !skip.has(entry.slug) ? { entry, text: t } : null;
   };
 
-  const isSpellTable = (table) => {
+  const isSpellTable = (/** @type {any} */ table) => {
+    /** @type {any[]} */
     const rows = [];
     collectRows(table, rows);
     if (!rows.length) return false;
-    const first = rows[0].children.find((c) => c.type === 'element' && (c.tagName === 'th' || c.tagName === 'td'));
+    const first = rows[0].children.find((/** @type {any} */ c) => c.type === 'element' && (c.tagName === 'th' || c.tagName === 'td'));
     const head = first && directText(first);
     return head != null && SPELL_TABLE_HEAD.has(head.trim());
   };
 
-  const linkSpellTable = (table) => {
+  const linkSpellTable = (/** @type {any} */ table) => {
+    /** @type {any[]} */
     const rows = [];
     collectRows(table, rows);
     for (const tr of rows) {
-      const cell = tr.children.find((c) => c.type === 'element' && c.tagName === 'td'); // только данные (не th)
+      const cell = tr.children.find((/** @type {any} */ c) => c.type === 'element' && c.tagName === 'td'); // только данные (не th)
       if (!cell) continue;
       const hit = exactEntry(directText(cell), 'em');
       if (hit) cell.children = [linkNode(hit.entry, hit.text, ctx)];
@@ -306,7 +330,8 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
 
   // Черты: любая ячейка <td>, точно равная имени черты (колонка «Черты/Features» таблиц классов
   // — ASI на всех уровнях, боевые стили в таблицах). Точное совпадение → 0 ложных срабатываний.
-  const linkFeatCells = (table) => {
+  const linkFeatCells = (/** @type {any} */ table) => {
+    /** @type {any[]} */
     const rows = [];
     collectRows(table, rows);
     for (const tr of rows) {
@@ -324,22 +349,24 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
   // таблицы оружия/доспехов/снаряжения в главе). Гейт нужен, чтобы не линковать ячейки в чужих
   // таблицах, где имя совпадает случайно (напр. вариант «Кнут» у Жетона пера — там нет колонки
   // цены), — как isSpellTable для спелл-листов.
-  const isEquipmentListing = (table) => {
+  const isEquipmentListing = (/** @type {any} */ table) => {
+    /** @type {any[]} */
     const rows = [];
     collectRows(table, rows);
     if (!rows.length) return false;
-    const hcells = rows[0].children.filter((c) => c.type === 'element' && (c.tagName === 'th' || c.tagName === 'td'));
+    const hcells = rows[0].children.filter((/** @type {any} */ c) => c.type === 'element' && (c.tagName === 'th' || c.tagName === 'td'));
     const last = hcells.length ? directText(hcells[hcells.length - 1]) : null;
     return last != null && /^(Цена|Cost|Стоимость)/.test(last.trim());
   };
 
   // Оружие/доспехи/снаряжение: ПЕРВАЯ колонка (имя) каждой строки-данных, точно равная имени
   // сущности → детальная страница. Точное совпадение ячейки → безопасно даже для «Молот»/«Щит».
-  const linkNameCells = (table) => {
+  const linkNameCells = (/** @type {any} */ table) => {
+    /** @type {any[]} */
     const rows = [];
     collectRows(table, rows);
     for (const tr of rows) {
-      const cell = tr.children.find((c) => c.type === 'element' && c.tagName === 'td'); // только данные (не th)
+      const cell = tr.children.find((/** @type {any} */ c) => c.type === 'element' && c.tagName === 'td'); // только данные (не th)
       if (!cell) continue;
       const txt = directText(cell);
       if (txt == null) continue;
@@ -350,7 +377,8 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
 
   // Grid (DH/BRP): любая ячейка <td>, точно равная имени сущности → ссылка, ТОЛЬКО в главе-
   // источнике (entry.chapters vs chapterPath). Точное совпадение + гейт главы → 0 ложных.
-  const linkGridCells = (table) => {
+  const linkGridCells = (/** @type {any} */ table) => {
+    /** @type {any[]} */
     const rows = [];
     collectRows(table, rows);
     for (const tr of rows) {
@@ -366,7 +394,7 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
     }
   };
 
-  const walk = (node, insideSkip) => {
+  const walk = (/** @type {any} */ node, /** @type {boolean} */ insideSkip) => {
     if (!node.children) return;
     for (let i = 0; i < node.children.length; i++) {
       const child = node.children[i];
@@ -407,7 +435,7 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
 }
 
 export default function rehypeEntityAutolink() {
-  return (tree, file) => {
+  return (/** @type {any} */ tree, /** @type {any} */ file) => {
     const p = (file && (file.path || (file.history && file.history[0]))) || '';
     const m = p.replace(/\\/g, '/').match(/\/(dnd|daggerheart|brp)\/([^/]+)\/(en|ru)\//);
     if (!m) return;

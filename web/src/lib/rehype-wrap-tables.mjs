@@ -2,8 +2,8 @@
 // таблица скроллилась внутри себя (а не растягивала/скроллила всю страницу). Ручной обход —
 // как rehype-promote-headings, без доп. зависимостей.
 export default function rehypeWrapTables() {
-  return (tree) => {
-    const walk = (node) => {
+  return (/** @type {any} */ tree) => {
+    const walk = (/** @type {any} */ node) => {
       if (!node || !node.children) return;
       for (let i = 0; i < node.children.length; i++) {
         const child = node.children[i];

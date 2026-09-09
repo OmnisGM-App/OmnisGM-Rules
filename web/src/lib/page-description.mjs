@@ -31,7 +31,7 @@ const MIN_PROSE = 40;
  * скриптами (лист персонажа BRP — целиком вёрстка с <style>), html-комментарии и
  * огороженный код. Без этого в сниппет уезжает CSS.
  */
-function sanitize(md) {
+function sanitize(/** @type {string|null|undefined} */ md) {
   return (md ?? '')
     .replace(/<style[\s\S]*?<\/style>/gi, '')
     .replace(/<script[\s\S]*?<\/script>/gi, '')
@@ -40,7 +40,7 @@ function sanitize(md) {
 }
 
 /** Плоский текст из строки markdown: разметка, ссылки, html и сноски — прочь. */
-function plain(md) {
+function plain(/** @type {string} */ md) {
   return md
     .replace(/<[^>]+>/g, ' ') // html-теги
     .replace(/!\[[^\]]*\]\([^)]*\)/g, ' ') // картинки
@@ -51,18 +51,18 @@ function plain(md) {
     .trim();
 }
 
-const isHeading = (line) => /^#{1,6}\s/.test(line);
-const isTableRow = (line) => /^\s*\|/.test(line);
-const isSeparator = (line) => /^\s*\|[\s:|-]+\|?\s*$/.test(line) && line.includes('-');
+const isHeading = (/** @type {string} */ line) => /^#{1,6}\s/.test(line);
+const isTableRow = (/** @type {string} */ line) => /^\s*\|/.test(line);
+const isSeparator = (/** @type {string} */ line) => /^\s*\|[\s:|-]+\|?\s*$/.test(line) && line.includes('-');
 // «Не проза»: списки атрибутов, цитаты, разделители, остатки html.
-const isProse = (line) =>
+const isProse = (/** @type {string} */ line) =>
   line.trim() !== '' &&
   !isHeading(line) &&
   !isTableRow(line) &&
   !/^\s*([-*+]\s|\d+[.)]\s|>|---+|<)/.test(line);
 
 /** Ячейки строки markdown-таблицы. */
-const cells = (line) =>
+const cells = (/** @type {string} */ line) =>
   line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
 
 /**
@@ -70,7 +70,7 @@ const cells = (line) =>
  * Файла без единого заголовка это не касается: глоссарные справочники (14_Glossary/02_Spells.md)
  * начинаются прямо с таблицы, и «всё после H1» для них — это всё тело.
  */
-function afterTitle(body) {
+function afterTitle(/** @type {string|null|undefined} */ body) {
   const lines = sanitize(body).split('\n');
   const first = lines.findIndex(isHeading);
   return first < 0 ? lines : lines.slice(first + 1);
@@ -86,7 +86,8 @@ function afterTitle(body) {
  * сниппет всё равно влезает 110–160 символов, а склейка двух абзацев дала бы обрывок
  * второй мысли вместо целой первой. Break убирать не надо.
  */
-export function introProse(body) {
+export function introProse(/** @type {string|null|undefined} */ body) {
+  /** @type {string[]} */
   const out = [];
   for (const line of afterTitle(body)) {
     if (isHeading(line)) break;
@@ -101,7 +102,8 @@ export function introProse(body) {
  * населённый: у главы это разделы (##), у справочника — сами термины (#### в rules-glossary,
  * ### у монстров), а они для сниппета ценнее двух служебных «Соглашения / Определения».
  */
-export function outline(body, limit = 14) {
+export function outline(/** @type {string|null|undefined} */ body, limit = 14) {
+  /** @type {Map<number, string[]>} */
   const byLevel = new Map([[2, []], [3, []], [4, []]]);
   const seen = new Set();
   for (const line of afterTitle(body)) {
@@ -110,11 +112,13 @@ export function outline(body, limit = 14) {
     const name = plain(m[2]).replace(/[:.]+$/, '');
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    byLevel.get(m[1].length).push(name);
+    byLevel.get(m[1].length)?.push(name);
   }
+  /** @type {string[]} */
   let best = [];
   for (const level of [2, 3, 4]) {
-    if (byLevel.get(level).length > best.length) best = byLevel.get(level);
+    const at = byLevel.get(level) ?? [];
+    if (at.length > best.length) best = at;
   }
   return best.slice(0, limit);
 }
@@ -125,7 +129,7 @@ export function outline(body, limit = 14) {
  * магпредметов). Таблица где-то в середине страницы сюда не считается — иначе в сниппет
  * главы уезжает случайная таблица (у rules-glossary это была таблица сокращений).
  */
-export function tableSummary(body, limit = 4) {
+export function tableSummary(/** @type {string|null|undefined} */ body, limit = 4) {
   const lines = afterTitle(body);
   let i = 0;
   while (i < lines.length && lines[i].trim() === '') i++;
@@ -145,7 +149,8 @@ export function tableSummary(body, limit = 4) {
  * Перечень, влезающий в budget: элементы добавляются, пока помещаются. Обрезаем по границе
  * элемента, а не слова — «Aboleth, Ankheg, Assa…» в сниппете смотрелось бы поломкой.
  */
-export function listFit(items, budget) {
+export function listFit(/** @type {string[]} */ items, /** @type {number} */ budget) {
+  /** @type {string[]} */
   const out = [];
   for (const item of items) {
     const next = out.concat(item).join(', ');
@@ -157,7 +162,7 @@ export function listFit(items, budget) {
 }
 
 /** Обрезка до limit символов по границе предложения, иначе — по границе слова. */
-export function clamp(text, limit = MAX) {
+export function clamp(/** @type {string} */ text, limit = MAX) {
   const s = text.trim();
   if (s.length <= limit) return s;
   const head = s.slice(0, limit + 1);
@@ -175,6 +180,13 @@ export function clamp(text, limit = MAX) {
  *
  * name — подпись страницы, sysLabel/docLabel — система и документ («Daggerheart», «SRD 1.0»).
  */
+/**
+ * `body` необязателен: у записи коллекции Astro тело типизировано как `string | undefined`,
+ * а пустая страница — законный случай (в описание уходит бойлерплейт).
+ *
+ * @param {{name: string, body?: string, lang?: string, sysLabel: string, docLabel: string}} page
+ * @returns {string}
+ */
 export function pageDescription({ name, body, lang, sysLabel, docLabel }) {
   const ru = lang !== 'en';
   const head = ru ? `${name} — ${sysLabel} ${docLabel} на русском` : `${name} — ${sysLabel} ${docLabel}`;
@@ -183,7 +195,7 @@ export function pageDescription({ name, body, lang, sysLabel, docLabel }) {
     : 'Tabletop RPG System Reference Document in the OmnisGM ecosystem.';
   // Укороченный хвост — когда полный не влезает в 160 (страница с одной фразой вступления).
   const shortTail = ru ? 'SRD настольных игр в экосистеме OmnisGM.' : 'Tabletop RPG SRD in the OmnisGM ecosystem.';
-  const fill = (s) => {
+  const fill = (/** @type {string} */ s) => {
     for (const t of [tail, shortTail]) if (s.length + 1 + t.length <= MAX) return `${s} ${t}`;
     return s;
   };
