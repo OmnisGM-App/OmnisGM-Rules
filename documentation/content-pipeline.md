@@ -64,7 +64,7 @@ web/                           — Astro-приложение (сайт rules.om
 
 | Правило | Описание | Подключается к |
 |---|---|---|
-| `file-naming-conventions.md` | Соглашения об именовании файлов и директорий | `src/**`, cleanup/build/integrate скиллы |
+| `file-naming-conventions.md` | Соглашения об именовании файлов и директорий | `src/**`, cleanup/build-glossary скиллы |
 | `glossary-format.md` | Формат таблиц глоссария | `src/**/*_Glossary/**`, build/translate-glossary |
 | `layout-recovery.md` | Восстановление структуры документа из PDF | cleanup-artifacts |
 | `merge-extraction.md` | Сведение результатов PDF-конвертеров | cleanup-artifacts |
