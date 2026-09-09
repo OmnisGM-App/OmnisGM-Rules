@@ -22,5 +22,5 @@ export const INDEXABLE_GLOSSARY = [
 
 // Глоссарная страница, которую возвращаем в индекс (принимает pathname или полный URL —
 // матч по подстроке, язык-агностично: /ru/… и /en/… оба ловятся).
-export const isIndexableGlossary = (urlOrPath) =>
+export const isIndexableGlossary = (/** @type {string} */ urlOrPath) =>
   INDEXABLE_GLOSSARY.some((s) => urlOrPath.includes(s));

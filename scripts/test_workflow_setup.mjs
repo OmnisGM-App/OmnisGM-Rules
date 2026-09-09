@@ -43,7 +43,7 @@ const HOME = 'setup-web';
  * файл за упоминание `actions/setup-node` в комментарии или внутри `run:` — то есть за
  * прозу, а не за шаг (ревью #300).
  */
-export function directSetups(text) {
+export function directSetups(/** @type {string} */ text) {
   const found = [];
   for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
     const line = raw.trim();
@@ -61,7 +61,7 @@ export function directSetups(text) {
  * только форму записи, а мутация «3.12 → 3.11» в одном из четырёх вызовов гейт не видел
  * (ревью #300).
  */
-export function versionLiterals(text) {
+export function versionLiterals(/** @type {string} */ text) {
   const found = [];
   for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
     const line = raw.trim();
@@ -120,7 +120,13 @@ export function jobsOf(text) {
   return { jobs, problem: null };
 }
 
-/** Все расхождения по каталогу workflow и composite-действиям. */
+/**
+ * Все расхождения по каталогу workflow и composite-действиям.
+ *
+ * @param {{name: string, text: string}[]} files
+ * @param {{name: string, text: string, home?: boolean}[]} actions
+ * @returns {string[]}
+ */
 export function setupProblems(files, actions) {
   const problems = [];
   for (const { name, text } of files) {
@@ -164,7 +170,7 @@ export function setupProblems(files, actions) {
 }
 
 /** Файлы каталога workflow: обе формы расширения, вендорные — мимо. */
-function readWorkflows(dir) {
+function readWorkflows(/** @type {string} */ dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
     .filter((e) => e.isFile() && /\.ya?ml$/.test(e.name) && !VENDORED.has(e.name))
@@ -175,6 +181,12 @@ function readWorkflows(dir) {
  * Composite-действия: `action.yml` и `action.yaml`, на уровень вглубь (группирующий каталог
  * — законная раскладка). Сам `setup-web` тоже сканируется, но по своим правилам: помечается
  * `home`, и в нём законен ровно один вызов каждого setup-*.
+ */
+/**
+ * @param {string} dir
+ * @param {string} [rel]
+ * @param {number} [depth]
+ * @returns {{name: string, text: string, home: boolean}[]}
  */
 function readActions(dir, rel = '.github/actions', depth = 1) {
   if (!existsSync(dir)) return [];
@@ -193,6 +205,7 @@ function readActions(dir, rel = '.github/actions', depth = 1) {
 }
 
 // ── Самопроверки разбора: формы, на которых гейт молчал (ревью #300) ────────────────────
+/** @type {[string, string, number][]} */
 const SELF_CHECKS = [
   ['обычная джоба без потолка', 'jobs:\n  build:\n    runs-on: x\n    steps: []\n', 1],
   ['джоба с потолком', 'jobs:\n  build:\n    runs-on: x\n    timeout-minutes: 5\n', 0],
@@ -212,19 +225,22 @@ const SELF_CHECKS = [
   ['секция после jobs не считается джобой',
    'jobs:\n  a:\n    timeout-minutes: 1\nfoo:\n  bar: 1\n', 0],
 ];
+/** @type {string[]} */
 const failures = [];
 // Счётчик — не константа: `SELF_CHECKS.length + N` уже разъехался с фактом на единицу, а
 // у гейта, чья ценность в точности самоотчёта, число в логе обязано считаться, а не
 // заявляться (ревью #300).
 let checksRun = 0;
 /** Одна самопроверка: сколько расхождений ждём от `setupProblems` на этом входе. */
-const check = (label, want, files, actions = []) => {
+const check = (/** @type {string} */ label, /** @type {number} */ want,
+               /** @type {{name: string, text: string}[]} */ files,
+               /** @type {{name: string, text: string, home?: boolean}[]} */ actions = []) => {
   checksRun++;
   const got = setupProblems(files, actions).length;
   if (got !== want) failures.push(`самопроверка «${label}»: проблем ${got}, ожидалось ${want}`);
 };
 for (const [label, text, want] of SELF_CHECKS) check(label, want, [{ name: 't.yml', text }]);
-for (const [label, text, want] of [
+for (const [label, text, want] of /** @type {[string, string, number][]} */ ([
   ['прямой setup-node', 'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: actions/setup-node@v7\n', 1],
   ['он же в кавычках', "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: 'actions/setup-node@v7'\n", 1],
   ['прямой setup-python', 'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: actions/setup-python@v7\n', 1],
@@ -240,7 +256,7 @@ for (const [label, text, want] of [
    "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: ./.github/actions/setup-web\n        with:\n          python-version: '3.11'\n", 1],
   ['явный отказ от Node — законен',
    "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: ./.github/actions/setup-web\n        with:\n          node-version: ''\n", 0],
-]) check(label, want, [{ name: 't.yml', text }]);
+])) check(label, want, [{ name: 't.yml', text }]);
 
 check('composite с прямым setup-node', 1, [],
       [{ name: 'a/action.yml', text: 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n' }]);

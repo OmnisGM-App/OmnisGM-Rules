@@ -4,14 +4,16 @@
 import { pluralRu, countPhrase, countLeadEn, pluralEn } from '../src/lib/plural.mjs';
 
 let failed = 0;
-const eq = (actual, expected, what) => {
+const eq = (/** @type {string} */ actual, /** @type {string} */ expected, /** @type {string} */ what) => {
   if (actual !== expected) {
     failed++;
     console.error(`  ✗ ${what}\n      ожидалось «${expected}», получено «${actual}»`);
   }
 };
 
+/** @type {[string, string, string]} */
 const MONSTER = ['монстр', 'монстра', 'монстров'];
+/** @type {[string, string, string]} */
 const ANIMAL = ['животное', 'животных', 'животных'];
 
 // Базовые три формы.
@@ -33,6 +35,7 @@ eq(countPhrase(5, 'ru', MONSTER, ['monster', 'monsters']), 'Все 5 монст�
 
 // Хабы документов (#245): числа там произвольные и крупные — «884 страниц» вместо «страницы»
 // висело на проде, потому что форма была захардкожена. Реальные значения четырёх хабов.
+/** @type {[string, string, string]} */
 const PAGE = ['страница', 'страницы', 'страниц'];
 eq(pluralRu(884, PAGE), 'страницы', 'pluralRu(884) — D&D 5.1');
 eq(pluralRu(1042, PAGE), 'страницы', 'pluralRu(1042) — D&D 5.2');

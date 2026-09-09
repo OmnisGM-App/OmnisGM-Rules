@@ -19,8 +19,9 @@ export const ENTITY_IMAGE_SIZE = 512;
 const PUBLIC_DIR = path.resolve(process.cwd(), 'public');
 
 // Листинг папки кэшируем: getStaticPaths зовёт это на каждую сущность ×2 языка.
+/** @type {Map<string, Set<string>>} */
 const cache = new Map();
-const listing = (game, kind) => {
+const listing = (/** @type {string} */ game, /** @type {string} */ kind) => {
   const key = `${game}/${kind}`;
   let set = cache.get(key);
   if (!set) {
@@ -34,14 +35,14 @@ const listing = (game, kind) => {
 };
 
 /** Путь от корня сайта. Не проверяет наличие файла — см. hasEntityImage. */
-export const entityImagePath = (game, kind, slug) => `/img/${game}/${kind}/${slug}.webp`;
+export const entityImagePath = (/** @type {string} */ game, /** @type {string} */ kind, /** @type {string} */ slug) => `/img/${game}/${kind}/${slug}.webp`;
 
 /** Есть ли картинка у сущности. */
-export const hasEntityImage = (game, kind, slug) => listing(game, kind).has(slug);
+export const hasEntityImage = (/** @type {string} */ game, /** @type {string} */ kind, /** @type {string} */ slug) => listing(game, kind).has(slug);
 
 /** Путь от корня либо null, если картинки нет. */
-export const entityImage = (game, kind, slug) =>
+export const entityImage = (/** @type {string} */ game, /** @type {string} */ kind, /** @type {string} */ slug) =>
   (hasEntityImage(game, kind, slug) ? entityImagePath(game, kind, slug) : null);
 
 /** Портрет существа — папка существ общая на игру. */
-export const creatureImage = (game, slug) => entityImage(game, 'creatures', slug);
+export const creatureImage = (/** @type {string} */ game, /** @type {string} */ slug) => entityImage(game, 'creatures', slug);

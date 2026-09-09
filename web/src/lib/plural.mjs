@@ -7,7 +7,12 @@
 // Формы задаёт вызывающий: вывести их из слова нельзя (род, одушевлённость, чередования),
 // а таблица исключений в библиотеке была бы больше самого списка наших сущностей.
 
-/** Выбор формы по числу: [именительный ед., форма при 2–4, форма при 5+]. */
+/**
+ * Выбор формы по числу: [именительный ед., форма при 2–4, форма при 5+].
+ * @param {number} n
+ * @param {[string, string, string]} forms
+ * @returns {string}
+ */
 export function pluralRu(n, [one, few, many]) {
   const mod10 = n % 10;
   const mod100 = n % 100;
@@ -20,6 +25,13 @@ export function pluralRu(n, [one, few, many]) {
  * Начало фразы хаба: «Все 5 монстров» / «All 5 monsters», но при одной сущности — без «Все»:
  * «1 животное» / «1 animal». «Все 1 животное» неестественно даже с верным склонением, а
  * «Единственное животное» потребовало бы знать род — лишнее знание в каждом шаблоне.
+ */
+/**
+ * @param {number} n
+ * @param {string} lang
+ * @param {[string, string, string]} ru
+ * @param {[string, string]} en
+ * @returns {string}
  */
 export function countPhrase(n, lang, ru, en) {
   if (lang === 'ru') {
@@ -41,10 +53,19 @@ export function countPhrase(n, lang, ru, en) {
  * форме существительного, а не по числу («21 монстр» — без «Все»). Общая функция с параметром
  * языка выглядела бы применимой к RU, но в русских шаблонах не вызывается никогда.
  */
+/**
+ * @param {number} n
+ * @returns {string}
+ */
 export function countLeadEn(n) {
   return n === 1 ? '1' : `All ${n}`;
 }
 
+/**
+ * @param {number} n
+ * @param {[string, string]} forms
+ * @returns {string}
+ */
 export function pluralEn(n, [one, many]) {
   return n === 1 ? one : many;
 }

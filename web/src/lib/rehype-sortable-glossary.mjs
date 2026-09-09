@@ -11,27 +11,28 @@ const GLOSSARY = /\/\d+_Glossary\//;
 const MIN_ROWS = 3;
 
 // Число строк-данных таблицы (<tr> внутри <tbody>; при отсутствии tbody — все <tr> минус шапка).
-function dataRowCount(table) {
+function dataRowCount(/** @type {import('hast').Element} */ table) {
+  /** @type {import('hast').Element[]} */
   const rows = [];
-  const collect = (n) => {
-    for (const c of n.children || []) {
+  const collect = (/** @type {import('hast').Nodes} */ n) => {
+    for (const c of ('children' in n ? n.children : [])) {
       if (c.type !== 'element') continue;
       if (c.tagName === 'tr') rows.push(c);
       else collect(c);
     }
   };
-  const tbody = (table.children || []).find((c) => c.type === 'element' && c.tagName === 'tbody');
+  const tbody = table.children.find((c) => c.type === 'element' && c.tagName === 'tbody');
   if (tbody) { collect(tbody); return rows.length; }
   collect(table);
   return Math.max(0, rows.length - 1); // без <tbody> первая строка — шапка
 }
 
 export default function rehypeSortableGlossary() {
-  return (tree, file) => {
+  return (/** @type {import('hast').Root} */ tree, /** @type {any} */ file) => {
     const p = (file && (file.path || (file.history && file.history[0]))) || '';
     if (!GLOSSARY.test(p.replace(/\\/g, '/'))) return;
-    const walk = (node) => {
-      if (!node || !node.children) return;
+    const walk = (/** @type {import('hast').Nodes} */ node) => {
+      if (!node || !('children' in node)) return;
       for (const child of node.children) {
         if (child.type === 'element' && child.tagName === 'table' && dataRowCount(child) >= MIN_ROWS) {
           child.properties = child.properties || {};
