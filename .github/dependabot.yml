@@ -12,8 +12,13 @@ updates:
     ignore:
       # версию бренд-кита бампаем вручную (приватный GitHub Packages)
       - dependency-name: "@omnisgm-app/brand"
-  # версии GitHub Actions в workflow'ах
+  # версии GitHub Actions — и в workflow'ах, и внутри наших composite-действий.
+  # `directory: /` сканирует только .github/workflows/** и корневой action.yml, а пины
+  # actions/setup-node и setup-python с #287 живут в .github/actions/setup-web — без
+  # второго пути dependabot молча перестал бы их бампать (ревью #300).
   - package-ecosystem: github-actions
-    directory: /
+    directories:
+      - '/'
+      - '/.github/actions/*'
     schedule:
       interval: weekly

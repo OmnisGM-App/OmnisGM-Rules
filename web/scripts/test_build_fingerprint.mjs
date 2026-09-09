@@ -15,7 +15,7 @@ import { fingerprint, FINGERPRINT_FILE } from './build_fingerprint.mjs';
 const run = promisify(execFile);
 
 let failed = 0;
-const check = (ok, what, extra = '') => {
+const check = (/** @type {unknown} */ ok, /** @type {string} */ what, extra = '') => {
   if (!ok) {
     failed++;
     console.error(`  ✗ ${what}${extra ? `\n      ${extra}` : ''}`);

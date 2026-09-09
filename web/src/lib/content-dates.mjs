@@ -17,21 +17,39 @@ import path from 'node:path';
 
 const DATA_ROOT = path.resolve(process.cwd(), 'src/data');
 
+/**
+ * Разбор JSON с фолбэком. Возврат имеет ФОРМУ фолбэка, а не `any`: иначе `dates` и `sources`
+ * оставались бы `any`, и опечатка «dates.fils?.[key]» проходила бы молча — а этот файл кормит
+ * даты JSON-LD для 6000 страниц (ревью #315).
+ *
+ * @template T
+ * @param {string} file
+ * @param {T} fallback
+ * @returns {T}
+ */
 const readJson = (file, fallback) => {
   try {
-    return JSON.parse(fs.readFileSync(file, 'utf-8'));
+    return /** @type {T} */ (JSON.parse(fs.readFileSync(file, 'utf-8')));
   } catch {
     return fallback;
   }
 };
 
-const dates = readJson(path.join(DATA_ROOT, 'content-dates.json'), { shallow: true, files: {} });
-const sources = readJson(path.join(DATA_ROOT, 'api', '_sources.json'), {});
+/** @type {{shallow: boolean, files: Record<string, {published: string, modified: string}>}} */
+const DATES_EMPTY = { shallow: true, files: {} };
+/** @type {Record<string, string[]>} */
+const SOURCES_EMPTY = {};
+const dates = readJson(path.join(DATA_ROOT, 'content-dates.json'), DATES_EMPTY);
+const sources = readJson(path.join(DATA_ROOT, 'api', '_sources.json'), SOURCES_EMPTY);
 
 /** Есть ли вообще даты в этой сборке (false на мелком клоне / без git). */
 export const hasContentDates = () => Object.keys(dates.files ?? {}).length > 0;
 
 /** Даты одного .md (путь от src/, с расширением или без). null, если файла нет в карте. */
+/**
+ * @param {string|null|undefined} mdPath
+ * @returns {{published: string, modified: string}|null}
+ */
 export function datesForFile(mdPath) {
   if (!mdPath) return null;
   const key = mdPath.endsWith('.md') ? mdPath : `${mdPath}.md`;
@@ -43,8 +61,9 @@ export function datesForFile(mdPath) {
  * собираться из нескольких глав (оружие и доспехи — из одной «Снаряжение»), и «страница
  * появилась» тогда = когда появился первый из источников.
  */
-export function datesForFiles(mdPaths) {
-  const found = (mdPaths ?? []).map(datesForFile).filter(Boolean);
+export function datesForFiles(/** @type {string[]|null|undefined} */ mdPaths) {
+  const found = /** @type {{published: string, modified: string}[]} */
+    ((mdPaths ?? []).map(datesForFile).filter(Boolean));
   if (!found.length) return null;
   return {
     published: found.map((d) => d.published).sort()[0],
@@ -53,6 +72,12 @@ export function datesForFiles(mdPaths) {
 }
 
 /** Даты сущностной страницы по её коллекции API: game/ver/lang/resource. */
+/**
+ * @param {string} game
+ * @param {string} ver
+ * @param {string} lang
+ * @param {string} resource
+ */
 export function datesForResource(game, ver, lang, resource) {
   return datesForFiles(sources[`${game}/${ver}/${lang}/${resource}`]);
 }
@@ -63,6 +88,11 @@ export function datesForResource(game, ver, lang, resource) {
  * поэтому «когда он появился» = когда появился первый его раздел, «когда изменён» = когда
  * тронули последний. Ключи карты идут от src/, то есть «dnd/srd-5.2/ru/07_Spells.md».
  */
+/**
+ * @param {string} game
+ * @param {string} version
+ * @param {string} lang
+ */
 export function datesForDoc(game, version, lang) {
   const prefix = `${game}/${version}/${lang}/`;
   return datesForFiles(Object.keys(dates.files ?? {}).filter((f) => f.startsWith(prefix)));
@@ -71,6 +101,13 @@ export function datesForDoc(game, version, lang) {
 /**
  * Единая точка для шаблона: что бы страница ни знала о себе — sourceId (глава) или
  * контентный ресурс (сущность), — отсюда выходит одна пара дат или null.
+ */
+/**
+ * @param {{
+ *   sourceId?: string,
+ *   contentSource?: {game: string, ver: string, lang: string, resource: string},
+ *   docSource?: {game: string, version: string, lang: string},
+ * }} [page]
  */
 export function pageDates({ sourceId, contentSource, docSource } = {}) {
   if (sourceId) return datesForFile(sourceId);

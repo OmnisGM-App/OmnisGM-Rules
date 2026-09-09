@@ -25,13 +25,17 @@ const CHAPTER_SLUG = {
 // github-slugger-совместимый анкор (Astro так генерит id заголовков): нижний регистр,
 // пунктуация убрана, пробелы → дефис, юникод-буквы/цифры сохранены. Best-effort: если
 // раздел не совпал с заголовком главы, браузер просто останется наверху главы (не вредно).
-function headingAnchor(s) {
+function headingAnchor(/** @type {string} */ s) {
   return s.toLowerCase().trim()
     .replace(/[^\p{L}\p{N}\s-]/gu, '')
     .replace(/\s+/g, '-');
 }
 
 // (description_md, lang) → { slug, anchor|null, chapterLabel, sectionLabel|null } | null.
+/**
+ * @param {string|null|undefined} md
+ * @param {string} lang
+ */
 export function parseSourceChapter(md, lang) {
   if (!md) return null;
   const re = lang === 'ru'
@@ -40,7 +44,7 @@ export function parseSourceChapter(md, lang) {
   const m = md.match(re);
   if (!m) return null;
   const chapter = m[1].replace(/\.$/, '').trim();
-  const slug = CHAPTER_SLUG[chapter];
+  const slug = /** @type {Record<string, string>} */ (CHAPTER_SLUG)[chapter];
   if (!slug) return null;
   const section = m[2] ? m[2].replace(/\.$/, '').trim() : null;
   return { slug, anchor: section ? headingAnchor(section) : null, chapterLabel: chapter, sectionLabel: section };
@@ -48,6 +52,10 @@ export function parseSourceChapter(md, lang) {
 
 // Готовая ссылка-источник для компонента: { href, label } | null.
 // href — /{lang}/dnd/{verSlug}/{chapter}/[#anchor]; label локализован («Глава», «раздел»).
+/**
+ * @param {string|null|undefined} md
+ * @param {{ verSlug: string, lang: string }} ctx
+ */
 export function sourceLinkFor(md, { verSlug, lang }) {
   const s = parseSourceChapter(md, lang);
   if (!s) return null;

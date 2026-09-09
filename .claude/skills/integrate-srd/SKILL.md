@@ -1,22 +1,12 @@
 ---
-description: "УСТАРЕЛ: интеграция в MkDocs, движок выведен из эксплуатации. Не вызывать — см. #296."
-user-invocable: false
+description: "Интеграция новой системы/версии SRD в сайт (Astro + JSON API + релиз latest): чеклист фактических точек подключения"
 ---
 
-# /integrate-srd — Интеграция SRD в сайт (⚠️ УСТАРЕЛ)
+# /integrate-srd — Интеграция SRD в сайт
 
-> **Не выполнять этот скилл.** Он описывает интеграцию в MkDocs, а сайт с тех пор
-> публикует Astro (`web/`). Шаг 4 правит `.github/workflows/pages.yml`, которого в
-> репозитории уже нет, шаги 2/3/5 — `src/site/index.md`, `prepare_docs.sh` и навигацию
-> `mkdocs.yml`, то есть файлы, ничего не собирающие. Выполнение приведёт к правкам,
-> которые никуда не поедут, и к ложному «интеграция завершена».
->
-> Что делать вместо: подключить новую систему/версию вручную в Astro
-> (`web/src`, content collections и роуты) и свериться с
-> `documentation/content-pipeline.md`. Переписать этот скилл под Astro и снести
-> MkDocs-остатки — #296.
->
-> Текст ниже оставлен как есть до #296: он документирует, что именно делали при MkDocs.
+Подключение новой системы или версии (после `/import-srd` и/или `/translate-srd`,
+контент уже в `src/{game}/{version}/{en,ru}/`) к сайту rules.omnisgm.com.
+Интеграция ручная: единого генератора нет, скилл — чеклист фактических точек.
 
 ## Использование
 
@@ -26,173 +16,99 @@ user-invocable: false
 
 Пример: `/integrate-srd daggerheart srd-1.0`
 
-## Алгоритм
+Выполняется в `main` после squash-мёржа контентной ветки: сначала `git branch --show-current`,
+на другой ветке — остановись и сообщи пользователю.
 
-### Шаг 0: Проверка ветки
+## Точки подключения
 
-1. Убедись что текущая ветка — `main`:
-   ```bash
-   git branch --show-current
-   ```
-2. Если не main — останови и сообщи пользователю (интеграция должна выполняться в main после squash merge)
+Список составлен по `git grep` существующих игр, но **гарантией полноты он не является**:
+автоматического сторожа у интеграции нет. Пометка «игра» — нужно только при новой системе,
+«всегда» — и при новой редакции существующей игры тоже. Половина пунктов молчит при полностью
+зелёной сборке, поэтому раздел «Проверка» в конце обязателен.
 
-### Шаг 1: Сканирование структуры SRD
+### 0. Лицензионная атрибуция в футере — «игра», обязательна юридически
 
-1. Найди все файлы в `src/{game}/{version}/en/` и `src/{game}/{version}/ru/`
-2. Определи подпапки (классы, глоссарий и т.д.)
-3. Определи номер глоссария (`*_Glossary/`)
-4. Выведи структуру пользователю для подтверждения
+`ATTRIB` в `web/src/components/ReaderShell.astro`. Строка берётся как `ATTRIB[activeSys]` и
+рендерится под `{attribution && (…)}`: **без записи блок просто не появляется**, и страницы
+новой системы уезжают в прод без обязательного лицензионного уведомления — молча, при зелёной
+сборке. Если лицензия требует знак (§15 BRP OGL — логотип BRP), он ставится там же.
 
-### Шаг 2: Главная страница `src/site/index.md` и `src/site/en/index.md`
+Это единственный пункт, у которого цена ошибки не техническая. Делать первым.
 
-Главная страница существует в двух версиях — RU (`src/site/index.md`) и EN (`src/site/en/index.md`). Нужно добавить блок в ОБА файла.
+### 1. JSON API (если у системы есть справочники сущностей) — всегда
 
-1. Прочитай `src/site/index.md` (RU) и `src/site/en/index.md` (EN)
-2. Добавь блок для нового SRD **по образцу существующих** (D&D, Daggerheart):
+- Конфиг парсера: `.github/scripts/config_{game}.py` (dnd — `config.py`) по образцу
+  `config_daggerheart.py` / `config_brp.py`; читается через `load_game_config` в
+  `generate_api.py`.
+- Вызов на деплое: `hosting.predeploy` в `firebase.json` — по одной строке
+  `generate_api.py --game {game} --src-root src/{game} --output-dir web/dist/api` на игру.
+- Список `GAMES` в `web/scripts/gen-entity-data.mjs` («игра») — это prebuild-источник для
+  `getStaticPaths`. Без строки страниц сущностей будет НОЛЬ, и ни одной ошибки сборки.
+- `VERSION_SLUG` и `VERSION_LABEL` в `web/src/lib/entities.ts` («всегда»): их читают два
+  десятка файлов, а новая редакция — это новый ключ (`srd52` → `srd-5.2`).
+- `SOURCES` и `VERSION_NAMES` в конфиге парсера расписаны ПО ВЕРСИЯМ — новая редакция
+  требует правки и здесь, не только новая игра.
 
-**RU (`index.md`):**
-```markdown
-## {Game Title RU}
+### 2. Astro (`web/`) — всегда
 
-[:material-download: Скачать](https://github.com/OmnisGM-App/OmnisGM-Rules/releases?q={short}-srd)
+- Content collections уже смотрят на `src/{game}/...` глобом (`web/src/content.config.ts`) —
+  обычно правок не требуют; проверить, что новые файлы попадают в коллекцию `srd`.
+- NAV-дерево, страницы-маршруты (тонкие, по одной на игру) и хаб редакции (`DocHub.astro`) —
+  по образцу существующих игр в `web/src/pages` и `web/src/lib`.
+- Редиректы уровня системы — в `firebase.json`, **по одному правилу на язык** (см. правило
+  `seo-dates-hubs.md`: эмулятор ≠ прод по синтаксису `source`). Правится и при новой РЕДАКЦИИ:
+  `destination` жёстко указывает на конкретную редакцию, и без правки системный URL останется
+  вести на старую.
+- Карточка системы на главной — `web/src/pages/index.astro` и `web/src/pages/[lang]/index.astro`
+  (оба файла, оба языка).
 
-- **[SRD {ver}]({game}/{version}/00_Legal.md)** — Описание SRD на русском. Опубликовано по лицензии [название](url).
-```
+### 3. CI контента — всегда
 
-**EN (`en/index.md`):**
-```markdown
-## {Game Title EN}
+- `.github/workflows/content.yml`: непарные EN↔RU файлы — в `EXCLUSIONS`;
+  slug-парность подключается только системам с JSON API.
 
-[:material-download: Download](https://github.com/OmnisGM-App/OmnisGM-Rules/releases?q={short}-srd)
+### 4. Релиз (`release.yml`, rolling `latest`) — всегда
 
-- **[SRD {ver}]({game}/{version}/00_Legal.md)** — Description in English. Published under [License Name](url).
-```
+- Добавить группу в фильтр `dorny/paths-filter` (`src/{game}/{version}/**/*.md`),
+  условие в шаг «Any group selected?» и шаги сборки
+  (`.github/actions/build-markdown` / `build-pdf`) по образцу существующих групп.
+- Тегов нет: релиз один, `latest`, апсертится по именам файлов
+  (пер-системные теги `{short}-srd-v*` выведены из употребления).
 
-3. Добавь перед разделителем `---` в каждом файле
-4. **Коммит:** `Интеграция {game} {version}: главная страница (RU + EN)`
+### 5. Картинки сущностей — всегда
 
-### Шаг 3: `.github/scripts/prepare_docs.sh`
+`KINDS[*].api` (и `KINDS[*].md`, если у системы есть таблицы-глоссарии без JSON API) в
+`scripts/gen-images.mjs`. Очередь генератора **НЕ строится сама**: `KINDS` перечисляет игры
+поимённо, обхода «по всем играм JSON API» в коде нет. Без строки картинки не начнут
+генерироваться никогда, а крон будет ровно так же рапортовать «всё готово». Пути `md`
+захардкожены вместе с версией — новая редакция тоже требует правки.
 
-1. Прочитай `.github/scripts/prepare_docs.sh`
-2. Добавь блок для нового SRD **по образцу существующих** (Daggerheart, D&D):
+### 6. Пер-системный e2e-спек — «игра»
 
-```bash
-# {Game Title} {Version}
-mkdir -p docs/en/{game}/{version}/{subdirs} docs/en/{game}/{version}/{NN}_Glossary
-mkdir -p docs/ru/{game}/{version}/{subdirs} docs/ru/{game}/{version}/{NN}_Glossary
-cp -r src/{game}/{version}/en/* docs/en/{game}/{version}/
-cp -r src/{game}/{version}/en/* docs/ru/{game}/{version}/
-cp -r src/{game}/{version}/ru/* docs/ru/{game}/{version}/
-```
+`web/e2e/{game}.spec.ts` по образцу соседнего (`daggerheart.spec.ts`, `brp.spec.ts`): он же
+единственная автоматическая проверка лицензионного блока из пункта 0.
 
-RU: сначала копируем EN как fallback (`cp -r en/* docs/ru/`), затем поверх RU (`cp -r ru/* docs/ru/`) — EN fallback для ещё не переведённых файлов.
-
-3. `mkdir -p` для каждой подпапки (классы, глоссарий и т.д.)
-4. **Коммит:** `Интеграция {game} {version}: prepare_docs.sh`
-
-### Шаг 4: `.github/workflows/pages.yml`
-
-1. Прочитай `.github/workflows/pages.yml`
-2. В секции "Copy source files to docs" (`run: |`) добавь **те же команды** что и в prepare_docs.sh:
-
-```yaml
-          mkdir -p docs/en/{game}/{version}/{subdirs} docs/en/{game}/{version}/{NN}_Glossary
-          mkdir -p docs/ru/{game}/{version}/{subdirs} docs/ru/{game}/{version}/{NN}_Glossary
-          cp -r src/{game}/{version}/en/* docs/en/{game}/{version}/
-          cp -r src/{game}/{version}/en/* docs/ru/{game}/{version}/
-          cp -r src/{game}/{version}/ru/* docs/ru/{game}/{version}/
-```
-
-3. Команды должны быть **идентичны** prepare_docs.sh (единый источник правды)
-4. **Коммит:** `Интеграция {game} {version}: pages.yml`
-
-### Шаг 5: `mkdocs.yml` — навигация
-
-1. Прочитай `src/site/mkdocs.yml`
-2. Определи RU-имена для навигации:
-   - Из глоссария `00_Glossary.md` (RU имена категорий)
-   - Из заголовков `#` в каждом файле
-   - Из существующих nav_translations (если переводы уже есть)
-3. Добавь блок навигации в `nav:` по образцу существующих SRD:
-
-```yaml
-  - {Game Title}:
-      - {Version Title}:
-          - Правовая информация: {game}/{version}/00_Legal.md
-          - ...: {game}/{version}/01_....md
-          - Классы:
-              - {Класс1}: {game}/{version}/NN_Classes/01_....md
-              - ...
-          - Глоссарий:
-              - Термины: {game}/{version}/{NN}_Glossary/00_Glossary.md
-              - ...
-```
-
-4. Добавь nav_translations для новых RU-имён в секцию `plugins.i18n.languages[en].nav_translations`
-5. **Коммит:** `Интеграция {game} {version}: навигация src/site/mkdocs.yml`
-
-### Шаг 6: Сборка объединённого markdown (опционально)
-
-Для проверки можно собрать объединённый файл скриптом:
-```bash
-bash .claude/skills/integrate-srd/build_combined_md.sh src/{game}/{version}/ru {SHORT}-SRD-{VER}-RU.md
-```
-
-### Шаг 7: Release workflow
-
-1. Определи короткий префикс для тега — см. `.claude/rules/file-naming-conventions.md` (раздел "Релизные теги")
-2. Проверь существует ли уже workflow `.github/workflows/release-{game}.yml`
-3. Если нет — скопируй `.github/workflows/release-daggerheart.yml` → `release-{game}.yml`, подставив: `source-dir` = `src/{game}/{version}/{ru,en}`, `output-file`/`input-file` = `{SHORT}-SRD-{VER}-{RU,EN}`, тег-триггер `{short}-srd-v*`, заголовок release = `{Game Title} SRD — RU + EN`. Значения `lang`/`toc-title` в образце уже корректны. Файл-образец — единый источник правды.
-4. **Коммит:** `Интеграция {game} {version}: release workflow`
-
-### Шаг 8: Создание релизного тега
-
-1. Определи версию тега: `{short}-srd-v1.0.0` (первый релиз для этой игры)
-2. Если тег уже существует — инкрементируй patch: `v1.0.1`, `v1.0.2` и т.д.
-3. Спроси пользователя через **AskUserQuestion**:
-   - "Создать и запушить релизный тег `{tag}`? Это запустит сборку MD+PDF и создаст GitHub Release."
-   - Опции: "Да, создать тег" / "Нет, сделаю позже"
-4. Если "Да":
+### 7. Проверка
 
 ```bash
-git tag {tag}
-git push origin {tag}
+cd web
+npm run build    # predev/prebuild соберут данные сущностей и даты контента
+npm run test:e2e
 ```
 
-5. Если "Нет" — вывести инструкцию:
+Отдельно — ГЛАЗАМИ, потому что сборка на это не ругается:
 
-```
-Чтобы создать релиз позже:
-  git tag {tag}
-  git push origin {tag}
-```
+- футер контентной страницы новой системы содержит атрибуцию (пункт 0);
+- `/{lang}/{game}` ведёт на свежую редакцию;
+- страницы сущностей существуют, а не пусты;
+- очередь картинок непуста — `CHECK_ONLY=1 node scripts/gen-images.mjs`.
 
-### Шаг 9: Проверка
+После мёржа в `main` `release.yml` пересоберёт затронутые документы релиза сам;
+полная пересборка — `workflow_dispatch`.
 
-1. Запусти `bash .github/scripts/prepare_docs.sh` и проверь что файлы появились в `docs/`
-2. Проверь структуру:
-
-```bash
-ls docs/en/{game}/{version}/
-ls docs/ru/{game}/{version}/
-```
-
-3. Если ошибки — исправь и переделай коммит
-4. Выведи итог:
-
-```
-Интеграция {game} {version} завершена:
-- .github/scripts/prepare_docs.sh ✓
-- .github/workflows/pages.yml ✓
-- src/site/mkdocs.yml — навигация ✓
-- src/site/mkdocs.yml — nav_translations ✓
-- Release workflow: .github/workflows/release-{game}.yml ✓
-- Релизный тег: {tag} ✓ / (ожидает ручного создания)
-- Проверка: docs/ структура корректна ✓
-```
+Опционально, для локальной проверки объединённого документа:
+`bash .claude/skills/integrate-srd/build_combined_md.sh src/{game}/{version}/ru /tmp/{SHORT}-SRD-RU.md`
 
 ## Технические требования
 
-- Проверить работоспособность через `bash .github/scripts/prepare_docs.sh`
-- Коммит после каждого изменённого файла
-- Сообщения коммитов на русском
+- Коммит после каждого изменённого файла, сообщения на русском

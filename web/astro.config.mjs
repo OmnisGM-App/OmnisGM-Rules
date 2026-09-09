@@ -65,6 +65,11 @@ export default defineConfig({
           { name: 'Daggerheart SRD', short_name: 'Daggerheart', url: '/en/daggerheart/srd-1.0/legal/' },
           { name: 'На русском', short_name: 'Русский', url: '/ru/' },
         ],
+        // Локализованные имена (#304): поле `translations` реально доезжает в
+        // manifest.webmanifest (проверено в dist), но в типах `@vite-pwa` его нет — оно из
+        // предложения к спецификации, а не из принятой части. Директива самоочищается: как
+        // только тип появится, tsc потребует её убрать.
+        // @ts-expect-error — translations нет в Partial<ManifestOptions> @vite-pwa
         translations: {
           ru: {
             name: 'OmnisGM Rules — SRD настольных игр',

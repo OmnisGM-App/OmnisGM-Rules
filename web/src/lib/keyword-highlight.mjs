@@ -77,13 +77,17 @@ const BRP_CHAR_FULL = {
 
 // Навыки BRP (56) омонимичны обычным словам (Лазание, Драка) → грузим из данных, подсвечиваем
 // ТОЛЬКО в контексте (как навыки D&D). Ленивая загрузка + кэш по языку.
+/** @type {Map<string, string[]>} */
 const brpSkillCache = new Map();
-function brpSkills(lang) {
-  if (brpSkillCache.has(lang)) return brpSkillCache.get(lang);
+function brpSkills(/** @type {string} */ lang) {
+  const hit = brpSkillCache.get(lang);
+  if (hit) return hit;
+  /** @type {string[]} */
   let names = [];
   try {
     const data = JSON.parse(fs.readFileSync(path.join(DATA_ROOT, 'brp', 'srd10', lang, 'skills', 'all.json'), 'utf8'));
-    names = data.map((s) => String(s.name || '').replace(/\s*\([^)]*\)\s*$/, '').trim()).filter(Boolean);
+    names = data.map((/** @type {any} */ s) => String(s.name || '').replace(/\s*\([^)]*\)\s*$/, '').trim())
+      .filter(Boolean);
   } catch { names = []; }
   brpSkillCache.set(lang, names);
   return names;
@@ -102,10 +106,12 @@ const BRP_CTX = {
 };
 
 // Термсет по игре: { abil, skill, ctx } на язык. abil — всегда; skill — в контексте ctx.
-function gameTerms(game, lang) {
-  if (game === 'daggerheart') return { abil: DH_ABIL[lang] || [], skill: [], ctx: DND_CTX };
-  if (game === 'brp') return { abil: BRP_ABIL[lang] || [], skill: [...(BRP_CHAR_FULL[lang] || []), ...brpSkills(lang)], ctx: BRP_CTX };
-  return { abil: DND_ABIL[lang] || [], skill: DND_SKILL[lang] || [], ctx: DND_CTX };
+function gameTerms(/** @type {string} */ game, /** @type {string} */ lang) {
+  // Языковые наборы читаются по строке-ключу: язык приходит из пути файла, а не из union-типа.
+  const at = (/** @type {Record<string, string[]>} */ set) => set[lang] || [];
+  if (game === 'daggerheart') return { abil: at(DH_ABIL), skill: [], ctx: DND_CTX };
+  if (game === 'brp') return { abil: at(BRP_ABIL), skill: [...at(BRP_CHAR_FULL), ...brpSkills(lang)], ctx: BRP_CTX };
+  return { abil: at(DND_ABIL), skill: at(DND_SKILL), ctx: DND_CTX };
 }
 
 // Разделитель списка навыков: запятая и/или союз («A, B, or C», «A, B … или F»). Если два
@@ -113,29 +119,35 @@ function gameTerms(game, lang) {
 // пробел) НЕ считается разделителем — иначе слиплись бы случайные соседние слова.
 const SKILL_LIST_SEP = /^\s*(?:,\s*(?:или|и|or|and)?|(?:или|и|or|and))\s*$/iu;
 
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const escapeRegExp = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+/** @type {Map<string, {re: RegExp, abil: Set<string>, skill: Set<string>, ctx: RegExp}|null>} */
 const cache = new Map(); // `${game}/${lang}` → { re, abil:Set, skill:Set, ctx }
 
-function build(game, lang) {
+function build(/** @type {string} */ game, /** @type {string} */ lang) {
   const cacheKey = `${game}/${lang}`;
-  if (cache.has(cacheKey)) return cache.get(cacheKey);
+  if (cache.has(cacheKey)) return cache.get(cacheKey) ?? null;
   const { abil, skill, ctx } = gameTerms(game, lang);
   if (!abil.length && !skill.length) { cache.set(cacheKey, null); return null; }
   // Длинные формы раньше коротких (в альтернации побеждает первый матч).
   const all = [...abil, ...skill].sort((a, b) => b.length - a.length);
   const alt = all.map(escapeRegExp).join('|');
   const re = new RegExp(`(?<![\\p{L}\\p{N}_])(${alt})(?![\\p{L}\\p{N}_])`, 'gu');
-  const res = { re, abil: new Set(abil), skill: new Set(skill), ctx: ctx[lang] };
+  const res = { re, abil: new Set(abil), skill: new Set(skill), ctx: /** @type {Record<string, RegExp>} */ (ctx)[lang] };
   cache.set(cacheKey, res);
   return res;
 }
 
-function spanNode(text) {
+function spanNode(/** @type {string} */ text) {
   return { type: 'element', tagName: 'span', properties: { className: ['kw'] }, children: [{ type: 'text', value: text }] };
 }
 
+/**
+ * @param {string} value
+ * @param {{re: RegExp, abil: Set<string>, skill: Set<string>, ctx: RegExp}} m
+ */
 function highlightText(value, m) {
   m.re.lastIndex = 0;
+  /** @type {{term: string, idx: number, end: number, skill: boolean}[]} */
   const matches = [];
   let match;
   while ((match = m.re.exec(value))) {
@@ -158,12 +170,13 @@ function highlightText(value, m) {
   // связаны. Если хоть один член легитимен, подсвечиваем весь список (иначе первый после
   // «Выберите N:» и последний после «или» выпадали — issue #20). Прямой проход тянет «ок»
   // вперёд по цепочке, обратный — назад; для непрерывного списка этого достаточно.
-  const linked = (a, b) => a.skill && b.skill && SKILL_LIST_SEP.test(value.slice(a.end, b.idx));
+  const linked = (/** @type {typeof matches[0]} */ a, /** @type {typeof matches[0]} */ b) => a.skill && b.skill && SKILL_LIST_SEP.test(value.slice(a.end, b.idx));
   for (let i = 1; i < matches.length; i++)
     if (decide[i - 1] && linked(matches[i - 1], matches[i])) decide[i] = true;
   for (let i = matches.length - 2; i >= 0; i--)
     if (decide[i + 1] && linked(matches[i], matches[i + 1])) decide[i] = true;
 
+  /** @type {any[]} */
   const nodes = [];
   let last = 0;
   let changed = false;
@@ -181,10 +194,14 @@ function highlightText(value, m) {
 }
 
 // Ядро: подсвечивает ключевые слова прямо в hast-дереве. game — термсет системы (по умолчанию dnd).
+/**
+ * @param {any} tree
+ * @param {{lang: string, game?: string}} opts
+ */
 export function highlightKeywords(tree, { lang, game = 'dnd' }) {
   const m = build(game, lang);
   if (!m) return tree;
-  const walk = (node, insideSkip) => {
+  const walk = (/** @type {any} */ node, /** @type {boolean} */ insideSkip) => {
     if (!node.children) return;
     for (let i = 0; i < node.children.length; i++) {
       const child = node.children[i];
@@ -217,13 +234,13 @@ const PROSE_GATE = {
 
 // rehype-обёртка: подсветка ТОЛЬКО в разрешённых главах системы (PROSE_GATE).
 export default function rehypeKeywordHighlight() {
-  return (tree, file) => {
+  return (/** @type {any} */ tree, /** @type {any} */ file) => {
     const p = (file && (file.path || (file.history && file.history[0]))) || '';
     const norm = p.replace(/\\/g, '/');
     const m = norm.match(/\/(dnd|daggerheart|brp)\/[^/]+\/(en|ru)\//);
     if (!m) return;
     const [, game, lang] = m;
-    const gate = PROSE_GATE[game];
+    const gate = /** @type {Record<string, RegExp>} */ (PROSE_GATE)[game];
     if (!gate || !gate.test(norm)) return;
     highlightKeywords(tree, { lang, game });
   };

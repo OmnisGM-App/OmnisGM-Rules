@@ -1,0 +1,74 @@
+name: Setup web
+description: Node (+ Python) и установка зависимостей web/ — общая связка workflow (#287)
+
+# Зачем composite. Связка setup жила в четырёх workflow: полностью (setup-node + cache +
+# npm ci + setup-python) — в ci и deploy, частично — в content (голый setup-node) и
+# gen-images (setup-node + setup-python). Дублирование уже дало дрейф: node 20 в трёх
+# workflow против 22 в четвёртом — молча, потому что сравнивать было негде. Здесь версии
+# объявлены ОДИН раз, а несогласие с ними придётся написать явным input'ом.
+#
+# checkout сюда НЕ входит: у workflow разные требования к истории (сборке нужен
+# fetch-depth: 0 ради дат контента, проверке таблиц хватает мелкого клона), и спрятать это
+# различие внутрь общего шага значило бы либо тащить полную историю везде, либо тихо
+# лишить сборку дат.
+
+inputs:
+  node-version:
+    description: >-
+      Версия Node; пустая строка — Node не нужен (джоба на одном Python). По умолчанию —
+      общая для репозитория.
+    required: false
+    default: '20'
+  python-version:
+    description: >-
+      Версия Python; пустая строка — Python не нужен. По умолчанию — общая для
+      репозитория, как и у Node: канонического значения не должно быть нигде, кроме этой
+      строки, иначе повторится дрейф 20/22, только на Python (ревью #300).
+    required: false
+    default: '3.12'
+  install:
+    description: Ставить ли зависимости web/ (npm ci). Строка 'true'/'false'.
+    required: false
+    default: 'true'
+  npm-token:
+    description: >-
+      Токен для приватного @omnisgm-app/brand из GitHub Packages. Без него npm ci
+      упадёт на 401 — передавайте secrets.GITHUB_TOKEN.
+    required: false
+    default: ''
+
+runs:
+  using: composite
+  steps:
+    - if: inputs.node-version != ''
+      uses: actions/setup-node@v7
+      with:
+        node-version: ${{ inputs.node-version }}
+        # Кэш — только тем, кто реально ставит зависимости. Ключ у `setup-node` один на
+        # репозиторий (хэш `web/package-lock.json`, без имени джобы и версии Node), а
+        # ПИШЕТ его тот, кто по этому ключу промахнулся: при точном попадании пост-шаг
+        # `setup-node` печатает «Cache hit occurred on the primary key …, not saving cache»
+        # и содержимое не трогает. То есть содержимое канонического ключа задаёт первый
+        # промахнувшийся прогон. Джоба с `install: 'false'` натащила бы туда своё
+        # (markdownlint через npx, codex глобально), и дальше сборка с деплоем получали бы
+        # попадание с бесполезным содержимым — своего уже не сохранив (ревью #300).
+        cache: ${{ inputs.install == 'true' && 'npm' || '' }}
+        cache-dependency-path: ${{ inputs.install == 'true' && 'web/package-lock.json' || '' }}
+
+    - if: inputs.python-version != ''
+      uses: actions/setup-python@v7
+      with:
+        python-version: ${{ inputs.python-version }}
+
+    - if: inputs.install == 'true'
+      name: Install web deps
+      shell: bash
+      working-directory: web
+      run: npm ci
+      env:
+        NODE_AUTH_TOKEN: ${{ inputs.npm-token }}
+        # Браузеры Playwright здесь не ставятся: e2e в CI не гоняются, деплою и воркеру
+        # картинок они ни к чему, а единственному потребителю, которому браузер нужен
+        # (health.yml — проверка CSP), дешевле поставить один chromium своим шагом, чем всем
+        # остальным тащить полтораста мегабайт на прогон (#284).
+        PLAYWRIGHT_SKIP_BROWSER_DOWNLOAD: '1'

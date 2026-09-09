@@ -49,13 +49,13 @@ jobs:
         with:
           fetch-depth: 0
 
-      - uses: actions/setup-node@v7
+      # Node и Python — тем же шагом, что у остальных workflow (#287). Зависимости web
+      # воркеру не нужны: скрипт очереди — только node builtins, а данные сущностей строит
+      # python-генератор. До #287 здесь стоял node 22 против 20 у соседей — дрейф без
+      # причины: у @openai/codex требование `node >=16`.
+      - uses: ./.github/actions/setup-web
         with:
-          node-version: 22
-
-      - uses: actions/setup-python@v7
-        with:
-          python-version: '3.12'
+          install: 'false'
 
       # runner.temp недоступен в job-level env → задаём CODEX_HOME шагом.
       - name: Set CODEX_HOME
@@ -75,8 +75,11 @@ jobs:
           else
             git checkout -B images-queue origin/main
           fi
-          git checkout origin/main -- scripts/ .github/scripts/ web/scripts/
-          git restore --staged scripts/ .github/scripts/ web/scripts/ 2>/dev/null || true
+          # .github/actions/ тоже из main: Post-хук composite-экшена setup-web перечитывает
+          # action.yml из workspace В КОНЦЕ джобы — а workspace к тому моменту на images-queue,
+          # где экшена нет (ветка старше PR#300) → красный Post при зелёной генерации.
+          git checkout origin/main -- scripts/ .github/scripts/ .github/actions/ web/scripts/
+          git restore --staged scripts/ .github/scripts/ .github/actions/ web/scripts/ 2>/dev/null || true
 
       # Данные для очереди (web/src/data/api — gitignored, генерятся из тех же парсеров).
       # Зависимостей не требует: gen-entity-data.mjs — только node builtins + python3.

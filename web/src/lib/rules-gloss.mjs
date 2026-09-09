@@ -16,11 +16,11 @@ import fs from 'node:fs';
 import path from 'node:path';
 
 const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
-const verKeyOf = (version) => version.replace(/[.\-]/g, '');
-const escapeRegExp = (s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
+const verKeyOf = (/** @type {string} */ version) => version.replace(/[.\-]/g, '');
+const escapeRegExp = (/** @type {string} */ s) => s.replace(/[.*+?^${}()|[\]\\]/g, '\\$&');
 
 const SKIP_TAGS = new Set(['a', 'code', 'pre', 'kbd', 'h1', 'h2', 'h3', 'h4', 'h5', 'h6']);
-const hasSkipClass = (el) => {
+const hasSkipClass = (/** @type {any} */ el) => {
   const c = el.properties && el.properties.className;
   if (!c) return false;
   const arr = Array.isArray(c) ? c : [c];
@@ -96,25 +96,28 @@ const DH_TERMS = [
 
 const TERMS_BY_GAME = { dnd: CORE_TERMS, daggerheart: DH_TERMS };
 
-const grp = (slug) => slug.replace(/-/g, '_');
-const slugFromGroups = (groups, terms) => {
+const grp = (/** @type {string} */ slug) => slug.replace(/-/g, '_');
+const slugFromGroups = (/** @type {Record<string, string|undefined>} */ groups,
+                        /** @type {{slug: string}[]} */ terms) => {
   for (const t of terms) if (groups[grp(t.slug)] != null) return t.slug;
   return null;
 };
 
+/** @type {Map<string, any>} */
 const cache = new Map();
 
-function loadGloss(game, version, lang) {
+function loadGloss(/** @type {string} */ game, /** @type {string} */ version, /** @type {string} */ lang) {
   const cacheKey = `${game}/${version}/${lang}`;
   if (cache.has(cacheKey)) return cache.get(cacheKey);
   const verKey = verKeyOf(version);
-  const read = (res) => {
+  const read = (/** @type {string} */ res) => {
     try { return JSON.parse(fs.readFileSync(path.join(DATA_ROOT, game, verKey, lang, res, 'all.json'), 'utf8')); }
     catch { return null; }
   };
   // Действия: имя → slug + альтернация (юникод-границы; ASCII \b ломает кириллицу).
   const actionsData = read('actions');
   let actionRe = null;
+  /** @type {Map<string, string>} */
   const actionByName = new Map();
   if (actionsData) {
     for (const e of actionsData) if (e && e.name && e.slug) actionByName.set(e.name, e.slug);
@@ -131,20 +134,21 @@ function loadGloss(game, version, lang) {
   // ресурса rules-terms у версии: иначе data-hc указывал бы в пустой бакет («мёртвая»
   // подсказка). В D&D 5.1 rules-terms нет → gloss ядра выключен. Наборы разных игр не
   // пересекаются (изоляция бакетов game/ver/lang → подсказки не смешиваются).
-  const terms = TERMS_BY_GAME[game] || [];
+  const terms = /** @type {Record<string, {slug: string, en: string, ru: string}[]>} */ (TERMS_BY_GAME)[game] || [];
   let coreRe = null;
   // termSlugs — слаги, реально присутствующие в rules-terms версии. Глоссим ТОЛЬКО их: если у
   // версии нет карточки для терма (частичный глоссарий, напр. 5.1), span не создаётся — иначе
   // была бы «мёртвая» подсказка в пустой бакет. Для 5.2 набор полный → поведение не меняется.
+  /** @type {Set<string>|null} */
   let termSlugs = null;
   const rtData = read('rules-terms');
   if (terms.length && rtData) {
-    termSlugs = new Set(rtData.map((e) => e && e.slug).filter(Boolean));
+    termSlugs = new Set(rtData.map((/** @type {any} */ e) => e && e.slug).filter(Boolean));
     // В альтернацию берём только термы, у которых есть карточка (иначе матч → мёртвый span).
-    const present = terms.filter((t) => termSlugs.has(t.slug));
+    const present = terms.filter((t) => termSlugs?.has(t.slug));
     if (present.length) {
       const field = lang === 'en' ? 'en' : 'ru';
-      const parts = present.map((t) => `(?<${grp(t.slug)}>${t[field]})`).join('|');
+      const parts = present.map((t) => `(?<${grp(t.slug)}>${field === 'en' ? t.en : t.ru})`).join('|');
       const flags = lang === 'en' ? 'gu' : 'giu';
       coreRe = new RegExp(`(?<![\\p{L}\\p{N}_])(?:${parts})(?![\\p{L}\\p{N}_])`, flags);
     }
@@ -155,6 +159,12 @@ function loadGloss(game, version, lang) {
   return res;
 }
 
+/**
+ * @param {string} term
+ * @param {string} slug
+ * @param {string} resource
+ * @param {{game: string, lang: string, verKey: string}} ctx
+ */
 function glossNode(term, slug, resource, ctx) {
   return {
     type: 'element',
@@ -168,12 +178,20 @@ function glossNode(term, slug, resource, ctx) {
   };
 }
 
+/**
+ * @param {string} value
+ * @param {any} map
+ * @param {string} lang
+ * @param {{game: string, lang: string, verKey: string}} ctx
+ */
 function glossText(value, map, lang, ctx) {
-  const spans = []; // { idx, end, term, slug, resource }
+  /** @type {{idx: number, end: number, term: string, slug: string, resource: string}[]} */
+  const spans = [];
   // Действия — с контекст-гейтом.
   if (map.actionRe) {
     map.actionRe.lastIndex = 0;
-    const after = AFTER_CTX[lang], before = BEFORE_CTX[lang];
+    const after = /** @type {Record<string, RegExp|null>} */ (AFTER_CTX)[lang];
+    const before = /** @type {Record<string, RegExp|null>} */ (BEFORE_CTX)[lang];
     let m;
     while ((m = map.actionRe.exec(value))) {
       const term = m[1], idx = m.index, end = idx + term.length;
@@ -215,11 +233,15 @@ function glossText(value, map, lang, ctx) {
 }
 
 // Ядро: глоссит термины прямо в hast-дереве. Для глав (rehype) и страниц сущностей (render()).
+/**
+ * @param {any} tree
+ * @param {{game: string, version: string, lang: string}} ctx
+ */
 export function glossRules(tree, { game, version, lang }) {
   const map = loadGloss(game, version, lang);
   if (!map) return tree;
   const ctx = { game, lang, verKey: map.verKey };
-  const walk = (node, skip) => {
+  const walk = (/** @type {any} */ node, /** @type {boolean} */ skip) => {
     if (!node.children) return;
     for (let i = 0; i < node.children.length; i++) {
       const child = node.children[i];
@@ -240,7 +262,7 @@ export function glossRules(tree, { game, version, lang }) {
 
 // rehype-обёртка для глав. Порядок в pipeline — ПОСЛЕ автолинка/подсветки (они в SKIP).
 export default function rehypeRulesGloss() {
-  return (tree, file) => {
+  return (/** @type {any} */ tree, /** @type {any} */ file) => {
     const p = (file && (file.path || (file.history && file.history[0]))) || '';
     const m = p.replace(/\\/g, '/').match(/\/(dnd|daggerheart|brp)\/([^/]+)\/(en|ru)\//);
     if (!m) return;

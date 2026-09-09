@@ -12,7 +12,11 @@ import { execFileSync } from 'node:child_process';
 
 const WANT = '.githooks';
 
-/** Значение git-конфига или null. */
+/**
+ * Значение git-конфига или null.
+ * @param {string} key
+ * @returns {string|null}
+ */
 function config(key) {
   try {
     return execFileSync('git', ['config', '--get', key], { encoding: 'utf8' }).trim() || null;

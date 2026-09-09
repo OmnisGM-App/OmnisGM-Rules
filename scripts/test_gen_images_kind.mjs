@@ -4,14 +4,15 @@
 import { nextKind, emptyKinds, orderProblems, ORDER, KINDS } from './gen-images.mjs';
 
 let failed = 0;
-const eq = (actual, expected, what) => {
+const eq = (/** @type {unknown} */ actual, /** @type {unknown} */ expected, /** @type {string} */ what) => {
   if (actual !== expected) {
     failed++;
     console.error(`  ✗ ${what}\n      ожидалось «${expected}», получено «${actual}»`);
   }
 };
 
-const rows = (...pairs) => pairs.map(([kind, left]) => ({ kind, left, total: left + 10 }));
+const rows = (/** @type {[string, number][]} */ ...pairs) =>
+  pairs.map(([kind, left]) => ({ kind, left, total: left + 10 }));
 
 // Основной сценарий #291: очередь первого вида закрыта, работа есть у следующего.
 eq(nextKind(rows(['spells', 0], ['magic-items', 377], ['gear', 480])), 'magic-items',
@@ -29,7 +30,8 @@ eq(nextKind(rows(['spells', 0], ['magic-items', 0], ['gear', 3])), 'gear',
 // Пустая очередь — не «закрытая»: ноль в РАЗМЕРЕ списка значит, что данных нет вовсе.
 // Пары задаём явными total: helper `rows` даёт total = left + 10 и нулевого размера не
 // строит по построению.
-const sized = (...triples) => triples.map(([kind, left, total]) => ({ kind, left, total }));
+const sized = (/** @type {[string, number, number][]} */ ...triples) =>
+  triples.map(([kind, left, total]) => ({ kind, left, total }));
 eq(emptyKinds(sized(['spells', 0, 0], ['magic-items', 377, 383])).join(','), 'spells',
    'вид без данных назван, соседний с данными — нет');
 // Ровно тот вариант, что был отклонён в #292: у части видов очередь идёт из markdown и
@@ -50,7 +52,7 @@ if (problem) {
   console.error(`  ✗ ${problem}`);
 }
 const forgotten = Object.keys(KINDS).filter((k) => !ORDER.includes(k));
-const unknown = ORDER.filter((k) => !KINDS[k]);
+const unknown = ORDER.filter((k) => !(/** @type {Record<string, unknown>} */ (KINDS)[k]));
 if (forgotten.length || unknown.length) {
   failed++;
   console.error(`  ✗ ORDER и KINDS разошлись: нет в порядке — ${forgotten.join(', ') || '—'}, ` +

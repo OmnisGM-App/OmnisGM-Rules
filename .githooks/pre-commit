@@ -3,7 +3,8 @@
 # Быстрые гейты перед коммитом (#283). Донор — table/.githooks/pre-commit, но проверка
 # другая: там сборка ловит SCSS, который тайпчеку не виден, а здесь дорогого эквивалента
 # нет — `astro build` идёт минуты, и хук такой цены не стоит. Поэтому: `astro check`,
-# `tsc` по скриптам и e2e, node-юниты и python-гейты — всё вместе около пятнадцати секунд.
+# `tsc` по скриптам, `web/src/lib` и e2e, node-юниты и python-гейты — всё вместе около
+# пятнадцати секунд.
 #
 # Хук ЗАВИСИТ ОТ ТОГО, ЧТО ТРОНУТО: правка документации и рабочих заметок проходит
 # мгновенно — её не проверяет ни один гейт. А вот markdown КОРПУСА (`src/**/*.md`) поднимает
@@ -25,9 +26,14 @@ changed=$(git diff --cached --name-only --diff-filter=ACMRD)
 
 web_touched=$(printf '%s\n' "$changed" | grep -E '^web/(src|scripts|e2e)/|^web/[^/]+\.(ts|json|mjs)$' || true)
 py_touched=$(printf '%s\n' "$changed" | grep -E '^\.github/scripts/|^\.claude/skills/|^src/.*\.md$' || true)
-node_touched=$(printf '%s\n' "$changed" | grep -E '^scripts/.*\.mjs$|^package\.json$|^\.github/workflows/ci\.yml$' || true)
+node_touched=$(printf '%s\n' "$changed" | grep -E '^scripts/.*\.mjs$|^package\.json$|^\.github/(workflows|actions)/' || true)
+# Документация и скиллы — тоже вход гейта: `scripts/test_doc_links.mjs` сверяет названный в
+# них инструментарий с деревом (#296). Класс правок, ради которого гейт заведён («снесли
+# скрипт, поправили доки»), не задевает ни один путь выше, и локально хук молчал бы —
+# красное приезжало бы только из CI (ревью #314).
+docs_touched=$(printf '%s\n' "$changed" | grep -E '^documentation/|^CLAUDE\.md$|^README\.md$|^\.claude/(skills|rules)/' || true)
 
-[ -z "$web_touched" ] && [ -z "$py_touched" ] && [ -z "$node_touched" ] && exit 0
+[ -z "$web_touched" ] && [ -z "$py_touched" ] && [ -z "$node_touched" ] && [ -z "$docs_touched" ] && exit 0
 
 # Инструмента может не быть в PATH — GUI-клиент git, nvm без обвязки shell. Без этой
 # проверки `npm: not found` уходил бы в /dev/null и печатался как «гейты упали», то есть
@@ -55,7 +61,7 @@ if [ -n "$py_touched" ]; then
   npm run --silent test:unit:py >/dev/null 2>&1 || fail "python-гейты упали" "npm run test:unit:py"
 fi
 
-if [ -n "$node_touched" ] || [ -n "$web_touched" ]; then
+if [ -n "$node_touched" ] || [ -n "$web_touched" ] || [ -n "$docs_touched" ]; then
   echo "pre-commit: node-юниты…"
   npm run --silent test:unit >/dev/null 2>&1 || fail "node-юниты упали" "npm run test:unit"
   npm run --silent test:agenda >/dev/null 2>&1 || fail "агрегатор разошёлся с ci.yml" "npm run test:agenda"
@@ -71,7 +77,7 @@ if [ -n "$web_touched" ]; then
   fi
   echo "pre-commit: astro check + tsc…"
   npm run --silent check >/dev/null 2>&1 || fail "astro check упал" "npm run check"
-  npm run --silent lint:tools >/dev/null 2>&1 || fail "tsc по скриптам и e2e упал" "npm run lint:tools"
+  npm run --silent lint:tools >/dev/null 2>&1 || fail "tsc по скриптам, web/src/lib и e2e упал" "npm run lint:tools"
   # Гейт литеральных адресов — сюда, а не в агрегатор: он требует `@omnisgm-app/core`, то
   # есть в свежем worktree упал бы раньше проверки `web/node_modules`. А ловит он ровно тот
   # класс правок, что стоит в этой ветке — литерал порта в e2e (#252, ревью #299).
