@@ -52,6 +52,19 @@ test('клавиатурный фокус открывает карточку и
   await expect(link).not.toHaveAttribute('aria-describedby', 'ent-hovercard');
 });
 
+// Клавиатурный фокус после нажатия клавиши. НЕ страж запрета тач-показа (#308): в этом файле
+// проект только десктопный, `lastInput === 'touch'` там недостижим, и тест зелен независимо от
+// слушателя `keydown` — проверено мутацией (ревью #316). Настоящий страж той ветки живёт в
+// `mobile-controls.spec.ts`, где тач есть. Здесь — обычная проверка, что путь через клавиатуру
+// работает и после нажатия клавиши, а не только при программном `focus()`.
+test('фокус после клавиатурного ввода открывает карточку', async ({ page }) => {
+  await page.goto(CHAPTER);
+  const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
+  await page.keyboard.press('Tab');
+  await link.focus();
+  await expect(page.locator('#ent-hovercard')).toBeVisible();
+});
+
 test('карточка скрывается, когда курсор уходит со ссылки', async ({ page }) => {
   await page.goto(CHAPTER);
   const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();

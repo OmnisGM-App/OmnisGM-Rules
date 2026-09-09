@@ -12,5 +12,21 @@ import type { Page } from '@playwright/test';
  */
 export const NARROW_MAX = 820;
 
+/**
+ * Ширина, ниже которой поле поиска в баре сменяется кнопкой-лупой.
+ *
+ * Порог СВОЙ и он шире навигационного — и относится ТОЛЬКО к поиску: `@media (max-width: 920px)`
+ * в `reader.css` прячет `.rd-bar-actions .rd-search-slot` и показывает `.rd-act-search`, и
+ * больше в этом блоке нет ничего. Вкладки систем меняются на `<select class="rd-sysmenu">` в
+ * СОСЕДНЕМ блоке, на 820 — вместе с остальной мобильной раскладкой (см. `NARROW_MAX`). Между
+ * 821 и 920 бар уже свёрнут по поиску, но навигация и системы ещё десктопные, поэтому предикат
+ * здесь ровно один и узкий (#308; путаницу поймало ревью #316).
+ */
+export const BAR_COMPACT_MAX = 920;
+
 /** Узкая ли раскладка у страницы — по её фактическому вьюпорту. */
 export const isNarrow = (page: Page) => (page.viewportSize()?.width ?? 0) <= NARROW_MAX;
+
+/** Свёрнут ли поиск в баре до кнопки-лупы. */
+export const isSearchCollapsed = (page: Page) =>
+  (page.viewportSize()?.width ?? 0) <= BAR_COMPACT_MAX;
