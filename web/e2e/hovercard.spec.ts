@@ -52,6 +52,18 @@ test('клавиатурный фокус открывает карточку и
   await expect(link).not.toHaveAttribute('aria-describedby', 'ent-hovercard');
 });
 
+// Страж того, что запрет тач-показа (#308) не съел клавиатурный путь: он различает ИСТОЧНИК
+// последнего ввода, и после нажатия клавиши фокус обязан открывать карточку по-прежнему.
+// Соседний тест выше фокусирует программно (`lastInput` там остаётся исходным), то есть эту
+// ветку не проходит вовсе.
+test('фокус после клавиатурного ввода открывает карточку', async ({ page }) => {
+  await page.goto(CHAPTER);
+  const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
+  await page.keyboard.press('Tab');
+  await link.focus();
+  await expect(page.locator('#ent-hovercard')).toBeVisible();
+});
+
 test('карточка скрывается, когда курсор уходит со ссылки', async ({ page }) => {
   await page.goto(CHAPTER);
   const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
