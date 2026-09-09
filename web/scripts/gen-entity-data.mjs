@@ -41,7 +41,8 @@ for (const { game, srcRoot } of GAMES) {
       { stdio: 'inherit' },
     );
   } catch (err) {
-    console.error(`[gen-entity-data] generation failed (${game}):`, err.message);
+    console.error(`[gen-entity-data] generation failed (${game}):`,
+                  err instanceof Error ? err.message : err);
     process.exit(1);
   }
 }

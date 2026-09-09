@@ -74,6 +74,10 @@ const SLACK = 25;
 const MIN_COVERAGE = 0.9;
 
 // Рекурсивный обход dist в поисках index.html.
+/**
+ * @param {string} dir
+ * @returns {Generator<string>}
+ */
 function* htmlFiles(dir) {
   for (const e of readdirSync(dir, { withFileTypes: true })) {
     const p = resolve(dir, e.name);
@@ -84,8 +88,8 @@ function* htmlFiles(dir) {
 
 // Мини-декод HTML-сущностей: в атрибуте description Astro экранирует &#38; и т.п.,
 // а сравнивать дубли нужно по тексту, а не по экранированию.
-const decode = (s) =>
-  s.replace(/&#(\d+);/g, (_, d) => String.fromCharCode(+d))
+const decode = (/** @type {string} */ s) =>
+  s.replace(/&#(\d+);/g, (/** @type {string} */ _, /** @type {string} */ d) => String.fromCharCode(+d))
     .replace(/&amp;/g, '&').replace(/&quot;/g, '"')
     .replace(/&lt;/g, '<').replace(/&gt;/g, '>');
 
@@ -138,14 +142,14 @@ for (const file of htmlFiles(DIST)) {
       brokenArticles.push({ page, why: 'JSON-LD не парсится' });
     }
     const nodes = graph?.['@graph'] ?? [];
-    const article = nodes.find((n) => n['@type'] === 'Article');
-    const org = nodes.find((n) => n['@type'] === 'Organization');
+    const article = nodes.find((/** @type {any} */ n) => n['@type'] === 'Article');
+    const org = nodes.find((/** @type {any} */ n) => n['@type'] === 'Organization');
     if (org && !(Array.isArray(org.sameAs) && org.sameAs.length)) {
       brokenArticles.push({ page, why: 'Organization без sameAs' });
     }
-    const crumbs = nodes.find((n) => n['@type'] === 'BreadcrumbList');
+    const crumbs = nodes.find((/** @type {any} */ n) => n['@type'] === 'BreadcrumbList');
     if (crumbs) {
-      crumbTrails.push({ page, urls: (crumbs.itemListElement ?? []).map((i) => i.item) });
+      crumbTrails.push({ page, urls: (crumbs.itemListElement ?? []).map((/** @type {any} */ i) => i.item) });
     }
     if (article) {
       withArticle++;
@@ -189,8 +193,9 @@ const dupTitleGroups = [...byTitle.entries()].filter(([, v]) => v.length > 1);
 const dupTitlePages = dupTitleGroups.reduce((n, [, v]) => n + v.length, 0);
 
 // Раздел = первые 4 сегмента пути (/ru/dnd/srd-5.2/monsters-a-z) — для внятного отчёта.
-const section = (p) => p.split('/').slice(1, 5).join('/');
-const bySection = (list) => {
+const section = (/** @type {string} */ p) => p.split('/').slice(1, 5).join('/');
+const bySection = (/** @type {string[]} */ list) => {
+  /** @type {Map<string, number>} */
   const c = new Map();
   for (const p of list) c.set(section(p), (c.get(section(p)) ?? 0) + 1);
   return [...c.entries()].sort((a, b) => b[1] - a[1]);
@@ -205,10 +210,11 @@ console.log(`  Article в JSON-LD: ${withArticle} страниц, неполны
 console.log(`  <h1>: без заголовка ${noHeading.length}, с несколькими ${manyHeadings.length} (бюджет 0/0)`);
 console.log(`  BreadcrumbList: ${crumbTrails.length} страниц, дублей URL в трейле ${crumbDup.length}, ссылок в никуда ${crumbDead.length} (бюджет 0/0)`);
 
+/** @type {string[]} */
 const errors = [];
 
 // Сначала — покрытие: без него все числа ниже бессмысленны.
-for (const [what, found] of [['description', withDescription], ['<title>', withTitle]]) {
+for (const [what, found] of /** @type {[string, number][]} */ ([['description', withDescription], ['<title>', withTitle]])) {
   const share = pages ? found / pages : 0;
   if (share < MIN_COVERAGE) {
     errors.push(

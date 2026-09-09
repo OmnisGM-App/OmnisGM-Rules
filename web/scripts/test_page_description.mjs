@@ -15,12 +15,14 @@ import {
   pageDescription,
 } from '../src/lib/page-description.mjs';
 
+/** @type {string[]} */
 const failures = [];
-const check = (name, got, want) => {
+const check = (/** @type {string} */ name, /** @type {unknown} */ got, /** @type {unknown} */ want) => {
   const ok = JSON.stringify(got) === JSON.stringify(want);
   if (!ok) failures.push(`${name}: получили ${JSON.stringify(got)}, ожидали ${JSON.stringify(want)}`);
 };
-const checkFn = (name, got, pred, why) => {
+const checkFn = (/** @type {string} */ name, /** @type {string} */ got,
+                 /** @type {(s: string) => boolean} */ pred, /** @type {string} */ why) => {
   if (!pred(got)) failures.push(`${name}: ${why}; получили ${JSON.stringify(got)}`);
 };
 
@@ -129,7 +131,7 @@ const longOut = pageDescription({ name: 'T', body: long, ...SYS });
 checkFn('не длиннее 160', longOut, (s) => s.length <= 160, 'описание переросло 160 символов');
 checkFn('обрезка не рвёт слово', longOut, (s) => {
   if (!s.endsWith('…')) return false; // текст длиннее бюджета — обрезка обязана случиться
-  const last = s.replace(/…$/, '').split(' ').pop();
+  const last = s.replace(/…$/, '').split(' ').pop() ?? '';
   return words.includes(last);
 }, 'последнее слово обрезано посреди себя');
 
