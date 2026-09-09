@@ -781,20 +781,20 @@ const searchUi = {
   // Цели hovercard: автоссылки (a.ent-link) и глоссарные термины без страницы (span.gloss).
   const HC_SEL = 'a.ent-link[data-hc], .gloss[data-hc]';
 
-  // Чем вызван последний фокус. Гейта по `pointerType` мало: тап по цели ещё и ФОКУСИРУЕТ её
-  // (у `.gloss` для клавиатуры стоит tabindex=0), а у `focusin` никакого pointerType нет —
-  // карточка на телефоне открывалась вторым путём, мимо запрета. Поймано тестом #308.
-  // Клавиатурный путь при этом обязан жить: focus-показ — единственный способ прочитать
-  // карточку без мыши, поэтому запоминаем ИСТОЧНИК, а не глушим focusin целиком.
-  let lastInput: 'touch' | 'pointer' | 'key' = 'pointer';
-  document.addEventListener('pointerdown', (e) => {
-    lastInput = (e as PointerEvent).pointerType === 'touch' ? 'touch' : 'pointer';
-  }, { passive: true, capture: true });
-  document.addEventListener('keydown', () => { lastInput = 'key'; }, { capture: true });
-
+  // Тач и hovercard — правило целиком в строке ниже: на тач-вводе `pointerover` показа не
+  // даёт (#308, уточнено ревью #316).
+  //
+  // Второго пути у ССЫЛОК нет: тап по `<a>` их не фокусирует ни в Chromium, ни в WebKit,
+  // поэтому `focusin` для них на тапе не наступает вовсе — проверено мутацией в обоих
+  // движках. А `.gloss` тап ФОКУСИРУЕТ (у него `tabindex=0` ради клавиатуры), и карточка
+  // через `focusin` открывается — это НЕ дефект: страницы у термина нет, перехватывать
+  // тапом нечего, и на телефоне это единственный способ прочитать определение.
+  //
+  // Запрет по «источнику последнего ввода», который я поставил здесь в первой редакции
+  // #308, делал ровно обратное: для ссылок был мёртвым кодом, а термины на тач-устройствах
+  // убивал совсем — ни карточки, ни перехода. Снят (ревью #316).
   const onEnter = (e: Event) => {
     if ('pointerType' in e && (e as PointerEvent).pointerType === 'touch') return; // тач — навигация тапом
-    if (e.type === 'focusin' && lastInput === 'touch') return; // фокус от тапа — тоже не показ
     const a = (e.target as Element)?.closest?.(HC_SEL) as HTMLElement | null;
     if (!a || a === current) return;
     clearTimeout(showTimer);

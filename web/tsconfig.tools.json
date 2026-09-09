@@ -58,7 +58,7 @@
     "scripts/check_csp.mjs",
     "scripts/verify_no_hardcoded_urls.mjs"
   ],
-  // …а вот e2e — маской: спеков 35 (плюс `global-setup.ts` и `ports.ts` — не спеки, но той
+  // …а вот e2e — маской: спеков три с половиной десятка (плюс `global-setup.ts` и `ports.ts` — не спеки, но той
   // же маской), они приходят и уходят пачками, и требовать поимённого списка здесь значило
   // бы ломать гейт на каждом новом файле.
   "include": ["playwright.config.ts", "e2e/**/*.ts"]
