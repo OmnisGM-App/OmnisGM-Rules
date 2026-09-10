@@ -1,25 +1,25 @@
-// Копирует бренд-иконки из @omnisgm-app/brand в public/ — единый источник (кит).
-// Запускается на predev/prebuild. og.png остаётся per-app (свой текст), не трогаем.
-import { copyFileSync, mkdirSync, readdirSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
+// Раскладка ассетов кита в public/ — обёртка над @omnisgm-app/brand/copy-assets (Core#1).
+//
+// Копирование жило тремя копиями (Table, News, здесь) и разошлось не только картой имён, но и
+// механикой: Table резолвил ассеты через `require.resolve` (в workspaces кит hoist'ится в
+// корневой node_modules), а здесь путь `node_modules/@omnisgm-app/brand/assets` складывался
+// руками — то есть работало ровно до первого переезда в workspace. Теперь копирует кит, и
+// резолва у потребителя нет вовсе: файлы считаются от модуля изнутри пакета.
+//
+// ОСТАЛОСЬ ЗДЕСЬ: карта имён и решение про 404. Имена у нас канонические — переименований нет,
+// в отличие от Table с его `pwa-512x512.png`.
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
+import { copyBrandAssets } from '@omnisgm-app/brand/copy-assets';
 
-const root = join(dirname(fileURLToPath(import.meta.url)), '..');
-const src = join(root, 'node_modules', '@omnisgm-app', 'brand', 'assets');
-const pub = join(root, 'public');
-mkdirSync(pub, { recursive: true });
-
-const FILES = [
-  'favicon.svg', 'favicon.ico', 'icon.svg', 'maskable.svg',
-  'icon-192.png', 'icon-512.png', 'maskable-192.png', 'maskable-512.png', 'apple-touch-icon.png',
-];
-for (const f of FILES) copyFileSync(join(src, f), join(pub, f));
-console.log(`✓ бренд-иконки скопированы из @omnisgm-app/brand (${FILES.length} файлов)`);
-
-// Шрифты (self-host, #10): assets/fonts/*.woff2 → public/fonts/ (fonts.css ссылается на /fonts/*).
-const fontsSrc = join(src, 'fonts');
-const fontsDest = join(pub, 'fonts');
-mkdirSync(fontsDest, { recursive: true });
-const woff2 = readdirSync(fontsSrc).filter((f) => f.endsWith('.woff2'));
-for (const f of woff2) copyFileSync(join(fontsSrc, f), join(fontsDest, f));
-console.log(`✓ шрифты скопированы из @omnisgm-app/brand (${woff2.length} woff2) → public/fonts/`);
+copyBrandAssets({
+  publicDir: join(dirname(fileURLToPath(import.meta.url)), '..', 'public'),
+  // og.png остаётся per-app (свой текст), поэтому кит его не отдаёт и здесь его нет.
+  icons: [
+    'favicon.svg', 'favicon.ico', 'icon.svg', 'maskable.svg',
+    'icon-192.png', 'icon-512.png', 'maskable-192.png', 'maskable-512.png', 'apple-touch-icon.png',
+  ],
+  // 404 кита НЕ берём: у нас своя `src/pages/404.astro` с навигацией сайта, а самодостаточный
+  // HTML кита рассчитан на продукт без своей вёрстки.
+  notFound: false,
+});
