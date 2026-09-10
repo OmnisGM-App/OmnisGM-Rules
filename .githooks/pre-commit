@@ -67,22 +67,33 @@ if [ -n "$node_touched" ] || [ -n "$web_touched" ] || [ -n "$docs_touched" ]; th
   npm run --silent test:agenda >/dev/null 2>&1 || fail "агрегатор разошёлся с ci.yml" "npm run test:agenda"
 fi
 
-# Тайпчек — только когда тронут сам web: в свежем worktree (`git worktree add`) зависимостей
-# нет, и `astro check` упал бы «astro: not found», то есть хук блокировал бы коммит по причине,
-# к правке отношения не имеющей. Молча не пропускаем: тихий пропуск хуже отсутствия хука.
-if [ -n "$web_touched" ]; then
+# Тайпчек — когда тронут web ИЛИ корневые скрипты: `web/tsconfig.tools.json` покрывает и
+# `../scripts/*.mjs` (полноту этого покрытия держит `scripts/test_tools_scope.mjs`), а ветка
+# node-юнитов тайпчек не звала — правка корневого скрипта уезжала в CI и краснела там на
+# `TS7006`, хотя локально всё было зелёным (ревью #324, на нём и поймано).
+#
+# Почему не всегда: в свежем worktree (`git worktree add`) зависимостей нет, и `astro check`
+# упал бы «astro: not found», то есть хук блокировал бы коммит по причине, к правке отношения
+# не имеющей. Молча не пропускаем: тихий пропуск хуже отсутствия хука.
+root_scripts=$(printf '%s\n' "$changed" | grep -E '^scripts/.*\.mjs$' || true)
+if [ -n "$web_touched" ] || [ -n "$root_scripts" ]; then
   if [ ! -d web/node_modules ]; then
     echo "pre-commit: web/node_modules нет — тайпчек ПРОПУЩЕН (сделай npm ci --prefix web)"
     exit 0
   fi
-  echo "pre-commit: astro check + tsc…"
-  npm run --silent check >/dev/null 2>&1 || fail "astro check упал" "npm run check"
+  echo "pre-commit: tsc по скриптам, web/src/lib и e2e…"
   npm run --silent lint:tools >/dev/null 2>&1 || fail "tsc по скриптам, web/src/lib и e2e упал" "npm run lint:tools"
-  # Гейт литеральных адресов — сюда, а не в агрегатор: он требует `@omnisgm-app/core`, то
-  # есть в свежем worktree упал бы раньше проверки `web/node_modules`. А ловит он ровно тот
-  # класс правок, что стоит в этой ветке — литерал порта в e2e (#252, ревью #299).
-  node web/scripts/verify_no_hardcoded_urls.mjs >/dev/null 2>&1 \
-    || fail "литеральные адреса в e2e" "node web/scripts/verify_no_hardcoded_urls.mjs"
+
+  # Остальное — только про сам web, и гонять его на правке корневого скрипта незачем.
+  if [ -n "$web_touched" ]; then
+    echo "pre-commit: astro check…"
+    npm run --silent check >/dev/null 2>&1 || fail "astro check упал" "npm run check"
+    # Гейт литеральных адресов — сюда, а не в агрегатор: он требует `@omnisgm-app/core`, то
+    # есть в свежем worktree упал бы раньше проверки `web/node_modules`. А ловит он ровно тот
+    # класс правок, что стоит в этой ветке — литерал порта в e2e (#252, ревью #299).
+    node web/scripts/verify_no_hardcoded_urls.mjs >/dev/null 2>&1 \
+      || fail "литеральные адреса в e2e" "node web/scripts/verify_no_hardcoded_urls.mjs"
+  fi
 fi
 
 exit 0

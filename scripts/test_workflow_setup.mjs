@@ -115,6 +115,12 @@ export function yamlTraps(text) {
   return found;
 }
 
+/**
+ * Джобы файла: имя → есть ли у неё timeout-minutes. Бросает, если форма непонятна.
+ *
+ * @param {string} text
+ * @returns {{jobs: Map<string, boolean>, problem: string|null}}
+ */
 export function jobsOf(text) {
   const jobs = new Map();
   // `jobs:` бывает и самой первой строкой (в самопроверках — всегда), поэтому ищем обе формы.
