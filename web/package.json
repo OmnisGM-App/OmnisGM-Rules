@@ -24,7 +24,7 @@
     "@astrojs/sitemap": "^3.7.4",
     "@omnisgm-app/brand": "^0.11.1",
     "@omnisgm-app/core": "^0.4.0",
-    "astro": "^5.7.0",
+    "astro": "^7.3.1",
     "hast-util-from-html": "^2.0.3",
     "hast-util-to-html": "^9.0.5",
     "marked": "^18.0.11"
