@@ -9,6 +9,11 @@
 // только на эдже — Cloudflare вставляет свой beacon (static.cloudflareinsights.com) в HTML
 // браузерным запросам, в origin-ответе его нет. Локальный прогон такое не поймает никогда.
 //
+// Молчаливая слепота, из-за которой скрипт два дня печатал «нарушений нет» при 21 живом
+// нарушении (#325): на машине с адблоком `mc.yandex.ru` не резолвится вовсе, Метрика не
+// стартует — и нарушать нечего. Поэтому загрузка счётчика теперь ПРОВЕРЯЕТСЯ: без неё
+// вердикт объявляется неполным, а в CI (адблока там нет) это красное.
+//
 //   node scripts/check_csp.mjs                      # прод
 //   node scripts/check_csp.mjs http://localhost:4321 # локальная сборка (CSP подставим сами)
 //   4321 — порт слота 0; при OMNISGM_SLOT=N preview слушает 4321 + N*10 (см. e2e/ports.ts)
@@ -59,6 +64,20 @@ const violationsOf = (page) =>
   page.evaluate(() => /** @type {any} */ (window).__cspViolations ?? []);
 
 const context = await browser.newContext();
+
+// Загрузился ли счётчик. Считаем по УСПЕШНОМУ ответу его хоста, а не по факту запроса:
+// адблок режет запрос на резолве, и «запрос был» — не то же самое, что «скрипт выполнился».
+const analytics = { loaded: new Set(), failed: new Map() };
+const isCounter = (/** @type {string} */ url) => /^https:\/\/(mc\.yandex\.[a-z]+|www\.googletagmanager\.com)\//.test(url);
+context.on('response', (r) => {
+  if (isCounter(r.url()) && r.status() < 400) analytics.loaded.add(new URL(r.url()).host);
+});
+context.on('requestfailed', (r) => {
+  // Причину запоминаем ПЕРВУЮ: оффлайн-прогон ниже сам рвёт сеть, и его
+  // `ERR_INTERNET_DISCONNECTED` затёр бы настоящую («адблок режет хост»).
+  const host = isCounter(r.url()) ? new URL(r.url()).host : null;
+  if (host && !analytics.failed.has(host)) analytics.failed.set(host, r.failure()?.errorText ?? 'неизвестно');
+});
 // Слушатель ставится до любых скриптов страницы — иначе ранние нарушения не увидим.
 await context.addInitScript(() => {
   // Каст двойной, и второй слой обязателен: `any` на `window` делает `any` ВСЮ цепочку, и
@@ -135,9 +154,24 @@ for (const p of PAGES) {
 all.push(...(await offlineRun()));
 await browser.close();
 
-if (!all.length) {
-  console.log('\n✓ Нарушений CSP нет — политику можно держать в enforce.');
+// Счётчики, которых не было в эфире, из вердикта НЕ выпадают молча: их источники не
+// проверены ничем, и «нарушений нет» про них ничего не значит (#325).
+const silent = ['mc.yandex.ru', 'www.googletagmanager.com'].filter((h) => !analytics.loaded.has(h));
+if (silent.length) {
+  const why = silent.map((h) => `${h} (${analytics.failed.get(h) ?? 'ответа не было'})`).join(', ');
+  console.error(`\n⚠ Аналитика не загрузилась: ${why}`);
+  console.error('  Её источники этим прогоном НЕ проверены. Обычная причина локально — адблок;');
+  console.error('  в CI адблока нет, поэтому там это поломка сниппета или недоступность сервиса.');
+}
+const silentIsFatal = silent.length > 0 && !!process.env.CI;
+
+if (!all.length && !silentIsFatal) {
+  console.log(`\n✓ Нарушений CSP нет${silent.length ? ' среди проверенного (см. предупреждение выше)' : ' — политику можно держать в enforce.'}`);
   process.exit(0);
+}
+if (!all.length) {
+  console.error('\n❌ Вердикт неполон в CI — считаем красным.');
+  process.exit(1);
 }
 // Группируем по «директива + хост»: один и тот же источник обычно бьётся на всех страницах.
 const groups = new Map();
