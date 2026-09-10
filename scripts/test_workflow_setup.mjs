@@ -80,6 +80,41 @@ export function versionLiterals(/** @type {string} */ text) {
  * @param {string} text
  * @returns {{jobs: Map<string, boolean>, problem: string|null}}
  */
+/**
+ * Ловушка YAML в прозаических значениях: незакавыченный скаляр с `: ` внутри.
+ *
+ * Ровно на этом я сломал `ci.yml` (ревью #324): шаг назвали «Unit — размер в прозе: формы
+ * границы, счёт, канон категорий», и файл перестал разбираться — `mapping values are not
+ * allowed here`. Локально это не видно ничем: соседние гейты читают workflow ПОСТРОЧНО
+ * регулярками, и невалидный YAML им безразличен; а GitHub на таком файле печатает прогон с
+ * именем «.github/workflows/ci.yml» вместо `name:` и красит его — понять причину можно только
+ * по этому странному имени.
+ *
+ * Проверяются только прозаические ключи (`name`, `description`): именно туда пишут текст с
+ * двоеточием. `run:` не проверяется намеренно — там двоеточия законны (`echo "a: b"`), а
+ * многострочные блоки `|` экранируют всё сами.
+ *
+ * @param {string} text
+ * @returns {string[]} описания находок
+ */
+export function yamlTraps(text) {
+  /** @type {string[]} */
+  const found = [];
+  for (const raw of text.split(/\r?\n/)) {
+    const m = /^\s*(?:-\s+)?(name|description):\s+(.*)$/.exec(raw);
+    if (!m) continue;
+    const value = m[2].trim();
+    // Закавыченное и блочные скаляры (`|`, `>`) безопасны, комментарий — не значение.
+    if (!value || /^["'|>#]/.test(value)) continue;
+    // Хвостовой комментарий YAML отрезает сам — до него двоеточие искать не нужно.
+    const body = value.split(/\s+#/)[0];
+    if (/:\s/.test(body)) {
+      found.push(`${m[1]}: «${body}» — двоеточие с пробелом в незакавыченном значении ломает разбор`);
+    }
+  }
+  return found;
+}
+
 export function jobsOf(text) {
   const jobs = new Map();
   // `jobs:` бывает и самой первой строкой (в самопроверках — всегда), поэтому ищем обе формы.
@@ -130,6 +165,9 @@ export function jobsOf(text) {
 export function setupProblems(files, actions) {
   const problems = [];
   for (const { name, text } of files) {
+    for (const trap of yamlTraps(text)) {
+      problems.push(`${name}: ${trap}`);
+    }
     for (const used of directSetups(text)) {
       problems.push(`${name}: прямой ${used} — версии объявляются в ` +
                     `.github/actions/${HOME}, зовите его (#287)`);
@@ -146,6 +184,9 @@ export function setupProblems(files, actions) {
     }
   }
   for (const { name, text, home } of actions) {
+    for (const trap of yamlTraps(text)) {
+      problems.push(`${name}: ${trap}`);
+    }
     const used = directSetups(text);
     if (!home) {
       for (const u of used) {
@@ -224,6 +265,20 @@ const SELF_CHECKS = [
   ['неразобранная строка на уровне джобы', 'jobs:\n  - a\n', 1],
   ['секция после jobs не считается джобой',
    'jobs:\n  a:\n    timeout-minutes: 1\nfoo:\n  bar: 1\n', 0],
+  // Ловушка YAML: двоеточие с пробелом в незакавыченном имени шага. Ровно этой формой был
+  // сломан ci.yml (ревью #324) — и ни один гейт этого не заметил.
+  ['двоеточие в имени шага',
+   'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - name: Unit — размер: формы и счёт\n', 1],
+  ['оно же в кавычках — законно',
+   'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - name: "Unit — размер: формы"\n', 0],
+  ['тире вместо двоеточия — законно',
+   'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - name: Unit — размер — формы\n', 0],
+  ['двоеточие без пробела — законно (URL, время)',
+   'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - name: Пинг https://x.dev в 06:00\n', 0],
+  ['хвостовой комментарий не значение',
+   'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - name: Сборка  # шаг: основной\n', 0],
+  ['двоеточие в name джобы',
+   'jobs:\n  a:\n    name: Джоба: сборка\n    timeout-minutes: 1\n', 1],
 ];
 /** @type {string[]} */
 const failures = [];
