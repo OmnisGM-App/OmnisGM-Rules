@@ -9,11 +9,23 @@
 // только на эдже — Cloudflare вставляет свой beacon (static.cloudflareinsights.com) в HTML
 // браузерным запросам, в origin-ответе его нет. Локальный прогон такое не поймает никогда.
 //
+// Молчаливая слепота (#325): на машине с адблоком соединение с `mc.yandex.ru` обрывается
+// (`ERR_CONNECTION_REFUSED` — имя разрешается, отказ на коннекте), Метрика не стартует, и
+// нарушать нечего. С 01.09 локальный прогон был слеп именно так — им же измеряли «0
+// нарушений» перед переводом политики в enforce (#225), — а наблюдатель за продом 09–10.09
+// показал 21 живое нарушение. Поэтому загрузка счётчиков теперь ПРОВЕРЯЕТСЯ: без неё вердикт
+// объявляется неполным, а на проде в CI (адблока там нет) это красное.
+//
+// Какие источники вердикт НЕ покрывает даже так: `static.cloudflareinsights.com` — beacon
+// вставляет Cloudflare, и его наличие есть состояние панели CF, а не репозитория (в ответе
+// origin его нет вовсе), поэтому в фатальный список он не годится и назван в предупреждении.
+//
 //   node scripts/check_csp.mjs                      # прод
 //   node scripts/check_csp.mjs http://localhost:4321 # локальная сборка (CSP подставим сами)
 //   4321 — порт слота 0; при OMNISGM_SLOT=N preview слушает 4321 + N*10 (см. e2e/ports.ts)
 //
-// Выход 1, если нашлись нарушения, не покрытые политикой.
+// Выход 1, если нашлись нарушения, не покрытые политикой, — или если вердикт неполон на
+// прогоне по проду в CI (счётчик не был в эфире).
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -59,6 +71,20 @@ const violationsOf = (page) =>
   page.evaluate(() => /** @type {any} */ (window).__cspViolations ?? []);
 
 const context = await browser.newContext();
+
+// Загрузился ли счётчик. Считаем по УСПЕШНОМУ ответу его хоста, а не по факту запроса:
+// адблок режет запрос на резолве, и «запрос был» — не то же самое, что «скрипт выполнился».
+const analytics = { loaded: new Set(), failed: new Map() };
+const isCounter = (/** @type {string} */ url) => /^https:\/\/(mc\.yandex\.[a-z]+|www\.googletagmanager\.com)\//.test(url);
+context.on('response', (r) => {
+  if (isCounter(r.url()) && r.status() < 400) analytics.loaded.add(new URL(r.url()).host);
+});
+context.on('requestfailed', (r) => {
+  // Причину запоминаем ПЕРВУЮ: оффлайн-прогон ниже сам рвёт сеть, и его
+  // `ERR_INTERNET_DISCONNECTED` затёр бы настоящую («адблок режет хост»).
+  const host = isCounter(r.url()) ? new URL(r.url()).host : null;
+  if (host && !analytics.failed.has(host)) analytics.failed.set(host, r.failure()?.errorText ?? 'неизвестно');
+});
 // Слушатель ставится до любых скриптов страницы — иначе ранние нарушения не увидим.
 await context.addInitScript(() => {
   // Каст двойной, и второй слой обязателен: `any` на `window` делает `any` ВСЮ цепочку, и
@@ -135,9 +161,35 @@ for (const p of PAGES) {
 all.push(...(await offlineRun()));
 await browser.close();
 
-if (!all.length) {
-  console.log('\n✓ Нарушений CSP нет — политику можно держать в enforce.');
+// Счётчики, которых не было в эфире, из вердикта НЕ выпадают молча: их источники не
+// проверены ничем, и «нарушений нет» про них ничего не значит (#325).
+// Ожидаем ровно те счётчики, чей ID реально попал в сборку прода: оба (GA4 `G-RRH57ELLZS`,
+// Метрика `110368464`) найдены в бандле origin-ответа 10.09 — без ID блок не грузится вовсе
+// (`analytics-client.ts`), и требовать его было бы ежедневным ложным красным (ревью #326).
+const EXPECTED = ['mc.yandex.ru', 'www.googletagmanager.com'];
+const silent = EXPECTED.filter((h) => !analytics.loaded.has(h));
+if (silent.length) {
+  const why = silent.map((h) => `${h} (${analytics.failed.get(h) ?? 'ответа не было'})`).join(', ');
+  console.error(`\n⚠ Аналитика не загрузилась: ${why}`);
+  console.error('  Её источники этим прогоном НЕ проверены. Причины, по убыванию вероятности:');
+  console.error('  локально — адблок; счётчик не включён в сборку (нет PUBLIC_*-ID);');
+  console.error('  на проде — поломка сниппета или недоступность сервиса.');
+}
+console.error(
+  `${silent.length ? '' : '\n'}⚠ Вердикт не покрывает static.cloudflareinsights.com: beacon вставляет сам Cloudflare,` +
+    ' его наличие — состояние панели CF, а не репозитория.',
+);
+// Красным это делает только прогон по ПРОДУ: на локальной сборке аналитика не включена
+// штатно, и `CI=true node scripts/check_csp.mjs http://localhost:4321` краснел бы всегда.
+const silentIsFatal = silent.length > 0 && !!process.env.CI && BASE.startsWith('https://rules.omnisgm.com');
+
+if (!all.length && !silentIsFatal) {
+  console.log(`\n✓ Нарушений CSP нет${silent.length ? ' среди проверенного (см. предупреждение выше)' : ' — политику можно держать в enforce.'}`);
   process.exit(0);
+}
+if (!all.length) {
+  console.error('\n❌ Вердикт неполон на прогоне по проду в CI — считаем красным.');
+  process.exit(1);
 }
 // Группируем по «директива + хост»: один и тот же источник обычно бьётся на всех страницах.
 const groups = new Map();

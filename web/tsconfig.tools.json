@@ -68,6 +68,7 @@
     "scripts/gen-entity-data.mjs",
     "scripts/indexnow_manifest.mjs",
     "scripts/test_build_fingerprint.mjs",
+    "scripts/test_csp_policy.mjs",
     "scripts/test_page_description.mjs",
     "scripts/test_plural.mjs",
     "scripts/verify_dist_meta_budget.mjs",
