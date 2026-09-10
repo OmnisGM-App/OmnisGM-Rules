@@ -354,10 +354,10 @@
 | Artisan's Tools | - | Инструменты ремесленника | srd-5.2 | — |  |
 | Equipment | Equipment | Снаряжение | srd-5.2 | srd-5.1 |  |
 | Gaming Set | - | Игровой набор | srd-5.2 | — |  |
-| Heavy Armor | Heavy Armor | Тяжёлые доспехи | srd-5.2 | srd-5.1 |  |
-| Light Armor | Light Armor | Лёгкие доспехи | srd-5.2 | srd-5.1 |  |
+| Heavy Armor | heavy armor | Тяжёлые доспехи | srd-5.2 | srd-5.1 | регистр по редакции: 5.2 — прописная (термин), 5.1 — строчная в прозе, прописная только в начале ячейки/заголовка |
+| Light Armor | light armor | Лёгкие доспехи | srd-5.2 | srd-5.1 | регистр по редакции: 5.2 — прописная (термин), 5.1 — строчная в прозе, прописная только в начале ячейки/заголовка |
 | Martial Weapon | Martial Weapon | Воинское оружие | srd-5.2 | srd-5.1 |  |
-| Medium Armor | Medium Armor | Средние доспехи | srd-5.2 | srd-5.1 |  |
+| Medium Armor | medium armor | Средние доспехи | srd-5.2 | srd-5.1 | регистр по редакции: 5.2 — прописная (термин), 5.1 — строчная в прозе, прописная только в начале ячейки/заголовка |
 | Melee Weapon | Melee Weapon | Оружие ближнего боя | srd-5.2 | srd-5.1 |  |
 | Musical Instrument | - | Музыкальный инструмент | srd-5.2 | — |  |
 | Ranged Weapon | Ranged Weapon | Дальнобойное оружие | srd-5.2 | srd-5.1 |  |
