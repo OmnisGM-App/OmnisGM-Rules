@@ -74,23 +74,29 @@ failures = []
 checks_run = 0
 
 
-def is_category(line: str, word: str) -> bool:
-    """Прилагательное `word` в строке относится к слову «доспех» (а не к молоту или кольцам)."""
-    tokens = TOKEN.findall(line)
-    for i, tok in enumerate(tokens):
-        if tok != word:
-            continue
-        for step in (1, -1):
-            j, walked = i + step, 0
-            while 0 <= j < len(tokens) and walked < 10:
-                cur = tokens[j]
-                if ARMOR_WORD.match(cur):
-                    return True
-                if cur.lower() in GLUE or ADJ.match(cur) or cur in PUNCT:
-                    j += step
-                    walked += 1
-                    continue
-                break
+def is_category(line: str, at: int) -> bool:
+    """Прилагательное на позиции `at` относится к слову «доспех» (а не к молоту или кольцам).
+
+    Позиция, а НЕ текст слова: перебор всех одноимённых вхождений строки возвращал один ответ
+    на всю строку, и в «тяжёлые молоты лежат в углу, а тяжёлые доспехи — в сундуке» категорией
+    считались оба — включая то, что стоит при оружии (ревью #327).
+    """
+    spans = [m.span() for m in TOKEN.finditer(line)]
+    tokens = [line[lo:hi] for lo, hi in spans]
+    start = next((i for i, (lo, hi) in enumerate(spans) if lo <= at < hi), None)
+    if start is None:
+        return False
+    for step in (1, -1):
+        j, walked = start + step, 0
+        while 0 <= j < len(tokens) and walked < 10:
+            cur = tokens[j]
+            if ARMOR_WORD.match(cur):
+                return True
+            if cur.lower() in GLUE or ADJ.match(cur) or cur in PUNCT:
+                j += step
+                walked += 1
+                continue
+            break
     return False
 
 
@@ -123,7 +129,7 @@ def hits(text: str, excused: tuple) -> list:
             lo, hi = max(0, m.start() - 60), min(len(line), m.end() + 60)
             if not ARMOR_NEAR.search(line[lo:hi]):
                 continue
-            if not is_category(line, m.group(0)):
+            if not is_category(line, m.start()):
                 continue
             out.append((n, m.group(0), m.group(1)[0].isupper(), positional(line, m.start())))
     return out
@@ -223,7 +229,7 @@ SYN = [
 ]
 for text, word, want_cat, want_pos, want_upper in SYN:
     checks_run += 1
-    got = is_category(text, word)
+    got = is_category(text, text.find(word))
     if got != want_cat:
         failures.append(f"самопроверка: «{word}» в «{text[:48]}…» — категория {got}, ожидалось {want_cat}")
         continue
@@ -249,6 +255,11 @@ if not (len(ok_51) == 2 and ok_51[0][3] and not ok_51[1][2]):
 checks_run += 1
 if hits("**Снаряжение** Шкурный доспех, лёгкие молоты (3)", ("Шкурный доспех, лёгкие молоты",)):
     failures.append("самопроверка: исключение по фразе не выключает строку")
+checks_run += 1
+# Одноимённые вхождения на одной строке решаются каждое за себя: первое — про молоты.
+mixed = hits("тяжёлые молоты лежат в углу, а тяжёлые доспехи хранятся в сундуке", ())
+if mixed != [(1, "тяжёлые", False, False)]:
+    failures.append(f"самопроверка: соседство ищется по тексту слова, а не по позиции: {mixed}")
 checks_run += 1
 if len(hits("Доспехи бывают лёгкие, средние и тяжёлые доспехи", ())) != 3:
     failures.append("самопроверка: цепочка из трёх категорий даёт три вхождения")
