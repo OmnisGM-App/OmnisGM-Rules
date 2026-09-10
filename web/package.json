@@ -22,7 +22,7 @@
   },
   "dependencies": {
     "@astrojs/sitemap": "^3.7.4",
-    "@omnisgm-app/brand": "^0.10.0",
+    "@omnisgm-app/brand": "^0.11.1",
     "@omnisgm-app/core": "^0.4.0",
     "astro": "^5.7.0",
     "hast-util-from-html": "^2.0.3",
