@@ -92,6 +92,15 @@ jobs:
           { echo "# INDEX прогона (контекст подготовлен CI)"; echo; wc -l /tmp/review/*.md /tmp/review/*.patch /tmp/review/*.txt 2>/dev/null; } > /tmp/review/INDEX.md
           ls -la /tmp/review/ && wc -l /tmp/review/01-diff.patch
 
+      # v2.22: персистентный self-hosted раннер НЕ обновляет плагин — claude-code-action
+      # видит «already installed» и пропускает установку, ревью идёт по древнему кэшу
+      # (ран Table 34631615126 работал по 1.2.0 без ci-pipeline.md и упал без публикации).
+      # Сносим состояние плагинов целиком — action ставит свежий master заново каждый ран.
+      # На эфемерных ubuntu-latest каталога нет — шаг no-op.
+      - name: Purge stale plugin cache (self-hosted)
+        shell: bash
+        run: rm -rf ~/.claude/plugins
+
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         env:
