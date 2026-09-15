@@ -77,7 +77,11 @@ jobs:
         run: |
           # self-hosted раннер персистентен: артефакты прошлого прогона в /tmp сбивают
           # ревьюера («всё уже опубликовано» на старую голову — случай Table#529).
-          rm -rf /tmp/review /tmp/wt
+          # v2.24: плюс хвосты песочниц агентов — отменённый ран (cancel-in-progress)
+          # финальный шаг очистки не выполняет, поэтому чистим и на старте. Глобы
+          # /tmp/*-sandbox и *.tar — наследие промта до 1.6.13 (песочницы в голом /tmp
+          # забили диск обоих раннеров, 2026-09-15); сейчас всё живёт под /tmp/review.
+          rm -rf /tmp/review /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
           mkdir -p /tmp/review
           gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > /tmp/review/00-pr.md
           git diff "origin/${BASE}...HEAD" > /tmp/review/01-diff.patch
@@ -272,3 +276,12 @@ jobs:
                               body = " ".join(x.get("text", "") for x in body if isinstance(x, dict))
                           print(f"  !! DENIED/ERROR: {str(body)[:300]}")
           PYEOF
+
+      # v2.24: на персистентном self-hosted раннере песочницы агентов (~0.5 ГБ каждая,
+      # node_modules внутри) никто не удалял — 189 штук за два месяца, ENOSPC на обоих
+      # раннерах 2026-09-15. Сносим всё, что ран оставил в /tmp, при любом исходе
+      # (кроме отмены — её добирает старт следующего рана). На ubuntu-latest — no-op.
+      - name: Clean up runner scratch (self-hosted)
+        if: always()
+        shell: bash
+        run: rm -rf /tmp/review /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
