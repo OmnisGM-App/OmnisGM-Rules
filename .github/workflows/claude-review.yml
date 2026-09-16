@@ -9,6 +9,7 @@ name: Claude auto-review
 # Авто-ревью каждого коммита PR (#443-процесс, скилл omnisgm-review из плагина omnisgm).
 # Новый пуш в PR отменяет незаконченное ревью и запускает свежее (concurrency ниже).
 # Работает на личной подписке владельца: CLAUDE_CODE_OAUTH_TOKEN из `claude setup-token`.
+# v2.26: поиск каталога плагина — Glob, не ls (ls ~/.claude/plugins блокируется политикой).
 # v2.25: CLAUDE_PLUGINS_TOKEN (fine-grained PAT на claude-plugins) нужен продуктовым репам —
 # клонировать приватный маркетплейс и писать журнал в claude-plugins#1. В самой репе
 # claude-plugins секрета нет и не нужно: github.token читает свою репу и пишет в свои ишьи,
@@ -128,7 +129,8 @@ jobs:
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR. Найди каталог установленного
-            плагина omnisgm (`ls ~/.claude/plugins/`; внутри — skills/omnisgm-review/) и
+            плагина omnisgm (Glob `**/omnisgm-review/ci-pipeline.md` с path `~/.claude/plugins`;
+            `ls`/`find` по этому каталогу режутся, см. CI-журнал #1 коммент 5572943616) и
             прочитай инструментом Read по абсолютным путям ДВА файла:
             references/ci-pipeline.md (весь конвейер и правила — следуй им) и
             references/triage.md (состав агентов). Промты агентов лежат в
