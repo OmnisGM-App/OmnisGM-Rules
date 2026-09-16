@@ -9,6 +9,11 @@ name: Claude auto-review
 # Авто-ревью каждого коммита PR (#443-процесс, скилл omnisgm-review из плагина omnisgm).
 # Новый пуш в PR отменяет незаконченное ревью и запускает свежее (concurrency ниже).
 # Работает на личной подписке владельца: CLAUDE_CODE_OAUTH_TOKEN из `claude setup-token`.
+# v2.25: CLAUDE_PLUGINS_TOKEN (fine-grained PAT на claude-plugins) нужен продуктовым репам —
+# клонировать приватный маркетплейс и писать журнал в claude-plugins#1. В самой репе
+# claude-plugins секрета нет и не нужно: github.token читает свою репу и пишет в свои ишьи,
+# поэтому везде `secrets.CLAUDE_PLUGINS_TOKEN || github.token` (пустой секрет → фолбэк).
+# До этого все раны ревью в claude-plugins падали «Invalid username or token» (7/14/16.09).
 on:
   pull_request:
     # БЕЗ edited (2026-09-12): правка описания/заголовка PR гоняла скип-джобу, и её серый
@@ -38,7 +43,7 @@ jobs:
     permissions:
       contents: read
       pull-requests: write
-      issues: read
+      issues: write
       id-token: write
       actions: read
     steps:
@@ -106,7 +111,7 @@ jobs:
       - name: Claude review
         uses: anthropics/claude-code-action@v1
         env:
-          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN }}
+          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -114,7 +119,7 @@ jobs:
           # Маркетплейс приватный — клонится fine-grained PAT-ом (contents: read
           # на OmnisGM-App/claude-plugins); секрет в URL маскируется логами Actions.
           plugin_marketplaces: |
-            https://x-access-token:${{ secrets.CLAUDE_PLUGINS_TOKEN }}@github.com/OmnisGM-App/claude-plugins.git
+            https://x-access-token:${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}@github.com/OmnisGM-App/claude-plugins.git
           plugins: |
             omnisgm@omnisgm
           claude_args: |
@@ -245,7 +250,7 @@ jobs:
       - name: Post journal observation
         if: always()
         env:
-          GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN }}
+          GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
         shell: bash
         run: |
           [ -f /tmp/review/95-journal.md ] || { echo "наблюдений нет"; exit 0; }
