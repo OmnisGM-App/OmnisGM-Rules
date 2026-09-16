@@ -14,6 +14,8 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.29: дамп транскрипта печатает model диспатча Agent. Плагин 1.7.2: хук-подсказчик больше
+# не режет `npm ci` главному циклу (реплей 35110978839 прошёл без node_modules).
 # v2.28: workflow_dispatch с номером PR — реплей-прогон на любом (в т.ч. смёрженном) PR для
 # замера стоимости: Prepare воссоздаёт merge-коммит из головы PR и родителя мёржа, тело
 # ревью помечается «реплей». Условия PR-события на dispatch не действуют.
@@ -313,7 +315,12 @@ jobs:
                       if c.get("type") == "text" and c.get("text", "").strip():
                           print(f"--- ASSISTANT TEXT:\n{c['text'][:1500]}")
                       elif c.get("type") == "tool_use":
-                          print(f"TOOL {c.get('name')}: {json.dumps(c.get('input', {}), ensure_ascii=False)[:220]}")
+                          inp = c.get("input", {})
+                          if c.get("name") in ("Agent", "Task"):
+                              # v2.29: модель диспатча видна в дампе (замер маршрутизации моделей)
+                              print(f"TOOL {c.get('name')} model={inp.get('model', '-')} {inp.get('description', '')!r}: {str(inp.get('prompt', ''))[:120]!r}")
+                          else:
+                              print(f"TOOL {c.get('name')}: {json.dumps(inp, ensure_ascii=False)[:220]}")
               elif t == "user":
                   for c in m.get("message", {}).get("content", []):
                       if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error"):
