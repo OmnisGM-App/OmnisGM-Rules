@@ -14,6 +14,9 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.28: workflow_dispatch с номером PR — реплей-прогон на любом (в т.ч. смёрженном) PR для
+# замера стоимости: Prepare воссоздаёт merge-коммит из головы PR и родителя мёржа, тело
+# ревью помечается «реплей». Условия PR-события на dispatch не действуют.
 # v2.26: поиск каталога плагина — Glob, не ls (ls ~/.claude/plugins блокируется политикой).
 # v2.25: CLAUDE_PLUGINS_TOKEN (fine-grained PAT на claude-plugins) нужен продуктовым репам —
 # клонировать приватный маркетплейс и писать журнал в claude-plugins#1. В самой репе
@@ -28,10 +31,16 @@ on:
     # closed — трюк: ран в той же concurrency-группе отменяет идущее ревью при мёрже/закрытии
     # PR и сам завершается скипом (серый только на уже закрытом PR — там он не мешает).
     types: [opened, synchronize, reopened, ready_for_review, closed]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'Номер PR для реплей-прогона (можно смёрженный)'
+        required: true
+        type: string
 
 concurrency:
   # Один прогон на PR: новый коммит (или closed) отменяет текущее ревью.
-  group: claude-review-${{ github.event.pull_request.number }}
+  group: claude-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
 
 jobs:
@@ -40,10 +49,11 @@ jobs:
     # дождётся пуша после ретаргета base. Драфты и dependabot — скип. closed не ревьюится
     # (он только отменяет группу).
     if: >-
+      github.event_name == 'workflow_dispatch' || (
       github.event.action != 'closed' &&
       github.event.pull_request.draft == false &&
       github.event.pull_request.user.login != 'dependabot[bot]' &&
-      github.event.pull_request.base.ref == github.event.repository.default_branch
+      github.event.pull_request.base.ref == github.event.repository.default_branch )
     timeout-minutes: 90
     runs-on: ubuntu-latest
     permissions:
@@ -83,10 +93,27 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
           REPO: ${{ github.repository }}
           BASE: ${{ github.base_ref }}
+          HEADREF: ${{ github.head_ref }}
+          REPLAY: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
         run: |
+          if [ -n "$REPLAY" ]; then
+            # Реплей: рабочая копия = default branch; воссоздаём то, что даёт событие PR —
+            # merge-коммит с головой PR вторым родителем, база = родитель мёржа (смёрженный PR)
+            # либо живая base-ветка. Имена веток кладём в remote-refs, чтобы `origin/<base>` и
+            # `origin/<headref>` из ci-pipeline.md работали как обычно.
+            read -r headref baseref merged headsha < <(gh pr view "$PR" --repo "$REPO" --json headRefName,baseRefName,mergeCommit,headRefOid --jq '"\(.headRefName) \(.baseRefName) \(.mergeCommit.oid // "-") \(.headRefOid)"')
+            git fetch -q origin "refs/pull/$PR/head:refs/remotes/origin/$headref"
+            if [ "$merged" != "-" ]; then basesha=$(git rev-parse "$merged^"); else basesha=$(git rev-parse "origin/$baseref"); fi
+            git update-ref refs/remotes/origin/replay-base "$basesha"
+            git -c user.email=ci@omnisgm -c user.name=replay checkout -q "$basesha"
+            git -c user.email=ci@omnisgm -c user.name=replay merge -q --no-ff --no-edit "origin/$headref"
+            BASE=replay-base; HEADREF=$headref
+            echo "реплей PR #$PR: голова $headsha, база $basesha ($baseref), merged=$merged"
+          fi
+          echo "base=$BASE" >> "$GITHUB_OUTPUT"; echo "headref=$HEADREF" >> "$GITHUB_OUTPUT"; echo "replay=$REPLAY" >> "$GITHUB_OUTPUT"
           # self-hosted раннер персистентен: артефакты прошлого прогона в /tmp сбивают
           # ревьюера («всё уже опубликовано» на старую голову — случай Table#529).
           # v2.24: плюс хвосты песочниц агентов — отменённый ран (cancel-in-progress)
@@ -145,9 +172,9 @@ jobs:
             (`ls`/`find` по этому каталогу режутся). Промты агентов лежат в
             references/agents/ — их читает САМ агент, ты не читаешь и не вкладываешь.
 
-            ПРОГОН: PR=#${{ github.event.pull_request.number }}
-            REPO=${{ github.repository }} BASE=${{ github.base_ref }}
-            HEADREF=${{ github.head_ref }}
+            ПРОГОН: PR=#${{ github.event.pull_request.number || inputs.pr }}
+            REPO=${{ github.repository }} BASE=${{ steps.prep.outputs.base }}
+            HEADREF=${{ steps.prep.outputs.headref }}
             REPO_DIR=${{ github.workspace }} OUT=/tmp/review
 
       - name: Publish review
@@ -155,7 +182,8 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number }}
+          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          REPLAY: ${{ steps.prep.outputs.replay }}
         shell: bash
         run: |
           python3 - <<'PY'
@@ -246,6 +274,8 @@ jobs:
               open("/tmp/payload.json", "w").write(json.dumps(payload))
               return subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
                                      "-X", "POST", "--input", "/tmp/payload.json"], capture_output=True, text=True)
+          if os.environ.get("REPLAY"):
+              body = "🔁 Реплей-прогон (замер стоимости, workflow_dispatch) — не новый раунд ревью.\n\n" + body
           payload = {"event": "COMMENT", "body": body}
           if good:
               payload["comments"] = [{"path": c["path"], "line": c["line"], "side": c.get("side", "RIGHT"), "body": c["body"]} for c in good]
