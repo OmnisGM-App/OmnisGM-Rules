@@ -14,6 +14,10 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.38 (2026-09-22): DISPATCH ≠ REPLAY. Кнопка на ОТКРЫТОМ PR — настоящий раунд ревью (воркфлоу
+# ручной с v2.34): merge-коммит воссоздаётся как раньше, но метка «🔁 Реплей» и `--replay` у
+# iter_state — только когда PR не OPEN (смёржен/закрыт). Run 35724815885 пометил живое ревью #630
+# реплеем.
 # v2.37 (2026-09-22): дамп транскрипта считает по агентам (parent_tool_use_id): вызовы
 # инструментов, отказы, токены usage — замер видит цену каждой линзы, а не только сумму.
 # v2.36 (2026-09-22): маркетплейс для action — ВСЕГДА локальный клон из RUNNER_TEMP (он и так
@@ -149,10 +153,13 @@ jobs:
           REPO: ${{ github.repository }}
           BASE: ${{ github.base_ref }}
           HEADREF: ${{ github.head_ref }}
-          REPLAY: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          DISPATCH: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
           PLUGIN_REF: ${{ inputs.plugin_ref }}
         run: |
-          if [ -n "$REPLAY" ]; then
+          REPLAY=""
+          if [ -n "$DISPATCH" ]; then
+            # v2.38: реплей = кнопка на НЕоткрытом PR; на открытом это обычный раунд.
+            [ "$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)" = "OPEN" ] || REPLAY=1
             # Реплей: рабочая копия = default branch; воссоздаём то, что даёт событие PR —
             # merge-коммит с головой PR вторым родителем, база = родитель мёржа (смёрженный PR)
             # либо живая base-ветка. Имена веток кладём в remote-refs, чтобы `origin/<base>` и
