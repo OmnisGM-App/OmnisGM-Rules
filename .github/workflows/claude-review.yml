@@ -14,6 +14,8 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.37 (2026-09-22): дамп транскрипта считает по агентам (parent_tool_use_id): вызовы
+# инструментов, отказы, токены usage — замер видит цену каждой линзы, а не только сумму.
 # v2.36 (2026-09-22): маркетплейс для action — ВСЕГДА локальный клон из RUNNER_TEMP (он и так
 # есть с v2.33); URL-вариант снят. Причина: на персистентном раннере ~/.claude/settings.json
 # помнит объявление маркетплейса, и смена вида источника (path ↔ URL) валит `marketplace add`
@@ -412,7 +414,29 @@ jobs:
           [ -f "$f" ] || { echo "нет $f"; exit 0; }
           python3 - "$f" <<'PYEOF'
           import json, sys
+          from collections import defaultdict
           msgs = json.load(open(sys.argv[1]))
+          # v2.37: атрибуция по агентам — id диспатча Task → метка; сообщения агента несут parent_tool_use_id.
+          label, stat = {}, defaultdict(lambda: {"calls": 0, "denied": 0, "in": 0, "out": 0, "cache": 0})
+          for m in msgs:
+              if m.get("type") == "assistant":
+                  for c in m.get("message", {}).get("content", []):
+                      if c.get("type") == "tool_use" and c.get("name") in ("Agent", "Task"):
+                          label[c.get("id")] = f"{(c.get('input') or {}).get('description', '?')} [{(c.get('input') or {}).get('model', '-')}]"
+          for m in msgs:
+              who = label.get(m.get("parent_tool_use_id"), "главный цикл")
+              t = m.get("type")
+              if t == "assistant":
+                  u = m.get("message", {}).get("usage") or {}
+                  stat[who]["in"] += int(u.get("input_tokens") or 0); stat[who]["out"] += int(u.get("output_tokens") or 0)
+                  stat[who]["cache"] += int(u.get("cache_read_input_tokens") or 0) + int(u.get("cache_creation_input_tokens") or 0)
+                  stat[who]["calls"] += sum(1 for c in m.get("message", {}).get("content", []) if c.get("type") == "tool_use")
+              elif t == "user":
+                  stat[who]["denied"] += sum(1 for c in m.get("message", {}).get("content", []) if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error"))
+          print("=== ПО АГЕНТАМ: вызовы / отказы / input / output / cache-токены")
+          for who, s in sorted(stat.items(), key=lambda kv: -(kv[1]["in"] + kv[1]["cache"])):
+              print(f"  {who:45s} {s['calls']:4d} {s['denied']:3d} {s['in']:9d} {s['out']:8d} {s['cache']:10d}")
+          print("=== ХРОНИКА")
           for m in msgs:
               t = m.get("type")
               if t == "assistant":
