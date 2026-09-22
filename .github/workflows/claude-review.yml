@@ -14,6 +14,10 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.35 (2026-09-22, токен-аудит волна 7): Prepare считает РЕЖИМ ИТЕРАЦИИ (iter_state.py →
+# строка ITER: в INDEX.md + fix-diff.patch), ставит зависимости (`npm ci`) и собирает workspace
+# `shared` — факты среды в 06-runfacts.md; главный цикл ни 02-pr-comments.md, ни npm ci больше
+# не трогает. `Bash(npm ci:*)` снят из allowlist.
 # v2.34 (2026-09-22): только workflow_dispatch — авто-триггер PR закомментирован (см. `on:`).
 # v2.33 (2026-09-22, токен-аудит волна 6): каталог прогона уникален — OUT=/tmp/review/<ветка>-<UTC>
 # (два PR на одном self-hosted раннере больше не затирают друг друга; хвосты старше 12 ч чистятся
@@ -196,9 +200,28 @@ jobs:
           fi
           rm -f "$OUT/.files-truth" "$OUT/.files-gh"
           python3 "$SKILL/scripts/slice_diff.py" "$OUT"
-          # digest_context.py появился в плагине 1.8.0 — до мёржа ветки на master шаг пропускается.
-          [ -f "$SKILL/scripts/digest_context.py" ] && python3 "$SKILL/scripts/digest_context.py" "$OUT"
-          ls -la "$OUT/" && wc -l "$OUT/01-diff.patch" && { grep '^RECALC:' "$OUT/INDEX.md" || true; }
+          python3 "$SKILL/scripts/digest_context.py" "$OUT"
+          # v2.35: режим итерации — по последнему опубликованному ревью и git, а не чтением
+          # 02-pr-comments.md моделью (правило остановки, fix-diff, чистый мёрж базы — всё там).
+          gh pr view "$PR" --repo "$REPO" --json reviews > "$OUT/.reviews.json" || echo '{"reviews":[]}' > "$OUT/.reviews.json"
+          python3 "$SKILL/scripts/iter_state.py" "$OUT" "$PWD" "$BASE" "$headwc" $( [ -n "$REPLAY" ] && echo --replay )
+          rm -f "$OUT/.reviews.json"
+          # v2.35: зависимости и сборка workspace shared — детерминированный shell, не ход модели.
+          # Факты среды ТЕКУЩЕГО прогона — только в 06-runfacts.md (история в 02/05 — не факты).
+          : > "$OUT/06-runfacts.md"
+          if [ -f package.json ]; then
+            ci=0; npm ci > "$OUT/.npm-ci.log" 2>&1 || ci=$?
+            echo "npm ci: exit $ci" >> "$OUT/06-runfacts.md"; tail -3 "$OUT/.npm-ci.log"
+            if [ "$ci" = 0 ] && [ -f shared/package.json ]; then
+              b=0; npm run build --workspace=shared > "$OUT/.shared-build.log" 2>&1 || b=$?
+              if [ "$b" = 0 ]; then echo "shared/dist: собран" >> "$OUT/06-runfacts.md"; else echo "shared/dist: НЕ собран (exit $b)" >> "$OUT/06-runfacts.md"; tail -5 "$OUT/.shared-build.log"; fi
+            fi
+            rm -f "$OUT/.npm-ci.log" "$OUT/.shared-build.log"
+          else
+            echo "npm ci: не требуется (нет package.json)" >> "$OUT/06-runfacts.md"
+          fi
+          cat "$OUT/06-runfacts.md"
+          ls -la "$OUT/" && wc -l "$OUT/01-diff.patch" && { grep '^RECALC:\|^ITER:' "$OUT/INDEX.md" || true; }
           # v2.33: путь скилла для промта — всегда из клона маркетплейса (шаг Fetch plugin scripts);
           # тот же master, что ставит action, либо ветка plugin_ref.
           echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
@@ -230,7 +253,7 @@ jobs:
             --max-turns 200
             --model opus
             --add-dir /tmp
-            --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm ci:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
+            --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR. Каталог скилла:
             ${{ steps.prep.outputs.skill }} — прочитай инструментом Read ДВА файла оттуда:
