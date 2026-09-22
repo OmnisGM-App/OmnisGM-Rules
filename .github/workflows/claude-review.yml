@@ -14,6 +14,10 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.31 (2026-09-22): вход `plugin_ref` у workflow_dispatch — замер ветки плагина ДО мёржа в
+# master: клон маркетплейса на этой ветке кладётся в $RUNNER_TEMP и отдаётся action'у
+# ЛОКАЛЬНЫМ ПУТЁМ (plugin_marketplaces принимает путь), путь скилла в промт — оттуда же.
+# Пусто (и любое событие PR) — прежний клон master по URL.
 # v2.30: allowlist `Bash(npm run:*)` вместо `npm run test:*` — двоеточие в правиле ломало
 # матч, `npm run test:css` резался (реплей 35112973775); build/lint агентам режет хук плагина.
 # v2.29: дамп транскрипта печатает model диспатча Agent. Плагин 1.7.2: хук-подсказчик больше
@@ -41,6 +45,11 @@ on:
         description: 'Номер PR для реплей-прогона (можно смёрженный)'
         required: true
         type: string
+      plugin_ref:
+        description: 'Ветка/тег claude-plugins для замера (пусто = master)'
+        required: false
+        type: string
+        default: ''
 
 concurrency:
   # Один прогон на PR: новый коммит (или closed) отменяет текущее ревью.
@@ -102,6 +111,7 @@ jobs:
           BASE: ${{ github.base_ref }}
           HEADREF: ${{ github.head_ref }}
           REPLAY: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          PLUGIN_REF: ${{ inputs.plugin_ref }}
         run: |
           if [ -n "$REPLAY" ]; then
             # Реплей: рабочая копия = default branch; воссоздаём то, что даёт событие PR —
@@ -137,7 +147,25 @@ jobs:
           { echo "# INDEX прогона (контекст подготовлен CI)"; echo; wc -l /tmp/review/*.md /tmp/review/*.patch /tmp/review/*.txt 2>/dev/null; } > /tmp/review/INDEX.md
           ls -la /tmp/review/ && wc -l /tmp/review/01-diff.patch
           # v2.27: путь скилла для промта — action ставит плагин в ~/.claude/plugins/marketplaces/<имя>/…
-          echo "skill=$HOME/.claude/plugins/marketplaces/omnisgm/plugins/omnisgm/skills/omnisgm-review" >> "$GITHUB_OUTPUT"
+          # v2.31: при plugin_ref скилл читается из локального клона ветки (см. шаг ниже).
+          if [ -n "$PLUGIN_REF" ]; then
+            echo "skill=$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/skills/omnisgm-review" >> "$GITHUB_OUTPUT"
+          else
+            echo "skill=$HOME/.claude/plugins/marketplaces/omnisgm/plugins/omnisgm/skills/omnisgm-review" >> "$GITHUB_OUTPUT"
+          fi
+
+      # v2.31: маркетплейс с ветки плагина — только для замера по кнопке. Клон свежий каждый ран
+      # (self-hosted персистентен), токен тот же, что у URL-варианта ниже.
+      - name: Checkout plugin branch (plugin_ref)
+        if: ${{ inputs.plugin_ref != '' }}
+        shell: bash
+        env:
+          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
+          PLUGIN_REF: ${{ inputs.plugin_ref }}
+        run: |
+          rm -rf "$RUNNER_TEMP/omnisgm-marketplace"
+          git clone -q --depth 1 --branch "$PLUGIN_REF" "https://x-access-token:${GH_PLUGINS_TOKEN}@github.com/OmnisGM-App/claude-plugins.git" "$RUNNER_TEMP/omnisgm-marketplace"
+          echo "плагин с ветки $PLUGIN_REF: $(git -C "$RUNNER_TEMP/omnisgm-marketplace" rev-parse --short HEAD), версия $(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/.claude-plugin/plugin.json'))['version'])")"
 
       # v2.22: персистентный self-hosted раннер НЕ обновляет плагин — claude-code-action
       # видит «already installed» и пропускает установку, ревью идёт по древнему кэшу
@@ -158,8 +186,8 @@ jobs:
           track_progress: false
           # Маркетплейс приватный — клонится fine-grained PAT-ом (contents: read
           # на OmnisGM-App/claude-plugins); секрет в URL маскируется логами Actions.
-          plugin_marketplaces: |
-            https://x-access-token:${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}@github.com/OmnisGM-App/claude-plugins.git
+          # v2.31: с plugin_ref — локальный клон ветки (шаг выше), иначе URL master.
+          plugin_marketplaces: ${{ inputs.plugin_ref != '' && format('{0}/omnisgm-marketplace', runner.temp) || format('https://x-access-token:{0}@github.com/OmnisGM-App/claude-plugins.git', secrets.CLAUDE_PLUGINS_TOKEN || github.token) }}
           plugins: |
             omnisgm@omnisgm
           claude_args: |
