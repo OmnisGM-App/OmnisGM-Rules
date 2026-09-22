@@ -7,13 +7,16 @@ name: Claude auto-review
 # заменить тонким вызовом `uses: …@master` + `secrets: inherit`.
 
 # Авто-ревью каждого коммита PR (#443-процесс, скилл omnisgm-review из плагина omnisgm).
-# Новый пуш в PR отменяет незаконченное ревью и запускает свежее (concurrency ниже).
+# Новый пуш в PR ревью НЕ запускает (v2.42: один авто-прогон на PR); мёрж/закрытие отменяет идущее.
 # Работает на личной подписке владельца: CLAUDE_CODE_OAUTH_TOKEN из `claude setup-token`.
 # v2.27 (этап 1 плана экономии токенов, 2026-09-16): REPO_DIR — `${{ github.workspace }}`
 # (буквальный `$GITHUB_WORKSPACE` не раскрывался: 6 отказов подряд в run 35097394123);
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.42 (2026-09-22): авто-ревью ВКЛЮЧЕНО — ровно ОДИН автоматический прогон на PR (решение
+# владельца): pull_request только opened/ready_for_review (+closed для отмены), без synchronize/
+# reopened. Фикс-раунды и повторы — кнопкой workflow_dispatch (`force` для полного конвейера).
 # v2.41 (2026-09-22, аудит 8): Prepare выкладывает файлы диффа по голове PR в $OUT/src/ (агенты
 # читают Read, не `git show` — до 115 лишних вызовов за прогон) и гоняет базовый `tsc --noEmit`
 # по каждому tsconfig → 06-runfacts.md; хроника дампа размечена по агентам ([who]).
@@ -62,16 +65,14 @@ name: Claude auto-review
 # поэтому везде `secrets.CLAUDE_PLUGINS_TOKEN || github.token` (пустой секрет → фолбэк).
 # До этого все раны ревью в claude-plugins падали «Invalid username or token» (7/14/16.09).
 on:
-  # v2.34 (2026-09-22): триггер pull_request ВЫКЛЮЧЕН решением владельца — до конца обкатки
-  # экономии токенов воркфлоу ручной (workflow_dispatch с номером PR), сам workflow остаётся
-  # enabled. Вернуть авто-ревью = раскомментировать блок pull_request ниже.
-  # pull_request:
-    # БЕЗ edited (2026-09-12): правка описания/заголовка PR гоняла скип-джобу, и её серый
-    # «Skipped» затирал зелёный чек ревью на активном PR (сбивало с толку). Цена отказа —
-    # stacked-PR после ретаргета base не отревьюится сам, ждёт пуша/reopen (редкий случай).
-    # closed — трюк: ран в той же concurrency-группе отменяет идущее ревью при мёрже/закрытии
-    # PR и сам завершается скипом (серый только на уже закрытом PR — там он не мешает).
-    # types: [opened, synchronize, reopened, ready_for_review, closed]
+  # v2.42 (2026-09-22): ОДИН авто-прогон на PR — opened (не-драфт) ИЛИ ready_for_review (драфт
+  # при opened скипается условием джобы, так что второго прогона не бывает). synchronize и
+  # reopened НЕ слушаем: каждый новый пуш — не новый счёт, фикс-раунд запускает владелец
+  # кнопкой. БЕЗ edited (2026-09-12): правка описания гоняла скип-джобу и серый «Skipped»
+  # затирал зелёный чек. closed — трюк: ран в той же concurrency-группе отменяет идущее
+  # ревью при мёрже/закрытии PR и сам завершается скипом.
+  pull_request:
+    types: [opened, ready_for_review, closed]
   workflow_dispatch:
     inputs:
       pr:
@@ -89,7 +90,7 @@ on:
         default: false
 
 concurrency:
-  # Один прогон на PR: новый коммит (или closed) отменяет текущее ревью.
+  # Одна группа на PR: closed (или кнопка) отменяет текущее ревью.
   group: claude-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
 
