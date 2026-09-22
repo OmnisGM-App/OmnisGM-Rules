@@ -14,6 +14,8 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.40 (2026-09-22): шапка без «+N инлайнов» (решение владельца: сколько из находок
+# инлайны — неважно) и правильные формы «1 среднее / 2 ремарки».
 # v2.39 (2026-09-22): вход `force` у кнопки — полный конвейер даже на уже отревьюенной голове
 # (iter_state --force → mode=pipeline); нужен для повторов и замеров на живом PR.
 # v2.38 (2026-09-22): DISPATCH ≠ REPLAY. Кнопка на ОТКРЫТОМ PR — настоящий раунд ревью (воркфлоу
@@ -314,18 +316,11 @@ jobs:
           # Тело ревью собирается ДЕТЕРМИНИРОВАННО из 90-verdict.json — модель тело не пишет
           # и дописать в него ничего не может (сага «много текста» v2.8/2.12/2.16 закрыта формой).
           vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
-          try:
-              inl_early = json.load(open(f"{rd}/90-inline.json"))
-              assert isinstance(inl_early, list)
-          except Exception:
-              inl_early = None
           if os.path.exists(vf):
               v = json.load(open(vf))
               head = str(v.get("head", ""))[:7]
               c = v.get("counts") or {}
               major, med, rem = int(c.get("major") or 0), int(c.get("medium") or 0), int(c.get("remark") or 0)
-              # Фактический счёт из 90-inline.json надёжнее поля verdict.json (S мог разойтись).
-              inline_n = len(inl_early) if inl_early is not None else int(v.get("inline_count") or 0)
               mode = v.get("mode", "pipeline")
               total = major + med + rem
               if total == 0:
@@ -337,7 +332,10 @@ jobs:
                   else:
                       body = f"Находок нет. Голова `{head}`, агентов: {v.get('agents', 0)}."
               else:
-                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} средних"] * (med > 0) + [f"{rem} ремарок"] * (rem > 0)
+                  def pl(n, one, few, many):
+                      n10, n100 = n % 10, n % 100
+                      return one if n10 == 1 and n100 != 11 else few if 2 <= n10 <= 4 and not 12 <= n100 <= 14 else many
+                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} {pl(med, 'среднее', 'средних', 'средних')}"] * (med > 0) + [f"{rem} {pl(rem, 'ремарка', 'ремарки', 'ремарок')}"] * (rem > 0)
                   hdr = f"Голова `{head}`"
                   if mode == "fix-round":
                       hdr += f", фикс-раунд после `{str(v.get('prev_head',''))[:7]}`"
@@ -347,7 +345,7 @@ jobs:
                       hdr += f", агентов: {v.get('agents', 0)}"
                       if v.get("triage_skips"):
                           hdr += f" (триаж: {v['triage_skips']})"
-                  body = hdr + ". Находки: " + " / ".join(parts) + (f", +{inline_n} инлайнов." if inline_n else ".")
+                  body = hdr + ". Находки: " + " / ".join(parts) + "."
               # 90-body-findings.md дочитывается и при нуле находок: там живёт
               # строка-оговорка деградации одиночного прохода (контракт ci-pipeline).
               bff = f"{rd}/90-body-findings.md"
@@ -389,9 +387,6 @@ jobs:
               return "\n".join(f"- `{c.get('path')}:{c.get('line')}` — {c.get('body','').strip()}" for c in items)
           if moved:
               body += "\n\n---\nНаходки вне диапазонов диффа:\n" + as_body_list(moved)
-          # Честный счёт инлайнов в шапке: перенесённые в тело из «+N инлайнов» вычитаются.
-          if inl and f"+{len(inl)} инлайнов" in body and len(good) != len(inl):
-              body = body.replace(f"+{len(inl)} инлайнов", f"+{len(good)} инлайнов")
           def post(payload):
               open(f"{rd}/payload.json", "w").write(json.dumps(payload))
               return subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
