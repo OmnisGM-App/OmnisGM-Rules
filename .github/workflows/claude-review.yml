@@ -14,6 +14,8 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.39 (2026-09-22): вход `force` у кнопки — полный конвейер даже на уже отревьюенной голове
+# (iter_state --force → mode=pipeline); нужен для повторов и замеров на живом PR.
 # v2.38 (2026-09-22): DISPATCH ≠ REPLAY. Кнопка на ОТКРЫТОМ PR — настоящий раунд ревью (воркфлоу
 # ручной с v2.34): merge-коммит воссоздаётся как раньше, но метка «🔁 Реплей» и `--replay` у
 # iter_state — только когда PR не OPEN (смёржен/закрыт). Run 35724815885 пометил живое ревью #630
@@ -76,6 +78,10 @@ on:
         required: false
         type: string
         default: ''
+      force:
+        description: 'Полный конвейер даже если голова уже отревьюена'
+        type: boolean
+        default: false
 
 concurrency:
   # Один прогон на PR: новый коммит (или closed) отменяет текущее ревью.
@@ -155,6 +161,7 @@ jobs:
           HEADREF: ${{ github.head_ref }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
           PLUGIN_REF: ${{ inputs.plugin_ref }}
+          FORCE: ${{ inputs.force == true && '1' || '' }}
         run: |
           REPLAY=""
           if [ -n "$DISPATCH" ]; then
@@ -218,7 +225,7 @@ jobs:
           # v2.35: режим итерации — по последнему опубликованному ревью и git, а не чтением
           # 02-pr-comments.md моделью (правило остановки, fix-diff, чистый мёрж базы — всё там).
           gh pr view "$PR" --repo "$REPO" --json reviews > "$OUT/.reviews.json" || echo '{"reviews":[]}' > "$OUT/.reviews.json"
-          python3 "$SKILL/scripts/iter_state.py" "$OUT" "$PWD" "$BASE" "$headwc" $( [ -n "$REPLAY" ] && echo --replay )
+          python3 "$SKILL/scripts/iter_state.py" "$OUT" "$PWD" "$BASE" "$headwc" $( [ -n "$REPLAY" ] && echo --replay ) $( [ -n "$FORCE" ] && echo --force )
           rm -f "$OUT/.reviews.json"
           # v2.35: зависимости и сборка workspace shared — детерминированный shell, не ход модели.
           # Факты среды ТЕКУЩЕГО прогона — только в 06-runfacts.md (история в 02/05 — не факты).
