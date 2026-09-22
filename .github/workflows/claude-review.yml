@@ -14,6 +14,11 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.33 (2026-09-22, токен-аудит волна 6): каталог прогона уникален — OUT=/tmp/review/<ветка>-<UTC>
+# (два PR на одном self-hosted раннере больше не затирают друг друга; хвосты старше 12 ч чистятся
+# по возрасту). Клон маркетплейса — ВСЕГДА, до Prepare: его скрипты режут дифф на слайсы, строят
+# дайджест и сверяют голову/список файлов ДО Клода (4–6 opus-ходов главного цикла ушли в bash);
+# результат сверки — строка `RECALC:` в INDEX.md. Путь скилла в промт — из этого клона всегда.
 # v2.32 (2026-09-22): `packages: read` + NODE_AUTH_TOKEN у джобы — `npm ci` тянет приватные
 # @omnisgm-app/* из GitHub Packages; без токена реплей 35692325404 шёл без tsc/юнитов/мутаций.
 # v2.31 (2026-09-22): вход `plugin_ref` у workflow_dispatch — замер ветки плагина ДО мёржа в
@@ -104,8 +109,22 @@ jobs:
           curl -sL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
 
+      # v2.33: клон маркетплейса ВСЕГДА и ДО Prepare — его скрипты (slice_diff, digest_context)
+      # нужны шагу Prepare, а action ставит плагин позже. plugin_ref (v2.31) выбирает ветку;
+      # пусто — master. Клон свежий каждый ран (self-hosted персистентен).
+      - name: Fetch plugin scripts
+        shell: bash
+        env:
+          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
+          PLUGIN_REF: ${{ inputs.plugin_ref }}
+        run: |
+          rm -rf "$RUNNER_TEMP/omnisgm-marketplace"
+          git clone -q --depth 1 --branch "${PLUGIN_REF:-master}" "https://x-access-token:${GH_PLUGINS_TOKEN}@github.com/OmnisGM-App/claude-plugins.git" "$RUNNER_TEMP/omnisgm-marketplace"
+          echo "плагин с ветки ${PLUGIN_REF:-master}: $(git -C "$RUNNER_TEMP/omnisgm-marketplace" rev-parse --short HEAD), версия $(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/.claude-plugin/plugin.json'))['version'])")"
+
       # Экономия ходов Клода: контекст PR снимается скриптом ДО старта (аналог
       # fetch_pr.sh локального конвейера) — Клод начинает сразу с чтения файлов.
+      # v2.33: сюда же — нарезка слайсов, дайджест и сверка головы/списка файлов.
       - name: Prepare review context
         id: prep
         shell: bash
@@ -133,44 +152,52 @@ jobs:
             echo "реплей PR #$PR: голова $headsha, база $basesha ($baseref), merged=$merged"
           fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"; echo "headref=$HEADREF" >> "$GITHUB_OUTPUT"; echo "replay=$REPLAY" >> "$GITHUB_OUTPUT"
-          # self-hosted раннер персистентен: артефакты прошлого прогона в /tmp сбивают
-          # ревьюера («всё уже опубликовано» на старую голову — случай Table#529).
-          # v2.24: плюс хвосты песочниц агентов — отменённый ран (cancel-in-progress)
-          # финальный шаг очистки не выполняет, поэтому чистим и на старте. Глобы
-          # /tmp/*-sandbox и *.tar — наследие промта до 1.6.13 (песочницы в голом /tmp
-          # забили диск обоих раннеров, 2026-09-15); сейчас всё живёт под /tmp/review.
-          rm -rf /tmp/review /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
+          # v2.33: каталог прогона уникален — ветка + UTC-метка. Два PR одной репы идут
+          # параллельно (concurrency-группа на PR), на персистентном self-hosted раннере
+          # общий /tmp/review затирал бы контекст и отчёты соседа. Старые прогоны чистим по
+          # возрасту (отменённый ран свой финальный шаг не выполняет — случай Table#529/v2.24);
+          # глобы /tmp/*-sandbox и *.tar — наследие промта до 1.6.13.
+          OUT="/tmp/review/$(printf '%s' "$HEADREF" | tr -c 'A-Za-z0-9._-' '_')-$(date -u +%Y%m%d-%H%M%S)"
           mkdir -p /tmp/review
-          gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > /tmp/review/00-pr.md
-          git diff "origin/${BASE}...HEAD" > /tmp/review/01-diff.patch
-          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- коммент \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- ревью \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > /tmp/review/02-pr-comments.md || true
-          git diff --name-only "origin/${BASE}...HEAD" > /tmp/review/04-files.txt
-          for n in $(grep -oE '#[0-9]+' /tmp/review/00-pr.md | tr -d '#' | sort -un | head -5); do
+          find /tmp/review -mindepth 1 -maxdepth 1 -mmin +720 -exec rm -rf {} + 2>/dev/null || true
+          rm -rf /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
+          mkdir -p "$OUT"; echo "out=$OUT" >> "$GITHUB_OUTPUT"; echo "каталог прогона: $OUT"
+          gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > $OUT/00-pr.md
+          git diff "origin/${BASE}...HEAD" > $OUT/01-diff.patch
+          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- коммент \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- ревью \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > $OUT/02-pr-comments.md || true
+          git diff --name-only "origin/${BASE}...HEAD" > $OUT/04-files.txt
+          for n in $(grep -oE '#[0-9]+' $OUT/00-pr.md | tr -d '#' | sort -un | head -5); do
             [ "$n" = "$PR" ] && continue
-            gh issue view "$n" --repo "$REPO" --json number,title,body,state,comments --jq '"# Ишья #\(.number) (\(.state)): \(.title)\n\n\(.body)\n\n" + ([.comments[] | "--- коммент \(.author.login)\n\(.body)\n\n"] | join(""))' > "/tmp/review/03-issue-$n.md" 2>/dev/null || rm -f "/tmp/review/03-issue-$n.md"
+            gh issue view "$n" --repo "$REPO" --json number,title,body,state,comments --jq '"# Ишья #\(.number) (\(.state)): \(.title)\n\n\(.body)\n\n" + ([.comments[] | "--- коммент \(.author.login)\n\(.body)\n\n"] | join(""))' > "$OUT/03-issue-$n.md" 2>/dev/null || rm -f "$OUT/03-issue-$n.md"
           done
-          { echo "# INDEX прогона (контекст подготовлен CI)"; echo; wc -l /tmp/review/*.md /tmp/review/*.patch /tmp/review/*.txt 2>/dev/null; } > /tmp/review/INDEX.md
-          ls -la /tmp/review/ && wc -l /tmp/review/01-diff.patch
-          # v2.27: путь скилла для промта — action ставит плагин в ~/.claude/plugins/marketplaces/<имя>/…
-          # v2.31: при plugin_ref скилл читается из локального клона ветки (см. шаг ниже).
-          if [ -n "$PLUGIN_REF" ]; then
-            echo "skill=$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/skills/omnisgm-review" >> "$GITHUB_OUTPUT"
-          else
-            echo "skill=$HOME/.claude/plugins/marketplaces/omnisgm/plugins/omnisgm/skills/omnisgm-review" >> "$GITHUB_OUTPUT"
+          { echo "# INDEX прогона (контекст подготовлен CI)"; echo; wc -l $OUT/*.md $OUT/*.patch $OUT/*.txt 2>/dev/null; } > $OUT/INDEX.md
+          # v2.33: сверка головы и списка файлов — детерминированная, делаем здесь, не в Клоде.
+          # HEAD события pull_request (и реплея) — merge-коммит, голова PR = HEAD^2 (Table#529).
+          # Список файлов: у стековых PR после фаст-форварда базы дифф `...HEAD` подмешивает
+          # соседа (News#86), `gh pr diff` застревает на старом merge-base (Rules#309) — истина
+          # `origin/<base>...HEAD^2`; расхождение пересчитываем и объявляем строкой RECALC:.
+          SKILL="$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/skills/omnisgm-review"
+          headpr=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
+          headwc=$(git rev-parse HEAD^2 2>/dev/null || git rev-parse HEAD)
+          [ "$headpr" = "$headwc" ] || echo "RECALC: голова рабочей копии $headwc ≠ голова PR $headpr — контекст мог устареть (Table#529), оговорку в шапку ревью" >> "$OUT/INDEX.md"
+          { git diff --name-only "origin/${BASE}...HEAD^2" 2>/dev/null || true; } | sort > "$OUT/.files-truth"
+          if [ -s "$OUT/.files-truth" ] && ! diff -q <(sort "$OUT/04-files.txt") "$OUT/.files-truth" >/dev/null; then
+            git diff --output="$OUT/01-diff.patch" "origin/${BASE}...HEAD^2"
+            cp "$OUT/.files-truth" "$OUT/04-files.txt"
+            echo "RECALC: список файлов пересчитан по origin/${BASE}...HEAD^2 (дифф против merge-коммита расходился — стековый PR или сдвиг базы), оговорку в шапку ревью" >> "$OUT/INDEX.md"
           fi
-
-      # v2.31: маркетплейс с ветки плагина — только для замера по кнопке. Клон свежий каждый ран
-      # (self-hosted персистентен), токен тот же, что у URL-варианта ниже.
-      - name: Checkout plugin branch (plugin_ref)
-        if: ${{ inputs.plugin_ref != '' }}
-        shell: bash
-        env:
-          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
-          PLUGIN_REF: ${{ inputs.plugin_ref }}
-        run: |
-          rm -rf "$RUNNER_TEMP/omnisgm-marketplace"
-          git clone -q --depth 1 --branch "$PLUGIN_REF" "https://x-access-token:${GH_PLUGINS_TOKEN}@github.com/OmnisGM-App/claude-plugins.git" "$RUNNER_TEMP/omnisgm-marketplace"
-          echo "плагин с ветки $PLUGIN_REF: $(git -C "$RUNNER_TEMP/omnisgm-marketplace" rev-parse --short HEAD), версия $(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/.claude-plugin/plugin.json'))['version'])")"
+          { gh pr diff "$PR" --repo "$REPO" --name-only 2>/dev/null || true; } | sort > "$OUT/.files-gh"
+          if [ -s "$OUT/.files-gh" ] && ! diff -q "$OUT/.files-gh" "$OUT/.files-truth" >/dev/null; then
+            echo "RECALC: gh pr diff --name-only расходится с origin/${BASE}...HEAD^2 — работаем по git (Rules#309), оговорку в шапку ревью" >> "$OUT/INDEX.md"
+          fi
+          rm -f "$OUT/.files-truth" "$OUT/.files-gh"
+          python3 "$SKILL/scripts/slice_diff.py" "$OUT"
+          # digest_context.py появился в плагине 1.8.0 — до мёржа ветки на master шаг пропускается.
+          [ -f "$SKILL/scripts/digest_context.py" ] && python3 "$SKILL/scripts/digest_context.py" "$OUT"
+          ls -la "$OUT/" && wc -l "$OUT/01-diff.patch" && { grep '^RECALC:' "$OUT/INDEX.md" || true; }
+          # v2.33: путь скилла для промта — всегда из клона маркетплейса (шаг Fetch plugin scripts);
+          # тот же master, что ставит action, либо ветка plugin_ref.
+          echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
 
       # v2.22: персистентный self-hosted раннер НЕ обновляет плагин — claude-code-action
       # видит «already installed» и пропускает установку, ревью идёт по древнему кэшу
@@ -204,19 +231,18 @@ jobs:
             Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR. Каталог скилла:
             ${{ steps.prep.outputs.skill }} — прочитай инструментом Read ДВА файла оттуда:
             references/ci-pipeline.md (весь конвейер и правила — следуй им) и
-            references/triage.md (состав агентов и модели). Нет файла по этому пути —
-            найди Glob `**/omnisgm-review/references/ci-pipeline.md` с path `~/.claude/plugins`
-            (`ls`/`find` по этому каталогу режутся). Промты агентов лежат в
+            references/triage.md (состав агентов и модели). Промты агентов лежат в
             references/agents/ — их читает САМ агент, ты не читаешь и не вкладываешь.
 
             ПРОГОН: PR=#${{ github.event.pull_request.number || inputs.pr }}
             REPO=${{ github.repository }} BASE=${{ steps.prep.outputs.base }}
             HEADREF=${{ steps.prep.outputs.headref }}
-            REPO_DIR=${{ github.workspace }} OUT=/tmp/review
+            REPO_DIR=${{ github.workspace }} OUT=${{ steps.prep.outputs.out }}
 
       - name: Publish review
         if: always()
         env:
+          RUN_OUT: ${{ steps.prep.outputs.out }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           PR: ${{ github.event.pull_request.number || inputs.pr }}
@@ -225,7 +251,7 @@ jobs:
         run: |
           python3 - <<'PY'
           import json, os, re, subprocess, sys
-          rd = "/tmp/review"
+          rd = os.environ["RUN_OUT"]
           # Тело ревью собирается ДЕТЕРМИНИРОВАННО из 90-verdict.json — модель тело не пишет
           # и дописать в него ничего не может (сага «много текста» v2.8/2.12/2.16 закрыта формой).
           vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
@@ -308,9 +334,9 @@ jobs:
           if inl and f"+{len(inl)} инлайнов" in body and len(good) != len(inl):
               body = body.replace(f"+{len(inl)} инлайнов", f"+{len(good)} инлайнов")
           def post(payload):
-              open("/tmp/payload.json", "w").write(json.dumps(payload))
+              open(f"{rd}/payload.json", "w").write(json.dumps(payload))
               return subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
-                                     "-X", "POST", "--input", "/tmp/payload.json"], capture_output=True, text=True)
+                                     "-X", "POST", "--input", f"{rd}/payload.json"], capture_output=True, text=True)
           if os.environ.get("REPLAY"):
               body = "🔁 Реплей-прогон (замер стоимости, workflow_dispatch) — не новый раунд ревью.\n\n" + body
           payload = {"event": "COMMENT", "body": body}
@@ -328,11 +354,12 @@ jobs:
       - name: Post journal observation
         if: always()
         env:
+          RUN_OUT: ${{ steps.prep.outputs.out }}
           GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
         shell: bash
         run: |
-          [ -f /tmp/review/95-journal.md ] || { echo "наблюдений нет"; exit 0; }
-          gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file /tmp/review/95-journal.md
+          [ -f "$RUN_OUT/95-journal.md" ] || { echo "наблюдений нет"; exit 0; }
+          gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$RUN_OUT/95-journal.md"
 
       - name: Dump execution transcript (debug)
         if: always()
@@ -372,4 +399,8 @@ jobs:
       - name: Clean up runner scratch (self-hosted)
         if: always()
         shell: bash
-        run: rm -rf /tmp/review /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
+        env:
+          RUN_OUT: ${{ steps.prep.outputs.out }}
+        run: |
+          [ -n "$RUN_OUT" ] && rm -rf "$RUN_OUT"
+          rm -rf /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
