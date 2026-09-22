@@ -14,6 +14,9 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.41 (2026-09-22, аудит 8): Prepare выкладывает файлы диффа по голове PR в $OUT/src/ (агенты
+# читают Read, не `git show` — до 115 лишних вызовов за прогон) и гоняет базовый `tsc --noEmit`
+# по каждому tsconfig → 06-runfacts.md; хроника дампа размечена по агентам ([who]).
 # v2.40 (2026-09-22): шапка без «+N инлайнов» (решение владельца: сколько из находок
 # инлайны — неважно) и правильные формы «1 среднее / 2 ремарки».
 # v2.39 (2026-09-22): вход `force` у кнопки — полный конвейер даже на уже отревьюенной голове
@@ -224,6 +227,18 @@ jobs:
           rm -f "$OUT/.files-truth" "$OUT/.files-gh"
           python3 "$SKILL/scripts/slice_diff.py" "$OUT"
           python3 "$SKILL/scripts/digest_context.py" "$OUT"
+          # v2.41: текстовые файлы диффа по голове PR — один раз в $OUT/src/ (аудит 8, [1]).
+          # Удалённые и бинарные файлы пропускаются (их нет в голове / изображения вне ревью).
+          mkdir -p "$OUT/src"; nsrc=0
+          git ls-tree -r --name-only "$headwc" > "$OUT/.head-files"
+          grep -Fxf "$OUT/.head-files" "$OUT/04-files.txt" | grep -Eiv '\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip)$' > "$OUT/.src-list" || true
+          while IFS= read -r p; do
+            [ -n "$p" ] || continue
+            mkdir -p "$OUT/src/$(dirname "$p")"
+            git show "$headwc:$p" > "$OUT/src/$p" && nsrc=$((nsrc+1))
+          done < "$OUT/.src-list"
+          rm -f "$OUT/.head-files" "$OUT/.src-list"
+          echo "src/: $nsrc файлов диффа по голове PR (текстовые, существующие в голове)" >> "$OUT/INDEX.md"
           # v2.35: режим итерации — по последнему опубликованному ревью и git, а не чтением
           # 02-pr-comments.md моделью (правило остановки, fix-diff, чистый мёрж базы — всё там).
           gh pr view "$PR" --repo "$REPO" --json reviews > "$OUT/.reviews.json" || echo '{"reviews":[]}' > "$OUT/.reviews.json"
@@ -238,6 +253,15 @@ jobs:
             if [ "$ci" = 0 ] && [ -f shared/package.json ]; then
               b=0; npm run build --workspace=shared > "$OUT/.shared-build.log" 2>&1 || b=$?
               if [ "$b" = 0 ]; then echo "shared/dist: собран" >> "$OUT/06-runfacts.md"; else echo "shared/dist: НЕ собран (exit $b)" >> "$OUT/06-runfacts.md"; tail -5 "$OUT/.shared-build.log"; fi
+            fi
+            # v2.41: базовый тайпчек один раз на прогон — агенты берут факт из 06-runfacts.md (аудит 8, [3]).
+            if [ "$ci" = 0 ]; then
+              for cfg in tsconfig.json frontend/tsconfig.json; do
+                [ -f "$cfg" ] || continue
+                t=0; npx tsc --noEmit -p "$cfg" > "$OUT/.tsc.log" 2>&1 || t=$?
+                if [ "$t" = 0 ]; then echo "tsc $cfg: exit 0" >> "$OUT/06-runfacts.md"; else echo "tsc $cfg: exit $t — $(tail -3 "$OUT/.tsc.log" | tr '\n' ' ')" >> "$OUT/06-runfacts.md"; fi
+              done
+              rm -f "$OUT/.tsc.log"
             fi
             rm -f "$OUT/.npm-ci.log" "$OUT/.shared-build.log"
           else
@@ -448,24 +472,26 @@ jobs:
           print("=== ХРОНИКА")
           for m in msgs:
               t = m.get("type")
+              # v2.41: владелец каждой строки хроники (аудит 8, [7]) — параллельные агенты больше не перемешаны.
+              who = label.get(m.get("parent_tool_use_id"), "главный цикл").split(" [")[0]
               if t == "assistant":
                   for c in m.get("message", {}).get("content", []):
                       if c.get("type") == "text" and c.get("text", "").strip():
-                          print(f"--- ASSISTANT TEXT:\n{c['text'][:1500]}")
+                          print(f"--- [{who}] ASSISTANT TEXT:\n{c['text'][:1500]}")
                       elif c.get("type") == "tool_use":
                           inp = c.get("input", {})
                           if c.get("name") in ("Agent", "Task"):
                               # v2.29: модель диспатча видна в дампе (замер маршрутизации моделей)
-                              print(f"TOOL {c.get('name')} model={inp.get('model', '-')} {inp.get('description', '')!r}: {str(inp.get('prompt', ''))[:120]!r}")
+                              print(f"[{who}] TOOL {c.get('name')} model={inp.get('model', '-')} {inp.get('description', '')!r}: {str(inp.get('prompt', ''))[:120]!r}")
                           else:
-                              print(f"TOOL {c.get('name')}: {json.dumps(inp, ensure_ascii=False)[:220]}")
+                              print(f"[{who}] TOOL {c.get('name')}: {json.dumps(inp, ensure_ascii=False)[:220]}")
               elif t == "user":
                   for c in m.get("message", {}).get("content", []):
                       if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error"):
                           body = c.get("content")
                           if isinstance(body, list):
                               body = " ".join(x.get("text", "") for x in body if isinstance(x, dict))
-                          print(f"  !! DENIED/ERROR: {str(body)[:300]}")
+                          print(f"  !! [{who}] DENIED/ERROR: {str(body)[:300]}")
           PYEOF
 
       # v2.24: на персистентном self-hosted раннере песочницы агентов (~0.5 ГБ каждая,
