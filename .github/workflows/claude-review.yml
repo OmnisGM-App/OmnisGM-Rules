@@ -14,6 +14,8 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.32 (2026-09-22): `packages: read` + NODE_AUTH_TOKEN у джобы — `npm ci` тянет приватные
+# @omnisgm-app/* из GitHub Packages; без токена реплей 35692325404 шёл без tsc/юнитов/мутаций.
 # v2.31 (2026-09-22): вход `plugin_ref` у workflow_dispatch — замер ветки плагина ДО мёржа в
 # master: клон маркетплейса на этой ветке кладётся в $RUNNER_TEMP и отдаётся action'у
 # ЛОКАЛЬНЫМ ПУТЁМ (plugin_marketplaces принимает путь), путь скилла в промт — оттуда же.
@@ -75,6 +77,9 @@ jobs:
       issues: write
       id-token: write
       actions: read
+      packages: read   # установка приватных @omnisgm-app/* из GitHub Packages (npm ci)
+    env:
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # v2.32: для npm ci в песочницах агентов
     steps:
       - name: Checkout PR
         uses: actions/checkout@v7
