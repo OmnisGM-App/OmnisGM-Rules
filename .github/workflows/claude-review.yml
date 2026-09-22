@@ -14,6 +14,11 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.36 (2026-09-22): маркетплейс для action — ВСЕГДА локальный клон из RUNNER_TEMP (он и так
+# есть с v2.33); URL-вариант снят. Причина: на персистентном раннере ~/.claude/settings.json
+# помнит объявление маркетплейса, и смена вида источника (path ↔ URL) валит `marketplace add`
+# («its network source differs from the one declared», run 35719739780). Шаг Purge снимает
+# старое объявление из settings.json.
 # v2.35 (2026-09-22, токен-аудит волна 7): Prepare считает РЕЖИМ ИТЕРАЦИИ (iter_state.py →
 # строка ITER: в INDEX.md + fix-diff.patch), ставит зависимости (`npm ci`) и собирает workspace
 # `shared` — факты среды в 06-runfacts.md; главный цикл ни 02-pr-comments.md, ни npm ci больше
@@ -233,7 +238,18 @@ jobs:
       # На эфемерных ubuntu-latest каталога нет — шаг no-op.
       - name: Purge stale plugin cache (self-hosted)
         shell: bash
-        run: rm -rf ~/.claude/plugins
+        run: |
+          rm -rf ~/.claude/plugins
+          # v2.36: объявление маркетплейса живёт в settings.json, а не в plugins/ — снимаем и его.
+          [ -f ~/.claude/settings.json ] && python3 - <<'PY'
+          import json, os
+          p = os.path.expanduser("~/.claude/settings.json")
+          d = json.load(open(p))
+          d.get("extraKnownMarketplaces", {}).pop("omnisgm", None)
+          d.get("enabledPlugins", {}).pop("omnisgm@omnisgm", None)
+          json.dump(d, open(p, "w"), ensure_ascii=False, indent=2)
+          PY
+          true
 
       - name: Claude review
         uses: anthropics/claude-code-action@v1
@@ -245,8 +261,8 @@ jobs:
           track_progress: false
           # Маркетплейс приватный — клонится fine-grained PAT-ом (contents: read
           # на OmnisGM-App/claude-plugins); секрет в URL маскируется логами Actions.
-          # v2.31: с plugin_ref — локальный клон ветки (шаг выше), иначе URL master.
-          plugin_marketplaces: ${{ inputs.plugin_ref != '' && format('{0}/omnisgm-marketplace', runner.temp) || format('https://x-access-token:{0}@github.com/OmnisGM-App/claude-plugins.git', secrets.CLAUDE_PLUGINS_TOKEN || github.token) }}
+          # v2.36: всегда локальный клон (шаг Fetch plugin scripts: master либо ветка plugin_ref).
+          plugin_marketplaces: ${{ runner.temp }}/omnisgm-marketplace
           plugins: |
             omnisgm@omnisgm
           claude_args: |
