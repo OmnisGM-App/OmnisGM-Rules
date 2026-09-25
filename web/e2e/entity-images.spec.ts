@@ -2,6 +2,7 @@ import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
 import { KINDS, ORDER } from '../../scripts/gen-images.mjs';
+import { VERSION_SLUG } from '../src/lib/entities';
 
 // Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов):
 // картинка живёт в Rules, показывается на странице сущности, уходит в og:image и в поле
@@ -62,16 +63,12 @@ test('авторство картинок — отдельной строкой 
 // поэтому проверяем ТОТ ЖЕ артефакт, что генерит prebuild из generate_api.py.
 const api = (p: string) => JSON.parse(fs.readFileSync(`src/data/api/${p}`, 'utf-8'));
 
-// Разделы для поиска сущности без картинки — не свой список, а очередь генератора (`KINDS`
-// в scripts/gen-images.mjs). Свой список устаревал молча: очередь доливает иконки порциями
-// и закрывает раздел целиком — так покраснели сперва заклинания 5.2, потом магпредметы.
+// Разделы для поиска сущности без картинки — не свой список, а очередь генератора
+// (`KINDS` в scripts/gen-images.mjs).
 type PendingSource = { json: string; game: string; version: string; segment: string };
 
-// Коллекция API и сегмент её маршрута совпадают не всегда; расхождения ловит тест ниже.
+// Коллекция API и сегмент её маршрута совпадают не всегда, а общей карты для этого нет.
 const PAGE_SEGMENT: Record<string, string> = { monsters: 'monsters-a-z' };
-
-/** Каталог версии в данных (`srd52`) — сегмент версии в адресе (`srd-5.2`). */
-const routeVersion = (dir: string) => dir.replace(/^srd(\d)(\d+)$/, 'srd-$1.$2');
 
 const pageUrl = (s: PendingSource, slug: string) =>
   `/ru/${s.game}/${s.version}/${s.segment}/${slug}/`;
@@ -86,10 +83,14 @@ function pendingSources(): PendingSource[] {
       const gameDir = `src/data/api/${game}`;
       if (!fs.existsSync(gameDir)) continue;
       for (const ver of fs.readdirSync(gameDir).sort()) {
+        // Сегмент версии — из той же карты, по которой строят адрес сами `[slug].astro`;
+        // каталога без записи в ней на сайте нет вовсе.
+        const version = VERSION_SLUG[ver];
+        if (!version) continue;
         for (const collection of collections) {
           const json = `${game}/${ver}/ru/${collection}/all.json`;
           if (!fs.existsSync(`src/data/api/${json}`)) continue;
-          out.push({ json, game, version: routeVersion(ver), segment: PAGE_SEGMENT[collection] ?? collection });
+          out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection });
         }
       }
     }
@@ -109,7 +110,6 @@ function pendingEntity() {
 const NO_PENDING = 'во всех разделах очереди картинки уже у всех — проверять нечего, правь тест';
 
 test('разделы очереди картинок: у каждой коллекции есть страница сущности', () => {
-  // Разъедься карта с маршрутами — `pendingEntity` ходил бы на 404, а искали бы в чужом тесте.
   const sources = pendingSources();
   expect(sources.length).toBeGreaterThan(0);
   const missing = sources.filter((s) => !fs.existsSync(routeFile(s))).map(routeFile);
