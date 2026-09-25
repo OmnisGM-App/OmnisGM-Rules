@@ -1,6 +1,8 @@
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
+import { KINDS, ORDER } from '../../scripts/gen-images.mjs';
+import { VERSION_SLUG } from '../src/lib/entities';
 
 // Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов):
 // картинка живёт в Rules, показывается на странице сущности, уходит в og:image и в поле
@@ -61,25 +63,58 @@ test('авторство картинок — отдельной строкой 
 // поэтому проверяем ТОТ ЖЕ артефакт, что генерит prebuild из generate_api.py.
 const api = (p: string) => JSON.parse(fs.readFileSync(`src/data/api/${p}`, 'utf-8'));
 
-// Сущность БЕЗ картинки берём по факту и сразу из нескольких разделов: очередь генератора
-// доливает иконки порциями и однажды закрывает раздел целиком — так и вышло с заклинаниями
-// 5.2 (после мёржа очереди #266 иконки есть у всех 339, и оба теста покраснели не от
-// поломки, а от заполнения). Разделы перечислены от самого «дырявого» к менее дырявому;
-// пустым станет весь список — тогда и правим тест, а не при закрытии одного раздела.
-const PENDING_SOURCES = [
-  { json: 'dnd/srd52/ru/magic-items/all.json', page: (s: string) => `/ru/dnd/srd-5.2/magic-items/${s}/` },
-  { json: 'dnd/srd51/ru/magic-items/all.json', page: (s: string) => `/ru/dnd/srd-5.1/magic-items/${s}/` },
-  { json: 'dnd/srd52/ru/spells/all.json', page: (s: string) => `/ru/dnd/srd-5.2/spells/${s}/` },
-];
+// Разделы для поиска сущности без картинки — не свой список, а очередь генератора
+// (`KINDS` в scripts/gen-images.mjs).
+type PendingSource = { json: string; game: string; version: string; segment: string };
+
+// Коллекция API и сегмент её маршрута совпадают не всегда, а общей карты для этого нет.
+const PAGE_SEGMENT: Record<string, string> = { monsters: 'monsters-a-z' };
+
+const pageUrl = (s: PendingSource, slug: string) =>
+  `/ru/${s.game}/${s.version}/${s.segment}/${slug}/`;
+const routeFile = (s: PendingSource) =>
+  `src/pages/[lang]/${s.game}/[version]/${s.segment}/[slug].astro`;
+
+/** Коллекции очереди, от вида, который генератор закрывает первым, к последнему. */
+function pendingSources(): PendingSource[] {
+  const out: PendingSource[] = [];
+  for (const kind of ORDER) {
+    for (const [game, collections] of Object.entries(KINDS[kind].api ?? {})) {
+      const gameDir = `src/data/api/${game}`;
+      if (!fs.existsSync(gameDir)) continue;
+      for (const ver of fs.readdirSync(gameDir).sort()) {
+        // Сегмент версии — из той же карты, по которой строят адрес сами `[slug].astro`;
+        // каталога без записи в ней на сайте нет вовсе.
+        const version = VERSION_SLUG[ver];
+        if (!version) continue;
+        for (const collection of collections) {
+          const json = `${game}/${ver}/ru/${collection}/all.json`;
+          if (!fs.existsSync(`src/data/api/${json}`)) continue;
+          out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection });
+        }
+      }
+    }
+  }
+  return out;
+}
 
 /** Первая сущность без поля image и адрес её страницы. */
 function pendingEntity() {
-  for (const src of PENDING_SOURCES) {
+  for (const src of pendingSources()) {
     const found = api(src.json).find((e: { image?: string }) => !e.image);
-    if (found) return { entity: found, url: src.page(found.slug) };
+    if (found) return { entity: found, url: pageUrl(src, found.slug) };
   }
   return null;
 }
+
+const NO_PENDING = 'во всех разделах очереди картинки уже у всех — проверять нечего, правь тест';
+
+test('разделы очереди картинок: у каждой коллекции есть страница сущности', () => {
+  const sources = pendingSources();
+  expect(sources.length).toBeGreaterThan(0);
+  const missing = sources.filter((s) => !fs.existsSync(routeFile(s))).map(routeFile);
+  expect(missing, `нет маршрутов: ${missing.join(', ')}`).toEqual([]);
+});
 
 test('JSON API: image есть у существ с файлом и отсутствует у остальных', () => {
   const monsters = api('dnd/srd52/ru/monsters/all.json');
@@ -87,7 +122,7 @@ test('JSON API: image есть у существ с файлом и отсутс
   expect(aboleth.image).toBe('https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp');
   // Поля нет вовсе, а не пустая строка/null — потребитель проверяет наличие ключа.
   const pending = pendingEntity();
-  expect(pending, 'во всех разделах PENDING_SOURCES иконки уже у всех — добавь раздел').toBeTruthy();
+  expect(pending, NO_PENDING).toBeTruthy();
   expect(pending!.entity).not.toHaveProperty('image');
   // Окружения Daggerheart делят схему с противниками, но картинок у них нет.
   expect(api('daggerheart/srd10/ru/environments/all.json')[0]).not.toHaveProperty('image');
@@ -138,11 +173,12 @@ test('заклинание и магпредмет с иконкой — тот 
 });
 
 test('сущность без картинки: страница как раньше', async ({ page }) => {
-  // Слаг берём из данных, а не из головы: очередь генератора доливает иконки порциями,
-  // и захардкоженная сущность однажды перестаёт быть «без картинки».
   const pending = pendingEntity();
-  expect(pending, 'во всех разделах PENDING_SOURCES иконки уже у всех — добавь раздел').toBeTruthy();
-  await page.goto(pending!.url);
+  expect(pending, NO_PENDING).toBeTruthy();
+  // У 404 нет ни портрета, ни авторства, ни своего og:image: ошибись адрес — и всё ниже
+  // осталось бы зелёным.
+  const res = await page.goto(pending!.url);
+  expect(res?.status(), pending!.url).toBe(200);
   await expect(page.locator('img.ent-portrait')).toHaveCount(0);
   await expect(page.locator('head meta[property="og:image"]')).toHaveAttribute(
     'content', 'https://rules.omnisgm.com/og.png',
