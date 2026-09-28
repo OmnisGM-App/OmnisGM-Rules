@@ -2,6 +2,7 @@
 // Корень «/» — x-default главная: рендерим EN (canonical), а язык выбираем по локали браузера
 // БЕЗ редиректа (флаг на <html> ставит ранний скрипт, RU-подписи показывает CSS). См. Reader/ReaderShell.
 import ReaderShell from '../components/ReaderShell.astro';
+import HomeAbout from '../components/HomeAbout.astro';
 import { nodeById, routeOf, isGroup } from '../lib/nav';
 
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
@@ -16,7 +17,7 @@ const r = (id: string) => {
 const title = 'OmnisGM Rules — tabletop RPG SRD reference (D&D, Daggerheart, BRP)';
 const titleRu = 'OmnisGM Rules — ридер SRD настольных игр (D&D, Daggerheart, BRP)';
 const description =
-  'Freely-licensed tabletop RPG System Reference Documents (D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying) as Markdown. A project of the OmnisGM ecosystem.';
+  'Tabletop RPG SRDs in English and Russian: D&D 5.2.1 and 5.1, Daggerheart, Basic Roleplaying — full rules, a page per spell and monster, Markdown sources.';
 
 // Заголовки для правого TOC (текст одинаков в обоих языках — собственные имена систем)
 const headings = [
@@ -51,6 +52,8 @@ const headings = [
   <ul>
     <li><a href={r('brp-legal')} aria-label="Basic Roleplaying SRD 1.0"><strong>SRD 1.0</strong></a> — <span class="l-en">Chaosium’s universal d100 system (the engine behind Call of Cthulhu, RuneQuest and more). BRP OGL.</span><span class="l-ru">универсальная d100-система от Chaosium (ядро Call of Cthulhu, RuneQuest и др.). Лицензия BRP OGL.</span></li>
   </ul>
+
+  <HomeAbout lang="en" bilingual />
 
   <hr />
   <blockquote>

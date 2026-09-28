@@ -1,0 +1,60 @@
+---
+// «Чем этот справочник отличается» — авторский текст главных (/, /en/, /ru/), Table#710.
+// Google держал главную в «просканирована, не проиндексирована»: SRD существует в сотнях
+// копий, а у нас на главной был только список ссылок. Здесь — то, чего нет у копий:
+// перевод, EN/RU-пары, страница на сущность, открытые исходники. Не пересказ SRD.
+// Ссылки на лист персонажа и News — прямые, чистыми URL (без utm): это перелинковка
+// экосистемы, а не воронка.
+interface Props { lang: 'en' | 'ru'; bilingual?: boolean; }
+const { lang, bilingual = false } = Astro.props;
+const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
+const show = (l: 'en' | 'ru') => bilingual || lang === l;
+const cls = (l: 'en' | 'ru') => (bilingual ? `l-${l}` : undefined);
+---
+<h2 id="about">
+  {show('en') && <span class={cls('en')}>What makes this reader different</span>}
+  {show('ru') && <span class={cls('ru')}>Чем этот справочник отличается</span>}
+</h2>
+{show('en') && (
+  <Fragment>
+    <p class={cls('en')}>
+      Every document here has a complete Russian translation next to the English original. Each
+      system has its own glossary of terms, so a rule word is translated the same way on every page —
+      no drift between chapters, spells and monster stat blocks.
+    </p>
+    <p class={cls('en')}>
+      The two languages are paired page by page: switch between English and Russian on any page to
+      check the original wording at the table. Spells, monsters, items, adversaries and skills each get
+      a page of their own with a stable address, so you can link to exactly the rule you mean.
+    </p>
+    <p class={cls('en')}>
+      The source is plain Markdown in a <a href={REPO}>public repository</a> under each SRD's own
+      license, and the text follows the current revision of every document. The reader belongs to the
+      OmnisGM ecosystem: the <a href="https://omnisgm.com/">OmnisGM character sheet</a> for D&amp;D 2024
+      is built on these same rules, and <a href="https://news.omnisgm.com/">The Guild Herald</a> collects
+      tabletop RPG news in English and Russian.
+    </p>
+  </Fragment>
+)}
+{show('ru') && (
+  <Fragment>
+    <p class={cls('ru')}>
+      У каждого документа здесь полный перевод на русский рядом с английским оригиналом. Для каждой
+      системы ведётся свой словарь терминов, поэтому игровое понятие переведено одинаково на всех
+      страницах — главы, заклинания и блоки характеристик монстров не расходятся между собой.
+    </p>
+    <p class={cls('ru')}>
+      Языки связаны постранично: на любой странице можно переключиться между русским и английским и
+      сверить формулировку оригинала прямо за столом. У заклинаний, монстров, предметов, противников и
+      навыков — отдельные страницы с постоянным адресом: можно дать ссылку ровно на то правило, о котором
+      идёт речь.
+    </p>
+    <p class={cls('ru')}>
+      Исходный текст — обычный Markdown в <a href={REPO}>открытом репозитории</a> под лицензией каждого
+      SRD, и он следует актуальной ревизии каждого документа. Справочник — часть экосистемы OmnisGM:
+      на этих же правилах построен <a href="https://omnisgm.com/">лист персонажа OmnisGM</a> для D&amp;D
+      2024, а <a href="https://news.omnisgm.com/">«Гильдейский вестник»</a> собирает новости настольных
+      ролевых игр на русском и английском.
+    </p>
+  </Fragment>
+)}

@@ -91,6 +91,62 @@ const description = t(
   `${sysLabel} ${verLabel} in full: ${chapterCount} rules sections plus reference compendiums — ${entityCount} pages of spells, monsters, items and other entities, each linked.`,
 );
 
+// Авторский текст хаба (Table#710): чем документ является и что с ним сделано здесь — не
+// пересказ SRD. Хаб был «просканирована, не проиндексирована»: одно оглавление ничем не
+// отличалось от сотен копий SRD. Абзацы свои у каждой редакции и языка — иначе тела хабов
+// совпадали бы между собой. Факты сверены с src/ и README: перевод и словари терминов
+// (src/{game}/translate/), состав компендиумов, лицензии.
+const ABOUT: Record<string, { ru: string[]; en: string[] }> = {
+  d52: {
+    en: [
+      'System Reference Document 5.2.1 is the open core of the 2024 edition of Dungeons & Dragons, published by Wizards of the Coast under CC BY 4.0. It covers how to play, character creation, all twelve classes with one subclass each, backgrounds and species, feats, equipment, spells, magic items and a full bestiary — enough to run a campaign.',
+      'Here the whole document reads online, and every spell, monster, animal, magic item, feat and piece of gear has its own page, with lists by spell level, school and class, by challenge rating and creature type, and by rarity. The text follows 5.2.1, the corrected revision of 5.2.',
+      'The Russian translation is ours and uses one D&D glossary, so a rule term reads the same in a class feature, a spell and a stat block. Every page has an English–Russian pair to check the original wording.',
+    ],
+    ru: [
+      'System Reference Document 5.2.1 — открытое ядро редакции Dungeons & Dragons 2024 года, опубликованное Wizards of the Coast под лицензией CC BY 4.0. В нём правила игры, создание персонажа, все двенадцать классов с одним подклассом у каждого, предыстории и виды, черты, снаряжение, заклинания, магические предметы и полный бестиарий — достаточно, чтобы вести кампанию.',
+      'Здесь документ читается целиком, а у каждого заклинания, монстра, животного, магического предмета, черты и предмета снаряжения — своя страница; есть списки по кругу, школе и классу заклинаний, по показателю опасности и типу существ, по редкости предметов. Текст соответствует 5.2.1 — исправленной ревизии 5.2.',
+      'Перевод на русский — наш, по единому словарю терминов D&D: одно и то же понятие звучит одинаково в умении класса, в заклинании и в блоке статистики. У каждой страницы есть английская пара — сверить формулировку оригинала.',
+    ],
+  },
+  d51: {
+    en: [
+      'System Reference Document 5.1 is the open core of the 2014 edition of D&D 5e. Wizards of the Coast released it under CC BY 4.0 in 2023, and much of the third-party material for fifth edition is still written against it, so many tables keep playing these rules.',
+      'The reader gives the complete 5.1 text with a page for every spell, monster, magic item, race, weapon and armor. The Russian translation shares its glossary with our SRD 5.2.1, so the same term means the same thing in both editions — handy when a group mixes 2014 and 2024 books.',
+      'Moving to the 2024 rules? SRD 5.2.1 comes with a conversion guide that lists what changed between the editions.',
+    ],
+    ru: [
+      'System Reference Document 5.1 — открытое ядро редакции D&D 5e 2014 года. В 2023 году Wizards of the Coast перевела его под лицензию CC BY 4.0; под него до сих пор написана большая часть сторонних материалов пятой редакции, и многие столы продолжают играть по этим правилам.',
+      'Здесь полный текст 5.1 и отдельная страница для каждого заклинания, монстра, магического предмета, расы, оружия и доспеха. Русский перевод ведётся по тому же словарю, что и наш SRD 5.2.1, — один термин значит одно и то же в обеих редакциях, это удобно, когда за столом смешаны книги 2014 и 2024 годов.',
+      'Переходите на правила 2024 года? В SRD 5.2.1 есть гайд по конвертации — он перечисляет, что изменилось между редакциями.',
+    ],
+  },
+  dh: {
+    en: [
+      'The Daggerheart System Reference Document 1.0 is the open rules text of the Darrington Press game, shared under the Darrington Press Community Gaming License. It holds character creation, the classes and their domains, ancestries and communities, the Duality Dice core mechanic, weapons, armor and loot, the GM guide with adversaries and environments, and the Witherwild campaign frame.',
+      'In this reader every adversary, environment, domain card, ancestry and community is a page of its own, with lists by tier, adversary type and domain. The rules text is converted to Markdown unchanged; the Russian translation is ours, built on one glossary of Daggerheart terms.',
+      'OmnisGM is not affiliated with or endorsed by Darrington Press; the full attribution and the license are at the foot of every page and on the Legal page.',
+    ],
+    ru: [
+      'Daggerheart System Reference Document 1.0 — открытый текст правил игры Darrington Press, распространяемый по лицензии Darrington Press Community Gaming License. В нём создание персонажа, классы и их домены, происхождения и сообщества, базовая механика Кубиков Двойственности, оружие, броня и добыча, руководство мастера с противниками и окружениями и кампания-рамка Витервилд.',
+      'В этом справочнике у каждого противника, окружения, доменной карты, происхождения и сообщества — своя страница; есть списки по рангу, типу противника и домену. Текст правил перенесён в Markdown без изменений, перевод на русский — наш, по единому словарю терминов Daggerheart.',
+      'OmnisGM не связан с Darrington Press и не одобрен ею; полная атрибуция и лицензия — внизу каждой страницы и на странице правовой информации.',
+    ],
+  },
+  brp10: {
+    en: [
+      'Basic Roleplaying is Chaosium’s universal percentile system — the d100 engine behind Call of Cthulhu, RuneQuest and a long line of other games. Its System Reference Document is open under the BRP OGL and covers character creation, the skill system, time and movement, combat and a toolkit of optional spot rules for building your own setting.',
+      'Here every skill, profession and spot rule has its own page, and skills are grouped by category, so the reference works as a toolbox rather than a book to read front to back. The Russian translation is ours and follows one glossary of BRP terms.',
+      'The BRP logo and the license notice are shown on every page of this section, as the BRP OGL requires.',
+    ],
+    ru: [
+      'Basic Roleplaying — универсальная процентная система Chaosium, d100-движок Call of Cthulhu, RuneQuest и целого ряда других игр. Её System Reference Document открыт по лицензии BRP OGL: создание персонажа, система навыков, время и перемещение, бой и набор необязательных точечных правил для сборки собственного сеттинга.',
+      'Здесь у каждого навыка, профессии и точечного правила — своя страница, навыки сгруппированы по категориям: справочник работает как ящик с инструментами, а не как книга, которую читают подряд. Перевод на русский — наш, по единому словарю терминов BRP.',
+      'Логотип BRP и уведомление о лицензии стоят на каждой странице раздела, как того требует BRP OGL.',
+    ],
+  },
+};
+const about = ABOUT[groupId]?.[lang] ?? [];
 const headings = [
   { depth: 2, slug: 'sections', text: t('Разделы', 'Sections') },
   { depth: 2, slug: 'reference', text: t('Справочники', 'Reference') },
@@ -110,6 +166,7 @@ const headings = [
     `Полный текст документа: правила по разделам и справочники сущностей — каждая страница отдельным адресом. Ниже — оглавление ${verLabel}.`,
     `The full document: rules by section plus entity reference compendiums, each entity on its own page. Below is the table of contents for ${verLabel}.`,
   )}</p>
+  {about.map((para) => <p>{para}</p>)}
 
   <h2 id="sections">{t('Разделы', 'Sections')}</h2>
   <ul>
