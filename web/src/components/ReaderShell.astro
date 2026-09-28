@@ -17,7 +17,8 @@ export interface Props {
   currentId: string;          // 'home' или id страницы NAV
   title: string;
   description?: string;
-  headings?: { depth: number; slug: string; text: string }[];
+  // textRu — только для двуязычного корня «/»: там метку TOC нужно переключать вместе с текстом.
+  headings?: { depth: number; slug: string; text: string; textRu?: string }[];
   sourceId?: string;          // id записи коллекции для ссылки «Источник»
   searchTitle?: string;       // чистый заголовок для индекса Pagefind (иначе берёт h1/документный title)
   bilingual?: boolean;        // корень «/»: рендерим обе подписи, язык — по локали (без редиректа)
@@ -212,7 +213,7 @@ const jsonLd = { '@context': 'https://schema.org', '@graph': graph };
 
 const toc = headings.filter((h) => h.depth === 2 || h.depth === 3);
 // Группируем h3 под их h2 для сворачиваемого TOC (по умолчанию свёрнуто, активная секция раскрыта скриптом)
-type TocGroup = { h2: { slug: string; text: string }; subs: { slug: string; text: string }[] };
+type TocGroup = { h2: { slug: string; text: string; textRu?: string }; subs: { slug: string; text: string }[] };
 const tocGroups: TocGroup[] = [];
 for (const h of toc) {
   if (h.depth === 2 || tocGroups.length === 0) tocGroups.push({ h2: h, subs: [] });
@@ -407,7 +408,7 @@ const searchUi = {
           <div class="rd-toc-list">
             {tocGroups.map((g) => (
               <div class={'rd-toc-grp' + (g.subs.length ? ' has-subs' : '')}>
-                <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`} data-toc={g.h2.slug}>{g.h2.text}</a>
+                <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`} data-toc={g.h2.slug}>{bilingual && g.h2.textRu ? <I18n en={g.h2.text} ru={g.h2.textRu} bilingual /> : g.h2.text}</a>
                 {g.subs.length > 0 && (
                   <div class="rd-toc-subs">
                     {g.subs.map((s) => (
@@ -449,7 +450,7 @@ const searchUi = {
                   <button type="button" class="rd-toc-caret" aria-label={t('Развернуть', 'Expand')} aria-expanded="false"></button>
                 )}
                 <a class="rd-toc-link rd-toc-h2" href={`#${g.h2.slug}`} data-toc={g.h2.slug}
-                   onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true">{g.h2.text}</a>
+                   onclick="var c=document.getElementById('rd-panel-none');if(c)c.checked=true">{bilingual && g.h2.textRu ? <I18n en={g.h2.text} ru={g.h2.textRu} bilingual /> : g.h2.text}</a>
               </div>
               {g.subs.length > 0 && (
                 <div class="rd-toc-subs">

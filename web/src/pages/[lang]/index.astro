@@ -1,5 +1,6 @@
 ---
 import ReaderShell from '../../components/ReaderShell.astro';
+import HomeAbout from '../../components/HomeAbout.astro';
 import { nodeById, routeOf, isGroup, type Lang } from '../../lib/nav';
 
 export async function getStaticPaths() {
@@ -20,8 +21,8 @@ const r = (id: string) => {
 
 const title = t('Главная · OmnisGM Rules', 'Home · OmnisGM Rules');
 const description = t(
-  'Открытый свод свободно-лицензированных SRD настольных ролевых игр (D&D, Daggerheart, Basic Roleplaying) в Markdown. Проект экосистемы OmnisGM.',
-  'Freely-licensed tabletop RPG System Reference Documents (D&D, Daggerheart, Basic Roleplaying) as Markdown. A project of the OmnisGM ecosystem.',
+  'SRD настольных ролевых игр на русском: D&D 5.2.1 и 5.1, Daggerheart, Basic Roleplaying — полный перевод правил и страница на каждое заклинание и монстра.',
+  'Read the D&D 5.2.1 and 5.1, Daggerheart and Basic Roleplaying SRDs online: every rules section, thousands of entity pages, each with a Russian twin.',
 );
 
 // Заголовки для TOC (контент авторский, не из Markdown)
@@ -29,6 +30,7 @@ const headings = [
   { depth: 2, slug: 'dnd', text: 'Dungeons & Dragons' },
   { depth: 2, slug: 'daggerheart', text: 'Daggerheart SRD' },
   { depth: 2, slug: 'brp', text: 'Basic Roleplaying' },
+  { depth: 2, slug: 'about', text: t('О справочнике', 'About') },
 ];
 ---
 <ReaderShell lang={lang} currentId="home" title={title} description={description} headings={headings}>
@@ -56,6 +58,8 @@ const headings = [
   <ul>
     <li><a href={r('brp-legal')} aria-label="Basic Roleplaying SRD 1.0"><strong>SRD 1.0</strong></a> — {t('универсальная d100-система от Chaosium (ядро Call of Cthulhu, RuneQuest и др.). Лицензия BRP OGL.', 'Chaosium’s universal d100 system (the engine behind Call of Cthulhu, RuneQuest and more). BRP OGL.')}</li>
   </ul>
+
+  <HomeAbout lang={lang} />
 
   <hr />
   <blockquote>
