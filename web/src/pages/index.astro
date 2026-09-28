@@ -19,11 +19,13 @@ const titleRu = 'OmnisGM Rules — ридер SRD настольных игр (D
 const description =
   'Tabletop RPG SRDs in English and Russian: D&D 5.2.1 and 5.1, Daggerheart, Basic Roleplaying — full rules, a page per spell and monster, Markdown sources.';
 
-// Заголовки для правого TOC (текст одинаков в обоих языках — собственные имена систем)
+// Заголовки для правого TOC: имена систем одинаковы в обоих языках, у «О справочнике» —
+// пара EN/RU (textRu), её ReaderShell переключает на двуязычном корне вместе с текстом.
 const headings = [
   { depth: 2, slug: 'dnd', text: 'Dungeons & Dragons' },
   { depth: 2, slug: 'daggerheart', text: 'Daggerheart SRD' },
   { depth: 2, slug: 'brp', text: 'Basic Roleplaying' },
+  { depth: 2, slug: 'about', text: 'About', textRu: 'О справочнике' },
 ];
 ---
 <ReaderShell lang="en" currentId="home" bilingual title={title} titleRu={titleRu} description={description} headings={headings}>
