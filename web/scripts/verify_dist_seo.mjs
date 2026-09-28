@@ -12,8 +12,7 @@
 //     страницы (взаимные ссылки не битые);
 //   • ≥1 JSON-LD блок, каждый парсится JSON.parse;
 //   • непустой <title>, уникальный внутри сэмпла;
-//   • нет noindex (allowlist noindex-страниц пуст после снятия с глоссариев в #106);
-//   • строка экосистемы (Table#710): прямые ссылки на лендинг и News чистыми URL, без nofollow.
+//   • нет noindex (allowlist noindex-страниц пуст после снятия с глоссариев в #106).
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -41,20 +40,6 @@ const LANGS = ['en', 'ru'];
 const NOINDEX_ALLOW = new Set();
 
 const errors = [];
-
-// Перекрёстные ссылки экосистемы (Table#710) — единственный источник ссылок на лендинг и News,
-// который Google видит в статике. Проверяем именно блок .rd-eco: ссылки из JSON-LD sameAs или
-// UTM-воронки его не подменяют.
-const ECO_HREFS = ['https://omnisgm.com/', 'https://news.omnisgm.com/'];
-const checkEco = (/** @type {string} */ id, /** @type {string} */ html) => {
-  const nav = html.match(/<nav class="rd-eco"[\s\S]*?<\/nav>/)?.[0];
-  if (!nav) { errors.push(`${id}: нет строки экосистемы (.rd-eco)`); return; }
-  for (const href of ECO_HREFS) {
-    const a = nav.match(new RegExp(`<a[^>]*href="${href.replace(/[.\/]/g, '\\$&')}"[^>]*>`))?.[0];
-    if (!a) errors.push(`${id}: в строке экосистемы нет ссылки ${href} (чистый URL, без utm)`);
-    else if (/rel="[^"]*nofollow/.test(a)) errors.push(`${id}: ссылка ${href} в строке экосистемы с nofollow`);
-  }
-};
 const titles = new Map(); // title → "lang tail" (проверка уникальности)
 
 const distFile = (/** @type {string} */ lang, /** @type {string} */ tail) => resolve(DIST, lang, tail, 'index.html');
@@ -76,7 +61,6 @@ for (const lang of LANGS) {
     }
     const html = readFileSync(file, 'utf8');
     const head = html.slice(0, html.indexOf('</head>'));
-    checkEco(id, html);
 
     // — title —
     const titleM = head.match(/<title>([^<]*)<\/title>/);
@@ -125,11 +109,6 @@ for (const lang of LANGS) {
   }
 }
 
-// Корень «/» вне сэмпла (x-default, свой шаблон) — строка экосистемы должна быть и там.
-const rootFile = resolve(DIST, 'index.html');
-if (existsSync(rootFile)) checkEco('[root] /', readFileSync(rootFile, 'utf8'));
-else errors.push('[root] /: index.html отсутствует в dist');
-
 // Манифест PWA: локализованные названия (`translations`) — поле из ПРЕДЛОЖЕНИЯ к спецификации,
 // в типах @vite-pwa его нет, и в astro.config.mjs над ним стоит `@ts-expect-error`. Директива
 // гасит всю строку целиком — опечатка в самом ключе тоже прошла бы молча, а второго сторожа у
@@ -155,4 +134,4 @@ if (errors.length) {
   for (const e of errors) console.error(`  • ${e}`);
   process.exit(1);
 }
-console.log(`✓ SEO-мета: ${checked} страниц сэмпла (${SAMPLE.length} типов × ${LANGS.length} языка) — canonical/hreflang/JSON-LD/title/noindex/экосистема в норме`);
+console.log(`✓ SEO-мета: ${checked} страниц сэмпла (${SAMPLE.length} типов × ${LANGS.length} языка) — canonical/hreflang/JSON-LD/title/noindex в норме`);

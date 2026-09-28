@@ -399,15 +399,6 @@ const searchUi = {
               ) : <span />}
             </div>
           )}
-
-          {/* Перекрёстные ссылки экосистемы (Table#710): прямые <a href> в статике на каждой
-              странице, чистыми URL — без utm (у воронки выше свои UTM, это другое) и без nofollow.
-              Одинаковые адреса со всех трёх сервисов — один сигнал для Google, а не шесть вариантов. */}
-          <nav class="rd-eco" aria-label={t('Экосистема OmnisGM', 'OmnisGM ecosystem')} data-pagefind-ignore>
-            <span class="rd-eco-k"><I18n en="OmnisGM ecosystem" ru="Экосистема OmnisGM" bilingual={bilingual} lang={lang} /></span>
-            <a href={`${MAIN}/`}><I18n en="OmnisGM — D&D character sheets" ru="OmnisGM — листы персонажей D&D" bilingual={bilingual} lang={lang} /></a>
-            <a href="https://news.omnisgm.com/"><I18n en="The Guild Herald — tabletop RPG news" ru="Гильдейский вестник — новости НРИ" bilingual={bilingual} lang={lang} /></a>
-          </nav>
         </div>
       </main>
 
