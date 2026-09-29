@@ -99,8 +99,8 @@
 
    ```bash
    F=$(git diff --name-only --diff-filter=d <base>...HEAD | grep -vE '\.(png|jpg|webp|svg|lock)$')   # без удалённых файлов; команды проверены на mawk/gawk/BSD awk и под C.UTF-8
-   # код выхода проверяется ВНУТРИ xargs (снаружи виден код xargs, 123 на любой ошибке grep): чисто → 0, ошибка grep → 123
-   # CASE_FNS — имена функций-кейсов репы для (в); дефолт vitest/playwright; в Rules: CASE_FNS='it|test|describe|check|eq|recognizes'
+   # код выхода проверяется ВНУТРИ xargs (снаружи виден код xargs): чисто → 0, ошибка grep → ненулевой код и текст ошибки
+   # CASE_FNS — имена функций-кейсов для (в); дефолт покрывает vitest/playwright и хелперы Rules (check/eq/recognizes): лишнее имя ложного нуля не даёт
    # (а) запрещённые классы 2–4 и 8 + кванторы + ссылки на PR/ревью — регистр не важен, JSX-комментарии тоже
    RE_A='^[[:space:]]*(//|#|\*|/\*|<!--|\{/\*).*(ревью|раунд|раньше было|поправлен|в отличие от прежн|после правк|исправлен[оа] по|единственн|гарантир|не может произойти|тест сторожит|ловит (tsc|гейт)|\bвсегда\b|\bникогда\b|\bвсе[хм]?\b|\bкажд(ый|ая|ое|ого)\b|\bтолько\b|\breview\b|\bround\b|previously|used to|\bonly\b|\bevery\b|\balways\b|\bnever\b|PR #|#[0-9]{2,4}\b.*(ревью|review))'
    echo "$F" | xargs sh -c 'grep -HinE "$0" "$@" || [ $? -eq 1 ]' "$RE_A"
@@ -108,7 +108,7 @@
    RE_B='^[[:space:]]*(//|#|\*|/\*|\{/\*|<!--).*[0-9]+([.,][0-9]+)?[[:space:]]*((px|ms|s|%|KB|MB)|(мс|КБ|мин|сек|строк|тест|файл|сценари)[[:alpha:]]*|раз(а|ов)?)([^[:alnum:]]|$)'
    echo "$F" | xargs sh -c 'grep -HnE "$0" "$@" || [ $? -eq 1 ]' "$RE_B"
    # (в) мотив теста блоком над кейсом, в т.ч. через пустую строку и для it.each/test.describe/describe.skip
-   echo "$F" | grep -E '(\.(test|spec)\.[jt]sx?|/test_[^/]+\.(mjs|py))$' | xargs -r awk -v C="${CASE_FNS:-it|test|describe}" 'BEGIN{n=0; re="^[[:space:]]*((" C ")(\\.[a-zA-Z]+)*(\\(|`)|def test_)"} /^[[:space:]]*(\/\/|\/\*|\*|#)/{n++; next} /^[[:space:]]*$/{next} $0 ~ re {if(n) print FILENAME":"FNR; n=0; next} {n=0}'
+   echo "$F" | grep -E '(\.(test|spec)\.[jt]sx?|/test_[^/]+\.(mjs|py))$' | xargs -r awk -v C="${CASE_FNS:-it|test|describe|check|eq|recognizes}" 'BEGIN{n=0; re="^[[:space:]]*((" C ")(\\.[a-zA-Z]+)*(\\(|`)|def test_)"} /^[[:space:]]*(\/\/|\/\*|\*|#)/{n++; next} /^[[:space:]]*$/{next} $0 ~ re {if(n) print FILENAME":"FNR; n=0; next} {n=0}'
    # (г) доля строк-комментариев у каждого нового/переписанного файла (бюджет ≤10 %, rules ≤15 %) — считаем, не оцениваем
    for f in $(echo "$F" | grep -E '\.(ts|tsx|mts|mjs|js|py|astro|scss|rules)$'); do awk -v f="$f" '/^[[:space:]]*(\/\/|\*|\/\*|\{\/\*|#[^!]|<!--)/{c++} END{if(NR>40 && c*10>NR) printf "%s: %d/%d строк = %d%%\n", f, c, NR, c*100/NR}' "$f"; done
    ```
