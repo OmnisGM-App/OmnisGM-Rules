@@ -16,9 +16,9 @@ inputs:
   node-version:
     description: >-
       Версия Node; пустая строка — Node не нужен (джоба на одном Python). По умолчанию —
-      общая для репозитория.
+      общая для репозитория (astro 7 требует >= 22.12).
     required: false
-    default: '20'
+    default: '22'
   python-version:
     description: >-
       Версия Python; пустая строка — Python не нужен. По умолчанию — общая для

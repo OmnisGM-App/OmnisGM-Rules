@@ -9,9 +9,8 @@ import fs from 'node:fs';
 const sw = () => fs.readFileSync('dist/sw.js', 'utf-8');
 
 test('шрифты self-hosted: ни одного роута к Google Fonts', () => {
-  // Дефолтные роуты шаблона vite-pwa кэшировали fonts.googleapis.com / fonts.gstatic.com.
-  // Наши шрифты лежат в public/fonts и уезжают в precache — правила не срабатывали никогда,
-  // но читались как рабочая политика. С enforce-CSP (#225) они ещё и заведомо нерабочие.
+  // Шрифты лежат в public/fonts и уезжают в precache; роут к Google Fonts был бы мёртвым
+  // кодом, который читается как рабочая политика, и с enforce-CSP (#225) ещё и нерабочим.
   expect(sw()).not.toMatch(/googleapis|gstatic|google-fonts/);
 });
 

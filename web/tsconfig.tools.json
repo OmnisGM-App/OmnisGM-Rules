@@ -60,6 +60,7 @@
   "files": [
     "astro.config.mjs",
     "scripts/add_sitemap_lastmod.mjs",
+    "scripts/build-sw.mjs",
     "scripts/build_fingerprint.mjs",
     "scripts/cf_purge_urls.mjs",
     "scripts/check_csp.mjs",
