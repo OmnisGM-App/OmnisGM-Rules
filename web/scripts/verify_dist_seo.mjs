@@ -126,6 +126,16 @@ if (!existsSync(manifestFile)) {
   }
 }
 
+// Service worker: e2e в CI не гоняются, так что потерю precache (или самого sw.js) ловит
+// только эта проверка. 18 начертаний — фиксированный набор шрифтов public/fonts.
+const swFile = resolve(DIST, 'sw.js');
+if (!existsSync(swFile)) {
+  errors.push('sw.js: файла нет в dist — scripts/build-sw.mjs не отработал после astro build');
+} else {
+  const fonts = new Set([...readFileSync(swFile, 'utf8').matchAll(/fonts\/[^"']+\.woff2/g)].map((m) => m[0]));
+  if (fonts.size !== 18) errors.push(`sw.js: в precache ${fonts.size} шрифтов вместо 18`);
+}
+
 const checked = LANGS.length * SAMPLE.length;
 if (errors.length) {
   console.error(`\n❌ SEO-мета: ${errors.length} проблем(ы) на ${checked} страницах сэмпла:\n`);
