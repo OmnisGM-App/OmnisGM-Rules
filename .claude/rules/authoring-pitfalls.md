@@ -15,7 +15,7 @@
    git diff -U0 <base>...HEAD -- . ':(exclude)*.md' | grep '^-' | grep -v '^---' | grep -oE '\b[A-Za-z_][A-Za-z0-9_]{3,}\b' | sort -u > /tmp/removed
    git diff -U0 <base>...HEAD -- . ':(exclude)*.md' | grep '^+' | grep -v '^+++' | grep -oE '\b[A-Za-z_][A-Za-z0-9_]{3,}\b' | sort -u > /tmp/added
    comm -23 /tmp/removed /tmp/added > /tmp/gone
-   [ -s /tmp/gone ] && git grep -InwFf /tmp/gone -- . ':(exclude)*.tsbuildinfo' ':(exclude)*.csv' ':(exclude,glob).claude/skills/**' $(git diff --name-only <base>...HEAD | sed 's#^#:(exclude,literal)#')
+   [ -s /tmp/gone ] && git grep -InwFf /tmp/gone -- . ':(exclude)*.tsbuildinfo' ':(exclude)*.csv' $(git diff --name-only <base>...HEAD | sed 's#^#:(exclude,literal)#')
    # слова-уникальности в файлах диффа, которые правка могла сделать ложью
    git diff --name-only --diff-filter=d <base>...HEAD | grep -vE '\.(png|jpg|webp|svg|lock)$' | xargs sh -c 'grep -HinE "$0" "$@" || [ $? -eq 1 ]' 'единственн|только (здесь|тут|в )|всегда|никогда|\bonly\b|\balways\b|\bnever\b'
    ```
