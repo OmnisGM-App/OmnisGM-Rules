@@ -1,7 +1,6 @@
 import { defineConfig } from 'astro/config';
 import sitemap from '@astrojs/sitemap';
 import pagefind from 'astro-pagefind';
-import AstroPWA from '@vite-pwa/astro';
 import rehypePromoteHeadings from './src/lib/rehype-promote-headings.mjs';
 import rehypeWrapTables from './src/lib/rehype-wrap-tables.mjs';
 import rehypeSortableGlossary from './src/lib/rehype-sortable-glossary.mjs';
@@ -13,7 +12,8 @@ import { DEV_PORT } from './e2e/ports.ts';
 
 // rules.omnisgm.com — статический (SSG) ридер SRD экосистемы OmnisGM.
 // Контент — Markdown из ../src/{game}/{version}/{en,ru}/**.md (вход контентного пайплайна),
-// рендерится на билде. Pagefind (статический поиск) и PWA подключаются следующими шагами.
+// рендерится на билде. Service worker собирается после `astro build` — scripts/build-sw.mjs,
+// манифест PWA лежит статикой в public/manifest.webmanifest.
 export default defineConfig({
   site: 'https://rules.omnisgm.com',
   // Везде trailing slash: директорийные URL (/en/.../legal/) и индекс API (/api/dnd/) тогда
@@ -27,119 +27,6 @@ export default defineConfig({
     // и оглавления-термины остаются вне sitemap. IndexNow берёт URL из dist-sitemap.
     sitemap({ filter: (page) => !page.includes('/glossary/') || isIndexableGlossary(page) }),
     pagefind(),
-    AstroPWA({
-      registerType: 'autoUpdate',
-      // Интеграция генерит manifest.webmanifest + sw.js, но НЕ инъектирует их в HTML Astro-страниц
-      // (особенность @vite-pwa/astro). Поэтому линкуем манифест и регистрируем SW вручную в Reader.astro.
-      injectRegister: false,
-      includeAssets: ['favicon.svg', 'favicon.ico', 'apple-touch-icon.png', 'icon.svg'],
-      manifest: {
-        id: '/',
-        name: 'OmnisGM Rules — tabletop RPG reference',
-        short_name: 'OmnisGM Rules',
-        description:
-          'A fast, offline-ready reader for freely-licensed tabletop RPG System Reference Documents — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying.',
-        lang: 'en',
-        dir: 'ltr',
-        categories: ['books', 'reference', 'education', 'games'],
-        theme_color: '#0F1016',
-        background_color: '#0F1016',
-        display: 'standalone',
-        display_override: ['standalone', 'minimal-ui'],
-        // Ридер читают и в портрете (телефон), и в альбоме (планшет/десктоп) — 'any'
-        // (в News стоит 'portrait', т.к. там телефонная лента). Закрывает warning PWABuilder.
-        orientation: 'any',
-        start_url: '/en/',
-        scope: '/',
-        // Фокусируем уже открытое окно (ридер — одно-инстансный).
-        launch_handler: { client_mode: 'navigate-existing' },
-        edge_side_panel: { preferred_width: 400 },
-        // Раздаётся с 3 доменов — объявляем одним приложением (нужен /.well-known/web-app-origin-association).
-        scope_extensions: [
-          { type: 'origin', origin: 'https://rules.omnisgm.com' },
-          { type: 'origin', origin: 'https://omnisgm-rules.web.app' },
-          { type: 'origin', origin: 'https://omnisgm-rules.firebaseapp.com' },
-        ],
-        shortcuts: [
-          { name: 'D&D SRD 5.2.1', short_name: 'D&D 5.2', url: '/en/dnd/srd-5.2/legal/' },
-          { name: 'Daggerheart SRD', short_name: 'Daggerheart', url: '/en/daggerheart/srd-1.0/legal/' },
-          { name: 'На русском', short_name: 'Русский', url: '/ru/' },
-        ],
-        // Локализованные имена (#304): поле `translations` реально доезжает в
-        // manifest.webmanifest (проверено в dist), но в типах `@vite-pwa` его нет — оно из
-        // предложения к спецификации, а не из принятой части. Директива самоочищается: как
-        // только тип появится, tsc потребует её убрать.
-        // @ts-expect-error — translations нет в Partial<ManifestOptions> @vite-pwa
-        translations: {
-          ru: {
-            name: 'OmnisGM Rules — SRD настольных игр',
-            short_name: 'OmnisGM Rules',
-            description:
-              'Быстрый офлайн-ридер свободно-лицензированных SRD настольных ролевых игр — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying.',
-          },
-        },
-        icons: [
-          { src: '/icon-192.png', sizes: '192x192', type: 'image/png', purpose: 'any' },
-          { src: '/icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
-          { src: '/maskable-192.png', sizes: '192x192', type: 'image/png', purpose: 'maskable' },
-          { src: '/maskable-512.png', sizes: '512x512', type: 'image/png', purpose: 'maskable' },
-          { src: '/icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
-        ],
-        // Скриншоты для install-промпта/сторов (закрывают последний пункт PWABuilder).
-        screenshots: [
-          { src: '/screenshot-wide.png', sizes: '1280x800', type: 'image/png', form_factor: 'wide', label: 'OmnisGM Rules — десктопный ридер SRD' },
-          { src: '/screenshot-narrow-1.png', sizes: '780x1688', type: 'image/png', form_factor: 'narrow', label: 'Главная — системы и разделы' },
-          { src: '/screenshot-narrow-2.png', sizes: '780x1688', type: 'image/png', form_factor: 'narrow', label: 'Чтение правил на телефоне' },
-        ],
-      },
-      workbox: {
-        // Прекэшим только лёгкие ассеты (не 228 HTML); страницы и pagefind — рантайм-кэш.
-        globPatterns: ['**/*.{js,css,svg,woff2}'],
-        // img/** — картинки сущностей (#201/#202): их сотни, в precache раздули бы установку
-        // PWA. webp и так вне globPatterns, но фиксируем явно на случай их добавления туда.
-        globIgnores: ['**/og*.png', '**/screenshot-*.png', '**/pagefind/**', '**/img/**'],
-        navigateFallback: null,
-        cleanupOutdatedCaches: true,
-        skipWaiting: true,
-        clientsClaim: true,
-        runtimeCaching: [
-          // Правил для Google Fonts здесь нет и быть не должно (#224): шрифты self-hosted
-          // (public/fonts/*.woff2, они же в precache), ни одна страница к Google не ходит.
-          // Дефолтные роуты шаблона vite-pwa стояли тут мёртвым кодом и читались как рабочая
-          // политика — будущий читатель искал бы несуществующую зависимость. С #225 они ещё и
-          // заведомо нерабочие: CSP не разрешает fonts.googleapis.com / fonts.gstatic.com.
-          {
-            urlPattern: ({ request }) => request.destination === 'document',
-            handler: 'NetworkFirst',
-            options: { cacheName: 'pages', expiration: { maxEntries: 120 }, cacheableResponse: { statuses: [0, 200] } },
-          },
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/pagefind/'),
-            handler: 'StaleWhileRevalidate',
-            options: { cacheName: 'pagefind' },
-          },
-          // Картинки сущностей (#201/#202) — перенос решения Table#252. НЕ в precache, но
-          // кэшируются рантаймом по StaleWhileRevalidate: мгновенная отдача из кэша + фоновая
-          // ревалидация (устаревание максимум на один показ), офлайн работает.
-          // Связка с firebase.json обязательна: там этим файлам стоит Cache-Control: no-cache,
-          // иначе фоновая ревалидация упёрлась бы в HTTP-кэш и до пользователя не доехала бы
-          // перегенерированная картинка. no-cache не запрещает кэш — он требует ревалидации,
-          // а она дешёвая: ETag → 304, тело повторно не качается.
-          {
-            urlPattern: ({ url }) => url.pathname.startsWith('/img/'),
-            handler: 'StaleWhileRevalidate',
-            options: {
-              cacheName: 'entity-images',
-              // Cap НЕ на весь набор (их около 1400 на все системы): 800 записей ≈ 10 МБ на
-              // устройстве, и этого с запасом хватает на реально просмотренное. Вытесненная
-              // по LRU картинка не теряется — подтянется из сети при следующем показе.
-              expiration: { maxEntries: 800, maxAgeSeconds: 60 * 60 * 24 * 30 },
-              cacheableResponse: { statuses: [0, 200] },
-            },
-          },
-        ],
-      },
-    }),
   ],
   build: {
     format: 'directory',
