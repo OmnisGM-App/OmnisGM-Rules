@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Программные страницы черт (issue #20, Дорожка A):
-// /{lang}/dnd/{ver}/feats/{slug}/. Шапка (EN-имя, категория), стат-блок, автолинк в теле,
-// related «та же категория», SEO (hreflang, sitemap, индексируемость).
+// Программные страницы черт (issue #20, Дорожка A): /{lang}/dnd/{ver}/feats/{slug}/.
 
 test('страница черты: заголовок, EN-имя, категория, стат-блок', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/feats/alert/');

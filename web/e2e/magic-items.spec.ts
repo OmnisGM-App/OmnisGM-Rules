@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Программные страницы магических предметов (issue #20, волна 3):
-// /{lang}/dnd/{ver}/magic-items/{slug}/. Стат-блок (тип/редкость/настройка), автоссылки в теле,
-// related «тот же тип», SEO (hreflang, sitemap), фикс канонического слага для вложенных скобок.
+// Программные страницы магических предметов (issue #20, волна 3): /{lang}/dnd/{ver}/magic-items/{slug}/.
 
 test('страница предмета: заголовок, EN-имя, тип·редкость, стат-блок', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/magic-items/dwarven-thrower/');
@@ -12,7 +10,6 @@ test('страница предмета: заголовок, EN-имя, тип·
   const stat = page.locator('.item-stat');
   await expect(stat).toContainText('Тип');
   await expect(stat).toContainText('Редкость');
-  // настройка с условием
   await expect(stat.locator('.item-row', { hasText: 'Настройка' })).toContainText('требуется');
   await expect(stat.locator('.item-row', { hasText: 'Настройка' })).toContainText('дварф'); // Belt of Dwarvenkind (5.2)
 });
@@ -25,8 +22,7 @@ test('related: другие предметы того же типа', async ({ p
 });
 
 test('канонический слаг для вложенных скобок (Stone of Good Luck) — EN и RU совпадают', async ({ page }) => {
-  // RU-заголовок «Камень удачи (Камень везения) (Stone of Good Luck (Luckstone))» — вложенная
-  // скобка ломала извлечение EN-имени; фикс сводит слаг к канону «stone-of-good-luck» на обоих языках.
+  // Вложенная скобка «Камень удачи (Камень везения) (Stone of Good Luck (Luckstone))» — слаг stone-of-good-luck.
   for (const lang of ['en', 'ru']) {
     const res = await page.goto(`/${lang}/dnd/srd-5.2/magic-items/stone-of-good-luck/`);
     expect(res?.status(), `${lang} страница существует`).toBe(200);

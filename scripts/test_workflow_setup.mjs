@@ -1,30 +1,7 @@
 #!/usr/bin/env node
-// Страж связки setup в workflow (issue #287).
-//
-// Связка setup жила в четырёх workflow: полностью (setup-node + cache + npm ci +
-// setup-python) — в ci и deploy, частично — в content и gen-images. Дублирование уже дало
-// дрейф: node 20 в трёх против 22 в четвёртом — молча, потому что сравнивать было негде.
-// Composite-шаг убирает копии, но НЕ мешает завести их заново: он не запрещает написать
-// `uses: actions/setup-node` рядом. Поэтому запрет — здесь.
-//
-// Проверяем два утверждения:
-//  1) прямых `actions/setup-node` и `actions/setup-python` в наших workflow нет — версии
-//     объявляются в одном месте (`.github/actions/setup-web/action.yml`), а несогласие с
-//     ними пишется input'ом. Python попал сюда не сразу: пока запрет был только на Node,
-//     мутация «3.12 → 3.11» в отдельной джобе оставляла гейт зелёным (ревью #300);
-//  2) у каждой джобы есть `timeout-minutes` — без него зависший шаг держит очередь до
-//     дефолтных шести часов.
-//
-// Исключение одно и явное: `claude-review.yml` — вендорный workflow авторевью, он живёт по
-// своим правилам и синхронизируется из донора целиком, поэтому наши правила ему не указ.
-//
-// Разбор текстовый, и он ОБЯЗАН падать при непонятной форме, а не молчать: fail-open —
-// худший исход для гейта. Поэтому КАЖДАЯ строка секции `jobs:` с отступом в два пробела
-// обязана быть распознана как ключ джобы: нераспознанная — не «не наш случай», а причина
-// покраснеть. Расширения — обе формы GitHub (`.yml` и `.yaml`), у composite-действий тоже,
-// и их каталог обходится на уровень вглубь: именно оттуда растёт исходный дрейф версий.
-// Сканируется и сам `setup-web` — по своим правилам: в нём вызов setup-* законен, но ровно
-// один на инструмент, иначе версия снова объявлена дважды (ревью #300).
+// Страж связки setup в workflow (issue #287): версии Node/Python — только в `.github/actions/setup-web`,
+// у каждой джобы `timeout-minutes`. Вендорный `claude-review.yml` — мимо: синхронизируется из донора.
+// Разбор текстовый и падает на непонятной форме, а не молчит: fail-open — худший исход для гейта.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -33,16 +10,9 @@ const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const WF_DIR = resolve(REPO, '.github/workflows');
 const ACTIONS_DIR = resolve(REPO, '.github/actions');
 const VENDORED = new Set(['claude-review.yml']);
-// Единственное место, где прямой вызов setup-* законен, — сам общий шаг.
 const HOME = 'setup-web';
 
-/**
- * Прямые вызовы setup-node / setup-python (кавычки вокруг значения — валидный YAML).
- *
- * Ищем ПО СТРОКАМ-ключам `uses:`, а не подстрокой по всему файлу: подстрочный поиск красил
- * файл за упоминание `actions/setup-node` в комментарии или внутри `run:` — то есть за
- * прозу, а не за шаг (ревью #300).
- */
+/** По строкам-ключам `uses:`, а не подстрокой: упоминание в комментарии или `run:` — не шаг. */
 export function directSetups(/** @type {string} */ text) {
   const found = [];
   for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
@@ -54,13 +24,7 @@ export function directSetups(/** @type {string} */ text) {
   return found;
 }
 
-/**
- * Литералы версий в вызывающем workflow. Пустая строка законна — это явный отказ («Node
- * этой джобе не нужен»); любое другое значение — вторая копия версии, ровно тот дрейф,
- * ради которого заведён composite: запрет прямого `uses: actions/setup-python` закрывал
- * только форму записи, а мутация «3.12 → 3.11» в одном из четырёх вызовов гейт не видел
- * (ревью #300).
- */
+/** Пустая строка законна — явный отказ («Node этой джобе не нужен»); иное — вторая копия версии. */
 export function versionLiterals(/** @type {string} */ text) {
   const found = [];
   for (const raw of text.replace(/\r\n/g, '\n').split('\n')) {
@@ -75,25 +39,8 @@ export function versionLiterals(/** @type {string} */ text) {
 }
 
 /**
- * Джобы файла: имя → есть ли у неё timeout-minutes. Бросает, если форма непонятна.
- *
- * @param {string} text
- * @returns {{jobs: Map<string, boolean>, problem: string|null}}
- */
-/**
- * Ловушка YAML в прозаических значениях: незакавыченный скаляр с `: ` внутри.
- *
- * Ровно на этом я сломал `ci.yml` (ревью #324): шаг назвали «Unit — размер в прозе: формы
- * границы, счёт, канон категорий», и файл перестал разбираться — `mapping values are not
- * allowed here`. Локально это не видно ничем: соседние гейты читают workflow ПОСТРОЧНО
- * регулярками, и невалидный YAML им безразличен; а GitHub на таком файле печатает прогон с
- * именем «.github/workflows/ci.yml» вместо `name:` и красит его — понять причину можно только
- * по этому странному имени.
- *
- * Проверяются только прозаические ключи (`name`, `description`): именно туда пишут текст с
- * двоеточием. `run:` не проверяется намеренно — там двоеточия законны (`echo "a: b"`), а
- * многострочные блоки `|` экранируют всё сами.
- *
+ * Ловушка YAML: незакавыченный `name`/`description` с `: ` ломает разбор (так ломался `ci.yml`, #324),
+ * а построчные гейты этого не видят. `run:` не проверяем: там двоеточия законны.
  * @param {string} text
  * @returns {string[]} описания находок
  */
@@ -116,8 +63,6 @@ export function yamlTraps(text) {
 }
 
 /**
- * Джобы файла: имя → есть ли у неё timeout-minutes. Бросает, если форма непонятна.
- *
  * @param {string} text
  * @returns {{jobs: Map<string, boolean>, problem: string|null}}
  */
@@ -131,17 +76,13 @@ export function jobsOf(text) {
   const rest = norm.slice(at).split('\n');
   const end = rest.findIndex((l, i) => i > 0 && /^[^\s#]/.test(l));
   const lines = end < 0 ? rest : rest.slice(0, end);
-  // Ключи джоб — по строкам, а не split'ом по разделителю: split требовал, чтобы за именем
-  // сразу шёл перевод строки, и любой хвост (комментарий, пробел, кавычки) прятал джобу.
+  // Ключи — по строкам, а не split'ом: хвост после имени (комментарий, пробел, кавычки) прятал джобу.
   const keys = [];
   for (let i = 0; i < lines.length; i++) {
-    // Всё, что стоит на два пробела внутри `jobs:`, — ключ джобы. Строка, которую не
-    // разобрали, останавливает гейт: сверять «сколько нашли» с «сколько нашли» смысла нет,
-    // а вот нераспознанная форма — ровно тот fail-open, ради которого гейт написан.
+    // Нераспознанная строка на отступе джобы — ошибка, а не пропуск (fail-open).
     if (!/^ {2}[^\s]/.test(lines[i]) || /^ {2}#/.test(lines[i])) continue;
     const m = lines[i].match(/^ {2}(['"]?)([\w-]+)\1\s*:(.*)$/);
-    // Flow-стиль (`job: {runs-on: …}`) в наших workflow не встречается, и разбирать его
-    // текстом — заведомо хрупко: называем и падаем, а не делаем вид, что проверили.
+    // Flow-стиль (`job: {runs-on: …}`) текстом не разбираем — называем и падаем.
     const tail = m ? m[3].replace(/#.*$/, '').trim() : '';
     if (!m || tail) {
       return { jobs, problem: `строка ${i + 1} секции jobs («${lines[i].trim()}») не разобрана` };
@@ -152,10 +93,8 @@ export function jobsOf(text) {
     const from = keys[k].line;
     const to = k + 1 < keys.length ? keys[k + 1].line : lines.length;
     const block = lines.slice(from, to).join('\n');
-    // Якорь по началу строки и ровно по отступу джобы — обязателен: незакреплённый
-    // `/ {4}timeout-minutes:/` ловил ШАГОВЫЙ потолок (8 пробелов) и зеленил джобу без
-    // своего; ровно на release.yml, единственной джобе с историей упора в шестичасовой
-    // дефолт (ревью #300). Значение — целое положительное: `0` и пустое не считаются.
+    // Якорь по началу строки и отступу джобы: иначе ловится шаговый потолок (8 пробелов).
+    // `0` и пустое не считаются.
     jobs.set(keys[k].name, /^ {4}timeout-minutes:\s*[1-9][0-9]*\s*(?:#.*)?$/m.test(block));
   }
   return { jobs, problem: null };
@@ -201,10 +140,7 @@ export function setupProblems(files, actions) {
       }
       continue;
     }
-    // Сам `setup-web` — законное место вызова setup-*, но ровно ПО ОДНОМУ на инструмент:
-    // второй `setup-node` внутри него — та же вторая точка объявления версии, просто в том
-    // файле, который PR и заводил, чтобы она была одна. Раньше файл вообще выпадал из
-    // скана, то есть единственный в репозитории полагался на глаз ревьюера (ревью #300).
+    // В самом `setup-web` законен ровно один вызов на инструмент.
     for (const tool of ['actions/setup-node', 'actions/setup-python']) {
       const n = used.filter((u) => u === tool).length;
       if (n > 1) {
@@ -216,7 +152,6 @@ export function setupProblems(files, actions) {
   return problems;
 }
 
-/** Файлы каталога workflow: обе формы расширения, вендорные — мимо. */
 function readWorkflows(/** @type {string} */ dir) {
   if (!existsSync(dir)) return [];
   return readdirSync(dir, { withFileTypes: true })
@@ -224,11 +159,6 @@ function readWorkflows(/** @type {string} */ dir) {
     .map((e) => ({ name: e.name, text: readFileSync(resolve(dir, e.name), 'utf8') }));
 }
 
-/**
- * Composite-действия: `action.yml` и `action.yaml`, на уровень вглубь (группирующий каталог
- * — законная раскладка). Сам `setup-web` тоже сканируется, но по своим правилам: помечается
- * `home`, и в нём законен ровно один вызов каждого setup-*.
- */
 /**
  * @param {string} dir
  * @param {string} [rel]
@@ -251,7 +181,7 @@ function readActions(dir, rel = '.github/actions', depth = 1) {
   });
 }
 
-// ── Самопроверки разбора: формы, на которых гейт молчал (ревью #300) ────────────────────
+// ── Самопроверки разбора ────────────────────────────────────────────────────────────────
 /** @type {[string, string, number][]} */
 const SELF_CHECKS = [
   ['обычная джоба без потолка', 'jobs:\n  build:\n    runs-on: x\n    steps: []\n', 1],
@@ -262,8 +192,6 @@ const SELF_CHECKS = [
   ['CRLF', 'jobs:\r\n  build:\r\n    runs-on: x\r\n', 1],
   ['flow-стиль — не притворяемся', 'jobs:\n  build: {runs-on: x}\n', 1],
   ['две джобы, потолок у одной', 'jobs:\n  a:\n    timeout-minutes: 5\n  b:\n    runs-on: x\n', 1],
-  // Ровно форма release.yml, на которой гейт был fail-open: у джобы своего потолка нет,
-  // а у шага — есть (ревью #300).
   ['потолок только у шага', 'jobs:\n  a:\n    steps:\n      - run: x\n        timeout-minutes: 40\n', 1],
   ['потолок нулевой', 'jobs:\n  a:\n    timeout-minutes: 0\n', 1],
   ['потолок пустой', 'jobs:\n  a:\n    timeout-minutes:\n', 1],
@@ -271,8 +199,6 @@ const SELF_CHECKS = [
   ['неразобранная строка на уровне джобы', 'jobs:\n  - a\n', 1],
   ['секция после jobs не считается джобой',
    'jobs:\n  a:\n    timeout-minutes: 1\nfoo:\n  bar: 1\n', 0],
-  // Ловушка YAML: двоеточие с пробелом в незакавыченном имени шага. Ровно этой формой был
-  // сломан ci.yml (ревью #324) — и ни один гейт этого не заметил.
   ['двоеточие в имени шага',
    'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - name: Unit — размер: формы и счёт\n', 1],
   ['оно же в кавычках — законно',
@@ -288,11 +214,8 @@ const SELF_CHECKS = [
 ];
 /** @type {string[]} */
 const failures = [];
-// Счётчик — не константа: `SELF_CHECKS.length + N` уже разъехался с фактом на единицу, а
-// у гейта, чья ценность в точности самоотчёта, число в логе обязано считаться, а не
-// заявляться (ревью #300).
+// Счётчик считается, а не заявляется: число в логе — самоотчёт гейта.
 let checksRun = 0;
-/** Одна самопроверка: сколько расхождений ждём от `setupProblems` на этом входе. */
 const check = (/** @type {string} */ label, /** @type {number} */ want,
                /** @type {{name: string, text: string}[]} */ files,
                /** @type {{name: string, text: string, home?: boolean}[]} */ actions = []) => {
@@ -306,7 +229,6 @@ for (const [label, text, want] of /** @type {[string, string, number][]} */ ([
   ['он же в кавычках', "jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: 'actions/setup-node@v7'\n", 1],
   ['прямой setup-python', 'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: actions/setup-python@v7\n', 1],
   ['наш общий шаг', 'jobs:\n  a:\n    timeout-minutes: 1\n    steps:\n      - uses: ./.github/actions/setup-web\n', 0],
-  // Проза про setup-node — не шаг: подстрочный поиск красил файл за упоминание (ревью #300).
   ['упоминание в комментарии',
    'jobs:\n  a:\n    timeout-minutes: 1\n    # не пишите uses: actions/setup-node здесь\n', 0],
   ['упоминание внутри run',
@@ -321,15 +243,13 @@ for (const [label, text, want] of /** @type {[string, string, number][]} */ ([
 
 check('composite с прямым setup-node', 1, [],
       [{ name: 'a/action.yml', text: 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n' }]);
-// Сам общий шаг: один вызов на инструмент — норма, два — вторая точка объявления версии.
 const HOME_ONE = 'runs:\n  steps:\n    - uses: actions/setup-node@v7\n    - uses: actions/setup-python@v7\n';
 check(`${HOME}: по одному setup-*`, 0, [],
       [{ name: `${HOME}/action.yml`, text: HOME_ONE, home: true }]);
 check(`${HOME}: второй setup-node`, 1, [],
       [{ name: `${HOME}/action.yml`, text: HOME_ONE + '    - uses: actions/setup-node@v8\n', home: true }]);
 
-// `process.argv[1]` пуст при `node --input-type=module -e` — импорт гейта из другого
-// скрипта не должен падать на самом определении «запущен ли я напрямую» (ревью #300).
+// `process.argv[1]` пуст при `node --input-type=module -e` — импорт гейта не должен падать.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
   const files = readWorkflows(WF_DIR);
   const actions = readActions(ACTIONS_DIR);

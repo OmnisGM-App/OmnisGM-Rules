@@ -1,18 +1,6 @@
-// SEO-мета по собранному dist — issue #22, этап 3. Скриптовая проверка БЕЗ Playwright:
-// читаем HTML фиксированного детерминированного сэмпла (по одному slug на тип страницы, EN+RU)
-// и проверяем инварианты <head>. Гоняется в CI check-build ПОСЛЕ astro build (dist уже собран).
-//
-// SEO-мета генерят Astro-шаблоны/лейауты (web/src), а НЕ markdown-контент (src/**), поэтому
-// проверка живёт в check-build (триггерится на web/**), а не в content.yml (гейт по src/**).
-//
-// Проверяем на каждой странице:
-//   • ровно один <link rel="canonical">, абсолютный на https://rules.omnisgm.com и равный
-//     собственному URL страницы (правильные язык и путь);
-//   • hreflang-тройка en/ru/x-default; en/ru — абсолютные и ведут на РЕАЛЬНО существующие в dist
-//     страницы (взаимные ссылки не битые);
-//   • ≥1 JSON-LD блок, каждый парсится JSON.parse;
-//   • непустой <title>, уникальный внутри сэмпла;
-//   • нет noindex (allowlist noindex-страниц пуст после снятия с глоссариев в #106).
+// SEO-мета по собранному dist — issue #22, этап 3: фиксированный сэмпл (по одному slug на тип
+// страницы, EN+RU) против инвариантов <head>. Живёт в check-build, а не в content.yml: мету
+// генерят шаблоны web/**, а не markdown src/**.
 import { readFileSync, existsSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -62,14 +50,12 @@ for (const lang of LANGS) {
     const html = readFileSync(file, 'utf8');
     const head = html.slice(0, html.indexOf('</head>'));
 
-    // — title —
     const titleM = head.match(/<title>([^<]*)<\/title>/);
     const title = titleM && titleM[1].trim();
     if (!title) errors.push(`${id}: пустой или отсутствующий <title>`);
     else if (titles.has(title)) errors.push(`${id}: <title> «${title}» не уникален (уже у ${titles.get(title)})`);
     else titles.set(title, `${lang}/${tail || 'landing'}`);
 
-    // — canonical —
     const canon = [...head.matchAll(/<link\s+rel="canonical"\s+href="([^"]*)"/g)].map((m) => m[1]);
     if (canon.length !== 1) {
       errors.push(`${id}: ожидался ровно один canonical, найдено ${canon.length}`);
@@ -78,13 +64,11 @@ for (const lang of LANGS) {
       if (canon[0] !== want) errors.push(`${id}: canonical=${canon[0]}, ожидался ${want}`);
     }
 
-    // — hreflang-тройка —
     const alts = [...head.matchAll(/<link\s+rel="alternate"\s+hreflang="([^"]*)"\s+href="([^"]*)"/g)];
     const byLang = new Map(alts.map((m) => [m[1], m[2]]));
     for (const need of ['en', 'ru', 'x-default']) {
       if (!byLang.has(need)) errors.push(`${id}: нет hreflang="${need}"`);
     }
-    // en/ru альтернативы обязаны вести на реально существующие страницы dist.
     for (const need of ['en', 'ru']) {
       const href = byLang.get(need);
       if (!href) continue;
@@ -93,7 +77,6 @@ for (const lang of LANGS) {
       if (!target || !existsSync(target)) errors.push(`${id}: hreflang="${need}" ведёт на несуществующую страницу: ${href}`);
     }
 
-    // — JSON-LD —
     const blocks = [...head.matchAll(/<script\s+type="application\/ld\+json"[^>]*>([\s\S]*?)<\/script>/g)].map((m) => m[1]);
     if (blocks.length === 0) errors.push(`${id}: нет JSON-LD блока`);
     blocks.forEach((b, i) => {
@@ -102,7 +85,6 @@ for (const lang of LANGS) {
       }
     });
 
-    // — noindex —
     const robots = [...head.matchAll(/<meta\s+name="robots"\s+content="([^"]*)"/g)].map((m) => m[1].toLowerCase());
     const hasNoindex = robots.some((c) => c.includes('noindex'));
     if (hasNoindex && !NOINDEX_ALLOW.has(tail)) errors.push(`${id}: noindex, а страница должна индексироваться`);
@@ -126,8 +108,7 @@ if (!existsSync(manifestFile)) {
   }
 }
 
-// Service worker: e2e в CI не гоняются, так что потерю precache (или самого sw.js) ловит
-// только эта проверка. 18 начертаний — фиксированный набор шрифтов public/fonts.
+// Потеря precache: e2e в CI не гоняются. Число начертаний — набор шрифтов кита в public/fonts.
 const swFile = resolve(DIST, 'sw.js');
 if (!existsSync(swFile)) {
   errors.push('sw.js: файла нет в dist — scripts/build-sw.mjs не отработал после astro build');

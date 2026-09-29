@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Программные страницы происхождений SRD 5.2 (глава «Происхождение персонажа»): виды (species)
-// и предыстории (backgrounds) + хаб-справочник. Виды — 5.2-аналог рас 5.1, но отдельный ресурс
-// (независимо; страницы линкуют только 5.2).
+// Программные страницы происхождений SRD 5.2: виды (5.2-аналог рас 5.1, но отдельный ресурс) и предыстории.
 
 test('entity-страницы происхождений 5.2 рендерятся', async ({ page }) => {
   for (const url of [
@@ -40,7 +38,6 @@ test('независимость: страница вида 5.2 линкует �
 test('канонический слаг EN↔RU: RU-вид/предыстория на англ. слаге', async ({ page }) => {
   expect((await page.goto('/ru/dnd/srd-5.2/species/goliath/'))?.status()).toBe(200);
   expect((await page.goto('/ru/dnd/srd-5.2/backgrounds/criminal/'))?.status()).toBe(200);
-  // Кириллический слаг не существует.
   expect((await page.goto('/ru/dnd/srd-5.2/species/%D0%B3%D0%BE%D0%BB%D0%B8%D0%B0%D1%84/'))?.status()).toBe(404);
 });
 
@@ -50,7 +47,6 @@ test('хаб происхождений: таблица видов и преды
   await expect(page.locator('.hub-table[data-sortable] a[href$="/species/human/"]')).toBeVisible();
   await expect(page.locator('.hub-table a[href$="/backgrounds/sage/"]')).toBeVisible();
   await expect(page.locator('.hub-table tbody td:first-child a')).toHaveCount(13); // 9 видов + 4 предыстории
-  // Со страницы вида «в раздел» → хаб.
   await page.goto('/ru/dnd/srd-5.2/species/elf/');
   await expect(page.locator(`a[href$="/character-origins/all/"]`).first()).toBeVisible();
 });

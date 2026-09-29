@@ -1,9 +1,7 @@
 import { test, expect, type APIRequestContext } from '@playwright/test';
 
-// robots.txt (issue #229). Проверяется не «строка есть в файле», а СМЫСЛ: правило действует
-// для конкретного бота. Грабля, ради которой этот спек и написан: секция `User-agent: Yandex`
-// полностью ЗАМЕЩАЕТ `*` — правило, добавленное только в `*`, для Яндекса не существует.
-// Один раз на этом уже обожглись с /api/ (см. комментарий в самом robots.txt).
+// robots.txt (issue #229): проверяется СМЫСЛ для конкретного бота — секция `User-agent: Yandex`
+// полностью ЗАМЕЩАЕТ `*`, и правило только в `*` для Яндекса не существует.
 
 const groups = (txt: string) => {
   const out = new Map<string, string[]>();
@@ -35,7 +33,7 @@ test('технические ассеты закрыты для ВСЕХ бот�
   for (const agent of ['*', 'Yandex']) {
     const rules = g.get(agent);
     expect(rules, `нет секции User-agent: ${agent}`).toBeTruthy();
-    // /pagefind — индексы клиентского поиска, /hc — бандлы ховеркардов (до 660 КБ файл).
+    // /pagefind — индексы клиентского поиска, /hc — бандлы ховеркардов.
     expect(rules, `${agent}: не закрыт /pagefind/`).toContain('/pagefind/');
     expect(rules, `${agent}: не закрыт /hc/`).toContain('/hc/');
     expect(rules, `${agent}: не закрыт /api/`).toContain('/api/');
@@ -43,8 +41,7 @@ test('технические ассеты закрыты для ВСЕХ бот�
 });
 
 test('закрытие в robots не ломает сам сайт: поиск и ховеркарды живы', async ({ page }) => {
-  // robots.txt — инструкция краулерам, браузер его не читает. Тест страхует от подмены
-  // смысла: если однажды кто-то «закроет» пути редиректом или 404 вместо robots, тут упадёт.
+  // Браузер robots.txt не читает — страхуем от «закрытия» путей редиректом или 404 вместо robots.
   await page.goto('/en/dnd/srd-5.2/spells/fireball/');
   await page.locator('input[type="text"]').first().fill('dragon');
   await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 });

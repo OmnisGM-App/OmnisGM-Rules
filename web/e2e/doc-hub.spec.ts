@@ -1,9 +1,6 @@
 import { test, expect, type Page } from '@playwright/test';
 
 // Хабы уровня документа (issue #230): /{lang}/{game}/{version}/.
-// Смысл страницы — верхний узел внутренней перелинковки: из неё краулер должен видеть ВСЕ
-// разделы документа и все компендиумы за один переход. Поэтому тесты проверяют не «страница
-// открылась», а что ссылки на месте и ведут внутрь того же документа.
 
 const HUBS = [
   { url: '/ru/dnd/srd-5.2/', heading: 'D&D SRD 5.2.1 (5.5e, 2024)', doc: '/ru/dnd/srd-5.2/' },
@@ -30,9 +27,7 @@ for (const hub of HUBS) {
     const hrefs = await page.locator('article a').evaluateAll((els) =>
       els.map((e) => new URL((e as HTMLAnchorElement).href).pathname),
     );
-    // Порог — по самому маленькому документу: у BRP 14 ссылок (9 глав + 5 справочников),
-    // у D&D 5.2 их 97 (главы + 12 классов + компендиумы). Смысл проверки — «оглавление есть»,
-    // а не точное число: оно меняется с каждой новой главой.
+    // Порог — по самому маленькому документу (BRP): смысл — «оглавление есть», а не точное число.
     expect(hrefs.length, 'на хабе должно быть оглавление, а не пустая страница').toBeGreaterThan(10);
     expect(hrefs.every((h) => h.startsWith(hub.doc)), `есть ссылки наружу: ${hrefs.filter((h) => !h.startsWith(hub.doc)).slice(0, 3)}`).toBe(true);
   });
@@ -51,8 +46,7 @@ test('хаб D&D 5.2 перечисляет главы, классы и комп
 });
 
 test('хаб не ведёт на noindex-страницы', async ({ page }) => {
-  // «Термины» (/glossary/glossary/) закрыты от индекса (#37) — ссылка с хаба тратила бы
-  // краул-бюджет ровно там, где мы его экономим.
+  // «Термины» закрыты от индекса (#37) — ссылка с хаба тратила бы краул-бюджет.
   await page.goto('/ru/dnd/srd-5.2/');
   const hrefs = await page.locator('article a').evaluateAll((els) =>
     els.map((e) => new URL((e as HTMLAnchorElement).href).pathname),
@@ -61,8 +55,6 @@ test('хаб не ведёт на noindex-страницы', async ({ page }) =>
 });
 
 test('крошки страниц ведут на хаб документа, а не на первую страницу', async ({ page }) => {
-  // До #230 крошка документа указывала на «первую содержательную страницу» — компромисс
-  // варианта 2 из #220. Теперь у документа есть свой адрес.
   await page.goto('/ru/dnd/srd-5.2/classes/warlock/');
   expect(await trail(page)).toEqual([
     'https://rules.omnisgm.com/ru/',

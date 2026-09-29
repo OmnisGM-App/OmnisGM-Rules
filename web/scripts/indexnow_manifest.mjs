@@ -1,22 +1,8 @@
 // Манифест сигнатур страниц для стриминга IndexNow — issue #186.
 //
-// Зачем: deploy.yml пинговал IndexNow ВЕСЬ sitemap на каждом деплое (5975 URL за раз), из-за
-// чего Bing показывает рекомендацию «IndexNow is in batch mode» и советует слать только
-// изменённые URL. Чтобы слать изменённые, их надо уметь считать — а сравнивать не с чем:
-// прошлой сборки на раннере нет.
-//
-// Решение: после каждой сборки пишем манифест «URL → сигнатура содержимого», а прошлый
-// манифест приносим из кэша GitHub Actions. Разница двух манифестов и есть список изменённых.
-//
-// Сигнатура НЕ хеш файла: Astro штампует хеши в имена ассетов и в имена классов, поэтому
-// побайтовое сравнение показывало бы «изменилось всё» на каждой сборке. Берём то, что видит
-// поисковик: <title>, meta description и ТЕКСТ страницы без разметки. Правка стилей сигнатуру
-// не двигает, правка шаблона мета или контента — двигает.
-//
-// Использование:
-//   node scripts/indexnow_manifest.mjs --out .indexnow/manifest.json
-//   node scripts/indexnow_manifest.mjs --out new.json --prev old.json --changed changed.txt
-//   … --removed removed.txt   — URL, исчезнувшие с прошлой сборки (для purge Cloudflare, #175)
+// Шлём только изменённые URL: весь sitemap на каждом деплое — «IndexNow is in batch mode» у Bing.
+// Сигнатура — не хеш файла (Astro штампует хеши в имена ассетов и классов), а видимое поисковику:
+// <title>, description и текст без разметки. Прошлый манифест — из кэша GitHub Actions.
 import { readdirSync, readFileSync, writeFileSync, mkdirSync, existsSync } from 'node:fs';
 import { dirname, resolve, relative, sep } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -27,7 +13,6 @@ const DIST = resolve(here, '../dist');
 const ORIGIN = 'https://rules.omnisgm.com';
 
 /**
- * Значение аргумента `--name`.
  * @param {string} name
  * @param {string|null} [fallback]
  * @returns {string|null}
@@ -49,7 +34,6 @@ function* htmlFiles(dir) {
   }
 }
 
-// Файл dist → канонический URL страницы (index.html → директория со слэшем).
 /**
  * @param {string} file
  * @returns {string}
@@ -59,7 +43,6 @@ const urlFor = (file) => {
   return `${ORIGIN}/${rel === 'index.html' ? '' : rel.replace(/index\.html$/, '')}`;
 };
 
-// Видимый поисковику текст: снимаем script/style целиком, затем теги, схлопываем пробелы.
 /**
  * @param {string} html
  * @returns {string}
@@ -84,9 +67,7 @@ const signature = (html) => {
   return createHash('sha1').update(`${title}\n${desc}\n${textOf(body)}`).digest('hex').slice(0, 16);
 };
 
-// Индексируемый набор — ровно то, что в sitemap: там уже нет noindex-страниц (#37) и нет
-// служебных вроде 404.html. Пинговать что-то помимо него — тратить квоту и слать поисковику
-// то, что мы сами закрыли. Если sitemap не нашёлся, страхуемся и не фильтруем (кроме 404).
+// Индексируемое — ровно sitemap: noindex-страницы (#37) пинговать — тратить квоту.
 const sitemapUrls = new Set();
 for (const f of readdirSync(DIST)) {
   if (!/^sitemap-\d+\.xml$/.test(f)) continue;
@@ -127,9 +108,7 @@ const changedPath = arg('changed');
 if (!prevPath || !changedPath) process.exit(0);
 
 if (!existsSync(resolve(prevPath))) {
-  // Первый запуск или кэш истёк. Пинговать всё — значит вернуться ровно в тот batch-режим,
-  // от которого уходим, поэтому не пингуем: страницы всё равно найдутся через sitemap и
-  // Cloudflare Crawler Hints, а следующий деплой уже посчитает нормальный дифф.
+  // Не пингуем: «всё сразу» и есть batch-режим, от которого уходим; база запишется для следующего.
   writeFileSync(resolve(changedPath), '');
   console.log(`::notice::Прошлого манифеста нет (${prevPath}) — пинг пропущен, база записана.`);
   process.exit(0);
@@ -140,10 +119,7 @@ const prev = JSON.parse(readFileSync(resolve(prevPath), 'utf8'));
 const changed = Object.keys(manifest).filter((url) => prev[url] !== manifest[url]);
 const added = changed.filter((url) => !(url in prev));
 
-// Исчезнувшие URL (были в прошлом манифесте, в новом их нет: переименован слаг, удалён раздел).
-// В IndexNow они не идут — там пингуют существующие адреса, а не «сходите посмотрите на 404».
-// А вот из edge-кэша Cloudflare их надо выбить, иначе удалённая страница живёт на эдже до
-// истечения TTL (#175). Поэтому список отдаётся отдельным файлом.
+// Исчезнувшие — не в IndexNow, а в purge Cloudflare: иначе удалённая страница живёт на эдже до TTL (#175).
 const removed = Object.keys(prev).filter((url) => !(url in manifest));
 const removedPath = arg('removed');
 if (removedPath) {
@@ -151,8 +127,7 @@ if (removedPath) {
   if (removed.length) console.log(`Исчезло: ${removed.length} URL → ${removedPath}`);
 }
 
-// Порядок отправки: сначала короткие пути. Хабы и страницы классов лежат выше по дереву и
-// стоят дороже длинного хвоста сущностей — если сработает верхний предел, отрежется хвост.
+// Короткие пути первыми: хабы дороже хвоста сущностей, при пределе отрежется хвост.
 changed.sort((a, b) => a.length - b.length || a.localeCompare(b));
 
 writeFileSync(resolve(changedPath), changed.join('\n') + (changed.length ? '\n' : ''));

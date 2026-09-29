@@ -1,32 +1,8 @@
 #!/usr/bin/env node
-// Страж состава агрегаторов `test:unit` / `test:unit:py` / `test:gates` (issue #283).
-//
-// Корневые агрегаторы обещают «прогнать всё как CI». Обещание живёт ровно до первого нового
-// юнита в ci.yml, добавленного мимо package.json: агрегатор остаётся зелёным, но проверяет
-// меньше — а человек, прогнавший его локально, считает, что проверил всё. Это хуже, чем не
-// иметь агрегатора вовсе, поэтому состав сверяется, а не декларируется.
-//
-// Сверяем ТРИ вещи, и все три уже ломались или могли сломаться молча (ревью #299):
-//   1) состав в обе стороны — юнит из CI обязан быть в агрегаторе, команда из агрегатора —
-//      в CI (строка, пережившая переименование файла, это зелёный прогон несуществующего
-//      теста);
-//   2) СЦЕПКУ команд: юниты обязаны идти через `&&`. С `;` или `||` агрегатор возвращает
-//      ноль на упавшем юните — «всё зелено» при красном тесте;
-//   3) состав `test:gates` — он и есть «прогнать всё», и потеряй он `test:unit:py`, семь
-//      python-гейтов молча перестали бы гоняться.
-//
-// Что считается юнитом: файл с именем `test_*.mjs` / `test_*.py`, упомянутый в `run:` шага
-// ci.yml. Критерий именно такой — по ИМЕНИ файла, а не «нужен ли билд»: гейты по собранному
-// dist (`verify_dist_*`) и схема JSON API так названы не случайно, и агрегатор задуман как
-// то, что гоняется за секунды без сборки.
-//
-// Разбор ci.yml — построчный, с состоянием, а не split по `- name:`: в наших workflow на шаг
-// приходится 3-8 строк прозы, регулярно называющей скрипты по имени, и текстовый матч
-// засчитывал КОММЕНТАРИЙ за шаг (ревью #299). Здесь комментарии выброшены, а путь считается
-// от `working-directory` того шага, в котором стоит команда.
-//
-// Механизм проверяется на синтетике собственными самопроверками (внизу файла): на живом
-// ci.yml они бы проверяли состояние репозитория, а не правило.
+// Страж состава агрегаторов `test:unit` / `test:unit:py` / `test:gates` (issue #283): состав
+// сверяется с ci.yml в обе стороны, сцепка — только `&&` (`;`/`||` дают ноль на упавшем юните).
+// Юнит — файл `test_*.mjs|py` в `run:` шага ci.yml; `verify_dist_*` агрегатор не гоняет: нужна сборка.
+// Разбор построчный, с состоянием: комментарий о шаге — не шаг, путь — от `working-directory` шага.
 import { readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -34,10 +10,7 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 const REPO = resolve(dirname(fileURLToPath(import.meta.url)), '..');
 const CI = resolve(REPO, '.github/workflows/ci.yml');
 const PKG = resolve(REPO, 'package.json');
-// Сам страж — тоже шаг CI с именем `test_*`, но он про СОСТАВ списка, и попади он в
-// агрегатор, тот звал бы сам себя. Сравнение по нормализованному пути: `./scripts/…` и
-// `scripts/…` — одна и та же строка запуска, и требовать от неё одного написания значит
-// выдавать ложное красное с неисполнимой подсказкой (ревью #299).
+// Сам страж — тоже `test_*` в CI; в агрегаторе он звал бы сам себя.
 const SELF = 'scripts/test_unit_agenda.mjs';
 
 /** Путь к файлу юнита из токена команды, нормализованный от корня репозитория. */
@@ -50,8 +23,6 @@ const unitsInCommand = (/** @type {string} */ command) =>
     .map((m) => m[1]);
 
 /**
- * Юниты из текста ci.yml: { путь от корня → true }.
- *
  * @param {string} text
  * @returns {Set<string>}
  */
@@ -73,13 +44,10 @@ export function ciUnits(text) {
     if (!raw.trim()) continue;
     const indent = raw.length - raw.trimStart().length;
     const line = raw.trim();
-    // Комментарий — проза о шаге, а не сам шаг. Именно она давала ложные срабатывания.
+    // Комментарий — проза о шаге, а не сам шаг.
     if (line.startsWith('#')) continue;
 
-    // Тело `run: |` — команды, их читаем. Тело чужого литерала (`env: |`, `with: |`) —
-    // данные, и внутри них бывает что угодно, включая строки «- bar», неотличимые от
-    // элемента списка шагов после trim: именно они сбрасывали каталог и уносили
-    // `working-directory` соседнего шага (ревью #299).
+    // Тело `run: |` — команды; тело чужого литерала (`env: |`) — данные, где «- bar» неотличим от шага.
     if (runIndent !== null) {
       if (indent > runIndent) { take(line); continue; }
       runIndent = null;
@@ -102,9 +70,7 @@ export function ciUnits(text) {
 
     const run = line.match(/^(?:- )?run:\s*(.*)$/);
     if (run) {
-      // Индикатор блока может нести YAML-комментарий («run: | # собираем данные»), и
-      // требовать точного `|` значило бы потерять ВЕСЬ юнит внутри такого шага молча —
-      // ровно та слепота, ради которой страж и написан (ревью #299, раунд 4).
+      // Индикатор блока может нести YAML-комментарий («run: | # …»).
       if (/^[|>][-+\d]*(?:\s+#.*)?$/.test(run[1].trim())) runIndent = indent;
       else take(run[1]);
       continue;
@@ -119,16 +85,13 @@ export function ciUnits(text) {
  * Юниты и проблемы сцепки из строки агрегатора.
  *
  * @param {string} name — имя npm-скрипта (для сообщений)
- * @param {string | undefined} command — скрипта в package.json может не быть, и это своя
- *   строка отчёта, а не падение
+ * @param {string | undefined} command
  * @returns {{paths: Set<string>, problems: string[]}}
  */
 export function agendaUnits(name, command) {
   const paths = new Set();
   const problems = [];
   if (!command) return { paths, problems: [`${name}: скрипта нет в package.json`] };
-  // Сцепка: между вызовами обязан стоять `&&`. `;` и `||` дают ноль на упавшем юните —
-  // агрегатор рапортует «зелено», проверив меньше или не проверив вовсе.
   const wrong = command.match(/;|\|\|/);
   if (wrong) {
     problems.push(`${name}: команды сцеплены через «${wrong[0]}» — упавший юнит не остановит ` +
@@ -140,9 +103,7 @@ export function agendaUnits(name, command) {
   return { paths, problems };
 }
 
-/** Проблемы состава `test:gates`: он обязан звать все три агрегатора. */
-/** @param {Record<string, string | undefined>} scripts — индекс может отсутствовать, и код
- *  на это рассчитан (`?? ''`, ветка «скрипта нет в package.json»); тип обязан это признавать. */
+/** @param {Record<string, string | undefined>} scripts */
 export function gatesProblems(scripts) {
   const command = scripts['test:gates'] ?? '';
   const want = ['test:unit', 'test:unit:py', 'test:agenda'];
@@ -152,7 +113,6 @@ export function gatesProblems(scripts) {
     : [];
 }
 
-/** Все расхождения между ci.yml и агрегаторами. */
 /**
  * @param {string} ciText
  * @param {Record<string, string | undefined>} scripts
@@ -178,8 +138,6 @@ export function agendaProblems(ciText, scripts) {
 }
 
 // ── Самопроверки механизма ──────────────────────────────────────────────────────────────
-// Разбор ci.yml — это правило, а не состояние репозитория, и проверять его живым ci.yml
-// значит проверять сегодняшний файл. Формы взяты из реальных граблей ревью #299.
 const CI_HEAD = 'jobs:\n  check-build:\n    steps:\n';
 /** @type {[string, string, string[]][]} */
 const SELF_CHECKS = [
@@ -192,9 +150,6 @@ const SELF_CHECKS = [
   ['working-directory', `${CI_HEAD}      - name: Unit\n        working-directory: web\n        run: node scripts/test_c.mjs\n`,
    ['web/scripts/test_c.mjs']],
   ['шаг без name', `${CI_HEAD}      - run: node scripts/test_d.mjs\n`, ['scripts/test_d.mjs']],
-  // Анонимный шаг ПОСЛЕ шага с каталогом: своего `working-directory` у него нет, и чужой
-  // он не наследует. Прежняя самопроверка ставила анонимный шаг первым, где `cwd` и так
-  // пуст, поэтому случай проходил мимо (ревью #299).
   ['анонимный шаг после working-directory',
    `${CI_HEAD}      - name: A\n        working-directory: web\n        run: node scripts/test_c.mjs\n      - run: node scripts/test_d.mjs\n`,
    ['web/scripts/test_c.mjs', 'scripts/test_d.mjs']],
@@ -206,17 +161,12 @@ const SELF_CHECKS = [
   ['сам страж не в счёт', `${CI_HEAD}      - name: Гейт\n        run: node ./scripts/test_unit_agenda.mjs\n`, []],
   ['working-directory сбрасывается', `${CI_HEAD}      - name: A\n        working-directory: web\n        run: node scripts/test_c.mjs\n      - name: B\n        run: node scripts/test_d.mjs\n`,
    ['web/scripts/test_c.mjs', 'scripts/test_d.mjs']],
-  // Чужой блочный литерал внутри шага: «- bar» после trim неотличим от элемента списка
-  // шагов, и по строке он сбрасывал каталог ЭТОГО ЖЕ шага (ревью #299, раунд 3).
   ['список внутри чужого литерала',
    `${CI_HEAD}      - name: A\n        working-directory: web\n        env:\n          FOO: |\n            - bar\n            - baz\n        run: node scripts/test_c.mjs\n`,
    ['web/scripts/test_c.mjs']],
   ['вложенный список в with',
    `${CI_HEAD}      - name: A\n        working-directory: web\n        with:\n          args:\n            - one\n            - two\n        run: node scripts/test_c.mjs\n`,
    ['web/scripts/test_c.mjs']],
-  // Комментарий на строке индикатора — обычный YAML, и юнит внутри такого блока обязан
-  // быть виден (ревью #299, раунд 4). Второй ряд — то же для ЧУЖОГО литерала: там юнит,
-  // наоборот, считаться не должен.
   ['комментарий после `run: |`',
    `${CI_HEAD}      - name: A\n        run: | # собираем данные\n          node scripts/test_c.mjs\n`,
    ['scripts/test_c.mjs']],

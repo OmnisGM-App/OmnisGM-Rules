@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
 
 // Hovercard автоссылок (issue #20, вариант B: fetch-on-hover served JSON).
-// При наведении/фокусе на a.ent-link[data-hc] показывается карточка сущности с данными
-// из /hc/{game}/{ver}/{lang}.json. RU-глава заклинаний богата упоминаниями состояний.
+// RU-глава заклинаний — много упоминаний состояний.
 const CHAPTER = '/ru/dnd/srd-5.2/spells/';
 
 test('карточка появляется при наведении на автоссылку', async ({ page }) => {
@@ -17,7 +16,6 @@ test('карточка появляется при наведении на ав�
   await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
   await expect(card.locator('.ent-hc-en')).not.toBeEmpty();
   await expect(card.locator('.ent-hc-name')).toHaveCount(0);
-  // эффект — форматированный блок с подэффектами, без вводной «Пока вы находитесь…»
   const body = card.locator('.ent-hc-body');
   await expect(body).not.toBeEmpty();
   await expect(body).not.toContainText('Пока вы находитесь в состоянии');
@@ -36,7 +34,6 @@ test('содержимое карточки соответствует данн�
   await link.hover();
   const card = page.locator('#ent-hovercard');
   await expect(card).toBeVisible();
-  // RU-карточка показывает оригинальное EN-имя (не RU-имя, на которое навели).
   if (c.name_en && c.name_en !== c.name) await expect(card.locator('.ent-hc-en')).toHaveText(c.name_en);
 });
 
@@ -52,11 +49,8 @@ test('клавиатурный фокус открывает карточку и
   await expect(link).not.toHaveAttribute('aria-describedby', 'ent-hovercard');
 });
 
-// Клавиатурный фокус после нажатия клавиши. НЕ страж запрета тач-показа (#308): в этом файле
-// проект только десктопный, `lastInput === 'touch'` там недостижим, и тест зелен независимо от
-// слушателя `keydown` — проверено мутацией (ревью #316). Настоящий страж той ветки живёт в
-// `mobile-controls.spec.ts`, где тач есть. Здесь — обычная проверка, что путь через клавиатуру
-// работает и после нажатия клавиши, а не только при программном `focus()`.
+// НЕ страж запрета тач-показа (#308): проект десктопный, `lastInput === 'touch'` недостижим (проверено
+// мутацией) — страж той ветки в `mobile-controls.spec.ts`.
 test('фокус после клавиатурного ввода открывает карточку', async ({ page }) => {
   await page.goto(CHAPTER);
   const link = page.locator('.rd-doc a.ent-link[data-hc*="/conditions/"]').first();
@@ -94,7 +88,7 @@ test('карточка монстра: источник, строка типа +
   const card = page.locator('#ent-hovercard');
   await expect(card).toBeVisible();
   await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
-  await expect(card.locator('.ent-hc-body .hc-sub')).toContainText('Undead'); // строка типа
+  await expect(card.locator('.ent-hc-body .hc-sub')).toContainText('Undead');
   await expect(card.locator('.ent-hc-body .hc-meta')).toContainText('CR'); // КД · хиты · ПО
 });
 
@@ -106,7 +100,7 @@ test('карточка заклинания: EN-имя, источник, «ур
   const card = page.locator('#ent-hovercard');
   await expect(card).toBeVisible();
   await expect(card.locator('.ent-hc-src')).toHaveText('SRD 5.2.1');
-  await expect(card.locator('.ent-hc-en')).toHaveText('Cure Wounds'); // оригинальное имя
+  await expect(card.locator('.ent-hc-en')).toHaveText('Cure Wounds');
   await expect(card.locator('.ent-hc-body .hc-sub')).toContainText('уровень'); // «1-й уровень, …»
   await expect(card.locator('.ent-hc-body .hc-meta')).toContainText('·'); // время · дистанция · длительность
 });

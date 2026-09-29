@@ -3,7 +3,6 @@ import { fromHtml } from 'hast-util-from-html';
 import type { Element, Nodes } from 'hast';
 
 // Автоссылки на программные страницы сущностей (issue #20, rehype-entity-autolink):
-// имена состояний в контенте становятся ссылками .ent-link на страницу состояния.
 const CHAPTER = '/en/dnd/srd-5.2/spells/'; // глава с множеством упоминаний состояний
 const ENTITY = '/en/dnd/srd-5.2/rules-glossary/conditions/paralyzed/'; // тело ссылается на Incapacitated
 
@@ -11,7 +10,6 @@ test('глава: автоссылки ведут на страницы сущн
   await page.goto(CHAPTER);
   const links = page.locator('.rd-doc a.ent-link');
   expect(await links.count()).toBeGreaterThan(0);
-  // Все ent-link ведут на программную страницу сущности: состояние / заклинание / монстр.
   for (const href of await links.evaluateAll((els) => els.map((e) => e.getAttribute('href')))) {
     expect(href).toMatch(/\/(rules-glossary\/conditions|spells|monsters-a-z|animals|magic-items|equipment|weapons|armor|feats)\/[a-z0-9-]+\/$/);
   }
@@ -20,18 +18,15 @@ test('глава: автоссылки ведут на страницы сущн
 test('заклинания: имена в спелл-таблицах классов и в курсиве линкуются на страницы заклинаний', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/classes/cleric/');
   const spellLinks = page.locator('.rd-doc a.ent-link[href*="/dnd/srd-5.2/spells/"]');
-  expect(await spellLinks.count()).toBeGreaterThan(20); // таблицы спелл-листов + курсивные упоминания
-  // табличная ссылка (первая колонка спелл-листа)
+  expect(await spellLinks.count()).toBeGreaterThan(20);
   await expect(page.locator('.rd-doc td a.ent-link[href*="/spells/"]').first()).toBeVisible();
-  // курсивная ссылка в прозе (<em><a>)
   await expect(page.locator('.rd-doc em a.ent-link[href*="/spells/"]').first()).toBeVisible();
   // обычное слово (не курсив, не в спелл-таблице) НЕ линкуется: «свет» строчным в прозе
   await expect(page.locator('.rd-doc a.ent-link', { hasText: /^свет$/ })).toHaveCount(0);
 });
 
 test('монстры: имя в жирном линкуется на страницу монстра; генеричное слово в прозе — нет', async ({ page }) => {
-  // Animate Dead: «becomes an Undead creature: a **Skeleton** … or a **Zombie**» — жирный = ссылка
-  // на статблок (сигнал SRD «see Monsters»).
+  // Animate Dead: «a **Skeleton** … or a **Zombie**» — жирный = сигнал SRD «see Monsters».
   await page.goto('/en/dnd/srd-5.2/spells/animate-dead/');
   await expect(
     page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/skeleton/"]'),
@@ -39,13 +34,10 @@ test('монстры: имя в жирном линкуется на стран�
   await expect(
     page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/zombie/"]'),
   ).toBeVisible();
-  // «Undead», «creature», «Humanoid» в прозе (не жирные имена монстров) НЕ линкуются на монстров.
   await expect(page.locator('.rd-doc a.ent-link[href*="/monsters-a-z/humanoid/"]')).toHaveCount(0);
 });
 
 test('монстры RU: склонённые жирные формы линкуются (Упырём → ghoul)', async ({ page }) => {
-  // RU-текст склоняет имя монстра («становится **Упырём**»), а страница монстра — «Упырь».
-  // Курируемый alias падежных форм линкует их на ту же сущность.
   await page.goto('/ru/dnd/srd-5.2/spells/create-undead/');
   await expect(
     page.locator('.rd-doc strong a.ent-link[href$="/monsters-a-z/ghoul/"]').first(),
@@ -59,13 +51,10 @@ test('монстры RU: склонённые жирные формы линку
 test('монстры RU: термин выровнен по бестиарию (Бюлетт, не Буллет) → bulette', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/magic-items/');
   await expect(page.locator('.rd-doc a.ent-link[href$="/monsters-a-z/bulette/"]', { hasText: 'Бюлетт' })).toBeVisible();
-  // старый неканоничный термин не встречается в тексте
   await expect(page.locator('.rd-doc', { hasText: 'Буллет' })).toHaveCount(0);
 });
 
 test('животные RU: склонённые жирные формы линкуются (Слоном/Мастифом/Вороном → animals)', async ({ page }) => {
-  // Фигурка чудесной силы: RU склоняет имена животных в жирном («стать **Слоном**»),
-  // а страница животного — в именительном. Курируемый alias падежных форм линкует их.
   await page.goto('/ru/dnd/srd-5.2/magic-items/figurine-of-wondrous-power/');
   for (const slug of ['elephant', 'mastiff', 'raven']) {
     await expect(
@@ -83,19 +72,15 @@ test('животные EN: множественная жирная форма л
 
 test('снаряжение: ячейки таблиц главы линкуются на страницы оружия/доспехов/снаряжения + data-hc', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/equipment/');
-  // Оружие: ячейка «Секира» в таблице → /weapons/greataxe/.
   const w = page.locator('.rd-doc td a.ent-link[href$="/weapons/greataxe/"]').first();
   await expect(w).toBeVisible();
   await expect(w).toHaveAttribute('data-hc', /weapons\/greataxe/);
-  // Доспех: «Латы» → /armor/plate-armor/.
   await expect(page.locator('.rd-doc td a.ent-link[href$="/armor/plate-armor/"]').first()).toBeVisible();
-  // Снаряжение: «Кислота» → /equipment/acid/.
   await expect(page.locator('.rd-doc td a.ent-link[href$="/equipment/acid/"]').first()).toBeVisible();
 });
 
 test('снаряжение: имя-омоним в чужой таблице НЕ линкуется (вариант «Кнут» у Жетона пера)', async ({ page }) => {
-  // Таблица вариантов Жетона пера не размечена как перечень снаряжения (нет колонки «Цена») →
-  // ячейка «Кнут» не должна вести на страницу оружия whip.
+  // Таблица вариантов Жетона пера — без колонки «Цена», то есть не перечень снаряжения.
   await page.goto('/ru/dnd/srd-5.2/magic-items/feather-token/');
   await expect(page.locator('.rd-doc a.ent-link[href*="/weapons/whip/"]')).toHaveCount(0);
 });
@@ -109,7 +94,6 @@ test('hovercard-эндпоинт: есть карточки оружия/дос�
 });
 
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
-  // Глава маг. предметов: предмет↔предмет ссылки — «*Portable Hole*» и т.п. в курсиве.
   await page.goto('/en/dnd/srd-5.2/magic-items/');
   const link = page.locator('.rd-doc em a.ent-link[href*="/dnd/srd-5.2/magic-items/"]').first();
   await expect(link).toBeVisible();
@@ -117,17 +101,14 @@ test('предметы: имя в курсиве линкуется на стр�
 });
 
 test('черты: ячейка таблицы класса (Увеличение характеристики) линкуется на страницу черты', async ({ page }) => {
-  // Таблица прогрессии воина: «Увеличение характеристики» на уровнях 4/6/… → ссылка на ASI-черту.
-  // Источник выровнен к каноническому имени черты (формы «…характеристик» приведены к ед.ч.),
-  // поэтому матч идёт по имени напрямую, без алиасов.
+  // Источник выровнен к каноническому имени черты — матч без алиасов.
   await page.goto('/ru/dnd/srd-5.2/classes/fighter/');
   const cell = page.locator('.rd-doc td a.ent-link[href$="/feats/ability-score-improvement/"]');
-  expect(await cell.count()).toBeGreaterThan(1); // несколько уровней
+  expect(await cell.count()).toBeGreaterThan(1);
   await expect(cell.first()).toHaveAttribute('data-hc', /feats\/ability-score-improvement/);
 });
 
 test('черты: эпический дар (много-словное имя) линкуется в прозе; фичи класса — нет', async ({ page }) => {
-  // «Boon of Combat Prowess is recommended» — много-словное имя черты в прозе → ссылка.
   await page.goto('/en/dnd/srd-5.2/classes/fighter/');
   await expect(
     page.locator('.rd-doc a.ent-link[href$="/feats/boon-of-combat-prowess/"]').first(),
@@ -135,8 +116,7 @@ test('черты: эпический дар (много-словное имя) �
 });
 
 test('черты: одно-словное имя (Defense) в прозе класса НЕ линкуется ложно', async ({ page }) => {
-  // «Unarmored Defense»/«Superior Defense» в Монахе — фичи класса, не черта «Оборона/Defense».
-  // Одно-словные имена черт в прозе не трогаем → ложной ссылки на feats/defense быть не должно.
+  // «Unarmored/Superior Defense» у Монаха — фичи класса, не черта Defense.
   await page.goto('/en/dnd/srd-5.2/classes/monk/');
   await expect(page.locator('.rd-doc a.ent-link[href*="/feats/defense/"]')).toHaveCount(0);
 });
@@ -149,8 +129,6 @@ test('автолинк не попадает в заголовки и не вк�
 
 test('линкуются ВСЕ вхождения имени, а не только первое', async ({ page }) => {
   await page.goto(CHAPTER);
-  // В теле встречается хотя бы одно состояние, упомянутое (капитализированным именем) ≥2 раз —
-  // проверяем, что таких ссылок тоже ≥2 (дедупа «первое упоминание» нет).
   const hrefs = await page
     .locator('.rd-doc a.ent-link')
     .evaluateAll((els) => els.map((e) => e.getAttribute('href')));
@@ -161,11 +139,9 @@ test('линкуются ВСЕ вхождения имени, а не толь�
 test('страница состояния: тело линкует другие состояния, но не саму себя', async ({ page }) => {
   await page.goto(ENTITY);
   const doc = page.locator('.rd-doc');
-  // ссылка на Incapacitated в теле есть…
   await expect(
     doc.locator('a.ent-link[href$="/conditions/incapacitated/"]').first(),
   ).toBeVisible();
-  // …а самоссылки на paralyzed в теле нет.
   await expect(doc.locator('a.ent-link[href$="/conditions/paralyzed/"]')).toHaveCount(0);
 });
 
@@ -175,40 +151,17 @@ test('автоссылка несёт data-hc для будущего hovercard'
   await expect(first).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/(conditions|spells|monsters|magic-items)\//);
 });
 
-// Паритет EN/RU: страницы одной главы — зеркальный перевод, значит НАБОР слинкованных состояний
-// должен совпадать. Линкуем все вхождения, поэтому количество ссылок EN/RU может отличаться
-// (инфлексия, частота), а множество — нет: набор не зависит от дедупа.
-//
-// Реальные расхождения вынесены в EXCEPTIONS с причиной — три вида:
-//  • RU-перевод не использует термин состояния (EN капитализирует ключевое слово, RU дал прозу);
-//  • RU капитализирует «Невидимый» как термин, а EN тут про заклинание Invisibility, не состояние;
-//  • RU использует ДРУГОЙ термин, чем глоссарий (оглушённый вместо Ошеломлённый, обездвиженный
-//    вместо Опутанный) → капитализация регистра не помогает, слово всё равно не матчится (это
-//    terminology-propagation, не регистр).
-// Часть прежних расхождений закрыта капитализацией RU-регистра под EN (issue #20).
-// Тест падает и при НОВОМ расхождении (регрессия матчинга/перевода), и при ПРОТУХШЕЙ записи
-// allowlist (расхождение исчезло → запись надо убрать).
+// Паритет EN/RU: набор слинкованных состояний зеркальных глав совпадает. Расхождения — в EXCEPTIONS
+// с причиной; тест падает и на новом расхождении, и на протухшей записи.
 const EXCEPTIONS: Record<string, string[]> = {
-  // (bard/warlock/wizard : invisible — сняты: «Невидимость» теперь линкуется как ЗАКЛИНАНИЕ
-  //  в спелл-листах, не как состояние, → расхождение состояния исчезло на обоих языках.)
   '/en/dnd/srd-5.2/classes/monk/': ['exhaustion'], // RU не использует «Истощение»
   '/en/dnd/srd-5.2/classes/ranger/': ['exhaustion'],
   '/en/dnd/srd-5.2/feats/': ['grappled'], // RU не использует «Схваченный»
-  // (magic-items: prone/unconscious — сняты после переперевода главы по EN 5.2: RU теперь
-  //  использует канонические состояния, расхождение исчезло.)
 };
 
 /**
- * Слаги состояний, на которые ссылается контент страницы.
- *
- * Разбираем ГОТОВЫЙ HTML, а не открываем страницу браузером (#248). Проверяется атрибут
- * `href` в статической разметке — рендер, стили и скрипты для этого не нужны, а обход всех
- * глав через `page.goto` стоил теста: 165 глав × 2 языка = 330 навигаций в одном тесте при
- * бюджете 30 с, то есть ~90 мс на страницу. Тест жил на грани по построению и краснел в
- * полном прогоне при исправном коде.
- *
- * Парсер, а не регулярка: разметка приходит из markdown-конвейера, и «ссылка внутри rd-doc»
- * — это структура дерева, которую регулярка отличает от ссылки в шапке лишь по совпадению.
+ * Слаги состояний в контенте. Разбираем ГОТОВЫЙ HTML, а не браузером (#248): сотни навигаций не
+ * влезали в бюджет теста. Парсер, а не регулярка: «ссылка внутри rd-doc» — структура дерева.
  */
 function linkedConditionsIn(html: string): Set<string> {
   const tree = fromHtml(html);
@@ -251,25 +204,20 @@ test('EN/RU: набор слинкованных состояний совпад
       (p) =>
         p.startsWith('/en/dnd/srd-5.2/') &&
         !p.includes('/glossary/') && // справочные таблицы вне индекса
-        !/\/rules-glossary\/[^/]+\/[^/]+\/$/.test(p) && // programmatic entity-страницы глоссария
-        // (состояния/термины/действия/AoE) — их описания переведены независимо, паритет линковки
-        // состояний тут не гарантирован (сама глава /rules-glossary/ остаётся в наборе):
-        !/\/spells\/[^/]+\/$/.test(p) && // страницы отдельных заклинаний (не глава /spells/):
-        !/\/monsters-a-z\/[^/]+\/$/.test(p) && // отдельных монстров (не глава /monsters-a-z/):
-        !/\/animals\/[^/]+\/$/.test(p) && // отдельных животных (не глава /animals/):
-        !/\/magic-items\/[^/]+\/$/.test(p) && // отдельных предметов (не глава /magic-items/):
-        !/\/equipment\/[^/]+\/$/.test(p) && // отдельного снаряжения (не глава /equipment/):
-        !/\/feats\/[^/]+\/$/.test(p), // и отдельных черт (не глава /feats/):
-        // их описания переведены независимо → паритет линковки состояний тут не гарантирован
-        // (главы /spells/, /monsters-a-z/, /magic-items/ остаются в наборе).
+        // страницы отдельных сущностей: описания переведены независимо, паритет линковки не гарантирован.
+        !/\/rules-glossary\/[^/]+\/[^/]+\/$/.test(p) &&
+        !/\/spells\/[^/]+\/$/.test(p) &&
+        !/\/monsters-a-z\/[^/]+\/$/.test(p) &&
+        !/\/animals\/[^/]+\/$/.test(p) &&
+        !/\/magic-items\/[^/]+\/$/.test(p) &&
+        !/\/equipment\/[^/]+\/$/.test(p) &&
+        !/\/feats\/[^/]+\/$/.test(p),
     );
   expect(chapters.length).toBeGreaterThan(10);
 
   const usedExceptions = new Set<string>();
   const failures: string[] = [];
-  // Страниц, где ссылки на состояния реально нашлись. Тест сравнивает EN и RU между собой,
-  // поэтому вырождение парсера (пустые множества везде) выглядело бы как «расхождений нет» —
-  // зелёный тест, не проверивший ничего. Порог ниже ловит именно это.
+  // Порог ловит вырождение парсера: пустые множества везде выглядели бы как «расхождений нет».
   let pagesWithLinks = 0;
   for (const en of chapters) {
     const ru = en.replace('/en/', '/ru/');
@@ -286,8 +234,7 @@ test('EN/RU: набор слинкованных состояний совпад
       else failures.push(`${en}: '${s}' (EN=${enSet.has(s)} RU=${ruSet.has(s)}) — вне allowlist`);
     }
   }
-  // Фактических страниц со слинкованными состояниями — 50 (замер по всему корпусу); порог
-  // взят с запасом вниз, чтобы не ломаться от правок контента, но ловить обнуление.
+  // Порог — с запасом вниз от замера: не ломается от правок контента, но ловит обнуление.
   expect(pagesWithLinks, 'ссылки на состояния не найдены нигде — парсер вырожден').toBeGreaterThan(30);
 
   expect(failures, `новые EN/RU-расхождения:\n${failures.join('\n')}`).toEqual([]);

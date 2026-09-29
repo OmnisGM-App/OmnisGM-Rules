@@ -1,12 +1,8 @@
 import { test, expect, type Page } from '@playwright/test';
 import { BASE_URL } from './ports';
 
-// Хлебные крошки (issue #220). Сплошной счёт по dist делает verify_dist_meta_budget.mjs
-// (гейты «дублей URL в трейле» и «ссылок в никуда» — оба нулевые); здесь — смысловые проверки
-// на живой странице: что именно стоит уровнями и что видимая строка совпадает с разметкой.
-//
-// Решение по #220 — вариант 2: игра и редакция схлопнуты в один уровень документа, группы без
-// собственной страницы («Классы», «Глоссарий») остаются видимым текстом, но в разметку не идут.
+// Хлебные крошки (issue #220): сплошной счёт — verify_dist_meta_budget.mjs; здесь — уровни и совпадение
+// видимой строки с разметкой. Группы без своей страницы («Классы», «Глоссарий») — только видимый текст.
 
 type Crumb = { name: string; url: string };
 const trail = async (page: Page): Promise<Crumb[]> => {
@@ -21,11 +17,8 @@ test('уровни ведут на разные адреса, документ �
   await page.goto('/ru/dnd/srd-5.2/classes/warlock/');
   const items = await trail(page);
   expect(items.map((i) => i.name)).toEqual(['Главная', 'SRD 5.2.1 (5.5e, 2024)', 'Колдун']);
-  // Дубли URL — исходный симптом #220 (позиции 2 и 3 указывали на один /legal/).
   expect(new Set(items.map((i) => i.url)).size).toBe(items.length);
-  // С #230 крошка документа ведёт на ХАБ редакции — настоящий адрес уровня документа.
-  // До него она указывала на «первую содержательную страницу» (/playing-the-game/) — это был
-  // осознанный компромисс варианта 2 из #220, снятый вместе с появлением хабов.
+  // Крошка документа ведёт на ХАБ редакции (#230).
   expect(items[1].url).toBe(`${SITE}/ru/dnd/srd-5.2/`);
   expect(items[2].url).toBe(`${SITE}/ru/dnd/srd-5.2/classes/warlock/`);
 });
@@ -37,15 +30,13 @@ test('на страницах 5.1 крошка документа не прыг�
 
 test('группы без своей страницы («Классы») из разметки выпадают, но видны текстом', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/classes/warlock/');
-  // Раньше «Классы» вели на первую страницу внутри группы — /classes/barbarian/.
   expect((await trail(page)).map((i) => i.url)).not.toContain(`${SITE}/ru/dnd/srd-5.2/classes/barbarian/`);
   await expect(page.locator('.rd-crumb')).toContainText('Классы');
   await expect(page.locator('.rd-crumb a', { hasText: 'Классы' })).toHaveCount(0);
 });
 
 test('крошка «Глоссарий» не ведёт на noindex-страницу', async ({ page }) => {
-  // Хаб заклинаний лежит в NAV под группой «Глоссарий», у которой своей страницы нет: раньше
-  // ей подставлялась первая страница внутри — /glossary/glossary/, а она под noindex.
+  // Группа «Глоссарий» без своей страницы — хаб заклинаний не должен вести на noindex /glossary/glossary/.
   await page.goto('/ru/dnd/srd-5.2/spells/all/');
   const items = await trail(page);
   expect(items.map((i) => i.url)).not.toContain(`${SITE}/ru/dnd/srd-5.2/glossary/glossary/`);
@@ -56,7 +47,6 @@ test('крошка «Глоссарий» не ведёт на noindex-стра�
 test('трейл сущностной страницы кончается самой сущностью', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
   const items = await trail(page);
-  // Раньше трейл обрывался на разделе «Заклинания» — конец был разным у разных шаблонов.
   expect(items.at(-1)).toEqual({ name: 'Огненный шар', url: `${SITE}/ru/dnd/srd-5.2/spells/fireball/` });
 });
 
@@ -66,8 +56,7 @@ test('видимые крошки — рабочие ссылки на те же
   const links = page.locator('.rd-crumb a');
   expect(await links.count()).toBeGreaterThan(1);
   for (const href of await links.evaluateAll((els) => els.map((e) => (e as HTMLAnchorElement).href))) {
-    // Порт preview зависит от слота (Table#469) — берём адрес из `BASE_URL` (`e2e/ports.ts`),
-    // того же модуля, из которого собран `use.baseURL`, а не литералом.
+    // Порт preview зависит от слота (Table#469) — адрес из `BASE_URL`, а не литералом.
     expect(marked, `видимая крошка ${href} отсутствует в разметке`).toContain(href.replace(BASE_URL, SITE));
   }
   await page.locator('.rd-crumb a', { hasText: 'Заклинания' }).click();

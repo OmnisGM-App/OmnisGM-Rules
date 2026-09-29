@@ -1,15 +1,7 @@
 #!/usr/bin/env node
-// Страж полноты тайпчека инструментов (issue #304, ревью #315).
-//
-// `web/tsconfig.tools.json` перечисляет файлы ПОИМЁННО, и это осознанно: запись `include` —
-// глоб, и не совпавшая ни с одним файлом она молчит, а `files` на исчезнувшей записи даёт
-// `TS6053`. Но защита односторонняя: исчезновение записи видно, ПОЯВЛЕНИЕ нового файла — нет.
-// Заведи завтра `web/scripts/new_gate.mjs` — `lint:tools` останется зелёным, ничего не проверив,
-// и «покрытие полное» из комментария конфига станет неправдой без единой правки конфига.
-//
-// Здесь и лежит вторая сторона: каждый `.mjs` трёх каталогов обязан быть либо в `files`, либо
-// под маской `include`. Проверка текстовая (JSONC с комментариями через JSON.parse не читается),
-// и потому обязана падать при непонятной форме, а не молчать.
+// Страж полноты тайпчека инструментов (issue #304): `files` в `web/tsconfig.tools.json` ловит
+// исчезнувшую запись (TS6053), но не ПОЯВЛЕНИЕ нового файла — каждый `.mjs` трёх каталогов обязан
+// быть в `files` или под маской `include`. Разбор текстовый (JSONC) и падает на непонятной форме.
 import { existsSync, readdirSync, readFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -21,8 +13,7 @@ const WATCHED = ['scripts', 'src/lib', '../scripts'];
 
 /** Значения массива `files`/`include` из JSONC-конфига. Бросает, если формы нет. */
 export function listOf(/** @type {string} */ text, /** @type {string} */ key) {
-  // Комментарии снимаем до разбора: `//` внутри строки в этом файле не встречается, а
-  // регулярка по всему тексту съела бы, например, `https://`.
+  // Комментарии снимаем только внутри массива: регулярка по всему тексту съела бы `https://`.
   const at = text.indexOf(`"${key}"`);
   if (at < 0) throw new Error(`в конфиге нет ключа «${key}»`);
   const open = text.indexOf('[', at);
@@ -42,8 +33,6 @@ function mjsOf(/** @type {string} */ rel) {
 }
 
 /**
- * Файлы, не покрытые ни `files`, ни `include`.
- *
  * @param {string[]} files поимённые записи
  * @param {string[]} include маски
  * @param {string[]} present фактические пути от `web/`
@@ -51,15 +40,14 @@ function mjsOf(/** @type {string} */ rel) {
  */
 export function uncovered(files, include, present) {
   const named = new Set(files);
-  // Маску сводим к префиксу до первого `*`: маски здесь простые (`src/lib/**/*.mjs`), и
-  // разбирать глоб целиком значило бы завести вторую реализацию глоба ради трёх записей.
+  // Маска → префикс до первого `*`: маски простые, второй реализации глоба не заводим.
   const prefixes = include
     .filter((i) => i.endsWith('.mjs'))
     .map((i) => i.slice(0, i.indexOf('*')));
   return present.filter((p) => !named.has(p) && !prefixes.some((pre) => pre && p.startsWith(pre)));
 }
 
-// ── Самопроверки: числа считаются счётчиком, а не заявляются ────────────────────────────
+// ── Самопроверки ────────────────────────────────────────────────────────────────────────
 /** @type {string[]} */
 const failures = [];
 let checksRun = 0;

@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Programmatic-страницы Basic Roleplaying SRD 1.0: навыки (+by-category), профессии,
-// точечные правила + хабы. Независимо от других систем: game=brp, свой бакет данных.
+// Programmatic-страницы Basic Roleplaying SRD 1.0 — независимо от других систем: свой бакет данных.
 
 test('entity-страницы BRP рендерятся', async ({ page }) => {
   for (const url of [
@@ -44,14 +43,12 @@ test('канонический слаг EN↔RU: RU-сущность на анг
   expect((await page.goto('/ru/brp/srd-1.0/skills/first-aid/'))?.status()).toBe(200);
   expect((await page.goto('/ru/brp/srd-1.0/professions/cowboy/'))?.status()).toBe(200);
   expect((await page.goto('/ru/brp/srd-1.0/spot-rules/ambush/'))?.status()).toBe(200);
-  // Кириллический слаг не существует.
   expect((await page.goto('/ru/brp/srd-1.0/skills/%D0%BB%D0%B0%D0%B7%D0%B0%D0%BD%D0%B8%D0%B5/'))?.status()).toBe(404);
 });
 
 test('хабы: сортируемые таблицы навыков (+фасет категории), профессий, правил', async ({ page }) => {
   expect((await page.goto('/ru/brp/srd-1.0/skills/all/'))?.status()).toBe(200);
   await expect(page.locator('.hub-table[data-sortable] a[href$="/skills/climb/"]')).toBeVisible();
-  // «Категория» кликабельна в колонке таблицы + в футере.
   await expect(page.locator('.hub-table[data-sortable] a[href*="/skills/category/"]').first()).toBeVisible();
   await expect(page.locator('.hub-links a[href$="/skills/category/combat/"]')).toBeVisible();
 

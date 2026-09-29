@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 // Программные страницы монстров (issue #20, волна 3): /{lang}/dnd/{ver}/monsters-a-z/{slug}/.
-// Стат-блок (защиты/характеристики/ПО), автоссылки состояний+заклинаний в телах + hovercard,
-// ссылки-иммунитеты к состояниям, SEO (hreflang, sitemap), related «тот же тип».
 
 test('страница монстра: заголовок, EN-имя, строка типа, стат-блок', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/adult-green-dragon/');
@@ -13,7 +11,6 @@ test('страница монстра: заголовок, EN-имя, строк
   await expect(stat).toContainText('Класс доспеха');
   await expect(stat).toContainText('Хиты');
   await expect(stat).toContainText('Показатель опасности');
-  // таблица характеристик: 6 колонок + 3 ряда (ЗНАЧ/МОД/СПАС)
   await expect(page.locator('.mon-abil thead th')).toHaveCount(7); // пустая + 6 характеристик
   await expect(page.locator('.mon-abil tbody tr')).toHaveCount(3);
 });
@@ -22,7 +19,6 @@ test('стат-блок: иммунитеты к урону + состояния
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/adult-green-dragon/');
   const imm = page.locator('.mon-row', { hasText: 'Иммунитеты' });
   await expect(imm).toContainText('Ядовитый'); // урон
-  // условный иммунитет линкуется на страницу состояния (+ data-hc для hovercard)
   const cond = imm.locator('a.ent-link[href$="/conditions/poisoned/"]');
   await expect(cond).toHaveText('Отравленный');
   await expect(cond).toHaveAttribute('data-hc', 'dnd/srd52/ru/conditions/poisoned');
@@ -30,11 +26,9 @@ test('стат-блок: иммунитеты к урону + состояния
 
 test('тело действий: автоссылки заклинаний и состояний + hovercard', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/adult-green-dragon/');
-  // заклинание из блока «Сотворение заклинаний» линкуется на страницу заклинания
   await expect(
     page.locator('.mon-section a.ent-link[href*="/spells/"]').first(),
   ).toBeVisible();
-  // наведение на любую автоссылку в теле открывает карточку
   const link = page.locator('.mon-section a.ent-link[data-hc]').first();
   await link.scrollIntoViewIfNeeded();
   await link.hover();
@@ -50,9 +44,8 @@ test('related: другие существа того же типа', async ({ p
 });
 
 test('related: рой попадает к своему базовому типу', async ({ page }) => {
-  // Тип роя — вся конструкция («Swarm of Tiny Undead» / «рой Крошечной нежити»), и в 5.2
-  // он ровно один. Фильтр по сырому полю оставлял страницу вообще без блока соседей —
-  // потеря внутренней перелинковки, которую никакой гейт данных не увидит (#196).
+  // Тип роя — вся конструкция («Swarm of Tiny Undead»), в 5.2 он один: фильтр по сырому полю оставлял
+  // страницу без соседей, чего гейт данных не видит (#196).
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/swarm-of-crawling-claws/');
   const rel = page.locator('.ent-related');
   await expect(rel).toContainText('нежить');

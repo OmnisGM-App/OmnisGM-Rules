@@ -1,7 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-// Хабы монстров (issue #20, SEO §2.3, PR B): по типу (13) и по CR (одиночные 0–10 + диапазоны
-// 11–16 / 17–30). Группировка по слагу через чистый EN-тип (RU-поле type непоследовательно).
+// Хабы монстров (issue #20, SEO §2.3): по типу и по CR. Группировка по слагу через чистый EN-тип
+// (RU-поле type непоследовательно).
 
 test('тип-хаб: драконы — список + ссылки, EN/RU симметрично по числу монстров', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/type/dragon/');
@@ -26,7 +26,6 @@ test('CR-хаб: одиночный ПО 5 — все строки ровно CR
   const crCells = await page.locator('.hub-table tbody tr td:nth-child(2)').allTextContents();
   expect(crCells.length).toBeGreaterThan(0);
   for (const c of crCells) expect(c.trim()).toBe('5');
-  // Колонка типа ссылается на type-хаб.
   await expect(page.locator('.hub-table a[href*="/monsters-a-z/type/"]').first()).toBeVisible();
 });
 

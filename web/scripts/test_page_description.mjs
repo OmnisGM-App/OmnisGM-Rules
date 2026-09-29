@@ -1,11 +1,5 @@
-// Юнит-проверка page-description.mjs (issue #213) — сниппет markdown-страниц.
-//
-// Гейт по dist (verify_dist_meta_budget.mjs) считает, сколько описаний короче 110 символов,
-// но не видит, ИЗ ЧЕГО они собраны: сниппет из служебной таблицы посреди страницы или из
-// куска CSS тоже будет «достаточно длинным». Инварианты выбора источника проверяем здесь,
-// на синтетике: живой контент их не различает (сегодня у всех глав есть вступление).
-//
-// Запуск: node web/scripts/test_page_description.mjs
+// Юнит-проверка page-description.mjs (issue #213): гейт по dist считает длины, но не видит, ИЗ ЧЕГО
+// собран сниппет (служебная таблица, кусок CSS) — инварианты выбора источника проверяем на синтетике.
 import {
   introProse,
   outline,
@@ -87,8 +81,7 @@ Text.
 check('берётся самый населённый уровень', outline(glossary),
   ['Ability Check', 'Advantage', 'Alignment']);
 
-// Таблица считается, только если страница с неё НАЧИНАЕТСЯ: иначе в сниппет главы уезжает
-// случайная служебная таблица (у rules-glossary это была таблица сокращений «AC, C, CE»).
+// Таблица считается, только если страница с неё НАЧИНАЕТСЯ: иначе в сниппет уезжает служебная таблица.
 const tableMidPage = `# Rules Glossary
 
 ## Conventions
@@ -135,11 +128,9 @@ checkFn('обрезка не рвёт слово', longOut, (s) => {
   return words.includes(last);
 }, 'последнее слово обрезано посреди себя');
 
-// Пустая страница — старый бойлерплейт, а не пустое/битое описание.
 check('пустое тело — бойлерплейт', pageDescription({ name: 'Empty', body: '# Empty\n', ...SYS }),
   'Empty — D&D SRD 5.2.1. Tabletop RPG System Reference Document in the OmnisGM ecosystem.');
 
-// Короткое вступление добивается до нижней границы, а не остаётся 96-символьным.
 const shortIntro = `# Loot
 
 Loot comprises any consumables or reusable items the party acquires.
@@ -147,12 +138,10 @@ Loot comprises any consumables or reusable items the party acquires.
 checkFn('короткое вступление добирается хвостом', pageDescription({ name: 'Loot', body: shortIntro, ...SYS }),
   (s) => s.length >= 110 && s.length <= 160 && s.includes('OmnisGM'), 'ожидали 110–160 с брендовым хвостом');
 
-// Русская страница — своя шапка и свой хвост, без английских хвостов в выдаче.
 checkFn('русская шапка', pageDescription({ name: 'Добыча', body: shortIntro, lang: 'ru', sysLabel: 'Daggerheart', docLabel: 'SRD 1.0' }),
   (s) => s.startsWith('Добыча — Daggerheart SRD 1.0 на русском.') && !s.includes('Tabletop'),
   'ожидали русскую шапку без английского хвоста');
 
-// Вспомогательные функции.
 check('listFit режет по границе элемента', listFit(['Aboleth', 'Ankheg', 'Assassin'], 20), 'Aboleth, Ankheg…');
 check('listFit целиком — с точкой', listFit(['Aboleth', 'Ankheg'], 40), 'Aboleth, Ankheg.');
 // clamp предпочитает границу предложения, но только если после неё остаётся хотя бы 60%

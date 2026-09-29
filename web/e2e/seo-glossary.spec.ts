@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Глоссарные страницы по умолчанию выведены из индекса: meta noindex,follow + вне sitemap
-// (issue #37). ИСКЛЮЧЕНИЕ (#106, этап 1): содержательные справочники без entity-хаба
-// (DH оружие/броня/предметы/расходники, BRP оружие/броня) — индексируемы. Контентные — как прежде.
+// Глоссарии — noindex,follow и вне sitemap (#37), кроме справочников без entity-хаба (#106).
 const GLOSSARY = '/en/dnd/srd-5.2/glossary/glossary/';  // индекс-термины 14_Glossary → noindex (не редиректится)
 const CONTENT = '/en/dnd/srd-5.2/legal/';
 const RULES_GLOSSARY = '/en/dnd/srd-5.2/rules-glossary/'; // реальная глава, НЕ /glossary/ — индексируется
@@ -38,7 +36,6 @@ test('sitemap: содержит справочники без хаба (#106), �
   const res = await page.request.get('/sitemap-0.xml');
   expect(res.ok()).toBeTruthy();
   const xml = await res.text();
-  // Возвращённые справочники — в sitemap.
   expect(xml).toContain('/daggerheart/srd-1.0/glossary/weapons/');
   expect(xml).toContain('/brp/srd-1.0/glossary/armor/');
   // Дубли хабов (301) и оглавления-термины — НЕ в sitemap.
@@ -49,9 +46,8 @@ test('sitemap: содержит справочники без хаба (#106), �
 });
 
 test('индексируемый справочник имеет ровно один H1 с названием раздела (#228)', async ({ page }) => {
-  // Их markdown начинается сразу с таблицы: заголовок раздела в исходном SRD стоит в
-  // оглавлении документа, а не в теле файла. H1 дорисовывает шаблон nav-подписью — той же,
-  // что идёт в <title>, поэтому проверяем не текст-константу, а согласованность с <title>.
+  // Markdown начинается сразу с таблицы — H1 дорисовывает шаблон nav-подписью, той же, что в <title>:
+  // проверяем согласованность с <title>, а не константу.
   await page.goto(GLOSSARY_INDEXED);
   const h1 = page.locator('h1');
   await expect(h1).toHaveCount(1);
@@ -61,8 +57,7 @@ test('индексируемый справочник имеет ровно од
 });
 
 test('страница с собственным H1 второго не получает', async ({ page }) => {
-  // Иначе фолбэк дорисовывал бы заголовок всем подряд, и на обычных главах стало бы два H1 —
-  // это размывает тему не меньше, чем отсутствие заголовка.
+  // Иначе фолбэк дорисовал бы заголовок и обычным главам — два H1.
   await page.goto(CONTENT);
   await expect(page.locator('h1')).toHaveCount(1);
 });

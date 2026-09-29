@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// /all/-хабы D&D (issue #20): алфавитные индексы заклинаний/монстров/предметов/животных
-// со ссылками на entity-страницы + фасеты. Заменили плоские глоссарий-списки в сайдбаре.
+// /all/-хабы D&D (issue #20): алфавитные индексы заклинаний/монстров/предметов/животных + фасеты.
 
 test('/all/-хабы рендерятся (5.2 + 5.1)', async ({ page }) => {
   for (const url of [
@@ -39,7 +38,7 @@ test('хаб в сайдбаре (глоссарий) виден и подсве
 
 test('spells/all: уровень и школа кликабельны; школа-хаб рендерится', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/all/');
-  // Уровень → level-хаб, школа → school-хаб (оба новые).
+  // Уровень → level-хаб, школа → school-хаб.
   await expect(page.locator('.hub-table a[href*="/spells/level/"]').first()).toBeVisible();
   const school = page.locator('.hub-table a[href*="/spells/school/"]').first();
   await expect(school).toBeVisible();

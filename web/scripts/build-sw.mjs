@@ -7,7 +7,6 @@ const { count, size, warnings } = await generateSW({
   globDirectory: 'dist',
   globPatterns: [
     '**/*.{js,css,svg,woff2}', 'manifest.webmanifest', 'apple-touch-icon.png', 'favicon.ico',
-    // Иконки манифеста — в precache, как у прежней интеграции (`includeManifestIcons`).
     'icon-*.png', 'maskable-*.png',
   ],
   // img/** — картинки сущностей (#201/#202): их сотни, в precache раздули бы установку PWA.

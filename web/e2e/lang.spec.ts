@@ -6,10 +6,8 @@ test('тумблер языка переключает EN → RU @cross-engine',
   await page.goto('/en/');
   await expect(page.locator('html')).toHaveAttribute('lang', 'en');
 
-  // На узком экране пары кнопок нет — язык переключает нативный <select> (#286).
-  // ОГОВОРКА: Playwright-WebKit проверяет здесь ФУНКЦИЮ, а не вид. Квирки нативных
-  // контролов Safari он не воспроизводит — сломанную стилизацию <select> мы уже ловили
-  // только руками, и ручной смоук этот проект не отменяет.
+  // На узком экране язык переключает нативный <select> (#286). Playwright-WebKit проверяет ФУНКЦИЮ,
+  // а не вид: квирки нативных контролов Safari он не воспроизводит.
   if (isNarrow(page)) {
     await expect(page.locator('.rd-lang')).toBeHidden();
     await page.locator('.rd-lang-sel').selectOption('/ru/');
@@ -22,7 +20,6 @@ test('тумблер языка переключает EN → RU @cross-engine',
 });
 
 // hreflang: три взаимных тега (en/ru/x-default) с абсолютными URL на каждой странице.
-// Собираем { hreflang → href } из <head>. Проверяем ровно три ключа и абсолютность URL.
 async function hreflangMap(page: import('@playwright/test').Page) {
   return page.$$eval('head link[rel="alternate"][hreflang]', (ls) =>
     Object.fromEntries(ls.map((l) => [l.getAttribute('hreflang'), l.getAttribute('href')])),
@@ -62,10 +59,6 @@ test('hreflang: хаб /en/ и корень / дают согласованну�
   expect(root).toEqual(hub); // корень и хабы — один кластер, тройка совпадает
 });
 
-// Заглушки обзора глав (напр. 06_Classes/00_Classes.md = только «# Classes») нужны контентному
-// пайплайну для PDF, но на сайте это пустой тонкий контент — роут не генерируем (см. #17). Это были
-// единственные страницы вне nav-дерева; после удаления вне-nav контентных страниц не осталось.
-// Тест страхует от регресса — что заглушка не вернётся в билд как индексируемая страница.
 test('пустая заглушка обзора классов не отдаётся (404)', async ({ page }) => {
   for (const url of ['/en/dnd/srd-5.2/classes/classes/', '/ru/dnd/srd-5.1/classes/classes/']) {
     const resp = await page.goto(url);

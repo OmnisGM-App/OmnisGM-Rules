@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Программные страницы животных (issue #20, Дорожка A):
-// /{lang}/dnd/{ver}/animals/{slug}/. Стат-блок зеркалит монстра (КД/хиты/хар-ки/ПО),
-// EN-имя в шапке, автолинк состояний в теле, related «тот же ПО», SEO (hreflang, sitemap).
+// Программные страницы животных (issue #20, Дорожка A): /{lang}/dnd/{ver}/animals/{slug}/.
 
 test('страница животного: заголовок, EN-имя, тип, стат-блок', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/animals/wolf/');
@@ -12,7 +10,6 @@ test('страница животного: заголовок, EN-имя, тип
   const stat = page.locator('.mon-stat');
   await expect(stat.locator('.mon-row', { hasText: 'Класс доспеха' })).toBeVisible();
   await expect(stat.locator('.mon-row', { hasText: 'Показатель опасности' })).toContainText('1/4');
-  // Таблица характеристик присутствует.
   await expect(stat.locator('.mon-abil')).toBeVisible();
 });
 

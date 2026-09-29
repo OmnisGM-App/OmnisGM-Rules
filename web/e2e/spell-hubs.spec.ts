@@ -1,7 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 // Хабы заклинаний (issue #20, SEO §2.3): фасетные списки по классу и уровню.
-// Класс-хаб — секции H2 по уровням; уровень-хаб — таблица с колонкой классов (ссылки на класс-хабы).
 
 test('класс-хаб: волшебник — секции по уровням + ссылки на заклинания (EN/RU симметрично)', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/class/wizard/');
@@ -35,7 +34,6 @@ test('уровень-хаб: 3 уровень — таблица заклина�
   await page.goto('/ru/dnd/srd-5.2/spells/level/3/');
   await expect(page.locator('h1')).toHaveText('Заклинания 3 уровня');
   await expect(page.locator('.hub-table a[href$="/spells/fireball/"]').first()).toBeVisible();
-  // В колонке «Классы» — ссылки на класс-хабы.
   await expect(page.locator('.hub-table a[href$="/spells/class/wizard/"]').first()).toBeVisible();
 });
 

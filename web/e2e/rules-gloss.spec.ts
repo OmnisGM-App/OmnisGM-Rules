@@ -1,8 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-// Глоссинг терминов Rules Glossary (issue #20): действия (Dash/Dodge/…) в тексте получают
-// hovercard-определение (span.gloss[data-hc], НЕ ссылка). Матчатся ТОЛЬКО в контексте
-// «X action» (EN) / «действие X» (RU) — голые омонимы («Attack» ×499) не трогаются.
+// Глоссинг действий Rules Glossary (issue #20): span.gloss[data-hc], НЕ ссылка. Матчатся ТОЛЬКО
+// в контексте «X action» / «действие X» — голые омонимы («Attack») не трогаются.
 
 test('спелл: действие в тексте глоссится + наведение показывает определение', async ({ page }) => {
   // Bestow Curse: «…действие Уклонение…» → span.gloss на «Уклонение».
@@ -90,7 +89,6 @@ test('термин ядра (батч 2): дистинктивный однос�
   // «Класс доспеха» глоссится, а «класс» персонажа рядом — нет (стем требует «доспех»).
   await page.goto('/ru/dnd/srd-5.2/classes/monk/');
   await expect(page.locator('.rd-doc .gloss[data-hc*="/rules-terms/armor-class"]').first()).toBeVisible();
-  // Ни один глосс armor-class не должен обойтись без слова «доспех» в тексте.
   const texts = await page.locator('.rd-doc .gloss[data-hc*="/rules-terms/armor-class"]').allTextContents();
   for (const t of texts) expect(t.toLowerCase()).toContain('доспех');
 });

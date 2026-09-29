@@ -1,9 +1,7 @@
 import { test, expect } from '@playwright/test';
 
-// Программные страницы сущностей SRD 5.1 (issue #20): те же механики, что и 5.2, но полностью
-// НЕЗАВИСИМО — подсказки/автолинки 5.1 не должны смешиваться с 5.2. Рендер общий с 5.2 (покрыт
-// профильными спеками); здесь — 5.1-специфика: паритет слагов, независимость версий, расы,
-// beast/swarm-хабы монстров, чистый тип, отсутствие «мёртвого» gloss.
+// Программные страницы SRD 5.1 (issue #20): те же механики, что 5.2, но НЕЗАВИСИМО — подсказки и
+// автолинки версий не смешиваются. Общий с 5.2 рендер покрыт профильными спеками.
 
 test('entity-страницы 5.1 рендерятся (спот по ресурсам)', async ({ page }) => {
   for (const url of [
@@ -37,23 +35,18 @@ test('канонический слаг EN↔RU: таблично-парсиру
 test('независимость: 5.1-страница линкует и глоссит ТОЛЬКО через бакет srd51', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.1/monsters-a-z/imp/');
   const doc = page.locator('.rd-doc');
-  // Все автоссылки в теле → srd-5.1.
   const hrefs = await doc.locator('a.ent-link').evaluateAll((els) =>
     els.map((e) => (e as HTMLAnchorElement).getAttribute('href') || ''));
   for (const h of hrefs) expect(h, `ent-link ${h}`).toContain('/dnd/srd-5.1/');
-  // Любой data-hc в теле (автолинк ИЛИ gloss ядра) → бакет srd51, не srd52 (изоляция версий).
   const hc = await doc.locator('[data-hc]').evaluateAll((els) =>
     els.map((e) => e.getAttribute('data-hc') || ''));
   for (const b of hc) expect(b, `data-hc ${b}`).toContain('dnd/srd51/');
 });
 
 test('5.1 gloss: свой rules-terms-бакет (srd51), изолирован от 5.2', async ({ page }) => {
-  // 5.1 теперь глоссит термины ядра из собственного глоссария (парсер секций-таблиц).
   await page.goto('/ru/dnd/srd-5.1/classes/barbarian/');
   await expect(page.locator('.rd-doc .gloss[data-hc^="dnd/srd51/ru/rules-terms/"]').first()).toBeVisible();
-  // Изоляция: ни одной 5.2-подсказки на 5.1-странице.
   await expect(page.locator('.rd-doc .gloss[data-hc*="srd52"]')).toHaveCount(0);
-  // 5.2 тоже глоссит (не сломали).
   await page.goto('/ru/dnd/srd-5.2/playing-the-game/');
   await expect(page.locator('.rd-doc .gloss[data-hc*="rules-terms"]').first()).toBeVisible();
 });
@@ -62,14 +55,12 @@ test('5.1 gloss-бакет отдаёт карточки терминов (не�
   const res = await request.get('/hc/dnd/srd51/ru.json');
   expect(res.status()).toBe(200);
   const map = await res.json();
-  // Символические термы, покрытые глоссарием 5.1 (симметрично EN/RU).
   expect(map['rules-terms/initiative']).toBeTruthy();
   expect(map['rules-terms/concentration']).toBeTruthy();
 });
 
 test('5.1 rules-terms: канонические слаги 5.2 (глоссарий 5.1 кодирует аббревиатуру в имени)', async ({ request }) => {
-  // Глоссарий 5.1 пишет «Armor Class (AC)»/«Challenge Rating (CR)»/«Opportunity Attack» (ед.ч.);
-  // канонизатор слага сводит их к слагам 5.2 → термы глоссятся и подсказки резолвятся.
+  // Глоссарий 5.1 пишет ед.ч. и аббревиатуры («Armor Class (AC)») — канонизатор сводит их к слагам 5.2.
   const map = await (await request.get('/hc/dnd/srd51/ru.json')).json();
   for (const slug of ['armor-class', 'challenge-rating', 'experience-points', 'opportunity-attacks']) {
     expect(map[`rules-terms/${slug}`], slug).toBeTruthy();
@@ -87,13 +78,12 @@ test('5.1 gloss: канонические термы подсвечены в п�
 });
 
 test('5.1 gloss-гейт: ярлыки стат-блоков («Класс Доспеха:») НЕ глоссятся (без ковра)', async ({ page }) => {
-  // Мега-страница главы бестиария: каждый стат-блок пишет «**Класс Доспеха:** 17» словами.
-  // Терм-ярлык — не место для подсказки; гейт (терм = весь жирный узел + двоеточие) их пропускает.
+  // Каждый стат-блок пишет «**Класс Доспеха:** 17» — терм-ярлык не место для подсказки.
   await page.goto('/ru/dnd/srd-5.1/monsters-a-z/');
   const label = page.locator('.rd-doc strong', { hasText: /^Класс Доспеха:$/ }).first();
   await expect(label).toBeVisible();
   await expect(label.locator('.gloss')).toHaveCount(0);
-  // Ковра нет: armor-class на всей мега-странице — единицы, не сотни (было 318 до гейта).
+  // Ковра нет: armor-class на всей мега-странице — единицы, не сотни.
   const carpet = await page.locator('.rd-doc .gloss[data-hc$="/rules-terms/armor-class"]').count();
   expect(carpet).toBeLessThan(5);
 });
@@ -103,15 +93,13 @@ test('монстр 5.1: чистый тип (запятая в скобках п
   // Тип-строка должна быть «… Fiend (Devil, Shapechanger) …», без обрезанного «Fiend (Devil».
   await expect(page.locator('.mon-type')).toContainText('Fiend');
   await expect(page.locator('.mon-type')).toContainText('Devil, Shapechanger');
-  // Бэклинк в хаб типа — на канонический fiend.
   await expect(page.locator('.ent-hubs a[href$="/monsters-a-z/type/fiend/"]')).toBeVisible();
 });
 
 test('type-хабы монстров 5.1: есть beast и swarm (beast-хаба в 5.2 нет)', async ({ page }) => {
   expect((await page.goto('/en/dnd/srd-5.1/monsters-a-z/type/beast/'))?.status()).toBe(200);
   expect((await page.goto('/en/dnd/srd-5.1/monsters-a-z/type/swarm/'))?.status()).toBe(200);
-  // В 5.2 звери вынесены в animals — beast-хаба нет. Swarm-хаб в 5.2, наоборот, есть
-  // (рой ползучих когтей) — с тех пор, как тип роя восстановлен по PDF (#196).
+  // В 5.2 звери — в animals, beast-хаба нет; swarm-хаб в 5.2 есть (#196).
   expect((await page.goto('/en/dnd/srd-5.2/monsters-a-z/type/beast/'))?.status()).toBe(404);
   expect((await page.goto('/en/dnd/srd-5.2/monsters-a-z/type/swarm/'))?.status()).toBe(200);
 });
@@ -120,20 +108,16 @@ test('расы 5.1: страница расы — EN-имя, подрасы, а�
   await page.goto('/ru/dnd/srd-5.1/races/tiefling/');
   await expect(page.locator('.rd-doc h1')).toContainText('Тифлинг');
   await expect(page.locator('.ent-en')).toHaveText('Tiefling');
-  // Автолинк расовых заклинаний → страницы заклинаний 5.1.
   await expect(page.locator('.rd-doc a.ent-link[href="/ru/dnd/srd-5.1/spells/darkness/"]')).toBeVisible();
-  // «Другие расы» ведут на другие entity-страницы рас.
   await expect(page.locator('.ent-related a[href$="/races/elf/"]')).toBeVisible();
 });
 
 test('хаб рас 5.1: сортируемая таблица всех рас со ссылками + доступен из страницы расы', async ({ page }) => {
   const res = await page.goto('/ru/dnd/srd-5.1/races/all/');
   expect(res?.status()).toBe(200);
-  // 9 строк-ссылок на entity-страницы рас.
   const links = page.locator('.hub-table[data-sortable] tbody td:first-child a');
   await expect(links).toHaveCount(9);
   await expect(page.locator('.hub-table a[href$="/races/tiefling/"]')).toBeVisible();
-  // Со страницы расы «в раздел» ведёт на хаб (entity → хаб).
   await page.goto('/ru/dnd/srd-5.1/races/dwarf/');
   await expect(page.locator(`a[href$="/dnd/srd-5.1/races/all/"]`).first()).toBeVisible();
 });
@@ -142,7 +126,6 @@ test('раса 5.1 с подрасой: чипы подрас + канониче
   const res = await page.goto('/en/dnd/srd-5.1/races/dwarf/');
   expect(res?.status()).toBe(200);
   await expect(page.locator('.race-subraces')).toContainText('Hill Dwarf');
-  // Общий слаг EN↔RU (hreflang-пара существует).
   expect((await page.goto('/ru/dnd/srd-5.1/races/dwarf/'))?.status()).toBe(200);
 });
 
@@ -162,7 +145,6 @@ test('hovercard-эндпоинт srd51: непустой, карточки за�
   expect(Object.keys(ru).length).toBeGreaterThan(500);
   expect(ru['spells/fireball']?.name_en).toBe('Fireball');
   expect(ru['magic-items/bag-of-holding']?.name_en).toBe('Bag of Holding');
-  // 5.1 теперь имеет rules-terms (парсер секций-таблиц глоссария) → бакет их содержит.
   expect(Object.keys(ru).some((k) => k.startsWith('rules-terms/'))).toBe(true);
   expect(ru['rules-terms/initiative']?.name_en).toBe('Initiative');
 });

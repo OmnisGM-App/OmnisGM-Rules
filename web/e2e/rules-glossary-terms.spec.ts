@@ -1,15 +1,12 @@
 import { test, expect } from '@playwright/test';
 
-// Programmatic-страницы терминов Rules Glossary (issue #106): термины/действия/области эффекта
-// главы 08_RulesGlossary — свои URL под /rules-glossary/{type}/{slug}/, индексируемы, со
-// ссылкой-источником в главу правил (где источник известен из «See also»).
+// Programmatic-страницы терминов Rules Glossary (issue #106): /rules-glossary/{type}/{slug}/.
 
 test('термин: страница рендерится, индексируема, hreflang-тройка', async ({ page }) => {
   const res = await page.goto('/ru/dnd/srd-5.2/rules-glossary/term/advantage/');
   expect(res?.status()).toBe(200);
   await expect(page.locator('.rd-doc h1')).toContainText('Преимущество');
   await expect(page.locator('.ent-en')).toHaveText('Advantage');
-  // Индексируема (НЕ /glossary/ → без noindex), с тройкой hreflang.
   await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 });
@@ -58,13 +55,10 @@ test('канонический слаг EN↔RU: RU-термин на англи
 test('хаб /rules-glossary/all/: сортируемая таблица со ссылками на все термины (не сироты)', async ({ page }) => {
   const res = await page.goto('/ru/dnd/srd-5.2/rules-glossary/all/');
   expect(res?.status()).toBe(200);
-  // Сортируемая таблица со ссылками на страницы всех типов.
   await expect(page.locator('table.hub-table[data-sortable] a[href$="/rules-glossary/term/advantage/"]')).toBeVisible();
   await expect(page.locator('.hub-table a[href$="/rules-glossary/action/dash/"]')).toBeVisible();
   await expect(page.locator('.hub-table a[href$="/rules-glossary/conditions/prone/"]')).toBeVisible();
-  // Входящая ссылка: со страницы термина в HTML сайдбара есть ссылка на хаб (термин не
-  // sitemap-сирота). Группа глоссария на странице термина свёрнута, поэтому проверяем наличие
-  // в DOM (краулится), а не визуальную видимость.
+  // Группа глоссария на странице термина свёрнута — проверяем ссылку в DOM (краулится), а не видимость.
   await page.goto('/ru/dnd/srd-5.2/rules-glossary/term/advantage/');
   await expect(page.locator('.rd-nav a[href$="/rules-glossary/all/"]').first()).toBeAttached();
 });

@@ -1,8 +1,6 @@
 import { test, expect } from '@playwright/test';
 
 // Программные страницы заклинаний (issue #20, волна 2): /{lang}/dnd/{ver}/spells/{slug}/.
-// Стат-блок, ссылки классов/подклассов, тултип компонентов, автоссылки состояний + hovercard,
-// SEO (hreflang, sitemap, индексируемость), нормализация школы.
 
 test('страница заклинания: заголовок, EN-имя, стат-блок', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
@@ -37,7 +35,6 @@ test('классы и подклассы — ссылки; подкласс ск
   const meta = page.locator('.spell-meta');
   await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/sorcerer/"]', { hasText: /^Чародей$/ })).toBeVisible();
   await expect(meta).toContainText('Подклассы');
-  // подкласс ведёт на секцию подкласса на странице класса (#anchor)
   await expect(meta.locator('a[href^="/ru/dnd/srd-5.2/classes/warlock/#"]', { hasText: 'Колдун: Исчадие' })).toBeVisible();
 
   // Aid: даётся Домом жизни (Жрец) и Клятвой преданности (Паладин), но оба класса уже в полном

@@ -4,9 +4,7 @@ import { execFileSync } from 'node:child_process';
 import { KINDS, ORDER } from '../../scripts/gen-images.mjs';
 import { VERSION_SLUG } from '../src/lib/entities';
 
-// Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов):
-// картинка живёт в Rules, показывается на странице сущности, уходит в og:image и в поле
-// `image` JSON API. Страница без картинки не должна регрессировать.
+// Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов).
 
 test('страница монстра: портрет виден, размеры заданы, alt = имя', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/aboleth/');
@@ -17,7 +15,6 @@ test('страница монстра: портрет виден, размеры
   // width/height обязательны: по ним резервируется место, иначе растёт CLS.
   await expect(img).toHaveAttribute('width', '512');
   await expect(img).toHaveAttribute('height', '512');
-  // Картинка реально отдаётся и декодируется, а не висит битой ссылкой.
   const natural = await img.evaluate((el: HTMLImageElement) => [el.naturalWidth, el.naturalHeight]);
   expect(natural).toEqual([512, 512]);
 });
@@ -63,8 +60,7 @@ test('авторство картинок — отдельной строкой 
 // поэтому проверяем ТОТ ЖЕ артефакт, что генерит prebuild из generate_api.py.
 const api = (p: string) => JSON.parse(fs.readFileSync(`src/data/api/${p}`, 'utf-8'));
 
-// Разделы для поиска сущности без картинки — не свой список, а очередь генератора
-// (`KINDS` в scripts/gen-images.mjs).
+// Разделы — очередь генератора (`KINDS` в scripts/gen-images.mjs), а не свой список.
 type PendingSource = { json: string; game: string; version: string; segment: string };
 
 // Коллекция API и сегмент её маршрута совпадают не всегда, а общей карты для этого нет.
@@ -83,8 +79,7 @@ function pendingSources(): PendingSource[] {
       const gameDir = `src/data/api/${game}`;
       if (!fs.existsSync(gameDir)) continue;
       for (const ver of fs.readdirSync(gameDir).sort()) {
-        // Сегмент версии — из той же карты, по которой строят адрес сами `[slug].astro`;
-        // каталога без записи в ней на сайте нет вовсе.
+        // Сегмент версии — из той же карты, что у `[slug].astro`; без записи страницы нет.
         const version = VERSION_SLUG[ver];
         if (!version) continue;
         for (const collection of collections) {
@@ -98,7 +93,6 @@ function pendingSources(): PendingSource[] {
   return out;
 }
 
-/** Первая сущность без поля image и адрес её страницы. */
 function pendingEntity() {
   for (const src of pendingSources()) {
     const found = api(src.json).find((e: { image?: string }) => !e.image);
@@ -130,7 +124,6 @@ test('JSON API: image есть у существ с файлом и отсутс
 });
 
 test('у каждой сущности с полем image файл реально отдаётся', async ({ request }) => {
-  // Ловит рассинхрон «URL написан вслепую»: поле есть, а по ссылке 404.
   const all = [
     ...api('dnd/srd52/ru/monsters/all.json'),
     ...api('dnd/srd52/ru/animals/all.json'),
@@ -175,8 +168,7 @@ test('заклинание и магпредмет с иконкой — тот 
 test('сущность без картинки: страница как раньше', async ({ page }) => {
   const pending = pendingEntity();
   expect(pending, NO_PENDING).toBeTruthy();
-  // У 404 нет ни портрета, ни авторства, ни своего og:image: ошибись адрес — и всё ниже
-  // осталось бы зелёным.
+  // Сначала статус 200: у 404 нет портрета и og:image — всё ниже осталось бы зелёным.
   const res = await page.goto(pending!.url);
   expect(res?.status(), pending!.url).toBe(200);
   await expect(page.locator('img.ent-portrait')).toHaveCount(0);
@@ -197,10 +189,6 @@ test('очередь генератора: поле image ровно у тех, 
   );
 });
 
-// Очередь генератора берёт снаряжение и предметы Daggerheart/BRP прямо из markdown-таблиц
-// (в JSON API этих коллекций пока нет) и сама считает слаг. Если её формула разойдётся
-// с parsers/base.py, картинки лягут под именами, которых сущности никогда не получат —
-// молча, без единой ошибки. Поэтому сверяем обе реализации на реальных именах.
 test('слаг в генераторе и в парсерах считается одинаково', () => {
   const FILES = [
     'src/daggerheart/srd-1.0/en/17_Glossary/03_Weapons.md',
@@ -241,8 +229,6 @@ print(json.dumps([slugify(n) for n in json.load(sys.stdin)]))
   expect(mismatched, `расходятся: ${mismatched.slice(0, 5).map((r) => r.n).join(', ')}`).toEqual([]);
 });
 
-// Кэш картинок — связка из двух частей (перенос Table#252), и обе тихие: сломайся любая,
-// пользователь просто не увидит перегенерированную картинку. Стережём обе.
 test('картинки вне precache, но с рантайм-кэшем SWR', () => {
   const sw = fs.readFileSync('dist/sw.js', 'utf-8');
   expect(sw).toContain('entity-images');

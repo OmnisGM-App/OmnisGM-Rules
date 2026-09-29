@@ -1,12 +1,9 @@
 import { test, expect } from '@playwright/test';
 
 // Длина и содержательность <meta description> у markdown-страниц (issue #213).
-// URL — ровно те, на которые ругался Bing Webmaster Tools (правило 118 «Meta descriptions
-// too short»): у них был бойлерплейт 95–102 символа, одинаковый по всему сайту.
 //
-// Сплошной счёт коротких описаний по dist делает web/scripts/verify_dist_meta_budget.mjs
-// (гоняется в CI), инварианты сборки сниппета — web/scripts/test_page_description.mjs.
-// Здесь — проверка на живой отрендеренной странице: мета доезжает до HTML и не пустая.
+// Сплошной счёт — verify_dist_meta_budget.mjs, инварианты сниппета — test_page_description.mjs;
+// здесь — мета на живой отрендеренной странице.
 const MIN = 110;
 const MAX = 160;
 
@@ -25,8 +22,7 @@ for (const url of BING_REPORT) {
     expect(desc, 'description отсутствует').toBeTruthy();
     expect(desc!.length).toBeGreaterThanOrEqual(MIN);
     expect(desc!.length).toBeLessThanOrEqual(MAX);
-    // Брендовый хвост допустим только как добивка короткого вступления — на этих
-    // страницах контента хватает, и целиком бойлерплейтным описание быть не должно.
+    // Брендовый хвост допустим только как добивка короткого вступления.
     expect(desc).not.toMatch(/^[^.]+\.\s*Tabletop RPG System Reference Document/);
   });
 }
@@ -42,7 +38,6 @@ test('описание собрано из контента страницы, а
   const glossary = await page.locator('head meta[name="description"]').getAttribute('content');
   expect(glossary).toContain('Ability Check');
 
-  // og:description и twitter:description идут из того же значения — расхождения быть не должно.
   const og = await page.locator('head meta[property="og:description"]').getAttribute('content');
   expect(og).toBe(glossary);
 });
@@ -57,8 +52,6 @@ test('русская страница описана по-русски', async (
 });
 
 // ── Сущностные шаблоны (issue #214, волна 1: оружие и навыки BRP) ─────────────
-// Прежние сниппеты этих типов были 46–90 символов: у оружия только урон, цена и вес,
-// у навыков BRP вообще голый excerpt() описания без имени и системы.
 
 const facts = async (page: import('@playwright/test').Page, url: string) => {
   await page.goto(url);
@@ -77,8 +70,7 @@ test('оружие: в сниппете свойства и мастерство
 });
 
 test('оружие без урона не даёт «урон ,» с пустым местом', async ({ page }) => {
-  // У Сети урона нет вовсе, и прежний шаблон печатал «урон , цена 1 зм» — висящая запятая
-  // прямо в выдаче. Пустые факты в строку не попадают.
+  // У Сети урона нет вовсе — пустые факты в строку не попадают (без висящей запятой).
   const d = await facts(page, '/ru/dnd/srd-5.1/weapons/net/');
   expect(d).not.toContain('урон ,');
   expect(d).not.toMatch(/:\s*,/);
@@ -93,21 +85,16 @@ test('навык BRP: базовый шанс и категория вперед
 });
 
 test('навык BRP по-русски: та же формула, русские подписи', async ({ page }) => {
-  // RU-ветка шаблона отдельная (падежи и кавычки-ёлочки), и её формулировку общий гейт по
-  // dist не проверяет — он считает только длины. Отсюда отдельный тест на язык.
   const d = await facts(page, '/ru/brp/srd-1.0/skills/appraise/');
   expect(d.startsWith('Оценка — навык Basic Roleplaying:'), `не тот заход: ${d}`).toBe(true);
   expect(d).toContain('базовый шанс 15%');
   expect(d).toContain('категория «Ментальный»');
-  // Английские подписи в русский сниппет не протекают.
   expect(d).not.toContain('base chance');
 });
 
 // ── Хабы, глоссарий и остальные шаблоны (issue #214, волна 2) ─────────────────
 
 test('хаб перечисляет, что внутри, а не только считает', async ({ page }) => {
-  // Соседние фасеты («монстры ПО 0» и «ПО 1») отличались только числом и значением фасета —
-  // сниппеты выходили почти одинаковыми. Имена делают их и длиннее, и по-настоящему разными.
   const d = await facts(page, '/ru/dnd/srd-5.2/monsters-a-z/cr/0/');
   expect(d.length).toBeGreaterThanOrEqual(MIN);
   expect(d).toContain('Среди них:');
@@ -121,9 +108,7 @@ test('список в сниппете хаба режется по границ
   const list = d.split('Includes: ')[1];
   // Факт обрезки виден многоточием, целый список — точкой.
   expect(list.endsWith('…') || list.endsWith('.')).toBe(true);
-  // Обрубленное имя в выдаче читается как ошибка вёрстки, поэтому режем по границе элемента.
-  // Проверяем это по существу: последнее имя в сниппете должно быть настоящим именем со
-  // страницы, а не его началом. Сравнение с текстом ссылки, а не с регекспом «похоже на слово».
+  // Режем по границе элемента: последнее имя сверяем с текстом ссылки, а не регекспом «похоже на слово».
   const names = list.replace(/[.…]$/, '').split(', ');
   const onPage = await page.locator('main a').allTextContents();
   expect(onPage.map((s) => s.trim())).toContain(names[names.length - 1]);
@@ -131,14 +116,11 @@ test('список в сниппете хаба режется по границ
 
 test('термин глоссария: определение целое, хвост добавлен только если влез', async ({ page }) => {
   const d = await facts(page, '/en/dnd/srd-5.1/rules-glossary/conditions/deafened/');
-  // Главное: определение не обрезано ради служебной фразы — «…requires… A D&D 2014 Rules
-  // Glossary condition» было бы обрубленным ответом ради хвоста.
   expect(d).toContain("can't hear and automatically fails any ability check that requires hearing.");
   expect(d).toContain('Rules Glossary condition');
 });
 
 test('маркер списка не уезжает в сниппет', async ({ page }) => {
-  // Определения состояний в SRD оформлены списком, и сниппет начинался с «- A deafened…».
   for (const url of [
     '/en/dnd/srd-5.1/rules-glossary/conditions/deafened/',
     '/ru/dnd/srd-5.1/rules-glossary/conditions/incapacitated/',
@@ -156,8 +138,7 @@ test('доспех: требование Силы и помеха Скрытно
 });
 
 // ── Согласование числительных на хабах (issue #240) ──────────────────────────
-// Правила счёта проверяет юнит-тест на числах (scripts/test_plural.mjs); здесь — что хаб
-// с ОДНОЙ сущностью действительно попадает в singular-ветку на живой странице.
+// Правила счёта — scripts/test_plural.mjs; здесь — singular-ветка хаба с ОДНОЙ сущностью.
 
 test('хаб с одной сущностью не пишет «Все 1 животных»', async ({ page }) => {
   const d = await facts(page, '/ru/dnd/srd-5.2/animals/cr/6/');
@@ -169,7 +150,6 @@ test('хаб с одной сущностью не пишет «Все 1 жив�
 });
 
 test('множественные хабы согласованы по последней цифре', async ({ page }) => {
-  // 27 заговоров → «Все 27 заговоров», 339 заклинаний → «Все 339 заклинаний»:
   // формы 2–4 и 5+ различаются, и обе должны выбираться правильно.
   expect(await facts(page, '/ru/dnd/srd-5.2/spells/level/0/')).toContain('Все 27 заговоров');
   expect(await facts(page, '/ru/dnd/srd-5.2/spells/all/')).toContain('Все 339 заклинаний');

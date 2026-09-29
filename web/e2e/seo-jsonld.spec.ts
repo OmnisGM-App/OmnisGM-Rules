@@ -1,12 +1,7 @@
 import { test, expect, type Page } from '@playwright/test';
 
-// JSON-LD контентных страниц (issue #219). Сплошной счёт по dist делает
-// verify_dist_meta_budget.mjs (гейт «Article без обязательных полей» = 0); здесь — смысловые
-// проверки на живой странице: что именно лежит в полях и что граф связан ссылками @id.
-//
-// Почему это важно ровно так: без image и дат Google не выдаёт Article-rich-result вовсе,
-// а даты у нас приезжают из git по исходному markdown — на сборке без истории они молча
-// исчезают, и подмены датой билда мы не делаем (это шум для поисковика, а не свежесть).
+// JSON-LD контентных страниц (issue #219): сплошной счёт — verify_dist_meta_budget.mjs; здесь — поля
+// и связность графа через @id на живой странице.
 
 const graphOf = async (page: Page) => {
   const raw = await page.locator('head script[type="application/ld+json"]').first().textContent();
@@ -48,9 +43,8 @@ test('дата изменения — настоящая: ISO, не в буду�
   expect(new Date(article.dateModified).getTime()).toBeGreaterThanOrEqual(
     new Date(article.datePublished).getTime(),
   );
-  // Инвариант «дата не из сборки» здесь НЕ проверяется по одной странице: в день правки главы
-  // её дата законно сегодняшняя. Он живёт там, где виден целиком — по всему dist в
-  // scripts/verify_dist_meta_budget.mjs («различных dateModified > 1»).
+  // «Дата не из сборки» по одной странице не проверить (в день правки она сегодняшняя) —
+  // это verify_dist_meta_budget.mjs по всему dist.
 });
 
 test('Organization.sameAs связывает ресурсы экосистемы и репозиторий', async ({ page }) => {

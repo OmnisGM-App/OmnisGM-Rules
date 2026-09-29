@@ -1,9 +1,6 @@
 import { test, expect } from '@playwright/test';
 
-// Программные страницы снаряжения (issue #20, Дорожка A):
-// /{lang}/dnd/{ver}/equipment/{slug}/. Зеркало маг. предмета: стат-блок (категория/стоимость/
-// вес; у инструментов — характеристика/использование/изготовление), автолинк состояний в теле,
-// related «та же категория», SEO (hreflang, sitemap).
+// Программные страницы снаряжения (issue #20, Дорожка A): /{lang}/dnd/{ver}/equipment/{slug}/.
 
 test('снаряжение: заголовок, EN-имя, категория, стоимость', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.2/equipment/acid/');
@@ -19,7 +16,6 @@ test('инструмент: характеристика, использован
   const stat = page.locator('.item-stat');
   await expect(stat.locator('.item-row', { hasText: 'Характеристика' })).toContainText('Интеллект');
   await expect(stat.locator('.item-row', { hasText: 'Использование' })).toBeVisible();
-  // Пункт «Изготовление» линкует на страницу изготавливаемого снаряжения.
   await expect(
     stat.locator('.item-row', { hasText: 'Изготовление' })
       .locator('a.ent-link[href$="/equipment/acid/"]'),
