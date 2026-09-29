@@ -98,15 +98,15 @@
    назвать в строке решений, почему это не нарушение:
 
    ```bash
-   F=$(git diff --name-only <base>...HEAD | grep -vE '\.(png|jpg|webp|svg|lock)$')
+   F=$(git diff --name-only <base>...HEAD | grep -vE '\.(png|jpg|webp|svg|lock)$')   # команды проверены на mawk/gawk/BSD awk: только POSIX-классы, без \s
    # (а) запрещённые классы 2–4 и 8 + кванторы + ссылки на PR/ревью — регистр не важен, JSX-комментарии тоже
-   echo "$F" | xargs grep -HinE '^\s*(//|#|\*|/\*|<!--|\{/\*).*(ревью|раунд|раньше было|поправлен|в отличие от прежн|после правк|исправлен[оа] по|единственн|гарантир|не может произойти|тест сторожит|ловит (tsc|гейт)|\bвсегда\b|\bникогда\b|\bвсе[хм]?\b|\bкажд(ый|ая|ое|ого)\b|\bтолько\b|\breview\b|\bround\b|previously|used to|\bonly\b|\bevery\b|\balways\b|\bnever\b|PR #|#[0-9]{2,4}\b.*(ревью|review))' || true
+   echo "$F" | xargs grep -HinE '^[[:space:]]*(//|#|\*|/\*|<!--|\{/\*).*(ревью|раунд|раньше было|поправлен|в отличие от прежн|после правк|исправлен[оа] по|единственн|гарантир|не может произойти|тест сторожит|ловит (tsc|гейт)|\bвсегда\b|\bникогда\b|\bвсе[хм]?\b|\bкажд(ый|ая|ое|ого)\b|\bтолько\b|\breview\b|\bround\b|previously|used to|\bonly\b|\bevery\b|\balways\b|\bnever\b|PR #|#[0-9]{2,4}\b.*(ревью|review))' || true
    # (б) числа с единицами в комментариях — у каждого должен быть исполняемый источник (константа, миксин, useMediaQuery), иначе число врёт
-   echo "$F" | xargs grep -HnE '^\s*(//|#|\*|/\*|\{/\*).*[0-9]{2,}\s*(px|ms|s|%|КБ|KB|MB|строк|тестов|файлов)' || true
+   echo "$F" | xargs grep -HnE '^[[:space:]]*(//|#|\*|/\*|\{/\*|<!--).*[0-9]+([.,][0-9]+)?[[:space:]]*(px|ms|s|%|КБ|KB|MB|мин|сек|строк|тест|файл|сценари|раз)[а-яё]*([^[:alnum:]]|$)' || true
    # (в) мотив теста блоком над кейсом, в т.ч. через пустую строку и для it.each/test.describe/describe.skip
-   echo "$F" | grep -E '\.(test|spec)\.[jt]sx?$' | xargs awk 'BEGIN{n=0} /^\s*(\/\/|\/\*|\*)/{n++; next} /^\s*$/{next} /^\s*(it|test|describe)(\.[a-zA-Z]+)*\(/{if(n) print FILENAME":"FNR; n=0; next} {n=0}' 2>/dev/null || true
+   echo "$F" | grep -E '(\.(test|spec)\.[jt]sx?|/test_[^/]+\.(mjs|py))$' | xargs awk 'BEGIN{n=0} /^[[:space:]]*(\/\/|\/\*|\*|#)/{n++; next} /^[[:space:]]*$/{next} /^[[:space:]]*(it|test|describe|def test_)(\.[a-zA-Z]+)*\(?/{if(n) print FILENAME":"FNR; n=0; next} {n=0}' 2>/dev/null || true
    # (г) доля строк-комментариев у каждого нового/переписанного файла (бюджет ≤10 %, rules ≤15 %) — считаем, не оцениваем
-   for f in $(echo "$F" | grep -E '\.(ts|tsx|mts|mjs|js|scss|rules)$'); do awk -v f="$f" '/^\s*(\/\/|\*|\/\*|\{\/\*)/{c++} END{if(NR>40 && c*10>NR) printf "%s: %d/%d строк = %d%%\n", f, c, NR, c*100/NR}' "$f"; done
+   for f in $(echo "$F" | grep -E '\.(ts|tsx|mts|mjs|js|py|astro|scss|rules)$'); do awk -v f="$f" '/^[[:space:]]*(\/\/|\*|\/\*|\{\/\*|#[^!]|<!--)/{c++} END{if(NR>40 && c*10>NR) printf "%s: %d/%d строк = %d%%\n", f, c, NR, c*100/NR}' "$f"; done
    ```
 
    Плюс один проход глазами по окну ±20 строк вокруг каждого хунка (`git diff -U20`):
