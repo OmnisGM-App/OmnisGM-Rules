@@ -1,0 +1,123 @@
+{
+  "name": "OmnisGM Rules — tabletop RPG reference",
+  "short_name": "OmnisGM Rules",
+  "description": "A fast, offline-ready reader for freely-licensed tabletop RPG System Reference Documents — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying.",
+  "start_url": "/en/",
+  "display": "standalone",
+  "background_color": "#0F1016",
+  "theme_color": "#0F1016",
+  "lang": "en",
+  "scope": "/",
+  "id": "/",
+  "dir": "ltr",
+  "categories": [
+    "books",
+    "reference",
+    "education",
+    "games"
+  ],
+  "display_override": [
+    "standalone",
+    "minimal-ui"
+  ],
+  "orientation": "any",
+  "launch_handler": {
+    "client_mode": "navigate-existing"
+  },
+  "edge_side_panel": {
+    "preferred_width": 400
+  },
+  "scope_extensions": [
+    {
+      "origin": "https://rules.omnisgm.com",
+      "type": "origin"
+    },
+    {
+      "origin": "https://omnisgm-rules.web.app",
+      "type": "origin"
+    },
+    {
+      "origin": "https://omnisgm-rules.firebaseapp.com",
+      "type": "origin"
+    }
+  ],
+  "shortcuts": [
+    {
+      "name": "D&D SRD 5.2.1",
+      "short_name": "D&D 5.2",
+      "url": "/en/dnd/srd-5.2/legal/"
+    },
+    {
+      "name": "Daggerheart SRD",
+      "short_name": "Daggerheart",
+      "url": "/en/daggerheart/srd-1.0/legal/"
+    },
+    {
+      "name": "На русском",
+      "short_name": "Русский",
+      "url": "/ru/"
+    }
+  ],
+  "translations": {
+    "ru": {
+      "name": "OmnisGM Rules — SRD настольных игр",
+      "short_name": "OmnisGM Rules",
+      "description": "Быстрый офлайн-ридер свободно-лицензированных SRD настольных ролевых игр — D&D 5.2.1 / 5.1, Daggerheart, Basic Roleplaying."
+    }
+  },
+  "icons": [
+    {
+      "src": "/icon-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/icon-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "any"
+    },
+    {
+      "src": "/maskable-192.png",
+      "sizes": "192x192",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/maskable-512.png",
+      "sizes": "512x512",
+      "type": "image/png",
+      "purpose": "maskable"
+    },
+    {
+      "src": "/icon.svg",
+      "sizes": "any",
+      "type": "image/svg+xml",
+      "purpose": "any"
+    }
+  ],
+  "screenshots": [
+    {
+      "src": "/screenshot-wide.png",
+      "sizes": "1280x800",
+      "type": "image/png",
+      "form_factor": "wide",
+      "label": "OmnisGM Rules — десктопный ридер SRD"
+    },
+    {
+      "src": "/screenshot-narrow-1.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Главная — системы и разделы"
+    },
+    {
+      "src": "/screenshot-narrow-2.png",
+      "sizes": "780x1688",
+      "type": "image/png",
+      "form_factor": "narrow",
+      "label": "Чтение правил на телефоне"
+    }
+  ]
+}
