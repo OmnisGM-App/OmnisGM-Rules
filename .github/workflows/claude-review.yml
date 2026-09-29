@@ -14,6 +14,14 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.43 (2026-09-29): модели ЗАКРЕПЛЕНЫ полными ID и задан effort. Алиасы плавают с версией
+# CLI, которую claude-code-action ставит на каждом прогоне: `opus` стал Opus 5.5 в 2.1.280
+# (у нас — 23.09 в середине дня), `sonnet` стал Sonnet 5.5 в 2.1.284 (28.09 вечером) — модели
+# менялись без нашего решения. У Opus 5.5 дефолтный effort `medium` (у Opus 5 был `high`), и с
+# 23.09 главный цикл и линзы C/F/V тихо опустились на ступень: медиана $/прогон 14.9 → 5.6,
+# средних на ревью 4.4 → 1.9. Поэтому `--model claude-opus-5-5`, `--effort high`, а линзы на
+# `sonnet` (алиас в Agent — единственный способ) закреплены через ANTHROPIC_DEFAULT_SONNET_MODEL.
+# Смена модели/effort — только с замером реплеем (workflow_dispatch по тому же PR).
 # v2.42 (2026-09-22): авто-ревью ВКЛЮЧЕНО — ровно ОДИН автоматический прогон на PR (решение
 # владельца): pull_request только opened/ready_for_review (+closed для отмены), без synchronize/
 # reopened. Фикс-раунды и повторы — кнопкой workflow_dispatch (`force` для полного конвейера).
@@ -298,6 +306,10 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
+          # v2.43: алиасы `opus`/`sonnet` в вызовах Agent резолвятся через эти переменные,
+          # а не через версию CLI на раннере.
+          ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-5-5
+          ANTHROPIC_DEFAULT_SONNET_MODEL: claude-sonnet-5-5
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
@@ -310,7 +322,8 @@ jobs:
             omnisgm@omnisgm
           claude_args: |
             --max-turns 200
-            --model opus
+            --model claude-opus-5-5
+            --effort high
             --add-dir /tmp
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
