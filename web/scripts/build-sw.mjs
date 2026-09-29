@@ -5,7 +5,11 @@ import { generateSW } from 'workbox-build';
 const { count, size, warnings } = await generateSW({
   swDest: 'dist/sw.js',
   globDirectory: 'dist',
-  globPatterns: ['**/*.{js,css,svg,woff2}', 'manifest.webmanifest', 'apple-touch-icon.png', 'favicon.ico'],
+  globPatterns: [
+    '**/*.{js,css,svg,woff2}', 'manifest.webmanifest', 'apple-touch-icon.png', 'favicon.ico',
+    // Иконки манифеста — в precache, как у прежней интеграции (`includeManifestIcons`).
+    'icon-*.png', 'maskable-*.png',
+  ],
   // img/** — картинки сущностей (#201/#202): их сотни, в precache раздули бы установку PWA.
   globIgnores: ['**/og*.png', '**/screenshot-*.png', '**/pagefind/**', '**/img/**'],
   cleanupOutdatedCaches: true,
@@ -38,5 +42,10 @@ const { count, size, warnings } = await generateSW({
   ],
 });
 
-for (const w of warnings) console.warn(`[sw] ${w}`);
+// Предупреждение workbox (файл больше лимита precache и т.п.) — красная сборка, не строка в
+// логе: файл, выпавший из precache молча, никто не заметит.
+if (warnings.length) {
+  for (const w of warnings) console.error(`[sw] ${w}`);
+  process.exit(1);
+}
 console.log(`[sw] precache: ${count} файлов, ${(size / 1024).toFixed(2)} КиБ → dist/sw.js`);
