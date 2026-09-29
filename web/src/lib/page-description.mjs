@@ -1,26 +1,8 @@
 // Содержательный <meta description> для markdown-страниц (issue #213).
-//
-// Раньше страницы без кастомного описания получали чистый бойлерплейт:
-// «Druid — Daggerheart SRD 1.0. Tabletop RPG System Reference Document in the OmnisGM
-// ecosystem.» — 92–102 символа, из которых уникальны только первые три слова. Bing
-// (Recommendations, правило 118 «Meta descriptions too short») держал на этом «умеренную»
-// рекомендацию, а сниппет в выдаче и в AI-цитированиях не говорил о странице ничего.
-//
-// Здесь описание собирается ИЗ САМОЙ СТРАНИЦЫ, тремя ступенями по убыванию качества:
-//   1. вводная проза — первый абзац после H1, до первого подзаголовка (есть у большинства глав);
-//   2. структура — перечень подзаголовков (глава: разделы; справочник: термины) или, если
-//      страница начинается таблицей, число строк и первые имена из неё;
-//   3. бойлерплейт — как раньше (страница без прозы и без структуры; сборку не валим).
-// Ступени комбинируются: если прозы не хватило до нижней границы, к ней добавляется
-// структура, а если и её нет — брендовый хвост.
-//
 // Кастомные описания (классы D&D — class-facts.ts, сущностные страницы — свои шаблоны,
 // #173/#185) сюда не заходят: вызывающий пробует их первыми.
-//
-// Длина: целимся в 110–160 символов (нижняя граница комфорта Bing — ~110, обрезка выдачи —
-// ~160). Режем ТОЛЬКО по границе предложения или слова и никогда — посреди слова.
 
-// Максимум и минимум для итоговой строки.
+// Обрезка выдачи и нижняя граница комфорта Bing (#213).
 const MAX = 160;
 const MIN = 110;
 // Короче этого проза не считается вступлением (подпись автора, одна ремарка).
@@ -61,14 +43,11 @@ const isProse = (/** @type {string} */ line) =>
   !isTableRow(line) &&
   !/^\s*([-*+]\s|\d+[.)]\s|>|---+|<)/.test(line);
 
-/** Ячейки строки markdown-таблицы. */
 const cells = (/** @type {string} */ line) =>
   line.trim().replace(/^\|/, '').replace(/\|$/, '').split('|').map((c) => c.trim());
 
 /**
- * Строки тела после заголовка H1 (сам H1 в сниппет не идёт — он уже в имени страницы).
- * Файла без единого заголовка это не касается: глоссарные справочники (14_Glossary/02_Spells.md)
- * начинаются прямо с таблицы, и «всё после H1» для них — это всё тело.
+ * Строки тела после H1; у файла без заголовков (глоссарные справочники начинаются таблицей) — всё тело.
  */
 function afterTitle(/** @type {string|null|undefined} */ body) {
   const lines = sanitize(body).split('\n');
@@ -77,14 +56,9 @@ function afterTitle(/** @type {string|null|undefined} */ body) {
 }
 
 /**
- * ПЕРВЫЙ абзац вступления — тот, что стоит после H1 и до первого подзаголовка. Именно
- * вступление, а не «первый попавшийся абзац»: у страниц-справочников (Монстры А–Я,
- * глоссарии) первым абзацем идёт кусок первой же сущности («Large Aberration, Lawful
- * Evil»), и в сниппет он лезть не должен.
- *
- * Абзац именно один: на пустой строке после набранного текста выходим намеренно — в
- * сниппет всё равно влезает 110–160 символов, а склейка двух абзацев дала бы обрывок
- * второй мысли вместо целой первой. Break убирать не надо.
+ * ПЕРВЫЙ абзац вступления — после H1 и до первого подзаголовка. Не «первый попавшийся»:
+ * у справочников (Монстры А–Я, глоссарии) первым идёт кусок первой сущности
+ * («Large Aberration, Lawful Evil»).
  */
 export function introProse(/** @type {string|null|undefined} */ body) {
   /** @type {string[]} */
@@ -92,7 +66,7 @@ export function introProse(/** @type {string|null|undefined} */ body) {
   for (const line of afterTitle(body)) {
     if (isHeading(line)) break;
     if (isProse(line)) out.push(plain(line));
-    else if (out.length && line.trim() === '') break; // абзац кончился — хватит
+    else if (out.length && line.trim() === '') break;
   }
   return out.join(' ').trim();
 }
@@ -112,9 +86,6 @@ export function outline(/** @type {string|null|undefined} */ body, limit = 14) {
     const name = plain(m[2]).replace(/[:.]+$/, '');
     if (!name || seen.has(name)) continue;
     seen.add(name);
-    // Без `?.`: `byLevel` типизирован, и ключ вне [2,3,4] означает, что регулярку выше
- // расширили, а таблицу — нет. Тихий пропуск здесь хуже падения: заголовок ушёл бы и из
- // outline, и в `seen` (то есть повторный проход его тоже не вернёт) — ревью #315.
     /** @type {string[]} */ (byLevel.get(m[1].length)).push(name);
   }
   /** @type {string[]} */
@@ -128,9 +99,7 @@ export function outline(/** @type {string|null|undefined} */ body, limit = 14) {
 
 /**
  * Сводка по таблице, с которой страница НАЧИНАЕТСЯ: сколько строк и что в первой колонке.
- * Для справочников без прозы и подзаголовков (глоссарные списки заклинаний, монстров,
- * магпредметов). Таблица где-то в середине страницы сюда не считается — иначе в сниппет
- * главы уезжает случайная таблица (у rules-glossary это была таблица сокращений).
+ * Таблица в середине не считается — в сниппет главы уехала бы случайная таблица.
  */
 export function tableSummary(/** @type {string|null|undefined} */ body, limit = 4) {
   const lines = afterTitle(body);
@@ -178,19 +147,9 @@ export function clamp(/** @type {string} */ text, limit = MAX) {
 }
 
 /**
- * Описание markdown-страницы: 110–160 символов (короче — только если страница пуста
- * настолько, что не набралось даже с хвостом).
- *
  * name — подпись страницы, sysLabel/docLabel — система и документ («Daggerheart», «SRD 1.0»).
  */
 /**
- * `body` необязателен: у записи коллекции Astro тело типизировано как `string | undefined`,
- * а пустая страница — законный случай (в описание уходит бойлерплейт).
- *
- * `body` объявлен как `string | undefined`, а не необязательным полем: тело записи коллекции
- * Astro именно такое, а вот ЗАБЫТЬ его в новом шаблоне нельзя — иначе сотни страниц молча
- * получат один и тот же бойлерплейт вместо описания (ревью #315).
- *
  * @param {{name: string, body: string | undefined, lang?: string, sysLabel: string, docLabel: string}} page
  * @returns {string}
  */
@@ -200,20 +159,17 @@ export function pageDescription({ name, body, lang, sysLabel, docLabel }) {
   const tail = ru
     ? 'SRD настольных ролевых игр в экосистеме OmnisGM.'
     : 'Tabletop RPG System Reference Document in the OmnisGM ecosystem.';
-  // Укороченный хвост — когда полный не влезает в 160 (страница с одной фразой вступления).
   const shortTail = ru ? 'SRD настольных игр в экосистеме OmnisGM.' : 'Tabletop RPG SRD in the OmnisGM ecosystem.';
   const fill = (/** @type {string} */ s) => {
     for (const t of [tail, shortTail]) if (s.length + 1 + t.length <= MAX) return `${s} ${t}`;
     return s;
   };
 
-  // Ступень 1 — вводная проза (после точки: «Друид — Daggerheart SRD 1.0. Стать друидом…»).
   const prose = introProse(body);
   if (prose.length >= MIN_PROSE) {
     const budget = MAX - head.length - 2;
     let out = `${head}. ${clamp(prose.replace(/:$/, '.'), budget)}`;
     if (out.length >= MIN) return out;
-    // Проза короткая — добираем до нижней границы структурой, а если её нет — хвостом.
     const items = outline(body);
     const rest = MAX - out.length - 1;
     if (items.length >= 2) {
@@ -223,8 +179,6 @@ export function pageDescription({ name, body, lang, sysLabel, docLabel }) {
     return fill(out);
   }
 
-  // Ступень 2 — структура: подзаголовки, а если их нет — таблица, с которой страница начата.
-  // Перечень идёт через двоеточие: «Rules Glossary — D&D SRD 5.2.1: Ability Check, Action…».
   const budget = MAX - head.length - 2;
   const items = outline(body);
   let content = items.length >= 2 ? listFit(items, budget) : '';
@@ -236,7 +190,6 @@ export function pageDescription({ name, body, lang, sysLabel, docLabel }) {
     }
   }
 
-  // Ступень 3 — бойлерплейт как раньше.
   if (!content) return `${head}. ${tail}`;
 
   const out = `${head}: ${content}`;

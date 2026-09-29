@@ -148,13 +148,13 @@ const areaSize = area
   : '';
 
 const base = `/${lang}/dnd/${verSlug}/spells`;
-// «Та же школа» — до 8 других заклинаний той же школы (внутренняя перелинковка/SEO).
+// «Та же школа» — заклинания той же школы (внутренняя перелинковка/SEO).
 const sameSchool = (siblings as { slug: string; name: string; school: string }[])
   .filter((s) => s.slug !== entity.slug && schoolLabel(s.school, lang) === school)
   .slice(0, 8);
 
 const upLink = { href: `${base}/`, ru: 'Заклинания', en: 'Spells' };
-// Обратная перелинковка в хабы (issue #20, PR C): классы заклинания + его уровень.
+// Обратная перелинковка в хабы (issue #20): классы заклинания + его уровень.
 const hubClassSlugs = spellClassSlugs(entity as any, lang);
 const spellLevel = entity.level as number;
 const kind = t('Заклинание', 'Spell');

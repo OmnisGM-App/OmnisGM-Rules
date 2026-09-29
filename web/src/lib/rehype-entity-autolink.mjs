@@ -1,16 +1,5 @@
 // Автоссылки на программные страницы сущностей (issue #20): имена сущностей в контенте
 // становятся ссылками на их страницы. Ручной обход hast-дерева — без доп. зависимостей.
-//
-// Два режима матчинга (по ресурсу):
-//  • text  — состояния: plain-текст, case-sensitive keyword с границами слова (SRD капитализирует
-//    имена состояний; строчное «prone» не ловим). Синонимы-краткие формы — в ALIASES.
-//  • exact — заклинания/монстры: линкуем ТОЛЬКО там, где SRD сам разметил ссылку. Контейнер
-//    задаётся ресурсом: заклинания — курсив `<em>Свет</em>` (полный текст = имя) ИЛИ первая
-//    колонка спелл-таблиц классов; монстры — жирный `<strong>Скелет</strong>` (сигнал SRD
-//    «см. Монстры»). Строчное «свет» / генеричное «Стражник» в прозе не трогаем — только
-//    явную разметку. Так снимается переусердствование.
-//
-// Не трогаем текст внутри <a>/<code>/<pre>/<kbd> и заголовков <h1>…<h6>.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -21,44 +10,29 @@ const DATA_ROOT = path.resolve(process.cwd(), 'src/data/api');
 // Ресурсы с программными страницами. mode: 'text' | 'exact' | 'feats' | 'cells' | 'grid'.
 // container (для exact) — тег-обёртка сигнала SRD: 'em' (курсив, заклинания) / 'strong' (жирный,
 // монстры). versions — где реально есть страницы. chapters (для grid) — regex главы-источника.
-// Наборы ресурсов — ПО ИГРАМ: у D&D свои ресурсы/разметка, у Daggerheart/BRP — свои.
 const DND_RESOURCES = [
   { key: 'conditions', urlParent: 'rules-glossary/conditions', mode: 'text' },
   { key: 'spells', urlParent: 'spells', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'monsters', urlParent: 'monsters-a-z', mode: 'exact', container: 'strong', versions: ['srd-5.2', 'srd-5.1'] },
-  // Животные — тот же жирный сигнал SRD, что и монстры («**Волк**» → см. Животные). Слаги и имена
-  // животных не пересекаются с монстрами (проверено) → общий strong-матч безопасен. Только 5.2:
-  // в 5.1 звери входят в общий бестиарий (ресурс monsters), отдельного animals нет.
+  // Животные — тот же жирный сигнал SRD, что и монстры; только 5.2: в 5.1 звери входят в monsters.
   { key: 'animals', urlParent: 'animals', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
-  // Имена предметов и заклинаний не пересекаются → общий em-матч безопасен.
   { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
-  // Черты: имена НЕ размечены курсивом/жирным и часто омонимичны обычным словам
-  // (Defense/Archery/Skilled). Поэтому режим 'feats': (1) ячейка таблицы, точно равная имени
-  // черты (колонка «Черты/Features» таблиц классов — ASI на всех уровнях, боевые стили) →
-  // безопасно и всегда корректно; (2) в прозе линкуем ТОЛЬКО много-словные имена (ASI,
-  // эпические дары «Дар …», «Посвящённый в магию»…) — они дистинктивны; одно-словные в прозе
-  // не трогаем.
+  // Черты не размечены и омонимичны словам (Defense/Archery) → режим 'feats': точные ячейки
+  // таблиц классов, а в прозе — только много-словные имена.
   { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2', 'srd-5.1'] },
-  // Оружие/доспехи/снаряжение: имена не размечены (ни курсив, ни жирный) и часто омонимичны
-  // обычным словам («Молот», «Щит», «Верёвка»). Поэтому режим 'cells' — линкуем ТОЛЬКО ячейку
-  // таблицы, точно равную имени (таблицы главы «Снаряжение» → детальные страницы). Прозу не
-  // трогаем вовсе. Точное совпадение ячейки → 0 ложных срабатываний.
+  // Оружие/доспехи/снаряжение не размечены и омонимичны словам («Молот», «Щит») → только ячейки таблиц.
   { key: 'weapons', urlParent: 'weapons', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'armor', urlParent: 'armor', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'equipment', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
 ];
 
-// Daggerheart: имена сущностей в прозе НЕ размечены (нет курсив/жирный-сигнала, как в D&D).
-// Единственная безопасная поверхность — таблица-сетка доменных карт в главе «Домены»
-// (03_Domains: Уровень × Опция 1–3, ячейки = имена карт). Режим 'grid': линкуем ЛЮБУЮ ячейку
-// <td>, точно равную имени карты, ТОЛЬКО в этой главе (chapters) → точное совпадение = 0 ложных.
+// Daggerheart: имена в прозе не размечены — линкуем только ячейки сетки доменных карт.
 const DH_RESOURCES = [
   { key: 'domain-cards', urlParent: 'domain-cards', mode: 'grid', versions: ['srd-1.0'], chapters: /\/03_Domains/ },
 ];
 
-// BRP: имена в прозе тоже не размечены. Безопасная поверхность — таблица навыков в глоссарии
-// (09_Glossary/01_Skills, первая колонка = имя навыка). Режим 'grid' с гейтом на эту главу.
+// BRP: то же — линкуем только таблицу навыков в глоссарии.
 const BRP_RESOURCES = [
   { key: 'skills', urlParent: 'skills', mode: 'grid', versions: ['srd-1.0'], chapters: /\/09_Glossary\/01_Skills/ },
 ];
@@ -77,10 +51,8 @@ const ALIASES = {
   },
 };
 
-// Синонимы для exact-ресурсов (в разметке-контейнере): `${game}/${lang}` → { [resource]: { slug: [form…] } }.
 // Имя сущности в тексте склоняется (RU-падежи) / стоит во мн. числе (EN), а exact-матч — по
 // именительному. Здесь — реальные жирные формы монстров из данных, чтобы они тоже линковались.
-// Строго курируемый список (не морфология-эвристика) → 0 ложных срабатываний.
 const EXACT_ALIASES = {
   'dnd/ru': {
     monsters: {
@@ -93,7 +65,6 @@ const EXACT_ALIASES = {
       'awakened-shrub': ['Пробуждённого куста'], 'awakened-tree': ['Пробуждённого дерева'],
     },
     // Животные: жирные упоминания в RU-корпусе склоняются (Фигурка чудесной силы, спелл-листы).
-    // Курируемый список реальных форм → на статблок животного. Именительный уже ловится сам.
     animals: {
       elephant: ['Слоном'], mastiff: ['Мастифом'], raven: ['Вороном'],
       lion: ['Львом'], // «Золотые львы» Фигурки: «может стать Львом» (тв.п., нерег. склонение Лев→Львом)
@@ -154,11 +125,8 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
   // exact-карты по контейнеру: em (заклинания) и strong (монстры) — держим раздельно, чтобы
   // имя монстра в курсиве / имя заклинания в жирном не матчились не в своём контексте.
   const exact = { em: new Map(), strong: new Map() };
-  // Черты: exact-карта «имя → сущность» (lowercase) для точечного матча ячеек таблиц.
   const feats = new Map();
-  // Оружие/доспехи/снаряжение: карта «имя → сущность» для матча точных ячеек таблиц.
   const cells = new Map();
-  // Grid (DH/BRP): «имя → сущность (+chapters)» — линкуем любую ячейку = имя, только в своей главе.
   const grid = new Map();
   // Имена magic-items/monsters — зарезервированы: их не линкуем как cells (редкие кросс-ресурс
   // коллизии: «Свиток заклинания» = equipment+magic-item, «Страж-щит» = magic-item+monster).
@@ -178,9 +146,7 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
       if (!e || !e.name || !e.slug) continue;
       const entry = { name: e.name, slug: e.slug, resource: key, urlParent };
       if (mode === 'exact') {
-        // Ключ в lowercase: SRD размечает ссылки и СТРОЧНЫМИ («*лечение ран*»), и с заглавной
-        // («*Благословение*», «**Скелет**») — ловим оба. Внутри разметки-контейнера полное
-        // совпадение фразы с именем безопасно и без учёта регистра.
+        // Ключ в lowercase: SRD размечает ссылки и строчными («*лечение ран*»), и с заглавной.
         const m = /** @type {Record<string, Map<string, any>>} */ (exact)[container];
         const k = e.name.toLowerCase();
         if (m && !m.has(k)) m.set(k, entry);
@@ -190,7 +156,6 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
           if (m && !m.has(fk)) m.set(fk, entry);
         }
       } else if (mode === 'feats') {
-        // Ячейки таблиц — любое имя черты (точное совпадение текста ячейки).
         const k = e.name.toLowerCase();
         if (!feats.has(k)) feats.set(k, entry);
         // Проза — только много-словные (дистинктивные) имена; одно-словные омонимичны.
@@ -199,7 +164,6 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
         const k = e.name.toLowerCase();
         if (!reserved.has(k) && !cells.has(k)) cells.set(k, entry);
       } else if (mode === 'grid') {
-        // Любая ячейка = имя сущности → ссылка, но только в главе-источнике (chapters).
         const k = e.name.toLowerCase();
         if (!grid.has(k)) grid.set(k, { ...entry, chapters });
       } else {
@@ -262,7 +226,6 @@ function linkNode(entry, text, ctx) {
     properties: {
       className: ['ent-link'],
       href: `/${ctx.lang}/${ctx.game}/${ctx.verSlug}/${entry.urlParent}/${entry.slug}/`,
-      // Ключ для hovercard: game/verKey/lang/resource/slug.
       'data-hc': `${ctx.game}/${ctx.verKey}/${ctx.lang}/${entry.resource}/${entry.slug}`,
     },
     children: [{ type: 'text', value: text }],
@@ -328,8 +291,6 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
     }
   };
 
-  // Черты: любая ячейка <td>, точно равная имени черты (колонка «Черты/Features» таблиц классов
-  // — ASI на всех уровнях, боевые стили в таблицах). Точное совпадение → 0 ложных срабатываний.
   const linkFeatCells = (/** @type {any} */ table) => {
     /** @type {any[]} */
     const rows = [];
@@ -345,10 +306,8 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
     }
   };
 
-  // Таблица-перечень снаряжения: последняя колонка — Цена/Cost/Стоимость (так размечены
-  // таблицы оружия/доспехов/снаряжения в главе). Гейт нужен, чтобы не линковать ячейки в чужих
-  // таблицах, где имя совпадает случайно (напр. вариант «Кнут» у Жетона пера — там нет колонки
-  // цены), — как isSpellTable для спелл-листов.
+  // Гейт по колонке цены: иначе линковались бы случайные совпадения в чужих таблицах
+  // (вариант «Кнут» у Жетона пера).
   const isEquipmentListing = (/** @type {any} */ table) => {
     /** @type {any[]} */
     const rows = [];
@@ -359,8 +318,6 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
     return last != null && /^(Цена|Cost|Стоимость)/.test(last.trim());
   };
 
-  // Оружие/доспехи/снаряжение: ПЕРВАЯ колонка (имя) каждой строки-данных, точно равная имени
-  // сущности → детальная страница. Точное совпадение ячейки → безопасно даже для «Молот»/«Щит».
   const linkNameCells = (/** @type {any} */ table) => {
     /** @type {any[]} */
     const rows = [];
@@ -375,8 +332,6 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
     }
   };
 
-  // Grid (DH/BRP): любая ячейка <td>, точно равная имени сущности → ссылка, ТОЛЬКО в главе-
-  // источнике (entry.chapters vs chapterPath). Точное совпадение + гейт главы → 0 ложных.
   const linkGridCells = (/** @type {any} */ table) => {
     /** @type {any[]} */
     const rows = [];
@@ -400,16 +355,10 @@ export function autolinkTree(tree, { game, version, lang, selfSlug, chapterPath 
       const child = node.children[i];
       if (child.type === 'element') {
         const tag = child.tagName;
-        // Спелл-таблица класса: линкуем первую колонку (данные), затем обычный обход остального.
         if (tag === 'table' && map.exact.em.size && isSpellTable(child)) linkSpellTable(child);
-        // Grid-режим (DH доменные карты, BRP навыки) — любая ячейка = имя, в главе-источнике.
         if (tag === 'table' && map.grid && map.grid.size && chapterPath) linkGridCells(child);
-        // Черты в ячейках любых таблиц (таблицы прогрессии классов и т.п.).
         if (tag === 'table' && map.feats && map.feats.size) linkFeatCells(child);
-        // Оружие/доспехи/снаряжение — первая колонка таблиц-перечней (глава «Снаряжение»).
         if (tag === 'table' && map.cells && map.cells.size && isEquipmentListing(child)) linkNameCells(child);
-        // Курсивная ссылка на заклинание <em>Имя</em> / жирная на монстра <strong>Имя</strong> —
-        // полный текст элемента = имя. Внутрь уже-ссылки не идём.
         if (!insideSkip && (tag === 'em' || tag === 'strong')) {
           const container = tag === 'em' ? 'em' : 'strong';
           if (map.exact[container].size) {

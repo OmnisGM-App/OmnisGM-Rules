@@ -11,7 +11,6 @@ export interface NavPage {
   en: string;
   slug: string; // путь без языка: "dnd/srd-5.2/legal"
   hidden?: boolean; // страница есть, но НЕ рендерится в боковом дереве (NavTree её пропускает).
-  // Остаётся в FLAT_PAGES/findPath → currentId, крошки, prev/next, активная система работают.
 }
 export interface NavGroup {
   id: string;
@@ -30,13 +29,10 @@ function pathToSlug(path: string): string {
 }
 
 const page = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path) });
-// Страница есть, но НЕ рендерится в боковом дереве (NavTree пропускает). Остаётся в
-// FLAT_PAGES/findPath → currentId/крошки/prev-next/активная система страницы живы. Сейчас
-// так помечены глоссарий-списки сущностей, заменённые в сайдбаре нашими entity-хабами.
 const hidden = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path), hidden: true });
 const group = (id: string, ru: string, en: string, kids: NavNode[]): NavGroup => ({ id, ru, en, kids });
 
-// Классы D&D — одни и те же 12 имён в 5.2/5.1 (разный индекс папки).
+// Классы D&D — одни и те же имена в 5.2/5.1 (разный индекс папки).
 const DND_CLASSES: [string, string, string][] = [
   ['Barbarian', 'Варвар', 'Barbarian'], ['Bard', 'Бард', 'Bard'],
   ['Cleric', 'Жрец', 'Cleric'], ['Druid', 'Друид', 'Druid'],
@@ -58,12 +54,8 @@ const DH_CLASSES: [string, string, string][] = [
 
 export const NAV: NavNode[] = [
   group('dnd', 'D&D', 'D&D', [
-    // Подпись версии несёт номер документа, ходовую форму редакции и год (#185): в выдаче
-    // title обещает «D&D 2024 (5e/5.5e)», и страница должна это подтверждать, а не показывать
-    // один машинный номер «SRD 5.2.1». «5.5e»/«5e» — то, чем редакцию зовут игроки; год —
-    // официальное название. Слово «D&D» в скобки не берём: оно уже стоит родительской крошкой
-    // и в шапке дерева, иначе читалось бы «D&D · SRD 5.2.1 (D&D 5.5e, 2024)». Всё содержимое
-    // скобок язык-нейтрально, поэтому RU и EN совпадают.
+    // Подпись версии: номер документа, ходовая форма редакции и год (#185) — title в выдаче
+    // обещает «D&D 2024 (5e/5.5e)», страница должна это подтверждать.
     group('d52', 'SRD 5.2.1 (5.5e, 2024)', 'SRD 5.2.1 (5.5e, 2024)', [
       page('d52-legal', 'Правовая информация', 'Legal', '/dnd/srd-5.2/00_Legal/'),
       page('d52-playing', 'Как играть', 'Playing the Game', '/dnd/srd-5.2/01_PlayingTheGame/'),
@@ -85,9 +77,7 @@ export const NAV: NavNode[] = [
         // programmatic-страницы — даёт им внутренние входящие ссылки (иначе sitemap-сироты, #106).
         page('d52-rulesterms-hub', 'Глоссарий правил (все термины)', 'Rules Glossary (All Terms)', '/dnd/srd-5.2/rules-glossary/all/'),
         page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
-        // Плоские глоссарий-списки заменены нашими /all/-хабами (ссылки на entity-страницы +
-        // фасеты). Сами дубли-списки (14_Glossary/02-05) редиректятся 301 на хабы (firebase.json)
-        // → узлы им больше не нужны (были hidden ради nav-контекста; теперь страницы не отдаются).
+        // Дубли-списки 14_Glossary/02-05 редиректятся 301 на /all/-хабы (firebase.json).
         page('d52-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/spells/all/'),
         page('d52-magicitems-hub', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.2/magic-items/all/'),
         page('d52-monsters-hub', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.2/monsters-a-z/all/'),
@@ -114,8 +104,7 @@ export const NAV: NavNode[] = [
       group('d51-glossary', 'Глоссарий', 'Glossary', [
         page('d51-g-terms', 'Термины', 'Terms', '/dnd/srd-5.1/16_Glossary/00_Glossary/'),
         page('d51-races-hub', 'Расы (справочник)', 'Races (Reference)', '/dnd/srd-5.1/races/all/'),
-        // Плоские глоссарий-списки заменены /all/-хабами; дубли (16_Glossary/02-04) редиректятся
-        // 301 на хабы (firebase.json) → узлы им больше не нужны.
+        // Дубли-списки 16_Glossary/02-04 редиректятся 301 на /all/-хабы (firebase.json).
         page('d51-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.1/spells/all/'),
         page('d51-magicitems-hub', 'Магические предметы (справочник)', 'Magic Items (Reference)', '/dnd/srd-5.1/magic-items/all/'),
         page('d51-monsters-hub', 'Монстры (справочник)', 'Monsters (Reference)', '/dnd/srd-5.1/monsters-a-z/all/'),

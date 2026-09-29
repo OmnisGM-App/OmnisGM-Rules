@@ -4,7 +4,6 @@ import NavTree from './NavTree.astro';
 import I18n from './I18n.astro';
 import Search from './PagefindSearch.astro';
 import markRaw from '@omnisgm-app/brand/assets/mark.svg?raw';
-// Фирменный знак — ЕДИНЫЙ источник из бренд-пакета. Снимаем фикс. размер, масштабируем под контейнер.
 const BRAND_MARK = markRaw.replace(/\s(width|height)="[^"]*"/g, '').replace('<svg ', '<svg style="display:block;width:100%;height:100%" ');
 import {
   NAV, SYSTEMS, FLAT_PAGES, findPath, systemOf, isGroup, flattenPages,
@@ -27,20 +26,17 @@ export interface Props {
   image?: string;        // og:image страницы (портрет существа, #201); по умолчанию общий og.png
   imageWidth?: number;
   imageHeight?: number;
-  // Откуда собран контент сущностной страницы (#219) — чтобы взять даты изменения из git.
-  // У markdown-глав источник известен из sourceId, здесь его передавать не надо.
+  // Откуда собран контент сущностной страницы (#219) — для дат изменения из git.
   contentSource?: { game: string; ver: string; lang: string; resource: string };
-  // Хаб редакции (#230) своего markdown-файла не имеет — он и есть документ целиком.
-  // Даты берутся по всем его файлам: появился с первым разделом, изменён с последним.
+  // Хаб редакции (#230): даты — по всем файлам документа.
   docSource?: { game: string; version: string; lang: string };
 }
 const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource, docSource } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
-// Воронка в лист персонажа: с RU-страниц ведём на русский лендинг omnisgm.com/ru (Table#74),
-// чтобы русский посетитель попадал сразу на русский. Билингвальный корень — на «/» (x-default/EN,
-// язык там определяется автоматически на стороне лендинга). Table hosting trailingSlash:false → без слэша.
+// Воронка в лист персонажа: с RU-страниц — на русский лендинг omnisgm.com/ru (Table#74),
+// билингвальный корень — на «/». Table hosting trailingSlash:false → без слэша.
 const funnelBase = lang === 'ru' && !bilingual ? `${MAIN}/ru` : `${MAIN}/`;
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
 
@@ -48,26 +44,18 @@ const activeSys = systemOf(currentId);
 const activeSysTab = SYSTEMS.find((s) => s.id === activeSys);
 const navRoots = activeSys === 'home' ? NAV : ((NAV.find((n) => n.id === activeSys) as NavGroup)?.kids ?? NAV);
 
-// Атрибуция лицензии в футере — по системе, на каждой контентной странице (требование лицензий:
-// CC BY 4.0 для D&D, DPCGL + non-affiliation для Daggerheart, BRP OGL для BRP). На home не показываем.
-//
-// Строки содержат разметку и рендерятся через set:html — обе лицензии требуют именно ГИПЕРССЫЛКИ,
-// а не упоминания: CC BY 4.0 §3(a)(1)(B) — «a URI or hyperlink to the license»; DPCGL §4.1(c) —
-// ссылка на сам Public Game Content, §4.1(d) — ссылка на лицензию. Текст здесь наш, не пользовательский.
+// Атрибуция лицензии в футере — по системе, на каждой контентной странице. Строки с разметкой
+// (set:html): лицензии требуют ГИПЕРССЫЛКИ — CC BY 4.0 §3(a)(1)(B), DPCGL §4.1(c)(d).
+// Текст наш, не пользовательский.
 const ATTRIB: Record<string, { ru: string; en: string }> = {
   dnd: {
     en: 'Includes material from the System Reference Document (SRD 5.2.1 / 5.1) by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>.',
     ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>. Перевод на русский — OmnisGM.',
   },
   daggerheart: {
-    // Формула §4.1(a–e) DPCGL: копирайт (a) + точное имя Public Game Content (b) + ссылка на него (c)
-    // + ссылка на лицензию (d) + пометка о модификациях (e). Эталонная строка лицензии кончается
-    // словами «There are no previous modifications by others» — у нас это не так: EN-текст
-    // конвертирован в Markdown с опорой в том числе на стороннюю конверсию, RU — наш перевод.
-    // Пишем как есть. (e) требует назвать И свои модификации, И предыдущие чужие, поэтому обе
-    // половины стоят прямо здесь: notice каждой страницы самодостаточен и не опирается на то,
-    // что читатель перейдёт на «Правовую информацию». Полный разбор — LICENSING-NOTES.md
-    // в корне папки OmnisGM.
+    // Формула DPCGL §4.1(a–e): копирайт, имя Public Game Content, ссылка на него, ссылка на
+    // лицензию, модификации — (e) требует назвать и свои, и чужие предыдущие, поэтому обе здесь.
+    // Разбор — LICENSING-NOTES.md в корне папки OmnisGM.
     en: 'This product includes materials from the Daggerheart System Reference Document 1.0, © Critical Role, LLC. under the terms of the <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming (DPCGL) License</a>. More information can be found at <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Converted to Markdown by OmnisGM, in part from an earlier community conversion; the rules text is unchanged. Not affiliated with or endorsed by Darrington Press.',
     ru: 'Этот продукт включает материалы из Daggerheart System Reference Document 1.0, © Critical Role, LLC., на условиях <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming License (DPCGL)</a>. Подробности — на <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Текст переведён на русский и конвертирован в Markdown силами OmnisGM, отчасти на основе более ранней сообществной конверсии. Не аффилировано с Darrington Press и не одобрено ей.',
   },
@@ -86,32 +74,15 @@ if (currentId === 'home') { openIds.add('dnd'); openIds.add('d52'); }
 
 const other: Lang = lang === 'en' ? 'ru' : 'en';
 // Слаг из URL, а НЕ из nav-дерева: у страниц вне nav (обзор группы вроде classes/classes)
-// nodeBySlug ничего не находит, из-за чего пара строилась как у хаба — переключатель языка
-// вёл на /ru/, а hreflang выводил корневую тройку (checker: «no return tag»).
-// Парность EN↔RU гарантирована контент-пайплайном (зеркальная структура файлов).
-// Для хабов /en/·/ru/ и корня pathSlug пуст.
+// nodeBySlug ничего не находит. Для хабов /en/·/ru/ и корня pathSlug пуст.
 const currentPath = Astro.url.pathname;
 const pathSlug = currentPath.replace(/^\/(en|ru)\//, '').replace(/\/+$/, '');
 
-// ── Хлебные крошки: ОДИН источник для разметки BreadcrumbList и видимой строки ──────────
-// Требование Google — разметка описывает то, что видно на странице; раньше это были два
-// независимых куска, и видимая строка была текстом без ссылок при живой разметке (#220).
-//
-// Уровни берутся из NAV-дерева, но не один-в-один (решение по #220, вариант 2):
-//  • игра и редакция схлопываются в ОДИН уровень документа («SRD 5.2.1»). Раньше URL обоих
-//    вычислялся как «первая страница-лист внутри», а у игры и у её первой редакции она одна и
-//    та же (Legal) — отсюда дубли URL на позициях 2–3, а на страницах 5.1 крошка «D&D» уезжала
-//    в 5.2, потому что бралась первая страница всей игры, а не текущей редакции;
-//  • у группы БЕЗ собственной страницы («Классы», «Глоссарий») ссылки нет: она остаётся
-//    видимым текстом, но из разметки выпадает. Раньше ей подставлялась первая страница-лист —
-//    отсюда «Классы» → /classes/barbarian/ и «Глоссарий» → noindex /glossary/glossary/.
-// Крошка документа с #230 ведёт на ХАБ редакции (/ru/dnd/srd-5.2/) — настоящий адрес уровня
-// документа. До него крошка вела на «первую содержательную страницу», что было компромиссом
-// варианта 2 из #220; теперь компромисс снят.
+// ── Хлебные крошки: ОДИН источник для разметки BreadcrumbList и видимой строки (#220) ──
+// Игра и редакция схлопываются в один уровень документа (ссылка — на хаб редакции, #230);
+// у группы без своей страницы («Классы») ссылки нет — видимый текст, но не разметка.
 type Crumb = { name: string; url: string | null };
-// Слаг документа — первые два сегмента слага любой страницы внутри («dnd/srd-5.2/legal» →
-// «dnd/srd-5.2»). Отдельного поля в NAV для этого не заводим: слаг и есть источник правды,
-// а лишнее поле разъехалось бы с ним при первой же правке дерева.
+// Слаг документа — первые два сегмента слага любой страницы внутри («dnd/srd-5.2/legal»).
 const docRoute = (g: NavGroup) => {
   const first = flattenPages(g.kids)[0];
   return first ? routeOf(first.slug.split('/').slice(0, 2).join('/'), lang) : null;
@@ -126,15 +97,11 @@ if (currentId !== 'home' && trail.length) {
     const isDoc = i === 1 && isGroup(trail[0]);
     crumbs.push({ name: label(n, lang), url: isDoc ? docRoute(n) : null });
   });
-  // Сущностные страницы, хабы и фасеты живут вне NAV: их currentId — глава-родитель, сами они
-  // в trail не попадают. Дописываем текущую страницу, чтобы конец трейла был единообразен по
-  // шаблонам (раньше у заклинания трейл обрывался на разделе, а у класса включал сам класс).
+  // Сущностные страницы, хабы и фасеты живут вне NAV (currentId — глава-родитель): дописываем текущую.
   if (crumbs[crumbs.length - 1].url !== currentPath) {
     crumbs.push({ name: searchTitle ?? title, url: currentPath });
   }
-  // На самой странице-входе документа («Как играть») крошка документа и крошка страницы — один
-  // и тот же адрес. Дубль URL в BreadcrumbList — ровно то, из-за чего заведён #220, поэтому
-  // схлопываем соседей с одинаковым URL, оставляя нижний (конкретный) уровень.
+  // На странице-входе документа крошки документа и страницы совпадают — схлопываем дубль URL (#220).
   for (let i = crumbs.length - 1; i > 0; i--) {
     if (crumbs[i].url && crumbs[i].url === crumbs[i - 1].url) crumbs.splice(i - 1, 1);
   }
@@ -142,23 +109,17 @@ if (currentId !== 'home' && trail.length) {
 // Видимая строка — без последнего элемента: он и так стоит заголовком H1 прямо под ней.
 const visibleCrumbs = crumbs.slice(0, -1);
 const counterpart = pathSlug ? `/${other}/${pathSlug}/` : `/${other}/`;
-// URL каждого языка (для мобильного <select>): текущий язык → текущий путь, другой → counterpart
 const enUrl = lang === 'en' ? currentPath : counterpart;
 const ruUrl = lang === 'ru' ? currentPath : counterpart;
 
 // hreflang-пары (пути от корня) — та же парность slug'ов, что и у переключателя языка.
-// Корень (bilingual) выводит тройку сам; здесь — контентные страницы и хабы систем.
-//  • контентная (pathSlug непуст): en/ru — маршруты пары, x-default → EN.
-//  • хаб (pathSlug пуст, не корень): /en/ ↔ /ru/, x-default → «/» (зеркало корня-кластера).
 const alternates = bilingual
   ? undefined
   : pathSlug
     ? { en: routeOf(pathSlug, 'en'), ru: routeOf(pathSlug, 'ru'), xDefault: routeOf(pathSlug, 'en') }
     : { en: '/en/', ru: '/ru/', xDefault: '/' };
 
-// prev/next пропускают hidden-узлы (скрытые из сайдбара глоссарий-списки, заменённые
-// хабами): иначе поток «дальше» уводил бы читателя в 2-3 страницы подряд, которых нет в
-// дереве. Соседей самой скрытой страницы считаем до ближайшего видимого в обе стороны.
+// prev/next пропускают hidden-узлы — иначе «дальше» уводил бы в страницы, которых нет в дереве.
 const idx = FLAT_PAGES.findIndex((p) => p.id === currentId);
 const visibleFrom = (start: number, step: number) => {
   for (let i = start; i >= 0 && i < FLAT_PAGES.length; i += step) {
@@ -172,9 +133,7 @@ const next = idx >= 0 ? visibleFrom(idx + 1, 1) : null;
 // ── JSON-LD (schema.org) — для rich-результатов и хлебных крошек в выдаче ───────
 const SITE = 'https://rules.omnisgm.com';
 const pageUrl = SITE + currentPath; // currentPath с trailing slash (trailingSlash:'always')
-// sameAs — брендовый сигнал: связывает три наших ресурса и репозиторий в одну сущность.
-// Практический смысл именно здесь: в выдаче по «OmnisGM» соседствует научная статья
-// «OmniSGM», и без явных связей поисковику не за что зацепиться (#219).
+// sameAs — брендовый сигнал: в выдаче по «OmnisGM» соседствует научная статья «OmniSGM» (#219).
 const org = {
   '@type': 'Organization', '@id': SITE + '/#org', name: 'OmnisGM', url: MAIN,
   logo: { '@type': 'ImageObject', url: SITE + '/icon-512.png', width: 512, height: 512 },
@@ -186,17 +145,14 @@ const webSite = {
 };
 const graph: object[] = [org, webSite];
 if (currentId !== 'home' && trail.length) {
-  // В разметку идут только уровни с собственным адресом (см. блок крошек выше);
-  // группы без страницы остаются видимым текстом, но ListItem без item был бы мусором.
+  // В разметку — только уровни с собственным адресом: ListItem без item был бы мусором.
   const linked = crumbs.filter((c) => c.url);
   if (linked.length > 1) graph.push({
     '@type': 'BreadcrumbList',
     itemListElement: linked.map((c, i) => ({ '@type': 'ListItem', position: i + 1, name: c.name, item: SITE + c.url })),
   });
   // Article без image и без дат Google не показывает rich-результатом вовсе (#219).
-  // image — портрет сущности, если он есть, иначе общий og.png (у обоих абсолютный URL).
-  // Даты — из git по исходному markdown; на сборке без истории их не будет, и это лучше,
-  // чем дата билда у всех 6000 страниц разом (см. lib/content-dates.mjs).
+  // Даты — из git по исходному markdown (lib/content-dates.mjs).
   const dates = pageDates({ sourceId, contentSource, docSource });
   graph.push({
     '@type': 'Article', '@id': pageUrl + '#article',
@@ -272,8 +228,6 @@ const searchUi = {
       </div>
     </header>
 
-    {/* Адаптивная липкая панель: системы (вкладки→список) + поиск (поле→кнопка) +
-        кнопки «Разделы»/«На странице» (появляются, когда сайдбары скрыты по ширине). */}
     {/* role=navigation на баре — чтобы select систем и кнопки-действия попадали в landmark
         (axe best-practice «region»). Внутренний список вкладок — простой div (без вложенного nav). */}
     <div class="rd-systabs" role="navigation" aria-label={t('Системы и поиск', 'Systems and search')}>
@@ -330,10 +284,8 @@ const searchUi = {
             <slot />
           </article>
 
-          {/* CTA-воронка в основной продукт (лист персонажа). Событие Analytics на клик.
-              UTM — атрибуция конверсии в аналитике Table (#14): utm_content = currentId
-              (компактный nav-id страницы, языконезависимый; sourceId с путём/языком —
-              избыточен для отчётов, страница «какая конвертит» важнее языка). */}
+          {/* CTA-воронка в лист персонажа. utm_content = currentId: nav-id языконезависим,
+              а для отчётов важнее «какая страница конвертит», чем язык (#14). */}
           <a
             class="rd-cta"
             href={`${funnelBase}?utm_source=rules&utm_medium=cta&utm_campaign=funnel&utm_content=${encodeURIComponent(currentId)}`}
@@ -433,8 +385,7 @@ const searchUi = {
       <NavTree nodes={navRoots} lang={lang} currentId={currentId} openIds={openIds} bilingual={bilingual} />
     </div>
 
-    {/* «На странице» — правый drawer, навигация по текущей странице. Сворачиваемые группы
-        (h3 под h2) — как в десктопном TOC: каретка разворачивает группу, тап по пункту ведёт + закрывает. */}
+    {/* «На странице» — правый drawer, навигация по текущей странице. */}
     <label for="rd-panel-none" class="rd-scrim" aria-hidden="true"></label>
     <div class="rd-onpage og-scroll" role="dialog" aria-modal="true" tabindex="-1" aria-label={t('На этой странице', 'On this page')}>
       <div class="rd-drawer-top">
@@ -515,7 +466,6 @@ const searchUi = {
       if (id === activeId) return;
       activeId = id;
       for (const l of links) l.classList.toggle('rd-toc-active', l.dataset.toc === id);
-      // раскрываем активную группу в каждом контейнере (та, что содержит активную ссылку)
       for (const g of grps) {
         const open = !!g.querySelector(`.rd-toc-link[data-toc="${id}"]`);
         g.classList.toggle('open', open);
@@ -567,7 +517,6 @@ const searchUi = {
       const link = r.querySelector<HTMLAnchorElement>('.pagefind-ui__result-link');
       const path = (link?.getAttribute('href') || '').split('?')[0].split('#')[0];
       const key = sysKey(path);
-      // бейдж системы (один раз)
       if (!r.querySelector('.rd-sys-badge') && SYS[key]) {
         const title = r.querySelector('.pagefind-ui__result-title');
         if (title) {
@@ -588,11 +537,8 @@ const searchUi = {
     if (changed) for (const { r } of sorted) list.appendChild(r);
   };
 
-  // Доступность Pagefind:
-  // 1) инпут лейблится только title → даём aria-label из плейсхолдера (label-title-only);
-  // 2) форма Pagefind имеет role=search; на десктопе видны ОБА инстанса (бар + оверлей) →
-  //    два одинаковых search-лендмарка (landmark-unique). Снимаем роль у мобильного (он и так
-  //    внутри диалога «Поиск»), оставляя единственный search-лендмарк — в баре.
+  // Доступность Pagefind: инпут лейблится только title → даём aria-label (label-title-only);
+  // на десктопе видны ОБА инстанса → снимаем role=search у мобильного (landmark-unique).
   const a11y = (root: Element, isOverlay: boolean) => {
     const i = root.querySelector<HTMLInputElement>('input.pagefind-ui__search-input');
     if (i && !i.getAttribute('aria-label')) i.setAttribute('aria-label', i.getAttribute('placeholder') || 'Search');
@@ -718,8 +664,6 @@ const searchUi = {
   card.className = 'ent-hovercard';
   card.id = 'ent-hovercard';
   card.setAttribute('role', 'tooltip');
-  // Шапка: слева EN-имя (только в RU-карточке — имя, на которое навели, уже перед глазами;
-  // в EN оно избыточно), справа источник. Ниже — эффект.
   const SRC: Record<string, string> = { srd52: 'SRD 5.2.1', srd51: 'SRD 5.1' };
   const head = document.createElement('div'); head.className = 'ent-hc-head';
   const elEn = document.createElement('span'); elEn.className = 'ent-hc-en';
@@ -782,18 +726,9 @@ const searchUi = {
   // Цели hovercard: автоссылки (a.ent-link) и глоссарные термины без страницы (span.gloss).
   const HC_SEL = 'a.ent-link[data-hc], .gloss[data-hc]';
 
-  // Тач и hovercard — правило целиком в строке ниже: на тач-вводе `pointerover` показа не
-  // даёт (#308, уточнено ревью #316).
-  //
-  // Второго пути у ССЫЛОК нет: тап по `<a>` их не фокусирует ни в Chromium, ни в WebKit,
-  // поэтому `focusin` для них на тапе не наступает вовсе — проверено мутацией в обоих
-  // движках. А `.gloss` тап ФОКУСИРУЕТ (у него `tabindex=0` ради клавиатуры), и карточка
-  // через `focusin` открывается — это НЕ дефект: страницы у термина нет, перехватывать
-  // тапом нечего, и на телефоне это единственный способ прочитать определение.
-  //
-  // Запрет по «источнику последнего ввода», который я поставил здесь в первой редакции
-  // #308, делал ровно обратное: для ссылок был мёртвым кодом, а термины на тач-устройствах
-  // убивал совсем — ни карточки, ни перехода. Снят (ревью #316).
+  // Тач: `pointerover` показа не даёт (#308). `.gloss` (tabindex=0) тап фокусирует, и карточка
+  // открывается через `focusin` — страницы у термина нет, на телефоне это единственный способ
+  // прочитать определение.
   const onEnter = (e: Event) => {
     if ('pointerType' in e && (e as PointerEvent).pointerType === 'touch') return; // тач — навигация тапом
     const a = (e.target as Element)?.closest?.(HC_SEL) as HTMLElement | null;
@@ -822,10 +757,8 @@ const searchUi = {
   window.addEventListener('resize', () => { if (current) hide(); }, { passive: true });
 </script>
 
-{/* Сортируемые хаб-таблицы (issue #20): <table class="hub-table" data-sortable>. Клик/Enter по
-    <th> сортирует строки по колонке. Ключ сортировки — атрибут data-sort ячейки (для CR/уровня —
-    числовой порядок), иначе видимый текст. Колонка сравнивается численно, если все ключи числа,
-    иначе localeCompare по языку страницы. Прогрессивное улучшение: без JS таблица просто статична. */}
+{/* Сортируемые хаб-таблицы (issue #20): ключ — data-sort ячейки, иначе видимый текст.
+    Прогрессивное улучшение: без JS таблица статична. */}
 <script>
   const lang = document.documentElement.lang || undefined;
   const cellKey = (row: HTMLTableRowElement, i: number): string => {

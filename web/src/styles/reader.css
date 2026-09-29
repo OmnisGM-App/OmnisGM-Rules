@@ -112,7 +112,6 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 }
 /* Контейнер панели получает программный фокус (для Esc/trap) — без видимой рамки */
 .rd-drawer:focus, .rd-onpage:focus, .rd-search-overlay:focus { outline: none; }
-/* кнопки-замены сайдбаров/поиска — скрыты на широком, появляются по брейкпоинтам ниже */
 .rd-act { display: none; }
 /* поле поиска в баре — единой высоты с кнопками (44px). Pagefind считает высоту как
    calc(64px * scale); scale 0.6875 → 44px, иконка масштабируется пропорционально (без съезда). */
@@ -202,8 +201,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc a.ent-link:hover { color: var(--og-accent); border-bottom-style: solid; border-bottom-color: var(--og-accent); }
 
 /* Подсветка ключевых игромеханических слов (issue #20): характеристики / навыки /
-   спасброски — только бренд-цвет, без ссылки и hovercard. Наследует курсив/жирность
-   окружения (напр. курсив описания спелла), добавляя лишь цвет и вес. */
+   спасброски — только бренд-цвет, без ссылки и hovercard. */
 .rd-doc .kw { color: var(--og-danger-text); font-weight: 600; }
 
 /* Глоссарный термин с hovercard-определением, но БЕЗ страницы (свойства/мастерства оружия):
@@ -234,15 +232,12 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .ent-hc-body p:last-child { margin-bottom: 0; }
 .ent-hc-body strong { color: var(--og-text); font-weight: 600; }
 .ent-hc-body em { font-style: italic; }
-/* Карточка заклинания: подзаголовок «уровень, школа» + компактная мета (время·дистанция·длительность). */
 .ent-hc-body .hc-sub { font-style: italic; color: var(--og-text-muted); }
 .ent-hc-body .hc-meta { font-family: var(--font-mono); font-size: 11.5px; letter-spacing: 0.2px; color: var(--og-text-2); }
 @media (prefers-reduced-motion: reduce) { .ent-hovercard { transition: opacity 0.12s ease, visibility 0s linear 0.12s; transform: none; } }
 
-/* Таблицы: Astro рендерит <table>; оборачиваем в .rd-doc для скролла на узких экранах */
 /* широкая таблица скроллится внутри обёртки (rehype-wrap-tables), а не растягивает страницу */
 .rd-table-wrap { overflow-x: auto; max-width: 100%; margin: 0 0 22px; -webkit-overflow-scrolling: touch; }
-/* фокус обёртки (клавиатурный скролл) — заметная рамка-акцент */
 .rd-table-wrap:focus-visible { outline: 2px solid var(--og-accent); outline-offset: 2px; border-radius: 6px; }
 .rd-table-wrap table { margin: 0; }
 .rd-doc table { width: 100%; border-collapse: collapse; font-size: 14px; margin: 0 0 22px; border: 1px solid var(--og-border); border-radius: 10px; overflow: hidden; display: table; }
@@ -252,9 +247,7 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc tbody td { color: var(--og-text-2); line-height: 1.5; }
 .rd-doc tbody td:first-child { color: var(--og-text); font-weight: 500; }
 
-/* Сортируемые таблицы (issue #20): клик по <th> сортирует колонку; стрелка отражает aria-sort.
-   Наши хаб-таблицы (.hub-table) + markdown-таблицы глоссария (rehype-sortable-glossary) — обе
-   через общий селектор table[data-sortable]. */
+/* Сортируемые таблицы (issue #20): стрелка отражает aria-sort. */
 .rd-doc table[data-sortable] thead th { cursor: pointer; user-select: none; white-space: nowrap; }
 .rd-doc table[data-sortable] thead th::after { content: '↕'; margin-left: 6px; opacity: 0.3; font-size: 0.9em; }
 .rd-doc table[data-sortable] thead th[aria-sort="ascending"]::after { content: '↑'; opacity: 0.85; }
@@ -262,15 +255,12 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-doc table[data-sortable] thead th:hover { color: var(--og-text-2); }
 .rd-doc table[data-sortable] thead th:focus-visible { outline: 2px solid var(--og-accent); outline-offset: -2px; }
 
-/* Хабы заклинаний (issue #20): счётчик у заголовка уровня + блок перелинковки на соседние хабы. */
 .rd-doc .hub-count { color: var(--og-text-muted); font-weight: 400; font-size: 0.85em; }
 .rd-doc .hub-links { margin: 28px 0 0; padding: 16px 0 0; border-top: 1px solid var(--og-border-soft); font-size: 14px; }
 .rd-doc .hub-links p { margin: 0 0 8px; color: var(--og-text-2); }
 .rd-doc .hub-links p:last-child { margin-bottom: 0; }
-/* Ссылки в хаб-таблицах/футере — как автоссылки .ent-link в глоссарии (эталон владельца):
-   цвет НАСЛЕДУЕТСЯ от ячейки (имя-столбец белый, классы — приглушённые), подчёркивание
-   ПУНКТИРНОЕ акцентом; по наведению — сплошное + акцентный цвет. Базовый .rd-doc a красил
-   текст акцентом сплошной линией («всё фиолетовое») — переопределяем на эталон. */
+/* Ссылки в хаб-таблицах/футере — как автоссылки .ent-link (эталон владельца): цвет наследуется
+   от ячейки, подчёркивание пунктирное акцентом; по наведению — сплошное. */
 .rd-doc .hub-table a, .rd-doc .hub-links a, .rd-doc .ent-related-list a, .rd-doc .spell-meta a {
   color: inherit;
   border-bottom: 1px dashed color-mix(in oklab, var(--og-accent) 55%, transparent);
@@ -322,11 +312,9 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-toc-h { font-family: var(--font-mono); font-size: 10.5px; letter-spacing: 1.4px; text-transform: uppercase; color: var(--og-text-muted); margin-bottom: 12px; }
 .rd-toc-list { display: flex; flex-direction: column; gap: 1px; }
 .rd-toc-grp { display: flex; flex-direction: column; gap: 1px; }
-/* ссылка пункта: без вертикальной полосы, подсветка — фон/цвет */
 .rd-toc-link { text-align: left; text-decoration: none; background: none; border: none; border-radius: 6px; padding: 6px 8px; font-size: 12.5px; line-height: 1.35; color: var(--og-text-muted); transition: color .12s ease, background .12s ease; }
 .rd-toc-link:hover { color: var(--og-text); background: var(--og-bg-2); }
 .rd-toc-link.rd-toc-active { color: var(--og-accent); }
-/* h2-строка группы: каретка-индикатор для сворачиваемых (с подразделами) */
 .rd-toc-grp.has-subs > .rd-toc-h2 { position: relative; padding-left: 20px; }
 .rd-toc-grp.has-subs > .rd-toc-h2::before {
   content: ''; position: absolute; left: 7px; top: 50%; width: 6px; height: 6px; margin-top: -3px;
@@ -334,7 +322,6 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   transform: rotate(-45deg); transition: transform .15s ease;
 }
 .rd-toc-grp.open.has-subs > .rd-toc-h2::before { transform: rotate(45deg); }
-/* подразделы (h3) свёрнуты по умолчанию; раскрываются у активной группы (скриптом) */
 .rd-toc-subs { display: none; flex-direction: column; gap: 1px; }
 .rd-toc-grp.open .rd-toc-subs { display: flex; }
 .rd-toc-sub { padding-left: 22px; font-size: 12px; }
@@ -342,10 +329,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* ── Layout grid ───────────────────────────────────────────────────────── */
 .rd-root { --rd-bar: 54px; display: flex; flex-direction: column; min-height: 100vh; background: var(--og-bg); color: var(--og-text); }
 .rd-body { display: grid; grid-template-columns: 278px minmax(0,1fr) 236px; flex: 1; min-height: 0; }
-/* Пока TOC помещается по ширине (десктоп ≥1100px), правый столбец резервируем ВСЕГДА —
-   даже на страницах без TOC (Legal, страницы сущностей). Иначе контент прыгает на 236px
-   при переходе со страницы с оглавлением на страницу без него. Ниже 1100px столбец и так
-   схлопывается (см. медиазапросы), там резерва нет. */
+/* Правый столбец резервируем и на страницах без TOC — иначе контент прыгает при переходе
+   со страницы с оглавлением на страницу без него. */
 .rd-body.rd-no-toc { grid-template-columns: 278px minmax(0,1fr) 236px; }
 /* ① TOC не помещается → скрываем правый столбец, в панель приходит кнопка «На странице» */
 @media (max-width: 1100px) {
@@ -363,7 +348,6 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
    поэтому планшет получает мобильную раскладку с select'ами (≥44pt). */
 @media (max-width: 820px) {
   .rd-body, .rd-body.rd-no-toc { grid-template-columns: 1fr; }
-  /* «В раздел» — во всю ширину сверху, назад/вперёд под ней в две колонки */
   .rd-prevnext.rd-has-up { grid-template-columns: 1fr 1fr; }
   .rd-prevnext.rd-has-up .rd-pn-up { grid-column: 1 / -1; order: -1; }
   .rd-systabs-tabs { display: none; }
@@ -372,7 +356,6 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
   .rd-act-nav { display: inline-flex; }
   .rd-content-inner { padding: 24px calc(20px + env(safe-area-inset-right)) 56px calc(20px + env(safe-area-inset-left)); }
   .rd-doc h1 { font-size: 32px; }
-  /* язык — выпадающим списком вместо пары кнопок */
   .rd-lang { display: none; }
   .rd-lang-sel { display: inline-flex; }
   .rd-gh { display: inline; }
@@ -390,10 +373,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* ── Мобильные панели на CSS-чекбоксах (без JS): «Разделы» (слева), «На странице» (справа), поиск (оверлей) ── */
 .rd-toggle-cb { position: absolute; width: 0; height: 0; opacity: 0; pointer-events: none; }
 
-/* затемнение (общее для всех панелей) */
 .rd-scrim { display: none; position: fixed; inset: 0; z-index: 60; background: rgba(8,9,14,0.62); }
 
-/* базовые свойства панелей; видимость/слайд — в мобильном медиа-запросе */
 .rd-drawer, .rd-onpage {
   display: none; position: fixed; top: 0; z-index: 61;
   width: 86%; max-width: 360px; height: 100%; background: var(--og-bg-2);
@@ -429,17 +410,14 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-toc-grp.open > .rd-toc-row .rd-toc-caret::before { transform: rotate(45deg); }
 .rd-onpage .rd-toc-sub { padding-left: 42px; }
 
-/* Панели работают при ЛЮБОЙ ширине (открываются кнопками, которые показываются по брейкпоинтам:
-   «На странице» ≤1100, поиск ≤920, «Разделы» ≤820). На широком — кнопок нет, панели off-screen. */
+/* Панели работают при ЛЮБОЙ ширине — открываются кнопками, которые показываются по брейкпоинтам. */
 .rd-scrim { display: block; opacity: 0; pointer-events: none; transition: opacity .2s ease; }
 .rd-drawer  { display: block; transform: translateX(-100%); transition: transform .22s ease; }
 .rd-onpage  { display: block; transform: translateX(100%);  transition: transform .22s ease; }
 .rd-search-overlay { display: block; opacity: 0; pointer-events: none; transition: opacity .15s ease; }
-/* открытие каждой панели своим чекбоксом */
 #rd-drawer-cb:checked ~ .rd-drawer,
 #rd-onpage-cb:checked ~ .rd-onpage { transform: translateX(0); }
 #rd-search-cb:checked ~ .rd-search-overlay { opacity: 1; pointer-events: auto; }
-/* скрим виден, когда открыта любая панель (клик = rd-panel-none = закрыть) */
 #rd-drawer-cb:checked ~ .rd-scrim,
 #rd-onpage-cb:checked ~ .rd-scrim,
 #rd-search-cb:checked ~ .rd-scrim { opacity: 1; pointer-events: auto; }
@@ -479,7 +457,6 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .pagefind-ui__message:empty { display: none !important; padding: 0 !important; margin: 0 !important; }
 .pagefind-ui__message { padding: 6px 0 2px !important; margin: 0 !important; font-size: 11.5px !important; color: var(--og-text-muted) !important; }
 .pagefind-ui__results { margin-top: 6px !important; }
-/* бейдж системы у результата (навешивается скриптом из URL): D&D 5.2 / Daggerheart / … */
 .rd-sys-badge {
   display: inline-block; margin-left: 8px; padding: 1px 7px; border-radius: 999px;
   font-family: var(--font-mono); font-size: 11px; letter-spacing: 0.3px; font-weight: 600;
@@ -490,13 +467,11 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* выдержка кликабельна (JS ведёт к тому же разделу, что и заголовок под-результата) */
 .pagefind-ui__result-excerpt { color: var(--og-text-2); cursor: pointer; transition: color .12s ease; }
 .pagefind-ui__result-excerpt:hover { color: var(--og-text); }
-/* подсветка совпадений — наш акцент вместо дефолтной жёлтой */
 .pagefind-ui__result-excerpt mark,
 .rd-search-slot mark, .rd-search-overlay mark {
   background: color-mix(in oklab, var(--og-accent) 24%, transparent);
   color: var(--og-text); border-radius: 3px; padding: 0 2px;
 }
-/* поиск-поле скрывается на ≤920 (в баре, см. .rd-bar-actions .rd-search-slot) — отдельное правило не нужно */
 
 /* ── CTA-воронка в основной продукт (лист персонажа) ── */
 .rd-cta { display: flex; align-items: center; justify-content: space-between; gap: 16px;

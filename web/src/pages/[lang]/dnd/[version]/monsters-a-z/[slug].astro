@@ -35,9 +35,7 @@ export function getStaticPaths() {
     const siblings: Sib[] = monsters.map((m) => ({
       slug: m.slug, name: m.name,
       type: (m.type as string) ?? '',
-      // Канонический слаг (из EN-данных) — по нему и группируем «тот же тип». Сырое поле
-      // `type` для этого негодно: в RU оно переведено непоследовательно, а у роя это вообще
-      // не базовый тип, а вся конструкция («Swarm of Tiny Undead» / «рой Крошечной нежити»).
+      // Группируем по каноническому слагу: сырое `type` в RU непоследовательно, у роя — вся конструкция.
       typeSlug: typeMap.get(m.slug) ?? canonTypeSlug((m.type as string) ?? ''),
       cr: (m.cr as { value?: string })?.value ?? '',
     }));
@@ -140,17 +138,13 @@ const SECTIONS: { title: string; entries: { name?: string; text_md: string }[] }
   { title: t('Легендарные действия', 'Legendary Actions'), entries: legendary },
 ].filter((s) => s.entries.length > 0);
 
-// Сниппет из фактов стат-блока, а не из первой черты (issue #185): excerpt() давал дубли
-// («Дракон может дышать воздухом и водой.» — 33 страницы) и текст без имени монстра.
-// Откат к прежнему excerpt() — если ключевых фактов в данных нет.
+// Сниппет из фактов стат-блока, а не из первой черты (issue #185): excerpt() давал дубли.
 const description =
   statBlockDescription({ entity, lang, version: ver, kind: 'monster' }) ??
   excerpt((traits[0]?.text_md || actions[0]?.text_md || '') as string);
 
 const base = `/${lang}/dnd/${verSlug}/monsters-a-z`;
-// «Тот же тип существа» — до 8 других монстров того же типа (внутренняя перелинковка/SEO).
-// Соседи «того же типа» — по каноническому слагу. Сырое поле `type` для этого негодно:
-// в RU оно переведено непоследовательно, а у роя это вся конструкция целиком.
+// «Тот же тип существа» — внутренняя перелинковка/SEO.
 // Если по своему типу соседей не нашлось — берём базовый тип роя: в 5.2 рой ползучих
 // когтей единственный, и страница осталась бы вовсе без внутренней перелинковки.
 const neighbours = (slug: string) =>
@@ -158,8 +152,7 @@ const neighbours = (slug: string) =>
 const relatedSlug = neighbours(typeSlug).length > 0 ? typeSlug : (swarmBase ?? typeSlug);
 const sameType = neighbours(relatedSlug);
 // Подпись блока — каноническая метка типа, а не сырое поле: у роя она иначе разъезжается
-// со списком. В RU метка понижается до строчной явно — так требует фраза («Ещё существа:
-// нежить»), а сам термин с #256 пишется с прописной и в шапке, и в указателе.
+// со списком. В RU — строчная: так требует фраза («Ещё существа: нежить»).
 const relatedTypeLabel = (() => {
   const label = typeLabel(relatedSlug, lang);
   return lang === 'ru' ? label.charAt(0).toLowerCase() + label.slice(1) : label;

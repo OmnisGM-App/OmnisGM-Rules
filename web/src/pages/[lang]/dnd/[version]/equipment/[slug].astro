@@ -86,7 +86,7 @@ const craftLink = (name: string) => {
   return slug ? `${base}/${slug}/` : null;
 };
 
-// «Похожие» — до 8 предметов той же секции (внутренняя перелинковка/SEO).
+// «Похожие» — предметы той же секции (внутренняя перелинковка/SEO).
 const sameSection = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.section === section)
   .slice(0, 8);

@@ -11,7 +11,7 @@ import { pageTitle } from '../../../../../lib/page-title';
 
 // Programmatic-страницы рас (SRD 5.1). URL: /{lang}/dnd/{version}/races/{slug}/.
 // EN и RU делят канонический (англ.) слаг → корректный hreflang. Родитель nav — глава «Расы».
-// Расы есть только в 5.1 (в 5.2 — «Происхождение персонажа», отдельный ресурс, вне этого PR).
+// Расы есть только в 5.1.
 const PARENT_NAV: Record<string, string> = { srd51: 'd51-races-hub' };
 
 interface Sub { slug: string; name: string; name_en?: string | null }

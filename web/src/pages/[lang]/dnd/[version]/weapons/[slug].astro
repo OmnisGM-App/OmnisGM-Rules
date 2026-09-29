@@ -111,7 +111,7 @@ const description = weaponDescription({
 });
 
 const base = `/${lang}/dnd/${verSlug}/weapons`;
-// «Похожее оружие» — до 8 той же категории и типа (внутренняя перелинковка/SEO).
+// «Похожее оружие» — той же категории и типа (внутренняя перелинковка/SEO).
 const similar = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.category === category && s.type === wtype)
   .slice(0, 8);

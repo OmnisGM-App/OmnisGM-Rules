@@ -79,7 +79,7 @@ const attuneLabel = attune.required
 const subParts = [itemType, rarityLabel].filter(Boolean);
 
 const base = `/${lang}/dnd/${verSlug}/magic-items`;
-// «Похожие предметы» — до 8 того же типа (внутренняя перелинковка/SEO).
+// «Похожие предметы» — того же типа (внутренняя перелинковка/SEO).
 const sameType = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.type === itemType)
   .slice(0, 8);

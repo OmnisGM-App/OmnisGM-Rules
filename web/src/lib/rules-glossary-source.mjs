@@ -1,16 +1,4 @@
 // Источник-ссылка для programmatic-страниц терминов rules-glossary (issue #106).
-//
-// Термин в глоссарии — сжатая выжимка; на его странице даём ссылку в главу-источник, где
-// правило раскрыто полностью (и UX «провалиться в контекст», и внутренняя перелинковка:
-// страницы-термины перестают быть тупиками и раздают вес главам).
-//
-// Источник зашит в description_md как «See also "Глава" ("Раздел")» /
-// «См. также «Глава» («Раздел»)». Ссылку строим ТОЛЬКО когда первичная цель — реальная
-// ГЛАВА (Playing the Game / Spells / Character Creation / Equipment): таких ~37, они дают
-// точную главу + якорь-раздел. Прочие See-also указывают на другие ТЕРМИНЫ (перекрёстные
-// ссылки — их обрабатывает автолинк в теле); для них главы-источника нет → fallback на
-// upLink «Глоссарий правил» (уже есть в шаблоне).
-//
 // NB: строки берём из фактических See-also, а не из H1 глав — перевод разошёлся
 // (RU-глоссарий ссылается на «Процесс игры», тогда как H1 главы — «Как играть»).
 
@@ -31,7 +19,6 @@ function headingAnchor(/** @type {string} */ s) {
     .replace(/\s+/g, '-');
 }
 
-// (description_md, lang) → { slug, anchor|null, chapterLabel, sectionLabel|null } | null.
 /**
  * @param {string|null|undefined} md
  * @param {string} lang
@@ -50,8 +37,6 @@ export function parseSourceChapter(md, lang) {
   return { slug, anchor: section ? headingAnchor(section) : null, chapterLabel: chapter, sectionLabel: section };
 }
 
-// Готовая ссылка-источник для компонента: { href, label } | null.
-// href — /{lang}/dnd/{verSlug}/{chapter}/[#anchor]; label локализован («Глава», «раздел»).
 /**
  * @param {string|null|undefined} md
  * @param {{ verSlug: string, lang: string }} ctx

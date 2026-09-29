@@ -31,45 +31,27 @@ const navNode = nodeBySlug(curSlug);
 const currentId = navNode?.id ?? curSlug;
 
 // Чистый заголовок страницы (и для <title>, и для Pagefind): подпись из nav — надёжнее h1/слага.
-// На глоссарных страницах titleFromBody падает в слаг типа «glossary/magic-items», что лезло
-// прямо в <title> и в выдачу Google. Nav-подпись локализована и всегда опрятна; слаг — лишь фолбэк.
 const searchTitle = navNode ? navLabel(navNode, ref.lang) : (titleFromBody(entry.body) || ref.slug);
 const trail = findPath(currentId) ?? [];
 const sysLabel = trail.length ? navLabel(trail[0], ref.lang) : ref.game.toUpperCase();
 const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
-// В сниппет идёт только номер документа: nav-подпись с #185 несёт ещё и редакцию
-// («SRD 5.2.1 (5.5e, 2024)»), а в description редакция уже названа своими словами —
-// «Полные правила SRD 5.2.1 (5.5e, 2024) на русском» было бы и длинно, и с повтором.
+// В сниппет — только номер документа: редакцию description называет своими словами (#185).
 const docLabel = verLabel.replace(/\s*\(.*\)$/, '');
 
 const t = (ru: string, en: string) => (ref.lang === 'en' ? en : ru);
 
-// Класс-страницы (напр. /classes/rogue/) — самый крупный кластер кириллического спроса
-// («плут днд»: 513 запросов, issue #173). Отсюда и отдельный тип в <title>, и содержательный
-// сниппет из умений 1-го уровня вместо бойлерплейта.
+// Класс-страницы — самый крупный кластер кириллического спроса («плут днд», issue #173).
 const isClass = ref.game === 'dnd' && ref.slug.startsWith('classes/');
 
-// Тип страницы для <title> (issue #185). Прежний шаблон «Плут · D&D SRD 5.2.1 · OmnisGM Rules»
-// не содержал ни типа сущности, ни формы «днд» — а по «плут днд» это ~280 показов/нед при
-// нулевом CTR. Классы называем классами, остальные главы — правилами; лицензию не называем
-// никак (это не правила). Не-D&D системы идут через тот же шаблон, но без «днд» —
-// кириллического кластера у Daggerheart/BRP нет (см. searchForm в page-title.ts).
+// Тип страницы для <title> (issue #185): лицензию не называем никак — это не правила.
 const isLegal = /(^|\/)legal(\/|$)/i.test(ref.slug);
 const mdKind = ref.game !== 'dnd' || isLegal ? '' : isClass ? t('класс', 'class') : t('правила', 'rules');
 const title = pageTitle({
   name: searchTitle, kind: mdKind, lang: ref.lang, game: ref.game, version: ref.version,
 });
 
-// Фолбэк для всех прочих глав (issue #213): вместо бойлерплейта «… Tabletop RPG System
-// Reference Document in the OmnisGM ecosystem.» (95–102 символа, уникальны только первые
-// три слова) собираем сниппет из содержимого страницы — вводной прозы или её структуры.
-// Заголовок раздела, если его нет в самом markdown (issue #228). Глоссарные хабы —
-// единственный шаблон сайта без H1: их .md начинается сразу с таблицы, потому что заголовок
-// раздела в исходном SRD стоит в оглавлении документа, а не в теле. Для поисковика страница
-// без H1 теряет главный он-пейдж-сигнал темы, поэтому дорисовываем его сами — той же
-// nav-подписью, что идёт в <title>, а не выдумывая второе название.
-// Правим в шаблоне, а не в 30 markdown-файлах: контент — импорт SRD, и своя правка в нём
-// пережила бы переимпорт только до следующего раза.
+// H1, если его нет в markdown (issue #228): .md глоссарных хабов начинается с таблицы.
+// Правим в шаблоне, а не в контенте — правка импорта SRD не пережила бы переимпорт.
 const needsHeading = !headings.some((h) => h.depth === 1);
 
 const description =

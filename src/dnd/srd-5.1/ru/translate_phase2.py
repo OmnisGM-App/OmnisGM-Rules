@@ -20,7 +20,6 @@ assert len(ru_lines) == N, f"Line mismatch: EN={N}, RU={len(ru_lines)}"
 
 # Keep intro (lines 0-228) from the already-translated RU file
 # Only process spell body lines (229+)
-# But we need to fix up spell body text that currently has mixed EN/RU
 
 # Big phrase dictionary for full sentence translation
 # Ordered by length (longest first) to avoid partial matches

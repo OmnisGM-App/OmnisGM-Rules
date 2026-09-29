@@ -72,17 +72,13 @@ if (isShield) {
 
 // Подстрока в шапке: «Средний доспех» / «Medium armor»; для щита — просто «Щит»/«Shield».
 const subLine = isShield ? catLabel : t(`${catLabel} доспех`, `${catLabel} armor`);
-// «(днд)» — кириллическая форма запросов (issue #173, п.2), одна встреча рядом с «D&D».
-// Цена и вес добавлены в #185: это тот же спрос, что и КД («сколько кд у…», «сколько стоит…»),
-// а редакция теперь человеческой формой («D&D 2024»), как в остальных шаблонах.
 const gear = [
   cost && t(`цена ${cost}`, `cost ${cost}`),
   weight && t(`вес ${weight}`, `weight ${weight}`),
 ].filter(Boolean).join(', ');
 const armorKind = isShield ? t('щит', 'shield') : t(`${catLabel.toLowerCase()} доспех`, `${catLabel.toLowerCase()} armor`);
 const acFact = isShield ? t(`+${acBase} к КД`, `+${acBase} AC`) : t(`КД ${acLine}`, `AC ${acLine}`);
-// Сниппет собирается в entity-facts.ts (#214): туда же уехали требование Силы и помеха
-// Скрытности — факты, по которым доспехи и выбирают.
+// Сниппет собирается в entity-facts.ts (#214).
 const description = armorDescription({
   name: entity.name, lang, version: ver, armorKind, acFact, gear,
   strengthReq: (entity.strength_req as number | null) ?? null,
@@ -90,7 +86,7 @@ const description = armorDescription({
 });
 
 const base = `/${lang}/dnd/${verSlug}/armor`;
-// «Похожие доспехи» — до 8 той же категории (внутренняя перелинковка/SEO).
+// «Похожие доспехи» — той же категории (внутренняя перелинковка/SEO).
 const similar = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.category === category)
   .slice(0, 8);

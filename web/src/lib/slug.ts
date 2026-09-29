@@ -21,7 +21,6 @@ export function slugifySegment(seg: string): string {
     .replace(/^-+|-+$/g, '');
 }
 
-// Разобрать id коллекции в структурную ссылку
 export function parseId(id: string): ContentRef {
   const parts = id.split('/');
   const [game, version, lang, ...rest] = parts;
@@ -30,12 +29,10 @@ export function parseId(id: string): ContentRef {
   return { game, version, lang: lang as 'en' | 'ru', slug, order, id };
 }
 
-// URL страницы: /{lang}/{game}/{version}/{slug}
 export function pageUrl(ref: ContentRef): string {
   return `/${ref.lang}/${ref.game}/${ref.version}/${ref.slug}`;
 }
 
-// Заголовок страницы из первой строки Markdown (# H1), т.к. frontmatter нет
 export function titleFromBody(body: string | undefined): string {
   if (!body) return '';
   // Заголовок любого уровня: топ-страницы начинаются с "# H1", файлы классов — с "## H2".

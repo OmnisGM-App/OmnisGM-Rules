@@ -48,8 +48,7 @@ autolinkTree(tree, { game: GAME, version: verSlug, lang, selfSlug: entity.slug }
 highlightKeywords(tree, { lang, game: 'brp' });
 glossRules(tree, { game: GAME, version: verSlug, lang });
 const bodyHtml = toHtml(tree);
-// Фактовый сниппет (#214): базовый шанс и категория впереди, описание — хвостом в остаток
-// бюджета. Прежний голый excerpt() давал 46–62 символа без имени навыка и без системы.
+// Фактовый сниппет (#214): базовый шанс и категория впереди, описание — хвостом в остаток бюджета.
 const description =
   brpSkillDescription({
     name: entity.name, lang,

@@ -13,12 +13,8 @@ import { statBlockDescription } from '../../../../../lib/entity-facts';
 import { pageTitle } from '../../../../../lib/page-title';
 
 // Programmatic-страницы животных (issue #20, Дорожка A) в общем шелле ридера.
-// Стат-блок животного идентичен монстру (тот же парсер monster) — страница зеркалит
-// monsters-a-z/[slug].astro. URL вложен под главу «Животные»: /{lang}/dnd/{version}/animals/{slug}/.
-// EN и RU делят канонический (англ.) слаг → корректный hreflang.
-// Отличие от монстров: related группируем по ПО (CR), а не по типу существа — 90 из 95
-// животных имеют тип Beast, поэтому «тот же тип» бессмыслен; CR — естественная ось выбора
-// (Дикий облик друида, спутники, ездовые животные ограничены по ПО).
+// Страница зеркалит monsters-a-z/[slug].astro; related — по ПО (CR), а не по типу: почти все
+// животные — Beast, а CR — естественная ось выбора (Дикий облик, спутники, ездовые).
 const PARENT_NAV: Record<string, string> = { srd52: 'd52-animals' };
 
 interface Sib { slug: string; name: string; cr: string }
@@ -136,7 +132,7 @@ const description =
   excerpt((traits[0]?.text_md || actions[0]?.text_md || '') as string);
 
 const base = `/${lang}/dnd/${verSlug}/animals`;
-// «Тот же ПО» — до 8 других животных с тем же показателем опасности (внутренняя перелинковка/SEO).
+// «Тот же ПО» — животные с тем же показателем опасности (внутренняя перелинковка/SEO).
 const sameCr = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.cr === (cr?.value ?? ''))
   .slice(0, 8);

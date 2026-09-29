@@ -11,7 +11,7 @@ OUTPUT = "/Users/petrradilov/Documents/srd/dndsrd5.2_markdown/src/dnd/srd-5.1/ru
 # We also need the EN original to do sentence-level translation
 EN_INPUT = "/Users/petrradilov/Documents/srd/dndsrd5.2_markdown/src/dnd/srd-5.1/en/10_Spells.md"
 
-# Spell name mapping (319 spells from glossary)
+# Spell name mapping
 SN = {
     "Acid Splash":"Кислотные брызги","Chill Touch":"Могильный холод","Dancing Lights":"Танцующие огоньки",
     "Druidcraft":"Искусство друидов","Eldritch Blast":"Мистический заряд","Fire Bolt":"Огненный снаряд",

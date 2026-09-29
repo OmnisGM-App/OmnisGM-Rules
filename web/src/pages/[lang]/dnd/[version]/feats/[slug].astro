@@ -80,7 +80,7 @@ const prerequisite = (entity.prerequisite as string | null) ?? '';
 const repeatable = entity.repeatable === true;
 
 const base = `/${lang}/dnd/${verSlug}/feats`;
-// «Ещё черты» — до 8 той же категории (внутренняя перелинковка/SEO).
+// «Ещё черты» — той же категории (внутренняя перелинковка/SEO).
 const sameCat = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.category === rawCat)
   .slice(0, 8);

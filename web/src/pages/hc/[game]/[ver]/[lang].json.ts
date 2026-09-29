@@ -3,8 +3,7 @@ import { loadEntities, excerpt, VERSION_SLUG } from '../../../../lib/entities';
 
 // Hovercard-данные для автоссылок (issue #20, вариант B: fetch-on-hover served JSON).
 // Бакет `game/verKey/lang` → карта `resource/slug` → { name, name_en, effect(HTML), href }.
-// Ключ бакета = префикс `data-hc` из rehype-entity-autolink. Клиент рендерит name_en + источник
-// + effect(HTML). Собираем только там, где реально существуют страницы сущностей.
+// Ключ бакета = префикс `data-hc` из rehype-entity-autolink.
 
 const escapeHtml = (s: string) => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
 
@@ -255,8 +254,7 @@ export const GET: APIRoute = ({ params }) => {
     for (const e of loadEntities(ver, lang, key, game)) {
       map[`${key}/${e.slug}`] = {
         name: e.name,
-        // EN-оригинал показываем в шапке ВСЕГДА (и в EN-карточке тоже). Для EN-сущностей
-        // name_en отсутствует → оригинал = само name (оно и есть английское).
+        // EN-оригинал в шапке и в EN-карточке: у EN-сущностей name_en нет → берём name.
         name_en: (e.name_en as string) ?? (e.name as string),
         effect: body(e as unknown as Record<string, unknown>, lang),
         href: `/${lang}/${game}/${verSlug}/${urlParent}/${e.slug}/`,

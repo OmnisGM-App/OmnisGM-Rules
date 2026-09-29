@@ -1,27 +1,12 @@
 // Даты контента страницы для JSON-LD (issue #219).
-//
-// Источник — карта из git (scripts/gen-content-dates.mjs, путь .md → published/modified) плюс
-// карта «ресурс → исходные .md» из парсера (scripts/gen-entity-data.mjs → _sources.json).
-// Обе генерятся в prebuild и лежат в gitignored src/data/.
-//
-// Страница бывает двух видов:
-//   • markdown-глава — один исходный файл, известен как sourceId («dnd/srd-5.2/ru/07_Spells»);
-//   • сущностная (заклинание, монстр, навык) — собрана парсером из одного-двух файлов главы;
-//     ресурс знает страница, файлы — карта _sources.json.
-//
-// Дат может не быть вовсе (мелкий клон в CI, сборка без git) — тогда возвращаем null, и
-// вызывающий просто не кладёт поля в JSON-LD. Дата билда вместо настоящей — хуже, чем ничего:
-// на 6000 страниц она означала бы «всё обновилось разом», а это шум для поисковика.
+// Дат может не быть (мелкий клон, сборка без git) — null, а не дата билда: та означала бы
+// для поисковика «всё обновилось разом».
 import fs from 'node:fs';
 import path from 'node:path';
 
 const DATA_ROOT = path.resolve(process.cwd(), 'src/data');
 
 /**
- * Разбор JSON с фолбэком. Возврат имеет ФОРМУ фолбэка, а не `any`: иначе `dates` и `sources`
- * оставались бы `any`, и опечатка «dates.fils?.[key]» проходила бы молча — а этот файл кормит
- * даты JSON-LD для 6000 страниц (ревью #315).
- *
  * @template T
  * @param {string} file
  * @param {T} fallback
@@ -42,7 +27,6 @@ const SOURCES_EMPTY = {};
 const dates = readJson(path.join(DATA_ROOT, 'content-dates.json'), DATES_EMPTY);
 const sources = readJson(path.join(DATA_ROOT, 'api', '_sources.json'), SOURCES_EMPTY);
 
-/** Есть ли вообще даты в этой сборке (false на мелком клоне / без git). */
 export const hasContentDates = () => Object.keys(dates.files ?? {}).length > 0;
 
 /** Даты одного .md (путь от src/, с расширением или без). null, если файла нет в карте. */
@@ -71,7 +55,6 @@ export function datesForFiles(/** @type {string[]|null|undefined} */ mdPaths) {
   };
 }
 
-/** Даты сущностной страницы по её коллекции API: game/ver/lang/resource. */
 /**
  * @param {string} game
  * @param {string} ver
@@ -83,10 +66,7 @@ export function datesForResource(game, ver, lang, resource) {
 }
 
 /**
- * Даты всего документа (#230): самая ранняя публикация и самое позднее изменение среди ВСЕХ
- * его markdown-файлов. Хаб редакции своего файла не имеет — он и есть документ целиком,
- * поэтому «когда он появился» = когда появился первый его раздел, «когда изменён» = когда
- * тронули последний. Ключи карты идут от src/, то есть «dnd/srd-5.2/ru/07_Spells.md».
+ * Даты всего документа (#230): хаб редакции своего файла не имеет — он и есть документ целиком.
  */
 /**
  * @param {string} game
@@ -98,10 +78,6 @@ export function datesForDoc(game, version, lang) {
   return datesForFiles(Object.keys(dates.files ?? {}).filter((f) => f.startsWith(prefix)));
 }
 
-/**
- * Единая точка для шаблона: что бы страница ни знала о себе — sourceId (глава) или
- * контентный ресурс (сущность), — отсюда выходит одна пара дат или null.
- */
 /**
  * @param {{
  *   sourceId?: string,

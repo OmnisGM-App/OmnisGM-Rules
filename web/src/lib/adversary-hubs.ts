@@ -1,7 +1,6 @@
 // Хабы противников Daggerheart (issue #20): фасет по ТИПУ (Solo/Bruiser/Minion/…).
 // Роут: adversaries/type/[type]. Тип в данных — локализованное слово (EN «Solo» / RU
-// «Одиночка»); URL-слаг языконезависим ('solo') → каноникал + hreflang. Ранг (tier) —
-// отдельный фасет (adversaries/tier/[tier]), уже существует.
+// «Одиночка»); URL-слаг языконезависим ('solo') → каноникал + hreflang.
 export type Lang = 'en' | 'ru';
 
 export interface AdversaryLite {
@@ -12,7 +11,7 @@ export interface AdversaryLite {
   type?: string | null; // локализованное слово типа
 }
 
-// 10 типов противников DH. slug = EN в lowercase. en/ru — подписи из SRD (по обеим сверено 129/129).
+// Типы противников DH. slug = EN в lowercase. en/ru — подписи из SRD.
 export const ADVERSARY_TYPES: { slug: string; en: string; ru: string }[] = [
   { slug: 'bruiser', en: 'Bruiser', ru: 'Громила' },
   { slug: 'horde', en: 'Horde', ru: 'Орда' },

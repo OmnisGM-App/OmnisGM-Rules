@@ -1,16 +1,7 @@
 // Картинки сущностей (issue #201 — портреты существ, #202 — иконки заклинаний и
 // магических предметов): 512×512 webp, лежат в репо статикой —
 // `public/img/{game}/{kind}/{slug}.webp`.
-//
-// У существ папка ОДНА НА ИГРУ («creatures»), а не на коллекцию API: один и тот же слаг
-// живёт в разных коллекциях (83 существа есть и в `monsters` 5.1, и в `animals` 5.2 — в
-// 2024 их вынесли в отдельный раздел), и раскладка по коллекциям означала бы две копии
-// одного файла и два разных изображения у одного существа после следующей генерации.
-// У заклинаний и магпредметов слаги ни с чем не пересекаются — там папка своя.
 // Раскладка и формат целиком: documentation/entity-images.md.
-//
-// Файла может не быть (новая сущность до прогона генератора) — потребители обязаны
-// спрашивать hasCreatureImage(), а не строить URL вслепую.
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -37,10 +28,8 @@ const listing = (/** @type {string} */ game, /** @type {string} */ kind) => {
 /** Путь от корня сайта. Не проверяет наличие файла — см. hasEntityImage. */
 export const entityImagePath = (/** @type {string} */ game, /** @type {string} */ kind, /** @type {string} */ slug) => `/img/${game}/${kind}/${slug}.webp`;
 
-/** Есть ли картинка у сущности. */
 export const hasEntityImage = (/** @type {string} */ game, /** @type {string} */ kind, /** @type {string} */ slug) => listing(game, kind).has(slug);
 
-/** Путь от корня либо null, если картинки нет. */
 export const entityImage = (/** @type {string} */ game, /** @type {string} */ kind, /** @type {string} */ slug) =>
   (hasEntityImage(game, kind, slug) ? entityImagePath(game, kind, slug) : null);
 

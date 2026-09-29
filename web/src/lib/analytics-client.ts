@@ -1,7 +1,5 @@
 // Аналитика: GA4 (gtag.js) + Яндекс.Метрика. Оба грузятся отложенно с CDN (не тащим
 // SDK в бандл, не влияем на LCP). Каждый gated на свой ID — без ID тихо пропускаем.
-// Экспортит window.omnisTrack(name, params): одна CTA-точка шлёт событие в GA4 И
-// reachGoal в Метрику (воронка Rules→лист персонажа видна в обеих системах).
 // Префикс PUBLIC_, а не VITE_: Astro отдаёт клиентским скриптам только PUBLIC_-переменные
 // (иначе значение на клиенте undefined и минификатор вырезает блок). См. #18 (GA4), #27 (Метрика).
 const GA_ID = import.meta.env.PUBLIC_FIREBASE_MEASUREMENT_ID as string | undefined;
@@ -39,8 +37,7 @@ function initGA4(id: string): ((...args: unknown[]) => void) | undefined {
 // Яндекс.Метрика (tag.js). Вебвизор ВКЛ — контент Rules публичный (#27).
 function initMetrika(id: number): void {
   // Официальный сниппет Метрики кладёт в очередь ОБЪЕКТ arguments (tag.js читает её
-  // индексным доступом) — не массив. Не-стрелочная функция + push(arguments), как у gtag
-  // (шрам #18): формат очереди побайтово совпадает с эталоном.
+  // индексным доступом), не массив — как у gtag выше.
   window.ym =
     window.ym ||
     function () {

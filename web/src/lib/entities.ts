@@ -30,21 +30,16 @@ export interface Entity {
   [key: string]: unknown;
 }
 
-// game по умолчанию 'dnd' — не ломает существующие D&D-вызовы; Daggerheart передаёт 'daggerheart'.
 export function loadEntities(ver: string, lang: string, resource: string, game = 'dnd'): Entity[] {
   const file = path.join(DATA_ROOT, game, ver, lang, resource, 'all.json');
   if (!fs.existsSync(file)) return [];
   return JSON.parse(fs.readFileSync(file, 'utf-8')) as Entity[];
 }
 
-// Плоский текстовый сниппет из markdown (для <meta description>): снимаем разметку,
-// схлопываем пробелы, режем по границе слова до ~limit символов.
 export function excerpt(md: string | undefined, limit = 155): string {
   if (!md) return '';
   const plain = md
-    // Маркер списка в начале строки (#214): определения состояний в SRD оформлены списком,
-    // и сниппет начинался с «- A deafened creature…» — дефис прямо в выдаче Google. Снимаем
-    // маркеры до остальной чистки, иначе `-` неотличим от дефиса внутри предложения.
+    // Маркеры списка — до остальной чистки: иначе `-` неотличим от дефиса в предложении (#214).
     .replace(/^[ \t]*[-*+][ \t]+/gm, '')
     .replace(/^[ \t]*\d+\.[ \t]+/gm, '')
     .replace(/\*\*_?([^*]+?)_?\*\*/g, '$1') // bold / bold-italic

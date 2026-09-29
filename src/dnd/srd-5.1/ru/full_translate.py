@@ -21,7 +21,6 @@ N = len(en_lines)
 # ============================================================
 # COMPLETE LINE-BY-LINE TRANSLATION MAP
 # Maps EN body text lines (line numbers) to their full RU translations.
-# This is the most reliable approach for literary quality.
 # ============================================================
 LINE_MAP = {
     # === Acid Splash ===
@@ -242,7 +241,7 @@ LINE_MAP = {
 }
 
 # ============================================================
-# Spell name mapping (same as before)
+# Spell name mapping
 # ============================================================
 SN = {
     "Acid Splash":"Кислотные брызги","Chill Touch":"Могильный холод","Dancing Lights":"Танцующие огоньки",
