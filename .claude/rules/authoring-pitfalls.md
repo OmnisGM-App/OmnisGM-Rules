@@ -12,10 +12,11 @@
 1. **Текстовые близнецы.** Протухает не новое имя, а СТАРАЯ формулировка, которой в диффе нет: снятое понятие («глиф» после удаления поля), прежнее «единственный/только», старое имя варианта, шапка модуля с перечнем потребителей. Самый частый класс (~90 находок за лето, 72 за неделю 22–28.09). Проверка — грепом старого по всей репе с вычетом файлов диффа:
    ```bash
    # идентификаторы, которые дифф снял из КОДА и не вернул, — по всей репе, кроме файлов диффа (исключение pathspec-ом, не фильтром строк)
-   CODE=('*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.py' '*.astro' '*.scss' '*.css' '*.rules')
-   DATA=('*.json' '*.jsonc' '*.yml' '*.yaml' '*.sh')   # ключи локалей, конфиги, workflow — тоже источники снятых имён; из поиска токенов исключён только markdown
-   git diff -U0 <base>...HEAD -- "${CODE[@]}" "${DATA[@]}" | grep '^-' | grep -v '^---' | grep -oE '\b[A-Za-z_][A-Za-z0-9_]{3,}\b' | sort -u > /tmp/removed
-   git diff -U0 <base>...HEAD -- "${CODE[@]}" "${DATA[@]}" | grep '^+' | grep -v '^+++' | grep -oE '\b[A-Za-z_][A-Za-z0-9_]{3,}\b' | sort -u > /tmp/added
+   # источник токенов — весь дифф, кроме markdown-прозы (html, хуки, .env, файлы без расширения тоже входят)
+   git diff -U0 <base>...HEAD -- . ':(exclude)*.md' | grep '^-' | grep -v '^---' | grep -oE '\b[A-Za-z_][A-Za-z0-9_]{3,}\b' | sort -u > /tmp/removed
+   git diff -U0 <base>...HEAD -- . ':(exclude)*.md' | grep '^+' | grep -v '^+++' | grep -oE '\b[A-Za-z_][A-Za-z0-9_]{3,}\b' | sort -u > /tmp/added
+   CODE=('*.ts' '*.tsx' '*.mts' '*.mjs' '*.js' '*.py' '*.astro' '*.scss' '*.css' '*.html' '*.rules')
+   DATA=('*.json' '*.jsonc' '*.yml' '*.yaml' '*.sh')   # где ИЩЕМ близнецов; прозу *.md добавляем ниже отдельно
    comm -23 /tmp/removed /tmp/added > /tmp/gone
    [ -s /tmp/gone ] && git grep -nwFf /tmp/gone -- "${CODE[@]}" "${DATA[@]}" '*.md' $(git diff --name-only <base>...HEAD | sed 's#^#:(exclude,literal)#')
    # слова-уникальности в файлах диффа, которые правка могла сделать ложью
