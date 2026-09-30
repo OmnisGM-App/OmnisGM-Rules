@@ -14,7 +14,7 @@ on:
   # крон вечно брал заклинания и, закрыв их, полгода рапортовал бы «всё готово», пока у
   # соседних видов лежит больше тысячи сущностей без картинок.
   schedule:
-    - cron: '0 */6 * * *' # каждые 6 часов, ~5 картинок за прогон
+    - cron: '0 */6 * * *' # каждые 6 часов, до 10 картинок за прогон
   workflow_dispatch:
     inputs:
       kind:
@@ -24,9 +24,9 @@ on:
         type: choice
         options: [auto, spells, magic-items, gear, domain-cards, creatures]
       count:
-        description: 'Сколько картинок за прогон'
+        description: 'Сколько картинок за прогон (потолок 10 — см. COUNT в шаге генерации)'
         required: false
-        default: '5'
+        default: '10'
 
 concurrency:
   group: gen-images
@@ -129,7 +129,10 @@ jobs:
           # Вид берём тот, что выбрал шаг проверки очереди, а не env джобы: у `auto`
           # это разные вещи.
           KIND: ${{ steps.check.outputs.kind }}
-          COUNT: ${{ inputs.count || '5' }}
+          # Потолок 10 за прогон (владелец, 2026-09-30): картинка занимает ~1 мин, а
+          # прогон 2026-09-30 с count=50 упёрся в timeout-minutes 40 на 39-й и был отменён.
+          # Число из ручного запуска обрезается до 10, крон идёт с 10.
+          COUNT: ${{ inputs.count && inputs.count < 10 && inputs.count || '10' }}
           PUSH_EACH: '1'
           GIT_BRANCH: images-queue
         run: node scripts/gen-images.mjs
