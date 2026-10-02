@@ -346,7 +346,9 @@ def inject_spell_subclasses(all_data: dict, src_root: Path) -> None:
 def _class_shape(c: dict) -> tuple:
     prog = c["progression"]
     return ([f["level"] for f in c["features"]], len(prog["columns"]),
-            [(r["level"], len(r["features"])) for r in prog["rows"]],
+            [(r["level"], r["proficiency_bonus"], r["spell_slots"], len(r["features"]))
+             for r in prog["rows"]],
+            c["hit_die"], c["proficiencies"]["skills"]["choose"],
             c["proficiencies"]["tools"] is None)
 
 
@@ -382,6 +384,7 @@ def align_classes(all_data: dict) -> list[str]:
                         rr["choice"]["key"] = er["choice"]["key"]
                 continue
             r["primary_ability"]["abilities"] = e["primary_ability"]["abilities"]
+            r["primary_ability"]["require"] = e["primary_ability"]["require"]
             r["saving_throws"] = e["saving_throws"]
             for kind in ("armor", "weapons"):
                 r["proficiencies"][kind]["categories"] = e["proficiencies"][kind]["categories"]

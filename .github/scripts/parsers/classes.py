@@ -126,13 +126,21 @@ def _armor(text: str, lang: str) -> dict:
 
 
 def _weapons(text: str, lang: str) -> dict:
-    """categories — only categories granted whole: Monk's «Martial weapons that have…» is not."""
+    """categories — categories granted whole: Monk's «Martial weapons that have…» is not one."""
     if lang != "en":
         return {"text": text, "categories": None}
     cats = ["simple"] if "Simple" in text else []
     if re.search(r"Martial weapons(?! that)", text):
         cats.append("martial")
     return {"text": text, "categories": cats}
+
+
+def _slot_count(cell: str, level: str) -> int:
+    if cell == "—":
+        return 0
+    if not cell.isdigit():
+        raise ValueError(f"progression level {level}: spell slot cell {cell!r}")
+    return int(cell)
 
 
 def _progression(table: dict, lang: str) -> dict:
@@ -146,7 +154,7 @@ def _progression(table: dict, lang: str) -> dict:
         if slot_idx:
             slots = [0] * 9
             for i in slot_idx:
-                slots[int(header[i]) - 1] = int(cells[i]) if cells[i].isdigit() else 0
+                slots[int(header[i]) - 1] = _slot_count(cells[i], cells[0])
         feats = [] if cells[2] in ("—", "") else [f.strip() for f in cells[2].split(",")]
         rows.append({
             "level": int(cells[0]),
@@ -233,7 +241,9 @@ def parse_class(text: str, lang: str) -> list[dict]:
         "name_en": None,
         "hit_die": int(die.group(1)),
         "primary_ability": {"text": traits["primary_ability"],
-                            "abilities": _abilities(traits["primary_ability"]) if en else None},
+                            "abilities": _abilities(traits["primary_ability"]) if en else None,
+                            "require": ("any" if " or " in traits["primary_ability"] else "all")
+                                       if en else None},
         "saving_throws": _abilities(traits["saving_throws"]) if en else None,
         "proficiencies": {
             "armor": _armor(traits["armor"], lang),

@@ -481,8 +481,10 @@ CLASS_SCHEMA = {
             "properties": {
                 "text": {"type": "string"},
                 "abilities": {"type": "array", "items": _ABILITY_CODE, "minItems": 1},
+                # any — хватает одной из abilities («Strength or Dexterity»), all — требуется весь набор.
+                "require": {"type": "string", "enum": ["any", "all"]},
             },
-            "required": ["text", "abilities"],
+            "required": ["text", "abilities", "require"],
             "additionalProperties": False,
         },
         "saving_throws": {"type": "array", "items": _ABILITY_CODE, "minItems": 2, "maxItems": 2},
@@ -499,7 +501,7 @@ CLASS_SCHEMA = {
                     "required": ["text", "categories"],
                     "additionalProperties": False,
                 },
-                # categories — только категории целиком; частичное владение («воинское со
+                # categories — категории целиком; частичное владение («воинское со
                 # свойством Лёгкое») остаётся в text.
                 "weapons": {
                     "type": "object",

@@ -57,7 +57,19 @@ eq("заклинательство", sorc["spellcasting"],
 monk = parse_class(read("en", "06_Monk.md"), "en")[0]
 eq("монах: частичное воинское оружие не даёт категорию martial",
    monk["proficiencies"]["weapons"]["categories"], ["simple"])
-eq("воин без заклинательства", parse_class(read("en", "05_Fighter.md"), "en")[0]["spellcasting"], None)
+fighter = parse_class(read("en", "05_Fighter.md"), "en")[0]
+eq("воин без заклинательства", fighter["spellcasting"], None)
+eq("воин: «Strength or Dexterity» — любая из двух", fighter["primary_ability"]["require"], "any")
+eq("монах: «Dexterity and Wisdom» — обе", monk["primary_ability"]["require"], "all")
+eq("воин: доспехи", fighter["proficiencies"]["armor"]["categories"],
+   ["light", "medium", "heavy", "shield"])
+eq("воин: оружие", fighter["proficiencies"]["weapons"]["categories"], ["simple", "martial"])
+casting = lambda f: {k: v for k, v in parse_class(read("en", f), "en")[0]["spellcasting"].items()
+                     if k in ("change_on", "change_count", "prepare_from", "ability")}
+eq("друид: подготовка", casting("04_Druid.md"),
+   {"change_on": "long_rest", "change_count": "any", "prepare_from": "class_list", "ability": "wis"})
+eq("паладин: подготовка", casting("07_Paladin.md"),
+   {"change_on": "long_rest", "change_count": "one", "prepare_from": "class_list", "ability": "cha"})
 warlock = parse_class(read("en", "11_Warlock.md"), "en")[0]
 eq("колдун: ячейки договора", (warlock["spellcasting"]["slots"],
                                 warlock["progression"]["rows"][0]["spell_slots"]), ("pact", None))
@@ -109,6 +121,7 @@ eq("RU чародей: коды из EN, текст свой", (ru_cls["sorcerer
                                           ru_cls["sorcerer"]["saving_throws"],
                                           ru_cls["sorcerer"]["spellcasting"]["feature"]),
    ("Sorcerer", ["con", "cha"], "Сотворение заклинаний"))
+eq("RU воин: require копируется из EN", ru_cls["fighter"]["primary_ability"]["require"], "any")
 eq("RU чародей: values ур. 3 по ключам EN-колонок", ru_cls["sorcerer"]["progression"]["rows"][2]["values"],
    {"sorcery-points": "3", "cantrips": "4", "prepared-spells": "6"})
 
@@ -133,6 +146,38 @@ bad = copy.deepcopy(pristine)
 bad[("srd52", "ru", "classes")][0]["features"].pop()
 eq("RU-класс с потерянным умением — ошибка структуры",
    any("структура RU" in e for e in align_classes(bad)), True)
+
+
+def ru_class_mutant(slug, mutate):
+    data = copy.deepcopy(pristine)
+    en_slugs = [c["slug"] for c in data[("srd52", "en", "classes")]]
+    mutate(data[("srd52", "ru", "classes")][en_slugs.index(slug)])
+    return any("структура RU" in e for e in align_classes(data))
+
+
+def drop_column(c):
+    c["progression"]["columns"].pop()
+    for row in c["progression"]["rows"]:
+        row["values"].pop()
+
+
+eq("RU-класс без колонки прогрессии — ошибка структуры", ru_class_mutant("sorcerer", drop_column), True)
+eq("RU-класс без инструментов — ошибка структуры",
+   ru_class_mutant("druid", lambda c: c["proficiencies"].update(tools=None)), True)
+eq("RU-класс с другой костью хитов — ошибка структуры",
+   ru_class_mutant("barbarian", lambda c: c.update(hit_die=10)), True)
+eq("RU-класс с другим числом навыков — ошибка структуры",
+   ru_class_mutant("rogue", lambda c: c["proficiencies"]["skills"].update(choose=3)), True)
+eq("RU-класс с другой ячейкой кругов — ошибка структуры",
+   ru_class_mutant("wizard", lambda c: c["progression"]["rows"][4]["spell_slots"].__setitem__(2, 3)), True)
+eq("RU-класс с другим бонусом мастерства — ошибка структуры",
+   ru_class_mutant("bard", lambda c: c["progression"]["rows"][4].update(proficiency_bonus=2)), True)
+ru_sorc_text = read("ru", "10_Sorcerer.md").replace("| 4 | 2 | — |", "| 4 | 2 | ? |", 1)
+try:
+    parse_class(ru_sorc_text, "ru")
+    eq("нецифровая ячейка кругов — ValueError", "разобрано", "ValueError")
+except ValueError as exc:
+    eq("нецифровая ячейка кругов — ValueError с уровнем", "spell slot cell '?'" in str(exc), True)
 
 if failures:
     print(f"❌ classes/subclasses ({len(failures)}):")

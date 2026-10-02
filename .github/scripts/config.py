@@ -63,7 +63,7 @@ SOURCES = [
     {"ver": "srd51", "lang": "en", "type": "section_tables","file": "srd-5.1/en/16_Glossary/00_Glossary.md", "out": "rules-terms"},
 ]
 
-# Классы и подклассы SRD 5.2 (#365): глава на файл, из каждого — класс и его подклассы.
+# Классы и подклассы SRD 5.2 (#365): глава на файл, из главы — класс и его подклассы.
 _CLASS_FILES = ["01_Barbarian", "02_Bard", "03_Cleric", "04_Druid", "05_Fighter", "06_Monk",
                 "07_Paladin", "08_Ranger", "09_Rogue", "10_Sorcerer", "11_Warlock", "12_Wizard"]
 SOURCES += [
