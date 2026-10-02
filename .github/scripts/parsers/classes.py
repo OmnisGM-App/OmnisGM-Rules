@@ -135,15 +135,15 @@ def _weapons(text: str, lang: str) -> dict:
     return {"text": text, "categories": cats}
 
 
-def _slot_count(cell: str, level: str) -> int:
+def _slot_count(cell: str, level: str, name: str) -> int:
     if cell == "—":
         return 0
     if not cell.isdigit():
-        raise ValueError(f"progression level {level}: spell slot cell {cell!r}")
+        raise ValueError(f"{name}: progression level {level}: spell slot cell {cell!r}")
     return int(cell)
 
 
-def _progression(table: dict, lang: str) -> dict:
+def _progression(table: dict, lang: str, name: str) -> dict:
     header = table["header"]
     extra = [(i, h) for i, h in enumerate(header) if i > 2 and h not in _SLOT_COLUMNS]
     keys = [slugify(h) if lang == "en" else None for _, h in extra]
@@ -154,7 +154,7 @@ def _progression(table: dict, lang: str) -> dict:
         if slot_idx:
             slots = [0] * 9
             for i in slot_idx:
-                slots[int(header[i]) - 1] = _slot_count(cells[i], cells[0])
+                slots[int(header[i]) - 1] = _slot_count(cells[i], cells[0], name)
         feats = [] if cells[2] in ("—", "") else [f.strip() for f in cells[2].split(",")]
         rows.append({
             "level": int(cells[0]),
@@ -232,7 +232,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
     prog_table = next((t for t in tables if t["header"][0] in ("Level", "Уровень")), None)
     if not prog_table:
         raise ValueError(f"{name}: no class progression table")
-    progression = _progression(prog_table, lang)
+    progression = _progression(prog_table, lang, name)
     features = _features(class_lines)
     en = lang == "en"
     return [{

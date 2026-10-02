@@ -121,6 +121,8 @@ eq("RU чародей: коды из EN, текст свой", (ru_cls["sorcerer
                                           ru_cls["sorcerer"]["saving_throws"],
                                           ru_cls["sorcerer"]["spellcasting"]["feature"]),
    ("Sorcerer", ["con", "cha"], "Сотворение заклинаний"))
+eq("RU чародей: навыки из EN", ru_cls["sorcerer"]["proficiencies"]["skills"]["options"],
+   ["arcana", "deception", "insight", "intimidation", "persuasion", "religion"])
 eq("RU воин: require копируется из EN", ru_cls["fighter"]["primary_ability"]["require"], "any")
 eq("RU чародей: values ур. 3 по ключам EN-колонок", ru_cls["sorcerer"]["progression"]["rows"][2]["values"],
    {"sorcery-points": "3", "cantrips": "4", "prepared-spells": "6"})
@@ -172,12 +174,29 @@ eq("RU-класс с другой ячейкой кругов — ошибка �
    ru_class_mutant("wizard", lambda c: c["progression"]["rows"][4]["spell_slots"].__setitem__(2, 3)), True)
 eq("RU-класс с другим бонусом мастерства — ошибка структуры",
    ru_class_mutant("bard", lambda c: c["progression"]["rows"][4].update(proficiency_bonus=2)), True)
+eq("RU-класс со сдвинутым уровнем строки — ошибка структуры",
+   ru_class_mutant("bard", lambda c: c["progression"]["rows"][4].update(level=6)), True)
+eq("RU-класс с лишним умением в строке — ошибка структуры",
+   ru_class_mutant("bard", lambda c: c["progression"]["rows"][4]["features"].append("x")), True)
+eq("RU-класс с другим числом в колонке — ошибка структуры",
+   ru_class_mutant("warlock", lambda c: c["progression"]["rows"][0]["values"].__setitem__(0, "9")), True)
+eq("RU-колонка кости «к6» ≡ EN «D6»",
+   ru_class_mutant("bard", lambda c: c["progression"]["rows"][0]["values"].__setitem__(0, "к6")), False)
+
+bad = copy.deepcopy(pristine)
+bad[("srd52", "ru", "subclasses")][0]["features"].pop()
+eq("RU-подкласс с потерянным умением — ошибка структуры",
+   any("subclasses: структура RU" in e for e in align_classes(bad)), True)
+bad = copy.deepcopy(pristine)
+bad[("srd52", "ru", "subclasses")].pop()
+eq("RU без одного подкласса — ошибка числа записей",
+   any("subclasses: EN" in e and ", RU " in e for e in align_classes(bad)), True)
 ru_sorc_text = read("ru", "10_Sorcerer.md").replace("| 4 | 2 | — |", "| 4 | 2 | ? |", 1)
 try:
     parse_class(ru_sorc_text, "ru")
     eq("нецифровая ячейка кругов — ValueError", "разобрано", "ValueError")
 except ValueError as exc:
-    eq("нецифровая ячейка кругов — ValueError с уровнем", "spell slot cell '?'" in str(exc), True)
+    eq("нецифровая ячейка кругов — ValueError с уровнем", "Чародей: progression level 3: spell slot cell '?'" in str(exc), True)
 
 if failures:
     print(f"❌ classes/subclasses ({len(failures)}):")

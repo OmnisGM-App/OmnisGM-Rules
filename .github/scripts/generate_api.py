@@ -346,7 +346,9 @@ def inject_spell_subclasses(all_data: dict, src_root: Path) -> None:
 def _class_shape(c: dict) -> tuple:
     prog = c["progression"]
     return ([f["level"] for f in c["features"]], len(prog["columns"]),
-            [(r["level"], r["proficiency_bonus"], r["spell_slots"], len(r["features"]))
+            [(r["level"], r["proficiency_bonus"], r["spell_slots"], len(r["features"]),
+              [re.sub(r"\D", "", v) for v in
+               (r["values"].values() if isinstance(r["values"], dict) else r["values"])])
              for r in prog["rows"]],
             c["hit_die"], c["proficiencies"]["skills"]["choose"],
             c["proficiencies"]["tools"] is None)
