@@ -63,6 +63,14 @@ SOURCES = [
     {"ver": "srd51", "lang": "en", "type": "section_tables","file": "srd-5.1/en/16_Glossary/00_Glossary.md", "out": "rules-terms"},
 ]
 
+# Классы и подклассы SRD 5.2 (#365): глава на файл, из главы — класс и его подклассы.
+_CLASS_FILES = ["01_Barbarian", "02_Bard", "03_Cleric", "04_Druid", "05_Fighter", "06_Monk",
+                "07_Paladin", "08_Ranger", "09_Rogue", "10_Sorcerer", "11_Warlock", "12_Wizard"]
+SOURCES += [
+    {"ver": "srd52", "lang": lang, "type": kind, "file": f"srd-5.2/{lang}/03_Classes/{name}.md"}
+    for lang in ("ru", "en") for kind in ("class", "subclass") for name in _CLASS_FILES
+]
+
 # Heading patterns that are NOT entity entries (section headers, rules text, etc.)
 # Used to filter out non-entity headings from spell/monster/magic_item files.
 SKIP_HEADINGS_SPELL = {

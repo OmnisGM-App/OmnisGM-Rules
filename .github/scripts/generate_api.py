@@ -27,6 +27,7 @@ import importlib
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins,
+                     parse_class, parse_subclasses,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
@@ -342,6 +343,102 @@ def inject_spell_subclasses(all_data: dict, src_root: Path) -> None:
                     ]
 
 
+def _class_shape(c: dict) -> tuple:
+    prog = c["progression"]
+    return ([f["level"] for f in c["features"]], len(prog["columns"]),
+            [(r["level"], r["proficiency_bonus"], r["spell_slots"], len(r["features"]),
+              [re.sub(r"\D", "", v) for v in
+               (r["values"].values() if isinstance(r["values"], dict) else r["values"])])
+             for r in prog["rows"]],
+            c["hit_die"], c["proficiencies"]["skills"]["choose"],
+            c["proficiencies"]["tools"] is None)
+
+
+def _subclass_shape(s: dict) -> tuple:
+    return ([f["level"] for f in s["features"]],
+            [(r["level"], len(r["spells"])) for r in s["always_prepared"]])
+
+
+def align_classes(all_data: dict) -> list[str]:
+    """RU-классам и подклассам — слаг, name_en и языко-инвариантные коды из EN по позиции.
+
+    Главы EN и RU построчно парны, поэтому RU[i] ↔ EN[i]; форма записи (уровни умений,
+    строки прогрессии, таблицы заклинаний) обязана совпасть — иначе перевод разошёлся.
+    """
+    errors = []
+    for (ver, lang, resource), ru_entities in all_data.items():
+        if lang != "ru" or resource not in ("classes", "subclasses"):
+            continue
+        en_entities = all_data.get((ver, "en", resource), [])
+        if len(en_entities) != len(ru_entities):
+            errors.append(f"{ver}/{resource}: EN {len(en_entities)}, RU {len(ru_entities)}")
+            continue
+        shape = _class_shape if resource == "classes" else _subclass_shape
+        for r, e in zip(ru_entities, en_entities):
+            if shape(r) != shape(e):
+                errors.append(f"{ver}/{resource}: структура RU «{r['name']}» ≠ EN «{e['name']}»")
+                continue
+            r["slug"], r["name_en"] = e["slug"], e["name"]
+            if resource == "subclasses":
+                r["class"] = e["class"]
+                for rr, er in zip(r["always_prepared"], e["always_prepared"]):
+                    if er["choice"]:
+                        rr["choice"]["key"] = er["choice"]["key"]
+                continue
+            r["primary_ability"]["abilities"] = e["primary_ability"]["abilities"]
+            r["primary_ability"]["require"] = e["primary_ability"]["require"]
+            r["saving_throws"] = e["saving_throws"]
+            for kind in ("armor", "weapons"):
+                r["proficiencies"][kind]["categories"] = e["proficiencies"][kind]["categories"]
+            r["proficiencies"]["skills"]["options"] = e["proficiencies"]["skills"]["options"]
+            keys = [c["key"] for c in e["progression"]["columns"]]
+            for rc, key in zip(r["progression"]["columns"], keys):
+                rc["key"] = key
+            for row in r["progression"]["rows"]:
+                row["values"] = dict(zip(keys, row["values"]))
+            if e["spellcasting"]:
+                idx = next(i for i, f in enumerate(e["features"])
+                           if f["name"] == e["spellcasting"]["feature"])
+                r["spellcasting"] = {**e["spellcasting"], "feature": r["features"][idx]["name"]}
+    return errors
+
+
+def resolve_always_prepared(all_data: dict) -> list[str]:
+    """Имена заклинаний в `always_prepared` подклассов → слаги из spells/all.json того же языка.
+
+    Нерезолвленное имя — ошибка сборки: потребитель (компендиум Table#766) связывает подкласс
+    с заклинанием только по слагу. RU-таблица обязана дать те же слаги, что EN.
+    """
+    errors = []
+    for (ver, lang, resource), entities in all_data.items():
+        if resource != "subclasses":
+            continue
+        lookup = {}
+        for sp in all_data.get((ver, lang, "spells"), []):
+            lookup[sp["name"].lower()] = sp["slug"]
+        for sub in entities:
+            for row in sub["always_prepared"]:
+                slugs = []
+                for name in row["spells"]:
+                    slug = lookup.get(name.lower())
+                    if slug is None:
+                        errors.append(f"{ver}/{lang}/{sub['slug']}: заклинание «{name}» "
+                                      f"(уровень {row['level']}) не найдено в spells")
+                    slugs.append(slug)
+                row["spells"] = slugs
+    for (ver, lang, resource), ru_entities in all_data.items():
+        if lang != "ru" or resource != "subclasses":
+            continue
+        en_by_slug = {s["slug"]: s for s in all_data.get((ver, "en", resource), [])}
+        for r in ru_entities:
+            e = en_by_slug.get(r["slug"])
+            ru_rows = [x["spells"] for x in r["always_prepared"]]
+            en_rows = [x["spells"] for x in e["always_prepared"]] if e else ru_rows
+            if ru_rows != en_rows:
+                errors.append(f"{ver}/ru/{r['slug']}: слаги always_prepared RU {ru_rows} ≠ EN {en_rows}")
+    return errors
+
+
 def write_json(path: Path, data) -> None:
     """Write data as JSON with consistent formatting."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -585,6 +682,12 @@ def main():
         elif entity_type == "origin":
             entities = parse_origins(text, source["section"], lang)
             resource = out_resource  # "species" / "backgrounds"
+        elif entity_type == "class":
+            entities = parse_class(text, lang)
+            resource = "classes"
+        elif entity_type == "subclass":
+            entities = parse_subclasses(text, lang)
+            resource = "subclasses"
         elif entity_type == "glossary_defs":
             entities = parse_defs(text, source["section"])
             resource = out_resource
@@ -654,6 +757,12 @@ def main():
         # Resolve cross-references
         resolve_cross_refs(all_data)
         inject_spell_subclasses(all_data, src_root)
+        class_errors = align_classes(all_data) + resolve_always_prepared(all_data)
+        if class_errors:
+            print("Error: классы/подклассы (#365):", file=sys.stderr)
+            for msg in class_errors:
+                print(f"  {msg}", file=sys.stderr)
+            sys.exit(1)
 
     # Уникальность слагов внутри (ver, lang, resource): дубль = молчаливая перезапись
     # entity-страницы/JSON-роута другой сущностью (напр. срезание «(specialty)» слепляет

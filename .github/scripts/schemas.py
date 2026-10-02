@@ -452,6 +452,175 @@ FEAT_SCHEMA = {
     "additionalProperties": False,
 }
 
+# -- Class / subclass schemas (#365) -------------------------------------------
+
+_CLASS_FEATURE = {
+    "type": "object",
+    "properties": {
+        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+        "name": {"type": "string"},
+        "description_md": {"type": "string"},
+    },
+    "required": ["level", "name", "description_md"],
+    "additionalProperties": False,
+}
+
+_ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
+
+CLASS_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Class",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "hit_die": {"type": "integer", "enum": [6, 8, 10, 12]},
+        "primary_ability": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "abilities": {"type": "array", "items": _ABILITY_CODE, "minItems": 1},
+                # any — хватает одной из abilities («Strength or Dexterity»), all — требуется весь набор.
+                "require": {"type": "string", "enum": ["any", "all"]},
+            },
+            "required": ["text", "abilities", "require"],
+            "additionalProperties": False,
+        },
+        "saving_throws": {"type": "array", "items": _ABILITY_CODE, "minItems": 2, "maxItems": 2},
+        "proficiencies": {
+            "type": "object",
+            "properties": {
+                "armor": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "categories": {"type": "array", "items": {
+                            "type": "string", "enum": ["light", "medium", "heavy", "shield"]}},
+                    },
+                    "required": ["text", "categories"],
+                    "additionalProperties": False,
+                },
+                # categories — категории целиком; частичное владение («воинское со
+                # свойством Лёгкое») остаётся в text.
+                "weapons": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "categories": {"type": "array", "items": {
+                            "type": "string", "enum": ["simple", "martial"]}},
+                    },
+                    "required": ["text", "categories"],
+                    "additionalProperties": False,
+                },
+                "tools": {
+                    "type": ["object", "null"],
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                    "additionalProperties": False,
+                },
+                # options — слаги навыков; null — любой навык на выбор.
+                "skills": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "choose": {"type": "integer", "minimum": 1},
+                        "options": {"type": ["array", "null"], "items": {"type": "string"}},
+                    },
+                    "required": ["text", "choose", "options"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["armor", "weapons", "tools", "skills"],
+            "additionalProperties": False,
+        },
+        "starting_equipment": {"type": "string"},
+        # values — по ключу колонки из columns; spell_slots — 9 кругов (0 — нет ячеек), null у
+        # классов без колонок кругов (у колдуна ячейки — колонки spell-slots / slot-level).
+        "progression": {
+            "type": "object",
+            "properties": {
+                "columns": {"type": "array", "items": {
+                    "type": "object",
+                    "properties": {"key": {"type": "string"}, "name": {"type": "string"}},
+                    "required": ["key", "name"],
+                    "additionalProperties": False,
+                }},
+                "rows": {"type": "array", "minItems": 20, "maxItems": 20, "items": {
+                    "type": "object",
+                    "properties": {
+                        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "proficiency_bonus": {"type": "integer", "minimum": 2, "maximum": 6},
+                        "features": {"type": "array", "items": {"type": "string"}},
+                        "values": {"type": "object", "additionalProperties": {"type": "string"}},
+                        "spell_slots": {"type": ["array", "null"], "items": {"type": "integer"},
+                                        "minItems": 9, "maxItems": 9},
+                    },
+                    "required": ["level", "proficiency_bonus", "features", "values", "spell_slots"],
+                    "additionalProperties": False,
+                }},
+            },
+            "required": ["columns", "rows"],
+            "additionalProperties": False,
+        },
+        "features": {"type": "array", "items": _CLASS_FEATURE},
+        "spellcasting": {
+            "type": ["object", "null"],
+            "properties": {
+                "feature": {"type": "string"},
+                "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                "ability": _ABILITY_CODE,
+                "change_on": {"type": "string", "enum": ["long_rest", "level_up"]},
+                "change_count": {"type": "string", "enum": ["one", "any"]},
+                "prepare_from": {"type": "string", "enum": ["class_list", "spellbook"]},
+                "slots": {"type": "string", "enum": ["standard", "pact"]},
+            },
+            "required": ["feature", "level", "ability", "change_on", "change_count",
+                         "prepare_from", "slots"],
+            "additionalProperties": False,
+        },
+    },
+    "required": [
+        "slug", "name", "name_en", "hit_die", "primary_ability", "saving_throws",
+        "proficiencies", "starting_equipment", "progression", "features", "spellcasting",
+    ],
+    "additionalProperties": False,
+}
+
+SUBCLASS_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Subclass",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "class": {"type": "string"},
+        "description_md": {"type": "string"},
+        "features": {"type": "array", "items": _CLASS_FEATURE},
+        # spells — слаги из spells/all.json; choice — таблица-альтернатива (Круг Земли: земля),
+        # null у подкласса с одной таблицей.
+        "always_prepared": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                "spells": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+                "choice": {
+                    "type": ["object", "null"],
+                    "properties": {"key": {"type": "string"}, "name": {"type": "string"}},
+                    "required": ["key", "name"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["level", "spells", "choice"],
+            "additionalProperties": False,
+        }},
+    },
+    "required": ["slug", "name", "name_en", "class", "description_md", "features",
+                 "always_prepared"],
+    "additionalProperties": False,
+}
+
 # -- Daggerheart schemas -------------------------------------------------------
 # Имена ресурсов DH (ancestries/communities/domain-cards/adversaries/environments)
 # не пересекаются с D&D → схемы применяются только к Daggerheart. rules-terms НЕ
@@ -571,6 +740,8 @@ RESOURCE_SCHEMAS = {
     "equipment": EQUIPMENT_SCHEMA,
     "conditions": CONDITION_SCHEMA,
     "feats": FEAT_SCHEMA,
+    "classes": CLASS_SCHEMA,
+    "subclasses": SUBCLASS_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
     "communities": DH_SECTION_SCHEMA,
