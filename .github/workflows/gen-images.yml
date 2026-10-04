@@ -78,8 +78,11 @@ jobs:
           # .github/actions/ тоже из main: Post-хук composite-экшена setup-web перечитывает
           # action.yml из workspace В КОНЦЕ джобы — а workspace к тому моменту на images-queue,
           # где экшена нет (ветка старше PR#300) → красный Post при зелёной генерации.
-          git checkout origin/main -- scripts/ .github/scripts/ .github/actions/ web/scripts/
-          git restore --staged scripts/ .github/scripts/ .github/actions/ web/scripts/ 2>/dev/null || true
+          # src/ тоже из main: очередь копит только web/public/img, а гейты генератора API
+          # (#365) сверяют RU-таблицы со словарём — на замороженном src/ сборка падала.
+          # --no-overlay: файл, удалённый или переименованный на main, не остаётся в дереве.
+          git checkout --no-overlay origin/main -- src/ scripts/ .github/scripts/ .github/actions/ web/scripts/
+          git restore --staged src/ scripts/ .github/scripts/ .github/actions/ web/scripts/ 2>/dev/null || true
 
       # Данные для очереди (web/src/data/api — gitignored, генерятся из тех же парсеров).
       # Зависимостей не требует: gen-entity-data.mjs — только node builtins + python3.
