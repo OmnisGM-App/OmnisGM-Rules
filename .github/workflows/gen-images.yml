@@ -80,7 +80,8 @@ jobs:
           # где экшена нет (ветка старше PR#300) → красный Post при зелёной генерации.
           # src/ тоже из main: очередь копит только web/public/img, а гейты генератора API
           # (#365) сверяют RU-таблицы со словарём — на замороженном src/ сборка падала.
-          git checkout origin/main -- src/ scripts/ .github/scripts/ .github/actions/ web/scripts/
+          # --no-overlay: файл, удалённый или переименованный на main, не остаётся в дереве.
+          git checkout --no-overlay origin/main -- src/ scripts/ .github/scripts/ .github/actions/ web/scripts/
           git restore --staged src/ scripts/ .github/scripts/ .github/actions/ web/scripts/ 2>/dev/null || true
 
       # Данные для очереди (web/src/data/api — gitignored, генерятся из тех же парсеров).
