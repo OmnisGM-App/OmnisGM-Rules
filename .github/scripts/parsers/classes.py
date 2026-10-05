@@ -306,3 +306,210 @@ def parse_subclasses(text: str, lang: str) -> list[dict]:
             "always_prepared": always,
         })
     return out
+
+
+# --- Варианты классовых умений (#374) -------------------------------------------------------
+# Два вида списков. Раздел «### … Options» / «### Опции …» с вариантами-#### (воззвания,
+# метамагия) — родитель тот, чьё тело ссылается на раздел в кавычках. И варианты абзацами
+# «**Имя.**» в теле умения после фразы-маркера («one of the following options…»); список-
+# расширение («…are now among your Cunning Strike options») пополняет ближайший предыдущий
+# базовый список главы, и тогда умение-источник — granted_by.
+
+_OPTION_SECTION_RE = {"en": re.compile(r"^### (.+ Options)$"), "ru": re.compile(r"^### (Опции .+)$")}
+_LIST_MARKER_RE = {
+    "en": re.compile(r"one of the following (?:sacred roles|(?:feature )?options|(?:[\w ]+ )?effects)"
+                     r"|following effect options|following effects are now among"
+                     r"|following [\w ]+ option\b"),
+    "ru": re.compile(r"од(?:ин|н\w+) из следующих (?:священных ролей|опций|эффектов)"
+                     r"|следующие варианты эффектов|[Сс]ледующие эффекты теперь входят"
+                     r"|следующую опцию"),
+}
+_EXTENSION_RE = {"en": re.compile(r"now among your|You gain the following [\w ]+ option\b"),
+                 "ru": re.compile(r"теперь входят в|следующую опцию")}
+_OF_CHOICE = {"en": "of your choice", "ru": "на свой выбор"}
+_COST_WORD = r"(?:Cost|Стоимость)"
+_BOLD_OPTION_RE = re.compile(rf"^\*\*(.+?)(?: \({_COST_WORD}: ([^)]+)\))?\.\*\* ?(.*)$")
+_INLINE_OPTION_RE = re.compile(rf"\*([^*]+?) \({_COST_WORD}: ([^)]+)\)\.\* (.+)$")
+_META_LINE_RE = re.compile(r"^\*(Prerequisite|Требование|Cost|Стоимость): (.+)\*$")
+_REPEATABLE_RE = re.compile(r"^\*\*(?:Repeatable|Повторяемое)\.\*\*")
+_CANTRIP_PREREQS = {"a Warlock Cantrip That Deals Damage": "damage",
+                    "a Warlock Cantrip That Deals Damage via an Attack Roll": "damage-attack-roll"}
+COST_UNITS = ("sorcery-point", "sneak-attack-die")
+CANTRIP_PREREQS = tuple(_CANTRIP_PREREQS.values())
+
+
+def _option_cost(text: str) -> dict:
+    """Closed set of units: an unknown cost form is a build error, not a free-text field."""
+    m = re.fullmatch(r"(\d+) (?:Sorcery Points?|очк\w+ чародейства)", text)
+    if m:
+        return {"text": text, "amount": int(m.group(1)), "unit": "sorcery-point"}
+    m = re.fullmatch(r"(\d+)d6", text)
+    if m:
+        return {"text": text, "amount": int(m.group(1)), "unit": "sneak-attack-die"}
+    raise ValueError(f"unknown option cost {text!r}")
+
+
+def _option_prerequisites(text: str, lang: str) -> dict:
+    """level / options (EN invocation NAMES until generate_api resolves them) / cantrip — from EN;
+    RU keeps its own text and gets the codes from EN by position."""
+    if lang != "en":
+        return {"text": text, "level": None, "options": None, "cantrip": None}
+    out = {"text": text, "level": None, "options": [], "cantrip": None}
+    for part in text.split(", "):
+        m = re.fullmatch(r"Level (\d+)\+ \w+", part)
+        if m:
+            out["level"] = int(m.group(1))
+        elif part in _CANTRIP_PREREQS:
+            out["cantrip"] = _CANTRIP_PREREQS[part]
+        elif part.endswith(" Invocation"):
+            out["options"].append(part[:-len(" Invocation")])
+        else:
+            raise ValueError(f"unknown prerequisite {part!r} in {text!r}")
+    return out
+
+
+def _feature_blocks(lines: list[str], lang: str) -> list[dict]:
+    """`Level N: Name` features of the whole chapter with their subclass (None for the class)."""
+    out = []
+    current = None
+    subclass = None
+    for line in lines:
+        if line.startswith("#"):
+            current = None
+            m = _SUBCLASS_RE[lang].match(_clean(line))
+            if m:
+                subclass = m.group(2).strip()
+                continue
+            m = _FEATURE_RE.match(_clean(line))
+            if m:
+                current = {"level": int(m.group(1)), "name": m.group(2).strip(),
+                           "subclass": subclass, "body": []}
+                out.append(current)
+        elif current is not None:
+            current["body"].append(line)
+    return out
+
+
+def _paragraphs(body: list[str]) -> list[str]:
+    return [p.strip() for p in "\n".join(body).split("\n\n") if p.strip()]
+
+
+def _ref(feature: dict | None, en: bool) -> dict | None:
+    if feature is None:
+        return None
+    return {"key": slugify(feature["name"]) if en else None, "name": feature["name"],
+            "level": feature["level"]}
+
+
+def _option(name, body_md, cost, prereq, repeatable, feature, granted_by, selection,
+            class_name, en) -> dict:
+    return {
+        "slug": slugify(name) if en else None,
+        "name": name,
+        "name_en": None,
+        "class": slugify(class_name) if en else None,
+        "subclass": (slugify(feature["subclass"]) if feature["subclass"] else None) if en else None,
+        "feature": _ref(feature, en),
+        "granted_by": _ref(granted_by, en),
+        "selection": selection,
+        "prerequisites": prereq,
+        "cost": cost,
+        "repeatable": repeatable,
+        "description_md": body_md,
+    }
+
+
+def _section_options(lines, features, class_name, lang) -> list[dict]:
+    """«### … Options» sections: each #### is an option; leading *Prerequisite:*/*Cost:* lines
+    become fields and leave description_md."""
+    en = lang == "en"
+    out = []
+    i = 0
+    while i < len(lines):
+        m = _OPTION_SECTION_RE[lang].match(lines[i].strip())
+        if not m:
+            i += 1
+            continue
+        title = m.group(1)
+        quoted = (f'"{title}"', f"«{title}»")
+        parent = next((f for f in features if f["subclass"] is None
+                       and any(q in "\n".join(f["body"]) for q in quoted)), None)
+        if parent is None:
+            raise ValueError(f"{class_name}: no feature refers to section {title!r}")
+        i += 1
+        items = []
+        while i < len(lines) and not re.match(r"^#{1,3} ", lines[i]):
+            if lines[i].startswith("#### "):
+                items.append({"name": _clean(lines[i])[5:], "body": []})
+            elif items:
+                items[-1]["body"].append(lines[i])
+            i += 1
+        if not items:
+            raise ValueError(f"{class_name}: section {title!r} has no options")
+        for it in items:
+            paras = _paragraphs(it["body"])
+            cost = prereq = None
+            while paras and (meta := _META_LINE_RE.match(paras[0])):
+                if meta.group(1) in ("Cost", "Стоимость"):
+                    cost = _option_cost(meta.group(2))
+                else:
+                    prereq = _option_prerequisites(meta.group(2), lang)
+                paras.pop(0)
+            out.append(_option(it["name"], "\n\n".join(paras), cost, prereq,
+                               any(_REPEATABLE_RE.match(p) for p in paras),
+                               parent, None, "learned", class_name, en))
+    return out
+
+
+def _inline_options(features, class_name, lang) -> list[dict]:
+    en = lang == "en"
+    out = []
+    base = None  # последний базовый список главы — родитель для списков-расширений
+    for f in features:
+        paras = _paragraphs(f["body"])
+        first = next((n for n, p in enumerate(paras) if _BOLD_OPTION_RE.match(p)), len(paras))
+        intro = " ".join(paras[:first])
+        marker = _LIST_MARKER_RE[lang].search(intro)
+        if not marker:
+            continue
+        extension = bool(_EXTENSION_RE[lang].search(intro))
+        if extension and base is None:
+            raise ValueError(f"{class_name}: {f['name']!r} extends no earlier option list")
+        sentence = re.split(r"(?<=[.!?])\s", intro[marker.start():], maxsplit=1)[0]
+        selection = base["selection"] if extension else (
+            "learned" if _OF_CHOICE[lang] in sentence else "on_use")
+        parent, granted_by = (base["feature"], f) if extension else (f, None)
+        items = []
+        inline = _INLINE_OPTION_RE.search(paras[first - 1]) if first else None
+        if inline and first == len(paras):
+            items.append([inline.group(1), inline.group(2), [inline.group(3)]])
+        for p in paras[first:]:
+            m = _BOLD_OPTION_RE.match(p)
+            if m:
+                items.append([m.group(1), m.group(2), [m.group(3)] if m.group(3) else []])
+            else:
+                items[-1][2].append(p)  # абзац-продолжение варианта («To use this effect…»)
+        if not items:
+            raise ValueError(f"{class_name}: {f['name']!r} announces options but lists none")
+        for name, cost, body in items:
+            out.append(_option(name, "\n\n".join(body), _option_cost(cost) if cost else None,
+                               None, False, {**parent, "subclass": f["subclass"]}, granted_by,
+                               selection, class_name, en))
+        if not extension:
+            base = {"feature": f, "selection": selection}
+    return out
+
+
+def parse_class_options(text: str, lang: str) -> list[dict]:
+    """Class feature options (Eldritch Invocations, Metamagic, Cunning Strike, Divine Order…), #374.
+
+    EN/RU chapters are line-paired: generate_api.align_class_options copies slug, name_en and
+    the codes to RU by position and resolves prerequisite invocation names to slugs.
+    """
+    lines = text.split("\n")
+    class_name = next((_clean(l)[3:] for l in lines if l.startswith("## ")), None)
+    if not class_name:
+        return []
+    features = _feature_blocks(lines, lang)
+    return _section_options(lines, features, class_name, lang) + \
+        _inline_options(features, class_name, lang)

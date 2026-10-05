@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
-"""Ресурсы classes / subclasses JSON API (#365): разбор главы класса, выравнивание RU по EN
-и резолв таблиц «всегда подготовленных» заклинаний в слаги.
+"""Ресурсы classes / subclasses / class-options JSON API (#365, #374): разбор главы класса,
+выравнивание RU по EN, резолв таблиц «всегда подготовленных» заклинаний и предусловий-воззваний
+в слаги.
 
 Запуск: python3 .github/scripts/test_class_parser.py
 """
@@ -12,8 +13,11 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import config  # noqa: E402
-from generate_api import align_classes, resolve_always_prepared  # noqa: E402
-from parsers import parse_class, parse_spells, parse_subclasses  # noqa: E402
+from generate_api import (align_class_options, align_classes, disambiguate_option_slugs,  # noqa: E402
+                          resolve_always_prepared, slug_collisions)
+from parsers import parse_class, parse_class_options, parse_spells, parse_subclasses  # noqa: E402
+from parsers.classes import CANTRIP_PREREQS, COST_UNITS  # noqa: E402
+from schemas import CLASS_OPTION_SCHEMA  # noqa: E402
 
 failures = []
 
@@ -198,9 +202,183 @@ try:
 except ValueError as exc:
     eq("нецифровая ячейка кругов — ValueError с уровнем", "Чародей: progression level 3: spell slot cell '?'" in str(exc), True)
 
+# --- Варианты классовых умений (#374) -------------------------------------------------
+CLASS_FILES = sorted(p.name for p in (ROOT / "src/dnd/srd-5.2/en/03_Classes").glob("[01][0-9]_*.md")
+                     if not p.name.startswith("00_"))
+# Сверка с исходником: число вариантов на главу, посчитанное руками по markdown.
+EXPECTED_OPTIONS = {"01_Barbarian.md": 4, "02_Bard.md": 0, "03_Cleric.md": 4, "04_Druid.md": 4,
+                    "05_Fighter.md": 0, "06_Monk.md": 3, "07_Paladin.md": 0, "08_Ranger.md": 4,
+                    "09_Rogue.md": 7, "10_Sorcerer.md": 10, "11_Warlock.md": 28, "12_Wizard.md": 0}
+for lang in ("en", "ru"):
+    eq(f"{lang}: вариантов по главам",
+       {f: len(parse_class_options(read(lang, f), lang)) for f in CLASS_FILES}, EXPECTED_OPTIONS)
+
+
+def section_headings(lang, name, title):
+    """Независимый счёт: #### внутри раздела «### title» до следующего ###."""
+    inside, n = False, 0
+    for line in read(lang, name).split("\n"):
+        if line.startswith("### "):
+            inside = line[4:].strip() == title
+        elif inside and line.startswith("#### "):
+            n += 1
+    return n
+
+
+eq("воззвания = #### раздела EN", section_headings("en", "11_Warlock.md", "Eldritch Invocation Options"), 28)
+eq("воззвания = #### раздела RU", section_headings("ru", "11_Warlock.md", "Опции таинственных воззваний"), 28)
+eq("метамагия = #### раздела EN", section_headings("en", "10_Sorcerer.md", "Metamagic Options"), 10)
+eq("метамагия = #### раздела RU", section_headings("ru", "10_Sorcerer.md", "Опции Метамагии"), 10)
+
+inv = {o["slug"]: o for o in parse_class_options(read("en", "11_Warlock.md"), "en")}
+eq("воззвание: родитель", inv["agonizing-blast"]["feature"],
+   {"key": "eldritch-invocations", "name": "Eldritch Invocations", "level": 1})
+eq("воззвание: предусловие уровень + заговор", inv["agonizing-blast"]["prerequisites"],
+   {"text": "Level 2+ Warlock, a Warlock Cantrip That Deals Damage", "level": 2, "options": [],
+    "cantrip": "damage"})
+eq("воззвание: заговор с броском атаки", inv["repelling-blast"]["prerequisites"]["cantrip"],
+   "damage-attack-roll")
+eq("воззвание: предусловие-воззвание (имя до резолва)",
+   inv["devouring-blade"]["prerequisites"]["options"], ["Thirsting Blade"])
+eq("воззвание без предусловия", inv["armor-of-shadows"]["prerequisites"], None)
+eq("повторяемые воззвания", sorted(s for s, o in inv.items() if o["repeatable"]),
+   ["agonizing-blast", "eldritch-spear", "lessons-of-the-first-ones", "repelling-blast"])
+eq("строка предусловия не дублируется в описании",
+   any("Prerequisite" in o["description_md"] for o in inv.values()), False)
+eq("абзац Repeatable остаётся в описании",
+   "**Repeatable.**" in inv["agonizing-blast"]["description_md"], True)
+eq("воззвания учатся (learned), без стоимости",
+   {(o["selection"], o["cost"] is None) for o in inv.values()}, {("learned", True)})
+
+meta = {o["slug"]: o for o in parse_class_options(read("en", "10_Sorcerer.md"), "en")}
+eq("метамагия: родитель ур. 2", meta["careful-spell"]["feature"],
+   {"key": "metamagic", "name": "Metamagic", "level": 2})
+eq("метамагия: стоимость 2 очка", meta["heightened-spell"]["cost"],
+   {"text": "2 Sorcery Points", "amount": 2, "unit": "sorcery-point"})
+eq("метамагия: стоимость по вариантам",
+   sorted((s, o["cost"]["amount"]) for s, o in meta.items() if o["cost"]["amount"] != 1),
+   [("heightened-spell", 2), ("quickened-spell", 2)])
+eq("строка стоимости не дублируется в описании",
+   any("Cost:" in o["description_md"] for o in meta.values()), False)
+
+rogue = {o["slug"]: o for o in parse_class_options(read("en", "09_Rogue.md"), "en")}
+eq("Cunning Strike: стоимость в костях Скрытой атаки", rogue["knock-out"]["cost"],
+   {"text": "6d6", "amount": 6, "unit": "sneak-attack-die"})
+eq("Cunning Strike: имя без «(Cost: …)»", rogue["poison"]["name"], "Poison")
+eq("абзац-продолжение остаётся у варианта", "Poisoner's Kit" in rogue["poison"]["description_md"], True)
+eq("Devious Strikes пополняет Cunning Strike", (rogue["daze"]["feature"]["key"], rogue["daze"]["granted_by"]),
+   ("cunning-strike", {"key": "devious-strikes", "name": "Devious Strikes", "level": 14}))
+eq("Supreme Sneak: курсивный вариант подкласса Thief",
+   (rogue["stealth-attack"]["subclass"], rogue["stealth-attack"]["feature"]["key"],
+    rogue["stealth-attack"]["granted_by"]["key"], rogue["stealth-attack"]["cost"]["amount"]),
+   ("thief", "cunning-strike", "supreme-sneak", 1))
+eq("Cunning Strike выбирается при применении", {o["selection"] for o in rogue.values()}, {"on_use"})
+
+barb = {o["slug"]: o for o in parse_class_options(read("en", "01_Barbarian.md"), "en")}
+eq("Brutal Strike: «of your choice» вне фразы-маркера — всё равно on_use",
+   {o["selection"] for o in barb.values()}, {"on_use"})
+eq("Improved Brutal Strike пополняет Brutal Strike",
+   (barb["sundering-blow"]["feature"]["key"], barb["sundering-blow"]["granted_by"]["key"]),
+   ("brutal-strike", "improved-brutal-strike"))
+cleric = parse_class_options(read("en", "03_Cleric.md"), "en")
+eq("жрец: варианты и родители", [(o["slug"], o["feature"]["key"], o["selection"]) for o in cleric],
+   [("protector", "divine-order", "learned"), ("thaumaturge", "divine-order", "learned"),
+    ("divine-strike", "blessed-strikes", "learned"), ("potent-spellcasting", "blessed-strikes", "learned")])
+hunter = parse_class_options(read("en", "08_Ranger.md"), "en")
+eq("следопыт: варианты подкласса Hunter", {(o["subclass"], o["feature"]["key"]) for o in hunter},
+   {("hunter", "hunter-s-prey"), ("hunter", "defensive-tactics")})
+monk = parse_class_options(read("en", "06_Monk.md"), "en")
+eq("монах: Open Hand Technique при применении", [(o["slug"], o["subclass"], o["selection"]) for o in monk],
+   [(s, "warrior-of-the-open-hand", "on_use") for s in ("addle", "push", "topple")])
+eq("Fast Hands («one of the following.») — не список вариантов",
+   any(o["feature"]["key"] == "fast-hands" for o in rogue.values()), False)
+
+for bad_text, label in (
+        (read("en", "10_Sorcerer.md").replace("*Cost: 2 Sorcery Points*", "*Cost: 2 Focus Points*", 1),
+         "unknown option cost '2 Focus Points'"),
+        (read("en", "11_Warlock.md").replace("Level 15+ Warlock*", "Level 15+ Warlock, Elf*", 1),
+         "unknown prerequisite 'Elf'"),
+        (read("en", "11_Warlock.md").replace('"Eldritch Invocation Options"', '"Invocation List"', 1),
+         "no feature refers to section 'Eldritch Invocation Options'")):
+    try:
+        parse_class_options(bad_text, "en")
+        eq(f"{label} — ValueError", "разобрано", "ValueError")
+    except ValueError as exc:
+        eq(f"{label} — ValueError", label in str(exc), True)
+
+eq("перечисления схемы = перечисления парсера",
+   (CLASS_OPTION_SCHEMA["properties"]["cost"]["anyOf"][1]["properties"]["unit"]["enum"],
+    CLASS_OPTION_SCHEMA["properties"]["prerequisites"]["anyOf"][1]["properties"]["cantrip"]["enum"]),
+   (list(COST_UNITS), [None, *CANTRIP_PREREQS]))
+
+opts = {}
+for src in config.SOURCES:
+    if src["ver"] == "srd52" and src["type"] == "class_option":
+        text = (ROOT / "src/dnd" / src["file"]).read_text(encoding="utf-8")
+        opts.setdefault(("srd52", src["lang"], "class-options"), []).extend(
+            parse_class_options(text, src["lang"]))
+opts_pristine = copy.deepcopy(opts)
+eq("живой корпус: 64 варианта в EN и RU",
+   [len(opts[("srd52", lang, "class-options")]) for lang in ("en", "ru")], [64, 64])
+disambiguate_option_slugs(opts)
+eq("живой корпус: выравнивание вариантов без ошибок", align_class_options(opts), [])
+eq("живой корпус: слаги вариантов уникальны", slug_collisions(opts, "dnd"), [])
+for lang in ("en", "ru"):
+    by = {o["slug"]: o for o in opts[("srd52", lang, "class-options")]}
+    eq(f"{lang}: одноимённые варианты — с префиксом класса, прочие — нет",
+       sorted(s for s in by if "potent-spellcasting" in s) + [s for s in ("primal-strike",) if s in by],
+       ["cleric-potent-spellcasting", "druid-potent-spellcasting", "primal-strike"])
+    eq(f"{lang}: предусловие-воззвание резолвится в слаг",
+       by["devouring-blade"]["prerequisites"]["options"], ["thirsting-blade"])
+    try:
+        import jsonschema
+        for o in by.values():
+            jsonschema.validate(o, CLASS_OPTION_SCHEMA)
+    except ImportError:
+        pass
+ru_opt = {o["slug"]: o for o in opts[("srd52", "ru", "class-options")]}
+eq("RU воззвание: коды из EN, текст свой",
+   (ru_opt["agonizing-blast"]["name"], ru_opt["agonizing-blast"]["name_en"],
+    ru_opt["agonizing-blast"]["feature"], ru_opt["agonizing-blast"]["prerequisites"]),
+   ("Мучительный заряд", "Agonizing Blast",
+    {"key": "eldritch-invocations", "name": "Таинственные воззвания", "level": 1},
+    {"text": "Колдун 2-го уровня или выше, заговор колдуна, наносящий урон", "level": 2,
+     "options": [], "cantrip": "damage"}))
+eq("RU Eldritch Spear: RU-текст с дистанцией, код — из EN",
+   (ru_opt["eldritch-spear"]["prerequisites"]["text"].endswith("с дистанцией 10+ футов"),
+    ru_opt["eldritch-spear"]["prerequisites"]["cantrip"]), (True, "damage"))
+eq("RU Devious Strikes: granted_by со своим именем и ключом EN", ru_opt["daze"]["granted_by"],
+   {"key": "devious-strikes", "name": "Коварные удары", "level": 14})
+eq("RU стоимость метамагии своя, единица общая", ru_opt["heightened-spell"]["cost"],
+   {"text": "2 очка чародейства", "amount": 2, "unit": "sorcery-point"})
+
+
+def options_errors(mutate):
+    data = copy.deepcopy(opts_pristine)
+    mutate(data)
+    disambiguate_option_slugs(data)
+    return align_class_options(data)
+
+
+eq("RU-вариант с другой стоимостью — ошибка структуры",
+   any("class-options: структура RU" in e for e in options_errors(
+       lambda d: next(o for o in d[("srd52", "ru", "class-options")]
+                     if o["name"] == "Усложнённое заклинание")["cost"].update(amount=9))), True)
+eq("RU без одного варианта — ошибка числа записей",
+   any("class-options: EN 64, RU 63" in e for e in options_errors(
+       lambda d: d[("srd52", "ru", "class-options")].pop())), True)
+eq("неизвестное воззвание в предусловии — ошибка сборки с именем",
+   any("«Thirsting Bladee»" in e for e in options_errors(
+       lambda d: next(o for o in d[("srd52", "en", "class-options")] if o["slug"] == "devouring-blade")
+       ["prerequisites"]["options"].__setitem__(0, "Thirsting Bladee"))), True)
+dup = copy.deepcopy(opts)
+dup[("srd52", "en", "class-options")][1]["slug"] = dup[("srd52", "en", "class-options")][0]["slug"]
+eq("дубль слага внутри ресурса — ошибка сборки",
+   any("class-options: слаг" in e for e in slug_collisions(dup, "dnd")), True)
+
 if failures:
-    print(f"❌ classes/subclasses ({len(failures)}):")
+    print(f"❌ classes/subclasses/class-options ({len(failures)}):")
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print("✅ classes/subclasses: разбор, выравнивание RU и резолв always_prepared")
+print("✅ classes/subclasses/class-options: разбор, выравнивание RU, резолв always_prepared и предусловий")

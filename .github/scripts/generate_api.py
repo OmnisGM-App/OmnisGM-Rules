@@ -6,6 +6,7 @@ Usage:
 """
 
 import argparse
+import copy
 import json
 import re
 import sys
@@ -27,7 +28,7 @@ import importlib
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins,
-                     parse_class, parse_subclasses,
+                     parse_class, parse_class_options, parse_subclasses,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
@@ -439,6 +440,82 @@ def resolve_always_prepared(all_data: dict) -> list[str]:
     return errors
 
 
+def disambiguate_option_slugs(all_data: dict) -> None:
+    """Одноимённые варианты разных классов (Potent Spellcasting у жреца и друида) — слаг
+    с префиксом класса; остальные слаги не трогаем. RU получает слаг из EN при выравнивании."""
+    for (ver, lang, resource), entities in all_data.items():
+        if lang != "en" or resource != "class-options":
+            continue
+        counts: dict[str, int] = {}
+        for e in entities:
+            counts[e["slug"]] = counts.get(e["slug"], 0) + 1
+        for e in entities:
+            if counts[e["slug"]] > 1:
+                e["slug"] = f"{e['class']}-{e['slug']}"
+
+
+def _option_shape(o: dict) -> tuple:
+    return (o["feature"]["level"], o["granted_by"] and o["granted_by"]["level"], o["selection"],
+            o["cost"] and (o["cost"]["amount"], o["cost"]["unit"]), o["repeatable"],
+            o["prerequisites"] is None)
+
+
+def align_class_options(all_data: dict) -> list[str]:
+    """Варианты классовых умений (#374): имена воззваний в prerequisites.options → слаги того же
+    класса; RU — слаг, name_en и коды из EN по позиции (главы построчно парны, форма обязана совпасть)."""
+    errors = []
+    for (ver, lang, resource), entities in all_data.items():
+        if lang != "en" or resource != "class-options":
+            continue
+        by_name = {(e["class"], e["name"]): e["slug"] for e in entities}
+        for e in entities:
+            prereq = e["prerequisites"]
+            if not prereq:
+                continue
+            slugs = []
+            for name in prereq["options"]:
+                slug = by_name.get((e["class"], name))
+                if slug is None:
+                    errors.append(f"{ver}/en/{e['slug']}: вариант-предусловие «{name}» не найден")
+                slugs.append(slug)
+            prereq["options"] = slugs
+    for (ver, lang, resource), ru_entities in all_data.items():
+        if lang != "ru" or resource != "class-options":
+            continue
+        en_entities = all_data.get((ver, "en", resource), [])
+        if len(en_entities) != len(ru_entities):
+            errors.append(f"{ver}/{resource}: EN {len(en_entities)}, RU {len(ru_entities)}")
+            continue
+        for r, e in zip(ru_entities, en_entities):
+            if _option_shape(r) != _option_shape(e):
+                errors.append(f"{ver}/{resource}: структура RU «{r['name']}» ≠ EN «{e['name']}»")
+                continue
+            r["slug"], r["name_en"] = e["slug"], e["name"]
+            r["class"], r["subclass"] = e["class"], e["subclass"]
+            r["feature"]["key"] = e["feature"]["key"]
+            if e["granted_by"]:
+                r["granted_by"]["key"] = e["granted_by"]["key"]
+            if e["prerequisites"]:
+                for k in ("level", "options", "cantrip"):
+                    r["prerequisites"][k] = copy.copy(e["prerequisites"][k])
+    return errors
+
+
+def slug_collisions(all_data: dict, system: str) -> list[str]:
+    """Дубли слага внутри (ver, lang, resource) — каждый молча перезаписал бы чужую сущность."""
+    errors = []
+    for (ver, lang, resource), entities in all_data.items():
+        seen: dict[str, str] = {}
+        for e in entities:
+            slug = e.get("slug")
+            if slug in seen:
+                errors.append(f"{system}/{ver}/{lang}/{resource}: слаг '{slug}' — "
+                              f"'{seen[slug]}' и '{e.get('name')}'")
+            else:
+                seen[slug] = e.get("name")
+    return errors
+
+
 def write_json(path: Path, data) -> None:
     """Write data as JSON with consistent formatting."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -688,6 +765,9 @@ def main():
         elif entity_type == "subclass":
             entities = parse_subclasses(text, lang)
             resource = "subclasses"
+        elif entity_type == "class_option":
+            entities = parse_class_options(text, lang)
+            resource = "class-options"
         elif entity_type == "glossary_defs":
             entities = parse_defs(text, source["section"])
             resource = out_resource
@@ -757,9 +837,11 @@ def main():
         # Resolve cross-references
         resolve_cross_refs(all_data)
         inject_spell_subclasses(all_data, src_root)
-        class_errors = align_classes(all_data) + resolve_always_prepared(all_data)
+        disambiguate_option_slugs(all_data)
+        class_errors = (align_classes(all_data) + resolve_always_prepared(all_data)
+                        + align_class_options(all_data))
         if class_errors:
-            print("Error: классы/подклассы (#365):", file=sys.stderr)
+            print("Error: классы/подклассы/варианты умений (#365, #374):", file=sys.stderr)
             for msg in class_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)
@@ -768,16 +850,7 @@ def main():
     # entity-страницы/JSON-роута другой сущностью (напр. срезание «(specialty)» слепляет
     # два навыка). Fail-fast для всех 4 игр — коллизию не увидишь глазами. При срабатывании:
     # развести имена (inline-English / _FP_COLLISION_RU_EN / уникальный слаг в источнике).
-    slug_errors = []
-    for (ver, lang, resource), entities in all_data.items():
-        seen: dict[str, str] = {}
-        for e in entities:
-            slug = e.get("slug")
-            if slug in seen:
-                slug_errors.append(f"{SYSTEM}/{ver}/{lang}/{resource}: слаг '{slug}' — "
-                                   f"'{seen[slug]}' и '{e.get('name')}'")
-            else:
-                seen[slug] = e.get("name")
+    slug_errors = slug_collisions(all_data, SYSTEM)
     if slug_errors:
         print("Error: дублирующиеся слаги (молчаливая перезапись сущностей):", file=sys.stderr)
         for msg in slug_errors:

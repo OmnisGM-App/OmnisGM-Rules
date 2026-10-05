@@ -621,6 +621,62 @@ SUBCLASS_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Вариант классового умения (#374). unit и cantrip — закрытые перечисления: новая форма
+# стоимости или предусловия обязана прийти правкой парсера и схемы, а не строкой мимо них
+# (те же списки — COST_UNITS / CANTRIP_PREREQS в parsers/classes.py, равенство держит тест).
+_FEATURE_REF = {
+    "type": "object",
+    "properties": {
+        "key": {"type": "string"},
+        "name": {"type": "string"},
+        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+    },
+    "required": ["key", "name", "level"],
+    "additionalProperties": False,
+}
+
+CLASS_OPTION_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Class Option",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "class": {"type": "string"},
+        "subclass": {"type": ["string", "null"]},
+        "feature": _FEATURE_REF,
+        "granted_by": {"anyOf": [_FEATURE_REF, {"type": "null"}]},
+        "selection": {"type": "string", "enum": ["learned", "on_use"]},
+        "prerequisites": {"anyOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "level": {"type": ["integer", "null"], "minimum": 1, "maximum": 20},
+                "options": {"type": "array", "items": {"type": "string"}},
+                "cantrip": {"enum": [None, "damage", "damage-attack-roll"]},
+            },
+            "required": ["text", "level", "options", "cantrip"],
+            "additionalProperties": False,
+        }]},
+        "cost": {"anyOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "amount": {"type": "integer", "minimum": 1},
+                "unit": {"type": "string", "enum": ["sorcery-point", "sneak-attack-die"]},
+            },
+            "required": ["text", "amount", "unit"],
+            "additionalProperties": False,
+        }]},
+        "repeatable": {"type": "boolean"},
+        "description_md": {"type": "string", "minLength": 1},
+    },
+    "required": ["slug", "name", "name_en", "class", "subclass", "feature", "granted_by",
+                 "selection", "prerequisites", "cost", "repeatable", "description_md"],
+    "additionalProperties": False,
+}
+
 # -- Daggerheart schemas -------------------------------------------------------
 # Имена ресурсов DH (ancestries/communities/domain-cards/adversaries/environments)
 # не пересекаются с D&D → схемы применяются только к Daggerheart. rules-terms НЕ
@@ -742,6 +798,7 @@ RESOURCE_SCHEMAS = {
     "feats": FEAT_SCHEMA,
     "classes": CLASS_SCHEMA,
     "subclasses": SUBCLASS_SCHEMA,
+    "class-options": CLASS_OPTION_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
     "communities": DH_SECTION_SCHEMA,
