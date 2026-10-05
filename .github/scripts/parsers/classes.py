@@ -72,24 +72,32 @@ def _tables(lines: list[str]) -> list[dict]:
     return out
 
 
-def _features(lines: list[str]) -> list[dict]:
-    """`Level N: Name` headings (### or ####); the body runs to the next heading of any level."""
+def _feature_blocks(lines: list[str], lang: str | None = None) -> list[dict]:
+    """`Level N: Name` headings (### or ####); the body runs to the next heading of any level.
+    With `lang`, subclass headings are tracked too: `subclass` is its name (None for the class)."""
     out = []
     current = None
+    subclass = None
     for line in lines:
         if line.startswith("#"):
-            if current:
-                out.append(current)
-                current = None
+            current = None
+            m = _SUBCLASS_RE[lang].match(_clean(line)) if lang else None
+            if m:
+                subclass = m.group(2).strip()
+                continue
             m = _FEATURE_RE.match(_clean(line))
             if m:
-                current = {"level": int(m.group(1)), "name": m.group(2).strip(), "body": []}
+                current = {"level": int(m.group(1)), "name": m.group(2).strip(),
+                           "subclass": subclass, "body": []}
+                out.append(current)
         elif current is not None:
             current["body"].append(line)
-    if current:
-        out.append(current)
+    return out
+
+
+def _features(lines: list[str]) -> list[dict]:
     return [{"level": f["level"], "name": f["name"],
-             "description_md": "\n".join(f["body"]).strip()} for f in out]
+             "description_md": "\n".join(f["body"]).strip()} for f in _feature_blocks(lines)]
 
 
 def _abilities(text: str) -> list[str]:
@@ -338,18 +346,18 @@ _META_LINE_RE = re.compile(r"^\*(Prerequisite|Требование|Cost|Стои
 _REPEATABLE_RE = re.compile(r"^\*\*(?:Repeatable|Повторяемое)\.\*\*")
 _CANTRIP_PREREQS = {"a Warlock Cantrip That Deals Damage": "damage",
                     "a Warlock Cantrip That Deals Damage via an Attack Roll": "damage-attack-roll"}
-COST_UNITS = ("sorcery-point", "sneak-attack-die")
+_COST_FORMS = {re.compile(r"(\d+) (?:Sorcery Points?|очк\w+ чародейства)"): "sorcery-point",
+               re.compile(r"(\d+)d6"): "sneak-attack-die"}
+COST_UNITS = tuple(_COST_FORMS.values())
 CANTRIP_PREREQS = tuple(_CANTRIP_PREREQS.values())
 
 
 def _option_cost(text: str) -> dict:
     """Closed set of units: an unknown cost form is a build error, not a free-text field."""
-    m = re.fullmatch(r"(\d+) (?:Sorcery Points?|очк\w+ чародейства)", text)
-    if m:
-        return {"text": text, "amount": int(m.group(1)), "unit": "sorcery-point"}
-    m = re.fullmatch(r"(\d+)d6", text)
-    if m:
-        return {"text": text, "amount": int(m.group(1)), "unit": "sneak-attack-die"}
+    for form, unit in _COST_FORMS.items():
+        m = form.fullmatch(text)
+        if m:
+            return {"text": text, "amount": int(m.group(1)), "unit": unit}
     raise ValueError(f"unknown option cost {text!r}")
 
 
@@ -369,28 +377,6 @@ def _option_prerequisites(text: str, lang: str) -> dict:
             out["options"].append(part[:-len(" Invocation")])
         else:
             raise ValueError(f"unknown prerequisite {part!r} in {text!r}")
-    return out
-
-
-def _feature_blocks(lines: list[str], lang: str) -> list[dict]:
-    """`Level N: Name` features of the whole chapter with their subclass (None for the class)."""
-    out = []
-    current = None
-    subclass = None
-    for line in lines:
-        if line.startswith("#"):
-            current = None
-            m = _SUBCLASS_RE[lang].match(_clean(line))
-            if m:
-                subclass = m.group(2).strip()
-                continue
-            m = _FEATURE_RE.match(_clean(line))
-            if m:
-                current = {"level": int(m.group(1)), "name": m.group(2).strip(),
-                           "subclass": subclass, "body": []}
-                out.append(current)
-        elif current is not None:
-            current["body"].append(line)
     return out
 
 
@@ -468,7 +454,7 @@ def _section_options(lines, features, class_name, lang) -> list[dict]:
 def _inline_options(features, class_name, lang) -> list[dict]:
     en = lang == "en"
     out = []
-    base = None  # последний базовый список главы — родитель для списков-расширений
+    bases = []  # базовые списки главы — родители для списков-расширений
     for f in features:
         paras = _paragraphs(f["body"])
         first = next((n for n, p in enumerate(paras) if _BOLD_OPTION_RE.match(p)), len(paras))
@@ -477,8 +463,14 @@ def _inline_options(features, class_name, lang) -> list[dict]:
         if not marker:
             continue
         extension = bool(_EXTENSION_RE[lang].search(intro))
-        if extension and base is None:
-            raise ValueError(f"{class_name}: {f['name']!r} extends no earlier option list")
+        base = None
+        if extension:
+            # EN называет пополняемый список по имени; RU склоняет имя («Хитрого удара»), поэтому
+            # там берём последний базовый список, а промах ловит сверка формы RU↔EN (уровень родителя).
+            named = [b for b in bases if b["feature"]["name"] in intro] if lang == "en" else bases[-1:]
+            if not named:
+                raise ValueError(f"{class_name}: {f['name']!r} extends no earlier option list")
+            base = named[-1]
         sentence = re.split(r"(?<=[.!?])\s", intro[marker.start():], maxsplit=1)[0]
         selection = base["selection"] if extension else (
             "learned" if _LEARNED_RE[lang].search(sentence) else "on_use")
@@ -500,7 +492,7 @@ def _inline_options(features, class_name, lang) -> list[dict]:
                                None, False, {**parent, "subclass": f["subclass"]}, granted_by,
                                selection, class_name, en))
         if not extension:
-            base = {"feature": f, "selection": selection}
+            bases.append({"feature": f, "selection": selection})
     return out
 
 

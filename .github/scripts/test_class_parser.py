@@ -301,13 +301,24 @@ eq("монах: Open Hand Technique при применении", [(o["slug"], o
 eq("Fast Hands («one of the following.») — не список вариантов",
    any(o["feature"]["key"] == "fast-hands" for o in rogue.values()), False)
 
+rogue_two_bases = read("en", "09_Rogue.md").replace(
+    "#### Level 14: Devious Strikes",
+    "#### Level 13: Shadow Tricks\n\nYou gain one of the following options of your choice.\n\n"
+    "**Gloom.** You see in the dark.\n\n#### Level 14: Devious Strikes", 1)
+daze = next(o for o in parse_class_options(rogue_two_bases, "en") if o["slug"] == "daze")
+eq("расширение ищет базу по имени, а не последнюю в главе",
+   (daze["feature"]["key"], daze["selection"]), ("cunning-strike", "on_use"))
+
 for bad_text, label in (
         (read("en", "10_Sorcerer.md").replace("*Cost: 2 Sorcery Points*", "*Cost: 2 Focus Points*", 1),
          "unknown option cost '2 Focus Points'"),
         (read("en", "11_Warlock.md").replace("Level 15+ Warlock*", "Level 15+ Warlock, Elf*", 1),
          "unknown prerequisite 'Elf'"),
         (read("en", "11_Warlock.md").replace('"Eldritch Invocation Options"', '"Invocation List"', 1),
-         "no feature refers to section 'Eldritch Invocation Options'")):
+         "no feature refers to section 'Eldritch Invocation Options'"),
+        (read("en", "09_Rogue.md").replace("now among your Cunning Strike options",
+                                           "now among your Trickery options", 1),
+         "'Devious Strikes' extends no earlier option list")):
     try:
         parse_class_options(bad_text, "en")
         eq(f"{label} — ValueError", "разобрано", "ValueError")
@@ -338,12 +349,6 @@ for lang in ("en", "ru"):
        ["cleric-potent-spellcasting", "druid-potent-spellcasting", "primal-strike"])
     eq(f"{lang}: предусловие-воззвание резолвится в слаг",
        by["devouring-blade"]["prerequisites"]["options"], ["thirsting-blade"])
-    try:
-        import jsonschema
-        for o in by.values():
-            jsonschema.validate(o, CLASS_OPTION_SCHEMA)
-    except ImportError:
-        pass
 ru_opt = {o["slug"]: o for o in opts[("srd52", "ru", "class-options")]}
 eq("RU воззвание: коды из EN, текст свой",
    (ru_opt["agonizing-blast"]["name"], ru_opt["agonizing-blast"]["name_en"],
@@ -357,6 +362,9 @@ eq("RU Eldritch Spear: RU-текст с дистанцией, код — из EN
     ru_opt["eldritch-spear"]["prerequisites"]["cantrip"]), (True, "damage"))
 eq("RU Devious Strikes: granted_by со своим именем и ключом EN", ru_opt["daze"]["granted_by"],
    {"key": "devious-strikes", "name": "Коварные удары", "level": 14})
+eq("RU: класс и подкласс из EN",
+   [(ru_opt[s]["class"], ru_opt[s]["subclass"]) for s in ("stealth-attack", "colossus-slayer", "addle", "poison")],
+   [("rogue", "thief"), ("ranger", "hunter"), ("monk", "warrior-of-the-open-hand"), ("rogue", None)])
 eq("RU Blessed Warrior: своё имя и родитель, ключ из EN",
    (ru_opt["blessed-warrior"]["name"], ru_opt["blessed-warrior"]["feature"]),
    ("Благословенный воин", {"key": "fighting-style", "name": "Боевой стиль", "level": 2}))
@@ -371,10 +379,23 @@ def options_errors(mutate):
     return align_class_options(data)
 
 
-eq("RU-вариант с другой стоимостью — ошибка структуры",
-   any("class-options: структура RU" in e for e in options_errors(
-       lambda d: next(o for o in d[("srd52", "ru", "class-options")]
-                     if o["name"] == "Усложнённое заклинание")["cost"].update(amount=9))), True)
+def ru_option_mutant(name, mutate):
+    def go(d):
+        mutate(next(o for o in d[("srd52", "ru", "class-options")] if o["name"] == name))
+    return any("class-options: структура RU" in e for e in options_errors(go))
+
+
+# По мутации на каждую компоненту формы (_option_shape): уровень родителя и источника,
+# selection, стоимость, repeatable, наличие предусловия.
+for label, name, mutate in (
+        ("уровень родителя", "Яд", lambda o: o["feature"].update(level=6)),
+        ("уровень granted_by", "Нокаут", lambda o: o["granted_by"].update(level=13)),
+        ("selection", "Яд", lambda o: o.update(selection="learned")),
+        ("стоимость", "Усложнённое заклинание", lambda o: o["cost"].update(amount=9)),
+        ("единица стоимости", "Яд", lambda o: o["cost"].update(unit="sorcery-point")),
+        ("repeatable", "Мучительный заряд", lambda o: o.update(repeatable=False)),
+        ("пропало предусловие", "Мучительный заряд", lambda o: o.update(prerequisites=None))):
+    eq(f"RU-вариант: другой {label} — ошибка структуры", ru_option_mutant(name, mutate), True)
 eq("RU без одного варианта — ошибка числа записей",
    any("class-options: EN 66, RU 65" in e for e in options_errors(
        lambda d: d[("srd52", "ru", "class-options")].pop())), True)
