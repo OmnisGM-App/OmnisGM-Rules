@@ -73,9 +73,10 @@ jobs:
       - name: Unit — разбор строки типа и скорости статблока
         run: python3 .github/scripts/test_monster_parser.py
 
-      # Ресурсы classes/subclasses (#365): слаги always_prepared — связь подкласса с
-      # заклинанием у компендиума Table; отказы (неизвестное имя, RU ≠ EN) — на синтетике.
-      - name: Unit — классы и подклассы JSON API
+      # Ресурсы classes/subclasses (#365) и class-options (#374): слаги always_prepared и
+      # предусловий-воззваний — связи для компендиума Table; счёт вариантов сверен с главами;
+      # отказы (неизвестное имя, стоимость, RU ≠ EN) — на синтетике.
+      - name: Unit — классы, подклассы и варианты умений JSON API
         run: python3 .github/scripts/test_class_parser.py
 
       # Автоправки чистки после конвертации PDF: их регресс виден только на синтетике —
