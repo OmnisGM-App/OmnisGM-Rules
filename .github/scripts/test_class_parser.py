@@ -207,7 +207,7 @@ CLASS_FILES = sorted(p.name for p in (ROOT / "src/dnd/srd-5.2/en/03_Classes").gl
                      if not p.name.startswith("00_"))
 # Сверка с исходником: число вариантов на главу, посчитанное руками по markdown.
 EXPECTED_OPTIONS = {"01_Barbarian.md": 4, "02_Bard.md": 0, "03_Cleric.md": 4, "04_Druid.md": 4,
-                    "05_Fighter.md": 0, "06_Monk.md": 3, "07_Paladin.md": 0, "08_Ranger.md": 4,
+                    "05_Fighter.md": 0, "06_Monk.md": 3, "07_Paladin.md": 1, "08_Ranger.md": 5,
                     "09_Rogue.md": 7, "10_Sorcerer.md": 10, "11_Warlock.md": 28, "12_Wizard.md": 0}
 for lang in ("en", "ru"):
     eq(f"{lang}: вариантов по главам",
@@ -285,8 +285,16 @@ eq("жрец: варианты и родители", [(o["slug"], o["feature"]["
    [("protector", "divine-order", "learned"), ("thaumaturge", "divine-order", "learned"),
     ("divine-strike", "blessed-strikes", "learned"), ("potent-spellcasting", "blessed-strikes", "learned")])
 hunter = parse_class_options(read("en", "08_Ranger.md"), "en")
-eq("следопыт: варианты подкласса Hunter", {(o["subclass"], o["feature"]["key"]) for o in hunter},
-   {("hunter", "hunter-s-prey"), ("hunter", "defensive-tactics")})
+eq("следопыт: варианты подкласса Hunter и Druidic Warrior класса",
+   {(o["subclass"], o["feature"]["key"]) for o in hunter},
+   {(None, "fighting-style"), ("hunter", "hunter-s-prey"), ("hunter", "defensive-tactics")})
+paladin = parse_class_options(read("en", "07_Paladin.md"), "en")
+eq("паладин: Blessed Warrior — альтернатива черте Fighting Style",
+   [(o["slug"], o["feature"], o["selection"], o["cost"], o["prerequisites"]) for o in paladin],
+   [("blessed-warrior", {"key": "fighting-style", "name": "Fighting Style", "level": 2},
+     "learned", None, None)])
+eq("Druidic Warrior: learned", [o["selection"] for o in hunter if o["slug"] == "druidic-warrior"],
+   ["learned"])
 monk = parse_class_options(read("en", "06_Monk.md"), "en")
 eq("монах: Open Hand Technique при применении", [(o["slug"], o["subclass"], o["selection"]) for o in monk],
    [(s, "warrior-of-the-open-hand", "on_use") for s in ("addle", "push", "topple")])
@@ -318,8 +326,8 @@ for src in config.SOURCES:
         opts.setdefault(("srd52", src["lang"], "class-options"), []).extend(
             parse_class_options(text, src["lang"]))
 opts_pristine = copy.deepcopy(opts)
-eq("живой корпус: 64 варианта в EN и RU",
-   [len(opts[("srd52", lang, "class-options")]) for lang in ("en", "ru")], [64, 64])
+eq("живой корпус: 66 вариантов в EN и RU",
+   [len(opts[("srd52", lang, "class-options")]) for lang in ("en", "ru")], [66, 66])
 disambiguate_option_slugs(opts)
 eq("живой корпус: выравнивание вариантов без ошибок", align_class_options(opts), [])
 eq("живой корпус: слаги вариантов уникальны", slug_collisions(opts, "dnd"), [])
@@ -349,6 +357,9 @@ eq("RU Eldritch Spear: RU-текст с дистанцией, код — из EN
     ru_opt["eldritch-spear"]["prerequisites"]["cantrip"]), (True, "damage"))
 eq("RU Devious Strikes: granted_by со своим именем и ключом EN", ru_opt["daze"]["granted_by"],
    {"key": "devious-strikes", "name": "Коварные удары", "level": 14})
+eq("RU Blessed Warrior: своё имя и родитель, ключ из EN",
+   (ru_opt["blessed-warrior"]["name"], ru_opt["blessed-warrior"]["feature"]),
+   ("Благословенный воин", {"key": "fighting-style", "name": "Боевой стиль", "level": 2}))
 eq("RU стоимость метамагии своя, единица общая", ru_opt["heightened-spell"]["cost"],
    {"text": "2 очка чародейства", "amount": 2, "unit": "sorcery-point"})
 
@@ -365,7 +376,7 @@ eq("RU-вариант с другой стоимостью — ошибка ст
        lambda d: next(o for o in d[("srd52", "ru", "class-options")]
                      if o["name"] == "Усложнённое заклинание")["cost"].update(amount=9))), True)
 eq("RU без одного варианта — ошибка числа записей",
-   any("class-options: EN 64, RU 63" in e for e in options_errors(
+   any("class-options: EN 66, RU 65" in e for e in options_errors(
        lambda d: d[("srd52", "ru", "class-options")].pop())), True)
 eq("неизвестное воззвание в предусловии — ошибка сборки с именем",
    any("«Thirsting Bladee»" in e for e in options_errors(

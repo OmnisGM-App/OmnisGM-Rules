@@ -311,7 +311,8 @@ def parse_subclasses(text: str, lang: str) -> list[dict]:
 # --- Варианты классовых умений (#374) -------------------------------------------------------
 # Два вида списков. Раздел «### … Options» / «### Опции …» с вариантами-#### (воззвания,
 # метамагия) — родитель тот, чьё тело ссылается на раздел в кавычках. И варианты абзацами
-# «**Имя.**» в теле умения после фразы-маркера («one of the following options…»); список-
+# «**Имя.**» в теле умения после фразы-маркера («one of the following options…», у Fighting
+# Style — «you can choose the option below» вместо черты); список-
 # расширение («…are now among your Cunning Strike options») пополняет ближайший предыдущий
 # базовый список главы, и тогда умение-источник — granted_by.
 
@@ -319,14 +320,17 @@ _OPTION_SECTION_RE = {"en": re.compile(r"^### (.+ Options)$"), "ru": re.compile(
 _LIST_MARKER_RE = {
     "en": re.compile(r"one of the following (?:sacred roles|(?:feature )?options|(?:[\w ]+ )?effects)"
                      r"|following effect options|following effects are now among"
-                     r"|following [\w ]+ option\b"),
+                     r"|following [\w ]+ option\b|choose the option below"),
     "ru": re.compile(r"од(?:ин|н\w+) из следующих (?:священных ролей|опций|эффектов)"
                      r"|следующие варианты эффектов|[Сс]ледующие эффекты теперь входят"
-                     r"|следующую опцию"),
+                     r"|следующую опцию|выбрать опцию ниже"),
 }
 _EXTENSION_RE = {"en": re.compile(r"now among your|You gain the following [\w ]+ option\b"),
                  "ru": re.compile(r"теперь входят в|следующую опцию")}
-_OF_CHOICE = {"en": "of your choice", "ru": "на свой выбор"}
+# «Выбрал и держишь» — фраза-маркер с «of your choice» или альтернатива черте боевого стиля
+# («Instead of choosing one of those feats, you can choose the option below»: Blessed Warrior).
+_LEARNED_RE = {"en": re.compile(r"of your choice|choose the option below"),
+               "ru": re.compile(r"на свой выбор|выбрать опцию ниже")}
 _COST_WORD = r"(?:Cost|Стоимость)"
 _BOLD_OPTION_RE = re.compile(rf"^\*\*(.+?)(?: \({_COST_WORD}: ([^)]+)\))?\.\*\* ?(.*)$")
 _INLINE_OPTION_RE = re.compile(rf"\*([^*]+?) \({_COST_WORD}: ([^)]+)\)\.\* (.+)$")
@@ -477,7 +481,7 @@ def _inline_options(features, class_name, lang) -> list[dict]:
             raise ValueError(f"{class_name}: {f['name']!r} extends no earlier option list")
         sentence = re.split(r"(?<=[.!?])\s", intro[marker.start():], maxsplit=1)[0]
         selection = base["selection"] if extension else (
-            "learned" if _OF_CHOICE[lang] in sentence else "on_use")
+            "learned" if _LEARNED_RE[lang].search(sentence) else "on_use")
         parent, granted_by = (base["feature"], f) if extension else (f, None)
         items = []
         inline = _INLINE_OPTION_RE.search(paras[first - 1]) if first else None
