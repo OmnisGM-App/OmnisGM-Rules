@@ -14,6 +14,10 @@ name: Claude auto-review
 # `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
 # путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
 # PreToolUse) приезжают с плагином 1.7.0 сами.
+# v2.47 (2026-10-07): журнал — маркер рана против дубля при ошибке GitHub, текст в лог
+#   при неудаче, без паузы после последней попытки (ревью Table PR #849).
+# v2.46 (2026-10-06): шаг журнала — continue-on-error + 3 попытки: сбой GitHub на нём
+#   больше не красит джобу после опубликованного ревью (run 37520167275).
 # v2.45 (2026-09-29): сбой symbols.py пишется строкой в INDEX.md (линзы видят причину, а не
 # голую ошибку Read); проза «одним git grep» снята — grep идёт на каждое имя (ревью Table#742).
 # v2.44 (2026-09-29): Prepare собирает 07-symbols.md — экспорты, тронутые диффом, и их
@@ -454,13 +458,29 @@ jobs:
 
       - name: Post journal observation
         if: always()
+        # Журнал некритичен: сбой GitHub на этом шаге не должен красить джобу (run 37520167275 —
+        # GraphQL "Something went wrong" после успешной публикации ревью). Три попытки, затем warning.
+        continue-on-error: true
         env:
           RUN_OUT: ${{ steps.prep.outputs.out }}
           GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
         shell: bash
         run: |
-          [ -f "$RUN_OUT/95-journal.md" ] || { echo "наблюдений нет"; exit 0; }
-          gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$RUN_OUT/95-journal.md"
+          f="$RUN_OUT/95-journal.md"
+          [ -f "$f" ] || { echo "наблюдений нет"; exit 0; }
+          # Маркер рана: ошибка GitHub не гарантирует, что addComment не применился —
+          # перед повтором ищем маркер в свежих комментах, чтобы не постить дубль.
+          marker="<!-- run ${GITHUB_RUN_ID} -->"
+          printf '\n%s\n' "$marker" >> "$f"
+          posted() { gh api "repos/OmnisGM-App/claude-plugins/issues/1/comments?per_page=10&sort=created&direction=desc" --jq '.[].body' 2>/dev/null | grep -qF "$marker"; }
+          for i in 1 2 3; do
+            [ "$i" -gt 1 ] && posted && { echo "комментарий уже записан (попытка $((i-1)))"; exit 0; }
+            gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$f" && exit 0
+            [ "$i" -lt 3 ] && { echo "попытка $i не удалась, пауза"; sleep $((i * 10)); }
+          done
+          echo "::group::Журнал, который не удалось отправить"; cat "$f"; echo "::endgroup::"
+          echo "::warning::журнал не отправлен после 3 попыток — текст в логе этого шага"
+          exit 1
 
       - name: Dump execution transcript (debug)
         if: always()
