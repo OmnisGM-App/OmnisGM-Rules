@@ -19,6 +19,10 @@ check('ровно одно правило для /img/**', rules.length === 1);
 const headers = Object.fromEntries((rules[0]?.headers ?? []).map((/** @type {{ key: string, value: string }} */ h) => [h.key.toLowerCase(), h.value]));
 check('/img/** — Access-Control-Allow-Origin: *', headers['access-control-allow-origin'] === '*');
 check('/img/** — Cache-Control: no-cache', headers['cache-control'] === 'no-cache');
+// Другое совпадающее правило с ACAO подменило бы значение: приоритет правил `headers` Firebase не документирует.
+const withAcao = config.hosting.headers.filter((/** @type {{ headers: { key: string }[] }} */ r) =>
+  r.headers.some((h) => h.key.toLowerCase() === 'access-control-allow-origin'));
+check('Access-Control-Allow-Origin задан только в правиле /img/**', withAcao.length === 1 && withAcao[0].source === '/img/**');
 
 if (failed) {
   console.error(`\n${failed} проверок не прошло`);

@@ -66,11 +66,19 @@ for p in "/img/dnd/creatures/aboleth.webp" "/sw.js"; do
   [ -n "$nosniff" ] || echo "    ⚠ $p — без security-заголовков (мерж правил не сработал; кэш при этом цел)"
 done
 
-# CORS картинок (#378): сторонняя PWA кэширует их только с этим заголовком.
+# CORS картинок (#378): сторонняя PWA кэширует их только с этим заголовком — и на 304 тоже,
+# браузер из-за no-cache почти всегда ревалидирует картинку.
 echo "  CORS картинок:"
-acao="$(header "/img/dnd/creatures/aboleth.webp" "access-control-allow-origin")"
-if [ "$acao" = "*" ]; then echo "    ✔ /img/** — Access-Control-Allow-Origin: *"
-else echo "    ✘ /img/** — Access-Control-Allow-Origin «${acao}», ожидали *"; fail=1; fi
+img="/img/dnd/creatures/aboleth.webp"
+acao="$(header "$img" "access-control-allow-origin")"
+if [ "$acao" = "*" ]; then echo "    ✔ $img — Access-Control-Allow-Origin: *"
+else echo "    ✘ $img — Access-Control-Allow-Origin «${acao}», ожидали *"; fail=1; fi
+etag="$(header "$img" "etag")"
+revalidated="$(curl -sSI -H "If-None-Match: $etag" -H "Origin: https://table.omnisgm.com" "$BASE$img" | tr -d '\r')"
+status="$(printf '%s\n' "$revalidated" | awk 'NR==1{print $2}')"
+acao304="$(printf '%s\n' "$revalidated" | awk -F': ' 'tolower($1)=="access-control-allow-origin"{print $2; exit}')"
+if [ "$acao304" = "*" ]; then echo "    ✔ $img (условный запрос, HTTP $status) — Access-Control-Allow-Origin: *"
+else echo "    ✘ $img (условный запрос, HTTP $status) — Access-Control-Allow-Origin «${acao304}», ожидали *"; fail=1; fi
 
 [ "$fail" -eq 0 ] && echo "Итог: заголовки на месте." || echo "Итог: есть расхождения — см. ✘ выше."
 exit "$fail"
