@@ -22,7 +22,7 @@ on:
         required: true
         default: auto
         type: choice
-        options: [auto, spells, magic-items, gear, domain-cards, creatures]
+        options: [auto, spells, magic-items, class-options, rules, gear, domain-cards, creatures]
       count:
         description: 'Сколько картинок за прогон (потолок 10 — см. COUNT в шаге генерации)'
         required: false

@@ -4,6 +4,7 @@ import { fromHtml } from 'hast-util-from-html';
 import { toHtml } from 'hast-util-to-html';
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import RulesTermEntry from '../../../../../../components/RulesTermEntry.astro';
+import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../../lib/entity-image.mjs';
 import { autolinkTree } from '../../../../../../lib/rehype-entity-autolink.mjs';
 import { sourceLinkFor } from '../../../../../../lib/rules-glossary-source.mjs';
 import { loadEntities, VERSION_SLUG } from '../../../../../../lib/entities';
@@ -68,9 +69,14 @@ const upLink = {
 
 const kind = t('Состояние', 'Condition');
 const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
+// Картинка термина (#380): она же og:image страницы.
+const image = entityImage('dnd', 'rules', entity.slug);
 ---
 
 <ReaderShell
+  image={image ?? undefined}
+  imageWidth={image ? ENTITY_IMAGE_SIZE : undefined}
+  imageHeight={image ? ENTITY_IMAGE_SIZE : undefined}
   contentSource={{ game: 'dnd', ver, lang, resource: 'conditions' }}
   lang={lang}
   currentId={PARENT_NAV[ver]}
@@ -81,6 +87,7 @@ const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: v
   upLink={upLink}
 >
   <RulesTermEntry
+    image={image}
     name={entity.name}
     nameEn={entity.name_en}
     lang={lang}

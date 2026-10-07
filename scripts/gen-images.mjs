@@ -55,6 +55,11 @@ const KINDS = {
       ],
     },
   },
+  // Варианты классовых умений и понятия правил (#380): абстрактные знаки, не предметы и не существа.
+  'class-options': { dir: 'class-options', label: 'варианты классовых умений', prompt: 'concepts', api: { dnd: ['class-options'] } },
+  // Действия, термины, области воздействия и состояния — одна папка: в 5.1 состояния повторены
+  // терминами с теми же слагами, и картинка у одного понятия должна быть одна.
+  rules: { dir: 'rules', label: 'понятия правил', prompt: 'concepts', api: { dnd: ['actions', 'rules-terms', 'areas-of-effect', 'conditions'] } },
   gear: {
     dir: 'gear',
     label: 'снаряжение',
@@ -74,7 +79,7 @@ const KINDS = {
 };
 
 // Порядок для KIND=auto; полноту сверяет orderProblems() (#291).
-const ORDER = ['spells', 'magic-items', 'gear', 'domain-cards', 'creatures'];
+const ORDER = ['spells', 'magic-items', 'class-options', 'rules', 'gear', 'domain-cards', 'creatures'];
 
 // Функция, а не падение при импорте: иначе юнит-тест недостижим.
 export function orderProblems() {
@@ -146,6 +151,13 @@ const PROMPTS = {
     'colour glow through the symbol while the violet rim light stays present; if the spell has no obvious colour, ' +
     `keep it violet only. ${STYLE_TAIL}`,
 
+  concepts: (d) =>
+    `A minimalist emblem representing ${d} ` +
+    'The emblem is a single clear symbol — a gesture, a stance, a stylised figure in motion or an abstract sign — floating ' +
+    'in empty space, with no scene and no environment. It reads instantly at small size, like an ability icon in a game ' +
+    'UI: one dominant shape, no busy detail. Keep it violet unless the concept has an obvious colour (fire, poison, ' +
+    `radiance), then let that ONE colour glow while the violet rim light stays present. ${STYLE_TAIL}`,
+
   'magic-items': (d) =>
     `A dark silhouette of a single fantasy object: ${d} ` +
     'One object only, shown whole and centered against empty space — no hands, no character, no background scene, ' +
@@ -188,6 +200,15 @@ const DESCRIBE = {
       'Reply with ONLY the one sentence: no preamble, no quotes, no lists, no extra commentary.',
     ].join('\n');
   },
+
+  concepts: (e) => [
+    `In ONE short sentence, describe a single ICON that stands for the fantasy tabletop RPG rule or ability "${e.name}".`,
+    'Describe it IN YOUR OWN WORDS from what the name suggests — do not quote or paraphrase any rulebook text.',
+    'Give ONLY the visual: one symbol — a gesture, a stance, a silhouette of a figure in motion, or an abstract sign',
+    '(an eye, a shield, an arrow, a chain, a spiral) — and its single colour if one is obvious; otherwise it stays violet.',
+    'No scene, no environment, no text; the icon floats in empty space and reads at small size.',
+    'Reply with ONLY the one sentence: no preamble, no quotes, no lists, no extra commentary.',
+  ].join('\n'),
 
   'magic-items': (e) => {
     const facts = [e.type, e.rarity && `${e.rarity} rarity`].filter(Boolean).join(', ');

@@ -1,6 +1,8 @@
 ---
 // Общая разметка страницы термина глоссария правил (issue #106): состояния, термины,
-// действия, области эффекта.
+// действия, области эффекта. Картинка (#380) — в шапке через EntityHead.
+import EntityHead from './EntityHead.astro';
+import { ENTITY_IMAGE_SIZE } from '../lib/entity-image.mjs';
 interface Source { href: string; label: string }
 interface Related { slug: string; name: string }
 interface Props {
@@ -12,14 +14,17 @@ interface Props {
   related?: Related[];            // родственные (соседи-состояния/действия/AoE); [] у обычных терминов
   relatedBase?: string;           // база ссылок родственных: /{lang}/dnd/{ver}/rules-glossary/{type}
   relatedLabel?: string;          // «Другие состояния» и т.п.
+  image?: string | null;
 }
-const { name, nameEn = null, lang, bodyHtml, source = null, related = [], relatedBase = '', relatedLabel = '' } = Astro.props;
+const { name, nameEn = null, lang, bodyHtml, source = null, related = [], relatedBase = '', relatedLabel = '', image = null } = Astro.props;
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 ---
-<h1>
-  {name}
-  {lang === 'ru' && nameEn && <span class="ent-en">{nameEn}</span>}
-</h1>
+<EntityHead image={image} alt={name} size={ENTITY_IMAGE_SIZE}>
+  <h1>
+    {name}
+    {lang === 'ru' && nameEn && <span class="ent-en">{nameEn}</span>}
+  </h1>
+</EntityHead>
 
 <Fragment set:html={bodyHtml} />
 
