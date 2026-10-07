@@ -1,7 +1,7 @@
 #!/usr/bin/env node
 // Генератор картинок сущностей (issue #202): очередь — от JSON API Rules минус уже лежащие webp.
 // Текст SRD codex НЕ передаётся — визуальная идея своими словами, не производная лицензионного текста.
-// env: KIND (creatures|spells|domain-cards|magic-items|gear), COUNT, ONLY=slug1,slug2, CHECK_ONLY=1, DESC_ONLY=1,
+// env: KIND (вид из KINDS или auto), COUNT, ONLY=slug1,slug2, CHECK_ONLY=1, DESC_ONLY=1,
 //      DUMP_PROMPT=1, PUSH_EACH=1, GIT_BRANCH, API_ROOT.
 // Требует: codex CLI + CODEX_HOME, cwebp, git.
 
@@ -25,6 +25,7 @@ const GIT_BRANCH = process.env.GIT_BRANCH || 'images-queue';
  * @type {Record<string, {
  *   dir: string, label: string, prompt: string,
  *   api?: Record<string, string[]>,
+ *   versions?: Record<string, string[]>,
  *   md?: Record<string, string[]>,
  * }>}
  */
@@ -59,7 +60,14 @@ const KINDS = {
   'class-options': { dir: 'class-options', label: 'варианты классовых умений', prompt: 'concepts', api: { dnd: ['class-options'] } },
   // Действия, термины, области воздействия и состояния — одна папка: в 5.1 состояния повторены
   // терминами с теми же слагами, и картинка у одного понятия должна быть одна.
-  rules: { dir: 'rules', label: 'понятия правил', prompt: 'concepts', api: { dnd: ['actions', 'rules-terms', 'areas-of-effect', 'conditions'] } },
+  rules: {
+    dir: 'rules',
+    label: 'понятия правил',
+    prompt: 'concepts',
+    api: { dnd: ['actions', 'rules-terms', 'areas-of-effect', 'conditions'] },
+    // В 5.1 `rules-terms` — ещё и таблица сокращений (AC, C, V…): рисовать их нечего.
+    versions: { 'rules-terms': ['srd52'] },
+  },
   gear: {
     dir: 'gear',
     label: 'снаряжение',
@@ -310,13 +318,15 @@ const slugify = (/** @type {string} */ name) =>
 /**
  * @param {Record<string, string[]>|undefined} sources
  * @param {(e: any) => void} add
+ * @param {Record<string, string[]>} [versions] коллекция → версии, из которых она берётся
  */
-function fromApi(sources, add) {
+function fromApi(sources, add, versions = {}) {
   for (const [game, resources] of Object.entries(sources || {})) {
     const gameDir = resolve(API_ROOT, game);
     if (!existsSync(gameDir)) continue;
     for (const ver of readdirSync(gameDir)) {
       for (const resource of resources) {
+        if (versions[resource] && !versions[resource].includes(ver)) continue;
         const file = resolve(gameDir, ver, 'en', resource, 'all.json');
         if (!existsSync(file)) continue;
         for (const e of JSON.parse(readFileSync(file, 'utf8'))) {
@@ -367,12 +377,12 @@ function fromMarkdown(sources, add) {
 }
 
 function loadQueue(kind = KIND) {
-  const { api, md } = KINDS[kind];
+  const { api, md, versions } = KINDS[kind];
   /** @type {Map<string, any>} */
   const bySlug = new Map();
   // Слаг уникален внутри игры; версии и источники дедуплицируем — картинка одна на сущность.
   const add = (/** @type {any} */ e) => { if (e.slug && !bySlug.has(`${e.game}/${e.slug}`)) bySlug.set(`${e.game}/${e.slug}`, e); };
-  fromApi(api, add);
+  fromApi(api, add, versions);
   fromMarkdown(md, add);
   return [...bySlug.values()].sort((/** @type {any} */ a, /** @type {any} */ b) => (a.game + a.slug).localeCompare(b.game + b.slug));
 }

@@ -61,15 +61,24 @@ test('авторство картинок — отдельной строкой 
 const api = (p: string) => JSON.parse(fs.readFileSync(`src/data/api/${p}`, 'utf-8'));
 
 // Разделы — очередь генератора (`KINDS` в scripts/gen-images.mjs), а не свой список.
-type PendingSource = { json: string; game: string; version: string; segment: string };
+type PendingSource = { json: string; game: string; version: string; segment: string; collection: string };
 
 // Коллекция API и сегмент её маршрута совпадают не всегда, а общей карты для этого нет.
-const PAGE_SEGMENT: Record<string, string> = { monsters: 'monsters-a-z' };
+const PAGE_SEGMENT: Record<string, string> = {
+  monsters: 'monsters-a-z',
+  actions: 'rules-glossary/action',
+  'rules-terms': 'rules-glossary/term',
+  'areas-of-effect': 'rules-glossary/area-of-effect',
+  conditions: 'rules-glossary/conditions',
+};
+// Варианты классовых умений (#379) показываются на странице своей группы, у варианта — якорь.
+const GROUP_PAGES = new Set(['class-options']);
 
-const pageUrl = (s: PendingSource, slug: string) =>
-  `/ru/${s.game}/${s.version}/${s.segment}/${slug}/`;
+const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string } }) => (GROUP_PAGES.has(s.collection)
+  ? `/ru/${s.game}/${s.version}/${s.segment}/${entity.feature!.key}/#${entity.slug}`
+  : `/ru/${s.game}/${s.version}/${s.segment}/${entity.slug}/`);
 const routeFile = (s: PendingSource) =>
-  `src/pages/[lang]/${s.game}/[version]/${s.segment}/[slug].astro`;
+  `src/pages/[lang]/${s.game}/[version]/${s.segment}/${GROUP_PAGES.has(s.collection) ? '[group]' : '[slug]'}.astro`;
 
 /** Коллекции очереди, от вида, который генератор закрывает первым, к последнему. */
 function pendingSources(): PendingSource[] {
@@ -83,9 +92,11 @@ function pendingSources(): PendingSource[] {
         const version = VERSION_SLUG[ver];
         if (!version) continue;
         for (const collection of collections) {
+          const versions = KINDS[kind].versions?.[collection];
+          if (versions && !versions.includes(ver)) continue;
           const json = `${game}/${ver}/ru/${collection}/all.json`;
           if (!fs.existsSync(`src/data/api/${json}`)) continue;
-          out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection });
+          out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection, collection });
         }
       }
     }
@@ -96,7 +107,7 @@ function pendingSources(): PendingSource[] {
 function pendingEntity() {
   for (const src of pendingSources()) {
     const found = api(src.json).find((e: { image?: string }) => !e.image);
-    if (found) return { entity: found, url: pageUrl(src, found.slug) };
+    if (found) return { entity: found, url: pageUrl(src, found) };
   }
   return null;
 }
