@@ -8,9 +8,9 @@ import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/en
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
 import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
-import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
+import { countPhrase, countLeadEn, pluralEn, pluralRu } from '../../../../../lib/plural.mjs';
 import {
-  classChapterHref, classLabel, classOptionGroupHref, groupClassOptions,
+  classChapterHref, classLabel, classOptionGroupHref, groupClassOptions, subclassNames,
   type ClassOption, type ClassOptionGroup, type Lang,
 } from '../../../../../lib/class-option-groups';
 
@@ -20,14 +20,17 @@ export function getStaticPaths() {
   const paths = [];
   for (const lang of ['en', 'ru'] as const) {
     const groups = groupClassOptions(loadEntities('srd52', lang, 'class-options') as unknown as ClassOption[]);
+    const subclasses = Object.fromEntries(subclassNames(loadEntities('srd52', lang, 'subclasses') as unknown as Array<{ slug: string; name: string }>));
     for (const group of groups) {
-      paths.push({ params: { lang, version: VERSION_SLUG.srd52, group: group.key }, props: { lang, group, groups } });
+      paths.push({ params: { lang, version: VERSION_SLUG.srd52, group: group.key }, props: { lang, group, groups, subclasses } });
     }
   }
   return paths;
 }
 
-const { lang, group, groups } = Astro.props as { lang: Lang; group: ClassOptionGroup; groups: ClassOptionGroup[] };
+const { lang, group, groups, subclasses } = Astro.props as {
+  lang: Lang; group: ClassOptionGroup; groups: ClassOptionGroup[]; subclasses: Record<string, string>;
+};
 const ver = 'srd52';
 const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
@@ -35,6 +38,11 @@ const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const classes = group.classes.map((slug) => ({ slug, name: classLabel(slug, lang), href: classChapterHref(slug, lang) }));
 const classNames = classes.map((c) => c.name).join(t(' и ', ' and '));
 const multiClass = classes.length > 1;
+// Группа подкласса (Охотник, Воин открытой ладони): умение есть только у него, не у всего класса.
+const subclassName = group.subclass ? subclasses[group.subclass] ?? group.subclass : null;
+const owner = subclassName
+  ? t(`подкласса ${subclassName} (${classNames})`, `${subclassName} subclass (${classNames})`)
+  : t(`класса ${classNames}`, `${classNames} class`);
 
 const render = (md: string, selfSlug: string) => {
   const tree = fromHtml(marked.parse(md, { async: false }), { fragment: true });
@@ -43,9 +51,10 @@ const render = (md: string, selfSlug: string) => {
 };
 const meta = (o: ClassOption) => [
   multiClass ? classLabel(o.class, lang) : '',
+  !group.subclass && o.subclass ? `${t('Подкласс', 'Subclass')}: ${subclasses[o.subclass] ?? o.subclass}` : '',
   o.prerequisites?.text ? `${t('Требование', 'Prerequisite')}: ${o.prerequisites.text}` : '',
   o.cost?.text ? `${t('Стоимость', 'Cost')}: ${o.cost.text}` : '',
-  o.granted_by ? `${t('Открывает', 'Unlocked by')}: ${o.granted_by.name} (${t('уровень', 'level')} ${o.granted_by.level})` : '',
+  o.granted_by ? `${t('Открывается умением', 'Unlocked by')}: ${o.granted_by.name} (${t('уровень', 'level')} ${o.granted_by.level})` : '',
   o.selection === 'on_use' ? t('выбирается при применении', 'chosen when used') : t('выбирается заранее', 'chosen in advance'),
   o.repeatable ? t('можно брать повторно', 'repeatable') : '',
 ].filter(Boolean).join(' · ');
@@ -61,8 +70,8 @@ const headings = options.map((o) => ({ depth: 2, slug: o.slug, text: o.name }));
 const title = pageTitle({ name: group.name, kind: t('Варианты умения', 'Feature Options'), lang, game: 'dnd', version: ver });
 const description = hubDescription({
   base: t(
-    `${group.name} — ${countPhrase(options.length, lang, ['вариант', 'варианта', 'вариантов'], ['option', 'options'])} умения класса ${classNames} (с ${group.level} уровня) в D&D ${verLabel}: требования, стоимость и текст каждого.`,
-    `${group.name}: ${countLeadEn(options.length)} ${classNames} feature ${pluralEn(options.length, ['option', 'options'])} (from level ${group.level}) in D&D ${verLabel}, with prerequisites, cost and full text.`,
+    `${countPhrase(options.length, lang, ['вариант', 'варианта', 'вариантов'], ['option', 'options'])} умения «${group.name}» ${owner} (с ${group.level} уровня) в D&D ${verLabel}: требования, стоимость и текст каждого.`,
+    `${group.name}: ${countLeadEn(options.length)} ${pluralEn(options.length, ['option', 'options'])} of the ${owner} feature (from level ${group.level}) in D&D ${verLabel}, with prerequisites, cost and full text.`,
   ),
   names: options.map((o) => o.name),
   lang,
@@ -82,11 +91,14 @@ const others = groups.filter((g) => g.key !== group.key);
 >
   <h1>{group.name}</h1>
   <p class="class-option-lead">
-    {t('Умение', 'Feature of the')}{' '}
+    {subclassName ? t(`Умение подкласса ${subclassName} класса `, `${subclassName} subclass feature of the `) : t('Умение класса ', 'Feature of the ')}
     {classes.map((c, i) => (
       <>{i > 0 ? t(' и ', ' and ') : ''}{c.href ? <a href={c.href}>{c.name}</a> : c.name}</>
     ))}
-    {t(`, с ${group.level} уровня. Вариантов: ${options.length}.`, ` class, from level ${group.level}. ${options.length} options.`)}
+    {t(
+      `, с ${group.level} уровня. ${options.length} ${pluralRu(options.length, ['вариант', 'варианта', 'вариантов'])}.`,
+      ` class, from level ${group.level}. ${options.length} ${pluralEn(options.length, ['option', 'options'])}.`,
+    )}
   </p>
 
   {options.map((o) => (
@@ -112,6 +124,6 @@ const others = groups.filter((g) => g.key !== group.key);
 </ReaderShell>
 
 <style>
-  .class-option-meta { color: var(--rd-muted, inherit); font-size: 0.9em; }
+  .class-option-meta { color: var(--og-text-muted); font-size: 0.9em; }
   .class-option-image { float: right; width: 96px; height: 96px; margin: 0 0 8px 16px; border-radius: 12px; }
 </style>

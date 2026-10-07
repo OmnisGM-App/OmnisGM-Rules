@@ -15,6 +15,15 @@ test('группа: все варианты на одной странице, я
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 });
 
+test('группа подкласса: лид называет подкласс; смешанная группа подписывает подкласс у варианта', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/class-options/hunter-s-prey/');
+  await expect(page.locator('.class-option-lead')).toContainText('Умение подкласса Охотник класса Следопыт, с 3 уровня');
+  await page.goto('/en/dnd/srd-5.2/class-options/cunning-strike/');
+  const stealth = page.getByTestId('class-option').filter({ has: page.locator('#stealth-attack') });
+  await expect(stealth.locator('.class-option-meta')).toContainText('Subclass: Thief');
+  await expect(stealth.locator('.class-option-meta')).toContainText('Unlocked by');
+});
+
 test('группа двух классов: у варианта подписан класс', async ({ page }) => {
   await page.goto('/en/dnd/srd-5.2/class-options/fighting-style/');
   const meta = page.getByTestId('class-option').locator('.class-option-meta');
@@ -23,9 +32,13 @@ test('группа двух классов: у варианта подписан
   await expect(meta.nth(1)).toContainText('Ranger');
 });
 
-test('хаб: таблица групп ведёт на их страницы', async ({ page }) => {
+test('хаб: запись в навигации, колонки таблицы, подкласс у группы подкласса, ссылка на группу', async ({ page }) => {
   const res = await page.goto('/en/dnd/srd-5.2/class-options/all/');
   expect(res?.status()).toBe(200);
+  await expect(page.locator('a[href="/en/dnd/srd-5.2/class-options/all/"]').first()).toBeAttached();
+  const table = page.getByTestId('class-option-groups');
+  await expect(table.locator('thead th')).toHaveText(['Group', 'Class', 'Level', 'Options']);
+  await expect(table.locator('tr', { has: page.getByRole('link', { name: "Hunter's Prey" }) }).locator('td').nth(1)).toHaveText('Ranger (Hunter)');
   const metamagic = page.getByTestId('class-option-groups').getByRole('link', { name: 'Metamagic' });
   await expect(metamagic).toHaveAttribute('href', '/en/dnd/srd-5.2/class-options/metamagic/');
   await metamagic.click();

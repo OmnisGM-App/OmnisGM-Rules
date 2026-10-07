@@ -9,23 +9,35 @@ const FEATURE_HEADING = /^(?:Level|Уровень) \d+: (.+)$/;
 /** @type {Record<'en' | 'ru', (name: string) => string>} */
 const LINK_TEXT = { en: (name) => `All ${name} options on one page →`, ru: (name) => `Все варианты «${name}» на одной странице →` };
 
+/** Адрес страницы группы вариантов. */
+export const classOptionGroupHref = (/** @type {string} */ key, /** @type {'en' | 'ru'} */ lang) =>
+  `/${lang}/dnd/srd-5.2/class-options/${key}/`;
+
 // Сборка заменяет апостроф типографским («Hunter’s Prey»), в данных он прямой.
 const norm = (/** @type {string} */ s) => s.replace(/[’‘]/g, "'").trim();
 
-/** @type {Map<string, Map<string, { key: string, classes: Set<string> }>>} язык → имя умения → группа */
+/** @typedef {Map<string, { key: string, classes: Set<string> }>} GroupsByName имя умения → группа */
+
+/** Группы по имени умения из записей `class-options`. */
+export function groupsByName(/** @type {{ class: string, feature: { key: string, name: string } }[]} */ options) {
+  /** @type {GroupsByName} */
+  const map = new Map();
+  for (const o of options) {
+    const name = norm(o.feature.name);
+    const group = map.get(name) ?? { key: o.feature.key, classes: new Set() };
+    group.classes.add(o.class);
+    map.set(name, group);
+  }
+  return map;
+}
+
+/** @type {Map<string, GroupsByName>} */
 const byLang = new Map();
-function groupsByName(/** @type {string} */ lang) {
+function groupsFor(/** @type {'en' | 'ru'} */ lang) {
   let map = byLang.get(lang);
   if (!map) {
-    map = new Map();
     const file = path.join(DATA_ROOT, 'dnd', 'srd52', lang, 'class-options', 'all.json');
-    const options = fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : [];
-    for (const o of options) {
-      const name = norm(o.feature.name);
-      const group = map.get(name) ?? { key: o.feature.key, classes: new Set() };
-      group.classes.add(o.class);
-      map.set(name, group);
-    }
+    map = groupsByName(fs.existsSync(file) ? JSON.parse(fs.readFileSync(file, 'utf8')) : []);
     byLang.set(lang, map);
   }
   return map;
@@ -34,26 +46,27 @@ function groupsByName(/** @type {string} */ lang) {
 const textOf = (/** @type {any} */ node) =>
   node.type === 'text' ? node.value : (node.children ?? []).map(textOf).join('');
 
-/** Вставляет ссылки в дерево главы; экспорт — для юнита. */
-export function linkClassOptionGroups(/** @type {any} */ tree, /** @type {'en' | 'ru'} */ lang, /** @type {string} */ classSlug) {
-  const groups = groupsByName(lang);
+/** Вставляет ссылки в дерево главы класса `classSlug`. */
+export function linkClassOptionGroups(
+  /** @type {any} */ tree, /** @type {'en' | 'ru'} */ lang, /** @type {string} */ classSlug, /** @type {GroupsByName} */ groups,
+) {
   const done = new Set();
   const walk = (/** @type {any} */ parent) => {
     const kids = parent.children ?? [];
     for (let i = 0; i < kids.length; i++) {
       const node = kids[i];
       if (node.type === 'element' && /^h[2-6]$/.test(node.tagName)) {
-        const name = FEATURE_HEADING.exec(norm(textOf(node)))?.[1];
-        const group = name ? groups.get(name) : undefined;
+        const shown = FEATURE_HEADING.exec(textOf(node).trim())?.[1];
+        const group = shown ? groups.get(norm(shown)) : undefined;
         // Одноимённое умение другого класса (боевой стиль воина — черты) на чужую группу не ведёт.
         const key = group?.classes.has(classSlug) ? group.key : undefined;
-        if (name && key && !done.has(key)) {
+        if (shown && key && !done.has(key)) {
           done.add(key);
           kids.splice(i + 1, 0, {
             type: 'element', tagName: 'p', properties: { className: ['class-option-link'] },
             children: [{
-              type: 'element', tagName: 'a', properties: { href: `/${lang}/dnd/srd-5.2/class-options/${key}/` },
-              children: [{ type: 'text', value: LINK_TEXT[lang](name) }],
+              type: 'element', tagName: 'a', properties: { href: classOptionGroupHref(key, lang) },
+              children: [{ type: 'text', value: LINK_TEXT[lang](shown) }],
             }],
           });
           i++;
@@ -68,6 +81,8 @@ export default function rehypeClassOptionLinks() {
   return (/** @type {any} */ tree, /** @type {any} */ file) => {
     const p = ((file && (file.path || (file.history && file.history[0]))) || '').replace(/\\/g, '/');
     const m = CHAPTER.exec(p);
-    if (m) linkClassOptionGroups(tree, /** @type {'en' | 'ru'} */ (m[1]), m[2].toLowerCase());
+    if (!m) return;
+    const lang = /** @type {'en' | 'ru'} */ (m[1]);
+    linkClassOptionGroups(tree, lang, m[2].toLowerCase(), groupsFor(lang));
   };
 }

@@ -3,20 +3,25 @@ import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
-import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
+import { countPhrase, countLeadEn, pluralEn, pluralRu } from '../../../../../lib/plural.mjs';
 import {
-  classChapterHref, classLabel, classOptionGroupHref, groupClassOptions, type ClassOption, type ClassOptionGroup, type Lang,
+  classChapterHref, classLabel, classOptionGroupHref, groupClassOptions, subclassNames,
+  type ClassOption, type ClassOptionGroup, type Lang,
 } from '../../../../../lib/class-option-groups';
 
 // Хаб вариантов классовых умений (#379): таблица групп со ссылками на их страницы.
 export function getStaticPaths() {
   return (['en', 'ru'] as const).map((lang) => ({
     params: { lang, version: VERSION_SLUG.srd52 },
-    props: { lang, groups: groupClassOptions(loadEntities('srd52', lang, 'class-options') as unknown as ClassOption[]) },
+    props: {
+      lang,
+      groups: groupClassOptions(loadEntities('srd52', lang, 'class-options') as unknown as ClassOption[]),
+      subclasses: Object.fromEntries(subclassNames(loadEntities('srd52', lang, 'subclasses') as unknown as Array<{ slug: string; name: string }>)),
+    },
   }));
 }
 
-const { lang, groups } = Astro.props as { lang: Lang; groups: ClassOptionGroup[] };
+const { lang, groups, subclasses } = Astro.props as { lang: Lang; groups: ClassOptionGroup[]; subclasses: Record<string, string> };
 const ver = 'srd52';
 const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
@@ -46,8 +51,8 @@ const description = hubDescription({
   <h1>{heading}</h1>
   <p>
     {t(
-      `${total} вариантов в ${groups.length} группах. Каждая группа — своя страница со всеми вариантами.`,
-      `${total} options in ${groups.length} groups. Each group has its own page with every option.`,
+      `${total} ${pluralRu(total, ['вариант', 'варианта', 'вариантов'])} в ${groups.length} ${pluralRu(groups.length, ['группе', 'группах', 'группах'])}. Каждая группа — своя страница со всеми вариантами.`,
+      `${total} ${pluralEn(total, ['option', 'options'])} in ${groups.length} ${pluralEn(groups.length, ['group', 'groups'])}. Each group has its own page with every option.`,
     )}
   </p>
   <div class="rd-table-wrap">
@@ -62,7 +67,7 @@ const description = hubDescription({
             <td>{g.classes.map((c, i) => {
               const href = classChapterHref(c, lang);
               return <>{i > 0 ? ', ' : ''}{href ? <a href={href}>{classLabel(c, lang)}</a> : classLabel(c, lang)}</>;
-            })}</td>
+            })}{g.subclass && <> ({subclasses[g.subclass] ?? g.subclass})</>}</td>
             <td>{g.level}</td>
             <td>{g.options.length}</td>
           </tr>
