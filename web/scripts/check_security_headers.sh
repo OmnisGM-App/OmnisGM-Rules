@@ -66,5 +66,11 @@ for p in "/img/dnd/creatures/aboleth.webp" "/sw.js"; do
   [ -n "$nosniff" ] || echo "    ⚠ $p — без security-заголовков (мерж правил не сработал; кэш при этом цел)"
 done
 
+# CORS картинок (#378): сторонняя PWA кэширует их только с этим заголовком.
+echo "  CORS картинок:"
+acao="$(header "/img/dnd/creatures/aboleth.webp" "access-control-allow-origin")"
+if [ "$acao" = "*" ]; then echo "    ✔ /img/** — Access-Control-Allow-Origin: *"
+else echo "    ✘ /img/** — Access-Control-Allow-Origin «${acao}», ожидали *"; fail=1; fi
+
 [ "$fail" -eq 0 ] && echo "Итог: заголовки на месте." || echo "Итог: есть расхождения — см. ✘ выше."
 exit "$fail"
