@@ -33,7 +33,7 @@ const hidden = (id: string, ru: string, en: string, path: string): NavPage => ({
 const group = (id: string, ru: string, en: string, kids: NavNode[]): NavGroup => ({ id, ru, en, kids });
 
 // Классы D&D — одни и те же имена в 5.2/5.1 (разный индекс папки).
-const DND_CLASSES: [string, string, string][] = [
+export const DND_CLASSES: [string, string, string][] = [
   ['Barbarian', 'Варвар', 'Barbarian'], ['Bard', 'Бард', 'Bard'],
   ['Cleric', 'Жрец', 'Cleric'], ['Druid', 'Друид', 'Druid'],
   ['Fighter', 'Воин', 'Fighter'], ['Monk', 'Монах', 'Monk'],
@@ -76,6 +76,8 @@ export const NAV: NavNode[] = [
         // Индекс всех терминов Глоссария правил (08_RulesGlossary) со ссылками на их
         // programmatic-страницы — даёт им внутренние входящие ссылки (иначе sitemap-сироты, #106).
         page('d52-rulesterms-hub', 'Глоссарий правил (все термины)', 'Rules Glossary (All Terms)', '/dnd/srd-5.2/rules-glossary/all/'),
+        // Варианты классовых умений (#379): воззвания, метамагия, приёмы — страница на группу.
+        page('d52-classoptions-hub', 'Варианты классовых умений', 'Class Feature Options', '/dnd/srd-5.2/class-options/all/'),
         page('d52-origins-hub', 'Виды и предыстории', 'Species & Backgrounds', '/dnd/srd-5.2/character-origins/all/'),
         // Дубли-списки 14_Glossary/02-05 редиректятся 301 на /all/-хабы (firebase.json).
         page('d52-spells-hub', 'Заклинания (справочник)', 'Spells (Reference)', '/dnd/srd-5.2/spells/all/'),

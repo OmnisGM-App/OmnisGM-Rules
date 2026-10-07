@@ -1,0 +1,73 @@
+---
+import ReaderShell from '../../../../../components/ReaderShell.astro';
+import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
+import { pageTitle } from '../../../../../lib/page-title';
+import { hubDescription } from '../../../../../lib/entity-facts';
+import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
+import {
+  classChapterHref, classLabel, classOptionGroupHref, groupClassOptions, type ClassOption, type ClassOptionGroup, type Lang,
+} from '../../../../../lib/class-option-groups';
+
+// Хаб вариантов классовых умений (#379): таблица групп со ссылками на их страницы.
+export function getStaticPaths() {
+  return (['en', 'ru'] as const).map((lang) => ({
+    params: { lang, version: VERSION_SLUG.srd52 },
+    props: { lang, groups: groupClassOptions(loadEntities('srd52', lang, 'class-options') as unknown as ClassOption[]) },
+  }));
+}
+
+const { lang, groups } = Astro.props as { lang: Lang; groups: ClassOptionGroup[] };
+const ver = 'srd52';
+const verLabel = VERSION_LABEL[ver];
+const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
+const total = groups.reduce((n, g) => n + g.options.length, 0);
+
+const heading = t('Варианты классовых умений', 'Class Feature Options');
+const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
+const description = hubDescription({
+  base: t(
+    `${countPhrase(total, lang, ['вариант', 'варианта', 'вариантов'], ['option', 'options'])} классовых умений D&D ${verLabel}: таинственные воззвания, метамагия, хитрый и жестокий удары, ордены и другие — по группам со ссылками.`,
+    `${countLeadEn(total)} D&D ${verLabel} class feature ${pluralEn(total, ['option', 'options'])}: Eldritch Invocations, Metamagic, Cunning and Brutal Strikes, orders and more — grouped, with links.`,
+  ),
+  names: groups.map((g) => g.name),
+  lang,
+});
+---
+
+<ReaderShell
+  contentSource={{ game: 'dnd', ver, lang, resource: 'class-options' }}
+  lang={lang}
+  currentId="d52-classoptions-hub"
+  title={title}
+  searchTitle={heading}
+  description={description}
+  headings={[]}
+>
+  <h1>{heading}</h1>
+  <p>
+    {t(
+      `${total} вариантов в ${groups.length} группах. Каждая группа — своя страница со всеми вариантами.`,
+      `${total} options in ${groups.length} groups. Each group has its own page with every option.`,
+    )}
+  </p>
+  <div class="rd-table-wrap">
+    <table class="hub-table" data-testid="class-option-groups">
+      <thead>
+        <tr><th>{t('Группа', 'Group')}</th><th>{t('Класс', 'Class')}</th><th>{t('Уровень', 'Level')}</th><th>{t('Вариантов', 'Options')}</th></tr>
+      </thead>
+      <tbody>
+        {groups.map((g) => (
+          <tr>
+            <td><a href={classOptionGroupHref(g.key, lang)}>{g.name}</a></td>
+            <td>{g.classes.map((c, i) => {
+              const href = classChapterHref(c, lang);
+              return <>{i > 0 ? ', ' : ''}{href ? <a href={href}>{classLabel(c, lang)}</a> : classLabel(c, lang)}</>;
+            })}</td>
+            <td>{g.level}</td>
+            <td>{g.options.length}</td>
+          </tr>
+        ))}
+      </tbody>
+    </table>
+  </div>
+</ReaderShell>
