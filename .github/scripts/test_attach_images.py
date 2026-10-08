@@ -60,6 +60,34 @@ with tempfile.TemporaryDirectory() as tmp:
     check("магпредмет: папки нет вовсе — поля нет", "image" in magic_item, False)
     check("счётчик", count, 3)
 
+    # Понятия правил и варианты классов (#380): состояние и термин 5.1 с тем же слагом делят
+    # папку rules, вариант класса — своя папка.
+    (root / "dnd" / "rules").mkdir(parents=True)
+    (root / "dnd" / "rules" / "blinded.webp").write_bytes(b"webp")
+    (root / "dnd" / "rules" / "dash.webp").write_bytes(b"webp")
+    (root / "dnd" / "rules" / "cone.webp").write_bytes(b"webp")
+    (root / "dnd" / "class-options").mkdir(parents=True)
+    (root / "dnd" / "class-options" / "metamagic-careful-spell.webp").write_bytes(b"webp")
+    condition = {"slug": "blinded"}
+    term = {"slug": "blinded"}
+    action = {"slug": "dash"}
+    action_without = {"slug": "dodge"}
+    area = {"slug": "cone"}
+    option = {"slug": "metamagic-careful-spell"}
+    attach_images({
+        ("srd52", "en", "conditions"): [condition],
+        ("srd51", "en", "rules-terms"): [term],
+        ("srd52", "en", "actions"): [action, action_without],
+        ("srd52", "en", "areas-of-effect"): [area],
+        ("srd52", "en", "class-options"): [option],
+    }, "dnd", root, ORIGIN)
+    check("состояние — из папки rules", condition.get("image"), f"{ORIGIN}/img/dnd/rules/blinded.webp")
+    check("термин 5.1 с тем же слагом — та же картинка", term.get("image"), f"{ORIGIN}/img/dnd/rules/blinded.webp")
+    check("действие — из папки rules", action.get("image"), f"{ORIGIN}/img/dnd/rules/dash.webp")
+    check("действие без файла не получает поля", "image" in action_without, False)
+    check("область воздействия — из папки rules", area.get("image"), f"{ORIGIN}/img/dnd/rules/cone.webp")
+    check("вариант класса — из своей папки", option.get("image"), f"{ORIGIN}/img/dnd/class-options/metamagic-careful-spell.webp")
+
     # Daggerheart: своя игра — свой префикс пути.
     adversary = {"slug": "acid-burrower"}
     environment = {"slug": "haunted-city"}

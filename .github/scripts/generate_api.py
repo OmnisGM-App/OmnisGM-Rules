@@ -630,6 +630,13 @@ IMAGE_DIRS = {
         "equipment": "gear",
         "weapons": "gear",
         "armor": "gear",
+        # Варианты классовых умений и понятия правил (#380). Состояния делят папку с терминами:
+        # в 5.1 они повторены терминами с теми же слагами, картинка у понятия одна.
+        "class-options": "class-options",
+        "actions": "rules",
+        "rules-terms": "rules",
+        "areas-of-effect": "rules",
+        "conditions": "rules",
     },
     "daggerheart": {
         "adversaries": "creatures",
