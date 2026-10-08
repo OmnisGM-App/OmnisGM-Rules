@@ -486,7 +486,9 @@ async function main() {
   }
 
   const seen = new Set(genPngs());
+  /** @type {any[]} */
   const generated = [];
+  /** @type {string[]} */
   const failed = [];
   // Итог пишется по ходу: прогон, оборванный по лимиту джобы, до хвоста цикла не доживает.
   summary('\n### Картинки прогона');
