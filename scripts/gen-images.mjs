@@ -236,14 +236,11 @@ const DESCRIBE = {
 
 // ── codex ──────────────────────────────────────────────────────────────────────
 
-// Час на вызов (#386): зависший codex падает на своей картинке, а не держит прогон до таймаута джобы.
-const CODEX_TIMEOUT_MS = 60 * 60 * 1000;
-
 function runCodexText(/** @type {string} */ instruction) {
   return execFileSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'read-only', '--skip-git-repo-check', instruction],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024, timeout: CODEX_TIMEOUT_MS },
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024 },
   );
 }
 
@@ -278,7 +275,7 @@ function runCodex(/** @type {string} */ instruction) {
   return execFileSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'workspace-write', '--skip-git-repo-check', instruction],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 128 * 1024 * 1024, timeout: CODEX_TIMEOUT_MS },
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 128 * 1024 * 1024 },
   );
 }
 
@@ -489,8 +486,21 @@ async function main() {
   }
 
   const seen = new Set(genPngs());
+  /** @type {any[]} */
   const generated = [];
+  /** @type {string[]} */
   const failed = [];
+  // Итог пишется по ходу: прогон, оборванный по лимиту джобы, до хвоста цикла не доживает.
+  summary('\n### Картинки прогона');
+  const done = (/** @type {any} */ g) => {
+    generated.push(g);
+    // Описание — в итог: по нему видно, ЧТО агент понял, ещё до взгляда на картинку.
+    summary(`- **${g.name}** (\`${g.slug}.webp\`)\n  - _${g.description}_`);
+  };
+  const skip = (/** @type {string} */ slug) => {
+    failed.push(slug);
+    summary(`- ⚠️ \`${slug}\` — пропущен, ретрай в следующем прогоне`);
+  };
 
   for (const e of queue) {
     const rel = relPath(e);
@@ -500,7 +510,7 @@ async function main() {
     try {
       const description = describe(e);
       console.log(`  → ${description}`);
-      if (process.env.DESC_ONLY) { generated.push({ ...e, description }); continue; }
+      if (process.env.DESC_ONLY) { done({ ...e, description }); continue; }
 
       const prompt = PROMPTS[KINDS[KIND].prompt](description);
       if (process.env.DUMP_PROMPT) {
@@ -513,23 +523,23 @@ async function main() {
       fresh.forEach((p) => seen.add(p));
       if (fresh.length === 0) {
         console.error('  codex не сгенерировал PNG — пропуск');
-        failed.push(e.slug);
+        skip(e.slug);
         continue;
       }
       const newest = fresh.map((p) => ({ p, m: statSync(p).mtimeMs })).sort((a, b) => b.m - a.m)[0].p;
       execFileSync('cwebp', ['-resize', '512', '512', '-q', '82', newest, '-o', abs], { stdio: 'inherit' });
-      generated.push({ ...e, description, prompt });
+      done({ ...e, description, prompt });
       console.log(`  ✓ ${rel}`);
       if (PUSH_EACH) commitAndPush(rel, e.name);
     } catch (err) {
-      // PNG упавшего вызова (в т.ч. убитого по таймауту) не должен уйти в картинку следующей сущности.
+      // PNG упавшего вызова не должен уйти в картинку следующей сущности.
       genPngs().forEach((p) => seen.add(p));
       if (isAuthError(err)) {
         summary(AUTH_FIX);
         process.exit(EXIT_AUTH);
       }
       console.error(`  ошибка на ${e.slug}: ${err instanceof Error ? err.message : err}`);
-      failed.push(e.slug);
+      skip(e.slug);
     }
   }
 
@@ -538,11 +548,6 @@ async function main() {
   }
 
   summary(`\n### Сгенерировано: ${generated.length}${failed.length ? `, ошибок: ${failed.length}` : ''}`);
-  if (generated.length) {
-    // Описание — в итог: по нему видно, ЧТО агент понял, ещё до взгляда на картинку.
-    summary(generated.map((g) => `- **${g.name}** (\`${g.slug}.webp\`)\n  - _${g.description}_`).join('\n'));
-  }
-  if (failed.length) summary(`\nПропущены (ретрай в следующем прогоне): ${failed.map((s) => `\`${s}\``).join(', ')}`);
 
   if (process.env.GITHUB_OUTPUT) {
     appendFileSync(process.env.GITHUB_OUTPUT, `generated_count=${generated.length}\n`);

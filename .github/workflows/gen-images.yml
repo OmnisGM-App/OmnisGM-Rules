@@ -24,7 +24,7 @@ on:
         type: choice
         options: [auto, spells, magic-items, class-options, rules, gear, domain-cards, creatures]
       count:
-        description: 'Сколько картинок за прогон (картинка ~1 мин, джоба живёт до 6 ч)'
+        description: 'Сколько картинок за прогон (картинка ~45–50 с, прогон обрывается через час — влезает ~70)'
         required: false
         default: '10'
 
@@ -39,8 +39,8 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    # Максимум GitHub-раннера: ручной запуск берёт сколько попросили, картинка ~1 мин.
-    timeout-minutes: 360
+    # Прогон — не дольше часа (владелец).
+    timeout-minutes: 60
     env:
       # По крону вида нет — просим скрипт выбрать самому (#291). Ручной запуск может
       # назвать конкретный вид: очередь-то не всегда идёт сверху вниз.
