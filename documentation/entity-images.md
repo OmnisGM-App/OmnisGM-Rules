@@ -70,6 +70,8 @@ curl -sI https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp | grep -i cach
 
 Ожидается `no-cache`. Если пришло `max-age=86400` — приоритет обратный, правило нужно поднять выше общего.
 
+**CORS** — отдельно от связки: `/img/**` отдаётся с `Access-Control-Allow-Origin: *` (#378). Без него сторонняя PWA — компендиум Table — может положить картинку в кэш своего service worker'а только opaque-ответом, а Chrome считает каждый такой ответ в квоту мегабайтами. Заголовок нужен и на ответе 304: из-за `no-cache` браузер почти всегда ревалидирует картинку. Держат гейт `web/scripts/test_img_headers.mjs` (заголовок задан ровно в правиле `/img/**`) и `check_security_headers.sh` на проде (безусловный и условный запрос).
+
 ### Edge-кэш Cloudflare
 
 Правило #175 (`web/scripts/check_edge_cache.sh`) висит на всём хосте `rules.omnisgm.com` с `edge_ttl = respect_origin`, поэтому `no-cache` меняет и поведение эджа: копию он держит, но **ревалидирует её при каждом запросе** — новый файл подхватывается сам.
