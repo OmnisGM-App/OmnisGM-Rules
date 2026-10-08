@@ -71,6 +71,7 @@
     "scripts/test_build_fingerprint.mjs",
     "scripts/test_csp_policy.mjs",
     "scripts/test_img_headers.mjs",
+    "scripts/test_class_option_links.mjs",
     "scripts/test_page_description.mjs",
     "scripts/test_plural.mjs",
     "scripts/verify_dist_meta_budget.mjs",
