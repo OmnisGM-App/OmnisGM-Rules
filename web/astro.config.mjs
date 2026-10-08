@@ -5,6 +5,7 @@ import rehypePromoteHeadings from './src/lib/rehype-promote-headings.mjs';
 import rehypeWrapTables from './src/lib/rehype-wrap-tables.mjs';
 import rehypeSortableGlossary from './src/lib/rehype-sortable-glossary.mjs';
 import rehypeEntityAutolink from './src/lib/rehype-entity-autolink.mjs';
+import rehypeClassOptionLinks from './src/lib/rehype-class-option-links.mjs';
 import rehypeKeywordHighlight from './src/lib/keyword-highlight.mjs';
 import rehypeRulesGloss from './src/lib/rules-gloss.mjs';
 import { isIndexableGlossary } from './src/lib/glossary-seo.mjs';
@@ -35,6 +36,6 @@ export default defineConfig({
   markdown: {
     // Порядок важен (#20): уровни заголовков — до сбора TOC; keyword-highlight — после autolink,
     // чтобы не лезть внутрь ссылок (<a> в его SKIP_TAGS).
-    rehypePlugins: [rehypePromoteHeadings, rehypeSortableGlossary, rehypeWrapTables, rehypeEntityAutolink, rehypeKeywordHighlight, rehypeRulesGloss],
+    rehypePlugins: [rehypePromoteHeadings, rehypeSortableGlossary, rehypeWrapTables, rehypeEntityAutolink, rehypeClassOptionLinks, rehypeKeywordHighlight, rehypeRulesGloss],
   },
 });
