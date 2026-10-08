@@ -14,7 +14,7 @@ on:
   # крон вечно брал заклинания и, закрыв их, полгода рапортовал бы «всё готово», пока у
   # соседних видов лежит больше тысячи сущностей без картинок.
   schedule:
-    - cron: '0 */6 * * *' # каждые 6 часов, до 10 картинок за прогон
+    - cron: '0 */6 * * *' # каждые 6 часов, 10 картинок за прогон
   workflow_dispatch:
     inputs:
       kind:
@@ -24,7 +24,7 @@ on:
         type: choice
         options: [auto, spells, magic-items, class-options, rules, gear, domain-cards, creatures]
       count:
-        description: 'Сколько картинок за прогон (потолок 10 — см. COUNT в шаге генерации)'
+        description: 'Сколько картинок за прогон (картинка ~1 мин, джоба живёт до 6 ч)'
         required: false
         default: '10'
 
@@ -39,7 +39,8 @@ permissions:
 jobs:
   generate:
     runs-on: ubuntu-latest
-    timeout-minutes: 40
+    # Максимум GitHub-раннера: ручной запуск берёт сколько попросили, картинка ~1 мин.
+    timeout-minutes: 360
     env:
       # По крону вида нет — просим скрипт выбрать самому (#291). Ручной запуск может
       # назвать конкретный вид: очередь-то не всегда идёт сверху вниз.
@@ -132,10 +133,8 @@ jobs:
           # Вид берём тот, что выбрал шаг проверки очереди, а не env джобы: у `auto`
           # это разные вещи.
           KIND: ${{ steps.check.outputs.kind }}
-          # Потолок 10 за прогон (владелец, 2026-09-30): картинка занимает ~1 мин, а
-          # прогон 2026-09-30 с count=50 упёрся в timeout-minutes 40 на 39-й и был отменён.
-          # Число из ручного запуска обрезается до 10, крон идёт с 10.
-          COUNT: ${{ inputs.count && inputs.count < 10 && inputs.count || '10' }}
+          # Ручной запуск — сколько попросили, крон — 10.
+          COUNT: ${{ inputs.count || '10' }}
           PUSH_EACH: '1'
           GIT_BRANCH: images-queue
         run: node scripts/gen-images.mjs
