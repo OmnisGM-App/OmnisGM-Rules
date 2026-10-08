@@ -92,6 +92,8 @@ function pendingSources(): PendingSource[] {
         const version = VERSION_SLUG[ver];
         if (!version) continue;
         for (const collection of collections) {
+          const versions = KINDS[kind].versions?.[collection];
+          if (versions && !versions.includes(ver)) continue;
           const json = `${game}/${ver}/ru/${collection}/all.json`;
           if (!fs.existsSync(`src/data/api/${json}`)) continue;
           out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection, collection });

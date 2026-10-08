@@ -41,10 +41,11 @@ for (const kind of ['class-options', 'rules']) {
   }
 }
 
-// Сокращения 5.1 (#380) вне очереди понятий, настоящие термины 5.1 — в ней.
-const skip = KINDS.rules.skip ?? (() => false);
-for (const name of ['AC', 'C', 'Cha.', 'NPC', 'XP']) if (!skip({ name })) { failed++; console.error(`  ✗ сокращение ${name} попало в очередь`); }
-for (const name of ['Grapple', 'Half Cover', 'Multiattack', 'Dash']) if (skip({ name })) { failed++; console.error(`  ✗ термин ${name} выпал из очереди`); }
+// Термины правил (#380) — только из 5.2: у 5.1 страниц терминов нет, а сама коллекция несёт сокращения.
+if (JSON.stringify(KINDS.rules.versions?.['rules-terms']) !== JSON.stringify(['srd52'])) {
+  failed++;
+  console.error('  ✗ rules-terms в очереди понятий должны браться только из srd52');
+}
 
 // Полнота порядка — дважды: независимый счёт ловит ослабленную orderProblems() (ранний `return null`).
 const problem = orderProblems();
