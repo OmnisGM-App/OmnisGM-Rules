@@ -522,6 +522,8 @@ async function main() {
       console.log(`  ✓ ${rel}`);
       if (PUSH_EACH) commitAndPush(rel, e.name);
     } catch (err) {
+      // PNG упавшего вызова (в т.ч. убитого по таймауту) не должен уйти в картинку следующей сущности.
+      genPngs().forEach((p) => seen.add(p));
       if (isAuthError(err)) {
         summary(AUTH_FIX);
         process.exit(EXIT_AUTH);
