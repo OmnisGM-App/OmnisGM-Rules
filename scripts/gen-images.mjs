@@ -236,11 +236,14 @@ const DESCRIBE = {
 
 // ── codex ──────────────────────────────────────────────────────────────────────
 
+// Час на вызов (#386): зависший codex падает на своей картинке, а не держит прогон до таймаута джобы.
+const CODEX_TIMEOUT_MS = 60 * 60 * 1000;
+
 function runCodexText(/** @type {string} */ instruction) {
   return execFileSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'read-only', '--skip-git-repo-check', instruction],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024 },
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024, timeout: CODEX_TIMEOUT_MS },
   );
 }
 
@@ -275,7 +278,7 @@ function runCodex(/** @type {string} */ instruction) {
   return execFileSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'workspace-write', '--skip-git-repo-check', instruction],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 128 * 1024 * 1024 },
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 128 * 1024 * 1024, timeout: CODEX_TIMEOUT_MS },
   );
 }
 
@@ -519,6 +522,8 @@ async function main() {
       console.log(`  ✓ ${rel}`);
       if (PUSH_EACH) commitAndPush(rel, e.name);
     } catch (err) {
+      // PNG упавшего вызова (в т.ч. убитого по таймауту) не должен уйти в картинку следующей сущности.
+      genPngs().forEach((p) => seen.add(p));
       if (isAuthError(err)) {
         summary(AUTH_FIX);
         process.exit(EXIT_AUTH);
