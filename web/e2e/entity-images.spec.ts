@@ -92,8 +92,6 @@ function pendingSources(): PendingSource[] {
         const version = VERSION_SLUG[ver];
         if (!version) continue;
         for (const collection of collections) {
-          const versions = KINDS[kind].versions?.[collection];
-          if (versions && !versions.includes(ver)) continue;
           const json = `${game}/${ver}/ru/${collection}/all.json`;
           if (!fs.existsSync(`src/data/api/${json}`)) continue;
           out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection, collection });
@@ -104,8 +102,10 @@ function pendingSources(): PendingSource[] {
   return out;
 }
 
-function pendingEntity() {
+/** Первая сущность без картинки; `withGroups: false` — только сущности со своей страницей. */
+function pendingEntity({ withGroups = true } = {}) {
   for (const src of pendingSources()) {
+    if (!withGroups && GROUP_PAGES.has(src.collection)) continue;
     const found = api(src.json).find((e: { image?: string }) => !e.image);
     if (found) return { entity: found, url: pageUrl(src, found) };
   }
@@ -177,7 +177,8 @@ test('заклинание и магпредмет с иконкой — тот 
 });
 
 test('сущность без картинки: страница как раньше', async ({ page }) => {
-  const pending = pendingEntity();
+  // Своя страница сущности: у страницы группы вариантов шапка и og:image от варианта не зависят.
+  const pending = pendingEntity({ withGroups: false });
   expect(pending, NO_PENDING).toBeTruthy();
   // Сначала статус 200: у 404 нет портрета и og:image — всё ниже осталось бы зелёным.
   const res = await page.goto(pending!.url);
@@ -187,6 +188,19 @@ test('сущность без картинки: страница как рань
     'content', 'https://rules.omnisgm.com/og.png',
   );
   await expect(page.locator('.rd-attrib-img')).toHaveCount(0);
+});
+
+test('вариант без картинки на странице группы: якорь есть, картинки у секции нет', async ({ page }) => {
+  const sources = pendingSources().filter((s) => GROUP_PAGES.has(s.collection));
+  expect(sources.length, 'нет коллекций со страницами групп').toBeGreaterThan(0);
+  const src = sources[0];
+  const entity = api(src.json).find((e: { image?: string }) => !e.image);
+  expect(entity, NO_PENDING).toBeTruthy();
+  const res = await page.goto(pageUrl(src, entity));
+  expect(res?.status()).toBe(200);
+  const section = page.locator('section.class-option', { has: page.locator(`#${entity.slug}`) });
+  await expect(section).toHaveCount(1);
+  await expect(section.locator('img.class-option-image')).toHaveCount(0);
 });
 
 test('очередь генератора: поле image ровно у тех, чей файл лежит', () => {

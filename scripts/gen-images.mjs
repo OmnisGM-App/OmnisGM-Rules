@@ -25,7 +25,7 @@ const GIT_BRANCH = process.env.GIT_BRANCH || 'images-queue';
  * @type {Record<string, {
  *   dir: string, label: string, prompt: string,
  *   api?: Record<string, string[]>,
- *   versions?: Record<string, string[]>,
+ *   skip?: (e: { name: string }) => boolean,
  *   md?: Record<string, string[]>,
  * }>}
  */
@@ -65,8 +65,8 @@ const KINDS = {
     label: 'понятия правил',
     prompt: 'concepts',
     api: { dnd: ['actions', 'rules-terms', 'areas-of-effect', 'conditions'] },
-    // В 5.1 `rules-terms` — ещё и таблица сокращений (AC, C, V…): рисовать их нечего.
-    versions: { 'rules-terms': ['srd52'] },
+    // В 5.1 `rules-terms` — ещё и таблица сокращений (AC, C, Cha., NPC…): рисовать их нечего.
+    skip: (e) => /^(?:[A-Z]{1,3}|[A-Z][a-z]{2}\.)$/.test(e.name),
   },
   gear: {
     dir: 'gear',
@@ -318,19 +318,18 @@ const slugify = (/** @type {string} */ name) =>
 /**
  * @param {Record<string, string[]>|undefined} sources
  * @param {(e: any) => void} add
- * @param {Record<string, string[]>} [versions] коллекция → версии, из которых она берётся
+ * @param {(e: { name: string }) => boolean} [skip] записи, которые картинку не получают
  */
-function fromApi(sources, add, versions = {}) {
+function fromApi(sources, add, skip = () => false) {
   for (const [game, resources] of Object.entries(sources || {})) {
     const gameDir = resolve(API_ROOT, game);
     if (!existsSync(gameDir)) continue;
     for (const ver of readdirSync(gameDir)) {
       for (const resource of resources) {
-        if (versions[resource] && !versions[resource].includes(ver)) continue;
         const file = resolve(gameDir, ver, 'en', resource, 'all.json');
         if (!existsSync(file)) continue;
         for (const e of JSON.parse(readFileSync(file, 'utf8'))) {
-          if (!e.slug) continue;
+          if (!e.slug || skip(e)) continue;
           add({
             game,
             slug: e.slug,
@@ -377,12 +376,12 @@ function fromMarkdown(sources, add) {
 }
 
 function loadQueue(kind = KIND) {
-  const { api, md, versions } = KINDS[kind];
+  const { api, md, skip } = KINDS[kind];
   /** @type {Map<string, any>} */
   const bySlug = new Map();
   // Слаг уникален внутри игры; версии и источники дедуплицируем — картинка одна на сущность.
   const add = (/** @type {any} */ e) => { if (e.slug && !bySlug.has(`${e.game}/${e.slug}`)) bySlug.set(`${e.game}/${e.slug}`, e); };
-  fromApi(api, add, versions);
+  fromApi(api, add, skip);
   fromMarkdown(md, add);
   return [...bySlug.values()].sort((/** @type {any} */ a, /** @type {any} */ b) => (a.game + a.slug).localeCompare(b.game + b.slug));
 }

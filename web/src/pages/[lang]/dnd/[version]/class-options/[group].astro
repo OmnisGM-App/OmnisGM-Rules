@@ -66,6 +66,8 @@ const options = group.options.map((o) => ({
   image: entityImage('dnd', 'class-options', o.slug),
 }));
 const headings = options.map((o) => ({ depth: 2, slug: o.slug, text: o.name }));
+// Картинка группы для ReaderShell (#380): по ней же строка авторства «© OmnisGM» и og:image.
+const groupImage = options.find((o) => o.image)?.image ?? null;
 
 const title = pageTitle({ name: group.name, kind: t('Варианты умения', 'Feature Options'), lang, game: 'dnd', version: ver });
 const description = hubDescription({
@@ -80,6 +82,9 @@ const others = groups.filter((g) => g.key !== group.key);
 ---
 
 <ReaderShell
+  image={groupImage ?? undefined}
+  imageWidth={groupImage ? ENTITY_IMAGE_SIZE : undefined}
+  imageHeight={groupImage ? ENTITY_IMAGE_SIZE : undefined}
   contentSource={{ game: 'dnd', ver, lang, resource: 'class-options' }}
   lang={lang}
   currentId="d52-classoptions-hub"

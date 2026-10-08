@@ -41,6 +41,11 @@ for (const kind of ['class-options', 'rules']) {
   }
 }
 
+// Сокращения 5.1 (#380) вне очереди понятий, настоящие термины 5.1 — в ней.
+const skip = KINDS.rules.skip ?? (() => false);
+for (const name of ['AC', 'C', 'Cha.', 'NPC', 'XP']) if (!skip({ name })) { failed++; console.error(`  ✗ сокращение ${name} попало в очередь`); }
+for (const name of ['Grapple', 'Half Cover', 'Multiattack', 'Dash']) if (skip({ name })) { failed++; console.error(`  ✗ термин ${name} выпал из очереди`); }
+
 // Полнота порядка — дважды: независимый счёт ловит ослабленную orderProblems() (ранний `return null`).
 const problem = orderProblems();
 if (problem) {
