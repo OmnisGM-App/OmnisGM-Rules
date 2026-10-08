@@ -9,6 +9,7 @@ import {
 } from '../lib/nav';
 import { pageTitle } from '../lib/page-title';
 import { resourceTotal } from '../lib/entity-counts.mjs';
+import { loadEntities } from '../lib/entities';
 import { isIndexableGlossary } from '../lib/glossary-seo.mjs';
 import { pluralRu } from '../lib/plural.mjs';
 
@@ -53,6 +54,10 @@ const RESOURCE_OF_SEGMENT: Record<string, string> = {
 const totalOf = (page: NavPage) => {
   const [, , segment, tail] = page.slug.split('/');
   if (!tail) return null;
+  // Варианты классовых умений (#379): страница на группу, а не на запись.
+  if (segment === 'class-options') {
+    return new Set(loadEntities(version, lang, 'class-options').map((e) => (e.feature as { key: string }).key)).size || null;
+  }
   return resourceTotal(game, version, lang, RESOURCE_OF_SEGMENT[segment] ?? segment);
 };
 
