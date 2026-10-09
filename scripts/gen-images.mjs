@@ -560,7 +560,8 @@ async function main() {
         summary(AUTH_FIX);
         process.exit(EXIT_AUTH);
       }
-      const said = codexTail(`${err?.stdout || ''}${err?.stderr || ''}`);
+      const io = /** @type {{ stdout?: string, stderr?: string }} */ (err ?? {});
+      const said = codexTail(`${io.stdout || ''}${io.stderr || ''}`);
       console.error(`  ошибка на ${e.slug}: ${err instanceof Error ? err.message : err}${said ? `\n${said}` : ''}`);
       skip(e.slug);
     }
