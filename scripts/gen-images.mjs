@@ -125,7 +125,7 @@ const AUTH_FIX = [
   '```',
 ].join('\n');
 
-function isAuthError(/** @type {any} */ err) {
+export function isAuthError(/** @type {any} */ err) {
   const s = `${err?.stdout || ''}${err?.stderr || ''}${err?.message || ''}`;
   return /refresh_token_reused|token_revoked|\b401\b|unauthorized/i.test(s);
 }
@@ -238,12 +238,28 @@ const DESCRIBE = {
 
 // ── codex ──────────────────────────────────────────────────────────────────────
 
-function runCodexText(/** @type {string} */ instruction) {
-  return execFileSync(
+// Вывод нужен и при успехе: вызов без картинки завершается нулём, и причину (отказ инструмента,
+// фильтр) видно только в его тексте. Ошибка короткая, без инструкции в тексте: вывод несут поля
+// `stdout`/`stderr` — по ним isAuthError узнаёт протухший токен, а лог печатает хвост один раз.
+export function codexExec(
+  /** @type {string} */ sandbox, /** @type {string} */ instruction, /** @type {number} */ maxBuffer,
+) {
+  const r = spawnSync(
     'codex',
-    ['exec', '-C', REPO, '-s', 'read-only', '--skip-git-repo-check', instruction],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 32 * 1024 * 1024 },
+    ['exec', '-C', REPO, '-s', sandbox, '--skip-git-repo-check', instruction],
+    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer },
   );
+  if (r.error || r.status !== 0) {
+    throw Object.assign(r.error || new Error(`codex exec завершился с кодом ${r.status}`), {
+      stdout: r.stdout, stderr: r.stderr,
+    });
+  }
+  return { stdout: r.stdout || '', stderr: r.stderr || '' };
+}
+
+// Описание — только stdout: в stderr codex печатает шапку сессии и саму инструкцию.
+function runCodexText(/** @type {string} */ instruction) {
+  return codexExec('read-only', instruction, 32 * 1024 * 1024).stdout;
 }
 
 // codex exec подмешивает служебные строки (таймстемпы, «tokens used») — оставляем содержательные.
@@ -273,32 +289,20 @@ function codexInstruction(/** @type {string} */ prompt) {
   ].join('\n');
 }
 
-// Вывод нужен и при успехе: вызов без картинки завершается нулём, и причину (отказ инструмента,
-// фильтр) видно только в его тексте.
 function runCodex(/** @type {string} */ instruction) {
-  const r = spawnSync(
-    'codex',
-    ['exec', '-C', REPO, '-s', 'workspace-write', '--skip-git-repo-check', instruction],
-    { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 128 * 1024 * 1024 },
-  );
-  const out = `${r.stdout || ''}${r.stderr || ''}`;
-  if (r.error || r.status !== 0) {
-    // Поля как у ошибки execFileSync: по ним isAuthError узнаёт протухший токен.
-    throw Object.assign(r.error || new Error(`codex exec завершился с кодом ${r.status}`), {
-      stdout: r.stdout, stderr: r.stderr,
-    });
-  }
-  return out;
+  const { stdout, stderr } = codexExec('workspace-write', instruction, 128 * 1024 * 1024);
+  return `${stdout}${stderr}`;
 }
 
-// Хвост ответа codex для лога пропуска: без строк хуков и счётчика токенов, не длиннее `max`.
+// Хвост ответа codex для лога пропуска: без строк хуков и счётчика токенов, не длиннее `max`
+// вместе с многоточием.
 export function codexTail(/** @type {string} */ raw, max = 800) {
   const text = raw
     .split('\n')
     .map((l) => l.trimEnd())
-    .filter((l) => l.trim() && !/^hook: |^tokens used$|^[\d\s]+$/.test(l))
+    .filter((l) => l.trim() && !/^hook: |^tokens used$|^[\d\s.,]+$/.test(l))
     .join('\n');
-  return text.length > max ? `…${text.slice(-max)}` : text;
+  return text.length > max ? `…${text.slice(-(max - 1))}` : text;
 }
 
 function genPngs() {

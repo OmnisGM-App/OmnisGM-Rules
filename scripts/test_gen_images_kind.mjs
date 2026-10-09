@@ -1,6 +1,9 @@
 // Выбор вида очереди картинок (issue #291): правило на синтетике — живой корпус проверял бы
 // состояние репозитория, а не правило.
-import { nextKind, emptyKinds, orderProblems, codexTail, ORDER, KINDS } from './gen-images.mjs';
+import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
+import { tmpdir } from 'node:os';
+import { join, delimiter } from 'node:path';
+import { nextKind, emptyKinds, orderProblems, codexTail, codexExec, isAuthError, ORDER, KINDS } from './gen-images.mjs';
 
 let failed = 0;
 const eq = (/** @type {unknown} */ actual, /** @type {unknown} */ expected, /** @type {string} */ what) => {
@@ -64,15 +67,28 @@ if (forgotten.length || unknown.length) {
 
 // Хвост ответа codex в логе пропуска: служебные строки уходят, содержательные остаются, длина ограничена.
 const answer = [
-  'codex', 'I can’t generate that image.', 'hook: Stop', 'hook: Stop Completed', 'tokens used', '14 916', '',
+  'codex', 'I can’t generate that image.', 'hook: Stop', 'hook: Stop Completed', 'tokens used', '14 916', '14,916', '',
 ].join('\n');
 eq(codexTail(answer), 'codex\nI can’t generate that image.', 'хвост ответа без хуков и счётчика токенов');
-eq(codexTail('x'.repeat(1000), 10), `…${'x'.repeat(10)}`, 'хвост обрезается до последних символов');
+eq(codexTail('x'.repeat(1000), 10), `…${'x'.repeat(9)}`, 'хвост с многоточием не длиннее max');
 eq(codexTail(''), '', 'пустой ответ — пустой хвост');
+
+// Протухший токен узнаётся по ошибке codexExec: заглушка codex в PATH пишет 401 и выходит с кодом 1.
+const stubDir = mkdtempSync(join(tmpdir(), 'codex-stub-'));
+writeFileSync(join(stubDir, 'codex'), '#!/bin/sh\necho "401 unauthorized" >&2\nexit 1\n', { mode: 0o755 });
+const savedPath = process.env.PATH;
+process.env.PATH = `${stubDir}${delimiter}${savedPath}`;
+let thrown = null;
+try { codexExec('read-only', 'x', 1024 * 1024); } catch (err) { thrown = err; }
+process.env.PATH = savedPath;
+rmSync(stubDir, { recursive: true, force: true });
+eq(Boolean(thrown && isAuthError(thrown)), true, 'отказ codex с 401 узнаётся как протухший токен');
+eq(String(/** @type {any} */ (thrown)?.message).includes('unauthorized'), false,
+   'сообщение ошибки короткое: вывод — только в полях stdout/stderr');
 
 if (failed) {
   console.error(`\n❌ Выбор вида очереди: ${failed} расхождений`);
   process.exit(1);
 }
-console.log(`✅ Выбор вида очереди: 9 сценариев, хвост ответа codex — 3, порядок покрывает все ${ORDER.length} вида, ` +
+console.log(`✅ Выбор вида очереди: 9 сценариев, хвост ответа codex — 3, ошибка codex — 2, порядок покрывает все ${ORDER.length} вида, ` +
             `виды: ${Object.keys(KINDS).length}`);
