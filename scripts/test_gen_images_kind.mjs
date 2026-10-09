@@ -3,7 +3,7 @@
 import { mkdtempSync, writeFileSync, rmSync } from 'node:fs';
 import { tmpdir } from 'node:os';
 import { join, delimiter } from 'node:path';
-import { nextKind, emptyKinds, orderProblems, codexTail, codexExec, isAuthError, ORDER, KINDS } from './gen-images.mjs';
+import { nextKind, emptyKinds, orderProblems, codexTail, codexExec, runCodex, runCodexText, isAuthError, ORDER, KINDS } from './gen-images.mjs';
 
 let failed = 0;
 const eq = (/** @type {unknown} */ actual, /** @type {unknown} */ expected, /** @type {string} */ what) => {
@@ -70,7 +70,7 @@ const answer = [
   'codex', 'I can’t generate that image.', 'hook: Stop', 'hook: Stop Completed', 'tokens used', '14 916', '14,916', '',
 ].join('\n');
 eq(codexTail(answer), 'codex\nI can’t generate that image.', 'хвост ответа без хуков и счётчика токенов');
-eq(codexTail('x'.repeat(1000), 10), `…${'x'.repeat(9)}`, 'хвост с многоточием не длиннее max');
+eq(codexTail(`HEAD${'x'.repeat(20)}TAIL`, 8), '…xxxTAIL', 'хвост с многоточием — конец ответа и не длиннее max');
 eq(codexTail(''), '', 'пустой ответ — пустой хвост');
 
 // Протухший токен узнаётся по ошибке codexExec: заглушка codex в PATH пишет 401 и выходит с кодом 1.
@@ -80,6 +80,13 @@ const savedPath = process.env.PATH;
 process.env.PATH = `${stubDir}${delimiter}${savedPath}`;
 let thrown = null;
 try { codexExec('read-only', 'x', 1024 * 1024); } catch (err) { thrown = err; }
+// Успешный вызов: ответ — в stdout, шапка сессии — в stderr.
+writeFileSync(join(stubDir, 'codex'),
+  "#!/bin/sh\necho 'a crescent moon'\necho 'session header' >&2\nexit 0\n", { mode: 0o755 });
+const ok = codexExec('read-only', 'x', 1024 * 1024);
+eq(`${ok.stdout}|${ok.stderr}`, 'a crescent moon\n|session header\n', 'успешный вызов отдаёт stdout и stderr раздельно');
+eq(runCodexText('x'), 'a crescent moon\n', 'описание берёт только stdout');
+eq(runCodex('x'), 'session header\na crescent moon\n', 'ответ картинки кончается stdout — им и кончится хвост');
 process.env.PATH = savedPath;
 rmSync(stubDir, { recursive: true, force: true });
 eq(Boolean(thrown && isAuthError(thrown)), true, 'отказ codex с 401 узнаётся как протухший токен');
@@ -90,5 +97,5 @@ if (failed) {
   console.error(`\n❌ Выбор вида очереди: ${failed} расхождений`);
   process.exit(1);
 }
-console.log(`✅ Выбор вида очереди: 9 сценариев, хвост ответа codex — 3, ошибка codex — 2, порядок покрывает все ${ORDER.length} вида, ` +
+console.log(`✅ Выбор вида очереди: 9 сценариев, хвост ответа codex — 3, вызов codex — 5, порядок покрывает все ${ORDER.length} вида, ` +
             `виды: ${Object.keys(KINDS).length}`);

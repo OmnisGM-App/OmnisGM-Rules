@@ -258,7 +258,7 @@ export function codexExec(
 }
 
 // Описание — только stdout: в stderr codex печатает шапку сессии и саму инструкцию.
-function runCodexText(/** @type {string} */ instruction) {
+export function runCodexText(/** @type {string} */ instruction) {
   return codexExec('read-only', instruction, 32 * 1024 * 1024).stdout;
 }
 
@@ -289,9 +289,10 @@ function codexInstruction(/** @type {string} */ prompt) {
   ].join('\n');
 }
 
-function runCodex(/** @type {string} */ instruction) {
+// stderr первым: ответ агента — в stdout, и хвост для лога должен кончаться им, а не шапкой сессии.
+export function runCodex(/** @type {string} */ instruction) {
   const { stdout, stderr } = codexExec('workspace-write', instruction, 128 * 1024 * 1024);
-  return `${stdout}${stderr}`;
+  return `${stderr}${stdout}`;
 }
 
 // Хвост ответа codex для лога пропуска: без строк хуков и счётчика токенов, не длиннее `max`
@@ -565,7 +566,7 @@ async function main() {
         process.exit(EXIT_AUTH);
       }
       const io = /** @type {{ stdout?: string, stderr?: string }} */ (err ?? {});
-      const said = codexTail(`${io.stdout || ''}${io.stderr || ''}`);
+      const said = codexTail(`${io.stderr || ''}${io.stdout || ''}`);
       console.error(`  ошибка на ${e.slug}: ${err instanceof Error ? err.message : err}${said ? `\n${said}` : ''}`);
       skip(e.slug);
     }
