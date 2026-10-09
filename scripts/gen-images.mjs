@@ -5,7 +5,7 @@
 //      DUMP_PROMPT=1, PUSH_EACH=1, GIT_BRANCH, API_ROOT.
 // Требует: codex CLI + CODEX_HOME, cwebp, git.
 
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { existsSync, mkdirSync, readdirSync, appendFileSync, readFileSync, statSync } from 'node:fs';
 import { resolve, dirname } from 'node:path';
 import { fileURLToPath, pathToFileURL } from 'node:url';
@@ -164,7 +164,7 @@ const PROMPTS = {
     `A minimalist emblem representing ${d} ` +
     'The emblem is a single clear symbol — a gesture, a stance, a stylised figure in motion or an abstract sign — floating ' +
     'in empty space, with no scene and no environment. It reads instantly at small size, like an ability icon in a game ' +
-    'UI: one dominant shape, no busy detail. Keep it violet unless the concept has an obvious colour (fire, poison, ' +
+    'UI: one dominant shape, no busy detail. Any figure is a featureless, fully clothed silhouette. Keep it violet unless the concept has an obvious colour (fire, poison, ' +
     `radiance), then let that ONE colour glow while the violet rim light stays present. ${STYLE_TAIL}`,
 
   'magic-items': (d) =>
@@ -215,6 +215,8 @@ const DESCRIBE = {
     'Describe it IN YOUR OWN WORDS from what the name suggests — do not quote or paraphrase any rulebook text.',
     'Give ONLY the visual: one symbol — a gesture, a stance, a silhouette of a figure in motion, or an abstract sign',
     '(an eye, a shield, an arrow, a chain, a spiral) — and its single colour if one is obvious; otherwise it stays violet.',
+    'For rest, sleep or unconsciousness use an object or sign (a moon, a campfire, a bedroll, an hourglass), not a',
+    'sleeping or lying body: the image model draws such a body bare, and the image filter then drops the picture.',
     'No scene, no environment, no text; the icon floats in empty space and reads at small size.',
     'Reply with ONLY the one sentence: no preamble, no quotes, no lists, no extra commentary.',
   ].join('\n'),
@@ -271,12 +273,32 @@ function codexInstruction(/** @type {string} */ prompt) {
   ].join('\n');
 }
 
+// Вывод нужен и при успехе: вызов без картинки завершается нулём, и причину (отказ инструмента,
+// фильтр) видно только в его тексте.
 function runCodex(/** @type {string} */ instruction) {
-  return execFileSync(
+  const r = spawnSync(
     'codex',
     ['exec', '-C', REPO, '-s', 'workspace-write', '--skip-git-repo-check', instruction],
     { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'], maxBuffer: 128 * 1024 * 1024 },
   );
+  const out = `${r.stdout || ''}${r.stderr || ''}`;
+  if (r.error || r.status !== 0) {
+    // Поля как у ошибки execFileSync: по ним isAuthError узнаёт протухший токен.
+    throw Object.assign(r.error || new Error(`codex exec завершился с кодом ${r.status}`), {
+      stdout: r.stdout, stderr: r.stderr,
+    });
+  }
+  return out;
+}
+
+// Хвост ответа codex для лога пропуска: без строк хуков и счётчика токенов, не длиннее `max`.
+export function codexTail(/** @type {string} */ raw, max = 800) {
+  const text = raw
+    .split('\n')
+    .map((l) => l.trimEnd())
+    .filter((l) => l.trim() && !/^hook: |^tokens used$|^[\d\s]+$/.test(l))
+    .join('\n');
+  return text.length > max ? `…${text.slice(-max)}` : text;
 }
 
 function genPngs() {
@@ -517,12 +539,12 @@ async function main() {
         console.log(`\n--- FULL codex image instruction ---\n${codexInstruction(prompt)}\n`);
         continue;
       }
-      runCodex(codexInstruction(prompt));
+      const answer = runCodex(codexInstruction(prompt));
 
       const fresh = genPngs().filter((p) => !seen.has(p));
       fresh.forEach((p) => seen.add(p));
       if (fresh.length === 0) {
-        console.error('  codex не сгенерировал PNG — пропуск');
+        console.error(`  codex не сгенерировал PNG — пропуск. Ответ codex:\n${codexTail(answer)}`);
         skip(e.slug);
         continue;
       }
@@ -538,7 +560,8 @@ async function main() {
         summary(AUTH_FIX);
         process.exit(EXIT_AUTH);
       }
-      console.error(`  ошибка на ${e.slug}: ${err instanceof Error ? err.message : err}`);
+      const said = codexTail(`${err?.stdout || ''}${err?.stderr || ''}`);
+      console.error(`  ошибка на ${e.slug}: ${err instanceof Error ? err.message : err}${said ? `\n${said}` : ''}`);
       skip(e.slug);
     }
   }
