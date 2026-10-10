@@ -285,6 +285,8 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 /* Атрибуция лицензии — компактная строка-кредит под «Источником», на каждой контентной странице */
 .rd-attrib {
   margin: 14px 0 0; font-size: 12px; line-height: 1.5; color: var(--og-text-muted); letter-spacing: 0.2px;
+  /* Логотип BRP плавает слева: блок замыкает float, иначе строка о знаках ниже обтекала бы его ступенькой. */
+  display: flow-root;
 }
 .rd-attrib a { color: var(--og-text-2); border-bottom: 1px dotted var(--og-decor); white-space: nowrap; }
 .rd-attrib a:hover { color: var(--og-warm); }
