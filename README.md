@@ -79,4 +79,4 @@ Markdown source material the import pipeline builds on:
 
 ---
 
-*This is an unofficial fan project. All trademarks belong to their respective owners.*
+*Dungeons & Dragons and D&D are trademarks of Wizards of the Coast LLC. OmnisGM is an independent project, not affiliated with or endorsed by Wizards of the Coast. All other trademarks belong to their respective owners.*

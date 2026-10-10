@@ -60,11 +60,17 @@ const ATTRIB: Record<string, { ru: string; en: string }> = {
     ru: 'Этот продукт включает материалы из Daggerheart System Reference Document 1.0, © Critical Role, LLC., на условиях <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming License (DPCGL)</a>. Подробности — на <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Текст переведён на русский и конвертирован в Markdown силами OmnisGM, отчасти на основе более ранней сообществной конверсии. Не аффилировано с Darrington Press и не одобрено ей.',
   },
   brp: {
-    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>.',
-    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Перевод на русский — OmnisGM.',
+    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Not affiliated with or endorsed by Chaosium Inc.',
+    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Перевод на русский — OmnisGM. Не аффилировано с Chaosium Inc. и не одобрено ей.',
   },
 };
 const attribution = activeSys !== 'home' ? ATTRIB[activeSys] : undefined;
+// Товарные знаки (Table#912): CC BY 4.0 покрывает текст SRD, но не знаки Dungeons & Dragons и D&D.
+// Строка — на каждой странице, включая хабы: о D&D говорят и навигация, и описания.
+const TRADEMARK = {
+  en: 'Dungeons & Dragons and D&D are trademarks of Wizards of the Coast LLC. OmnisGM is an independent project, not affiliated with or endorsed by Wizards of the Coast.',
+  ru: 'Dungeons & Dragons и D&D — товарные знаки Wizards of the Coast LLC. OmnisGM — независимый проект, не связан с Wizards of the Coast и не одобрен ею.',
+};
 const legalHref = activeSys !== 'home' ? systemRoute(activeSys, lang) : undefined;
 
 // Открытые группы: предки текущей + на Home по умолчанию раскрываем D&D → SRD 5.2.1
@@ -328,6 +334,8 @@ const searchUi = {
               )}
             </div>
           )}
+
+          <div class="rd-tm" data-pagefind-ignore data-testid="trademark"><I18n en={TRADEMARK.en} ru={TRADEMARK.ru} bilingual={bilingual} lang={lang} /></div>
 
           {(prev || next || upLink) && (
             <div class={`rd-prevnext${upLink ? ' rd-has-up' : ''}`}>

@@ -293,6 +293,10 @@ html[data-rootlang="ru"] .rd-lang-btn[data-l="ru"] { color: var(--og-accent); ba
 .rd-attrib-logo img { display: block; width: 56px; height: 56px; border-radius: 6px; }
 /* Авторство картинок (#201) — отдельной строкой под лицензией текста. */
 .rd-attrib-img { margin-top: 6px; }
+/* Товарные знаки (Table#912) — та же строка-кредит, на каждой странице. */
+.rd-tm {
+  margin: 10px 0 0; font-size: 12px; line-height: 1.5; color: var(--og-text-muted); letter-spacing: 0.2px;
+}
 
 .rd-prevnext { margin-top: 28px; display: grid; grid-template-columns: 1fr 1fr; gap: 14px; }
 .rd-prevnext.rd-has-up { grid-template-columns: 1fr auto 1fr; }
