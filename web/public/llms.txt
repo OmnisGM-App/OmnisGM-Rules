@@ -73,9 +73,9 @@ The raw Markdown behind every page lives in the public repository, mirrored per 
 
 Each system reproduces official SRD content under its own open license — see the per-system Legal pages linked above for full terms and attribution:
 
-- **D&D SRD 5.2.1 and 5.1** — SRD content © Wizards of the Coast, licensed under Creative Commons Attribution 4.0 (CC BY 4.0).
+- **D&D SRD 5.2.1 and 5.1** — SRD content © Wizards of the Coast, licensed under Creative Commons Attribution 4.0 (CC BY 4.0). Dungeons & Dragons and D&D are trademarks of Wizards of the Coast LLC. OmnisGM is an independent project, not affiliated with or endorsed by Wizards of the Coast.
 - **Daggerheart SRD 1.0** — Daggerheart content used under the Darrington Press Community Gaming License (DPCGL). © Critical Role LLC. Not affiliated with or endorsed by Darrington Press.
-- **Basic Roleplaying SRD 1.0** — © Chaosium Inc., used under the Basic Roleplaying Open Game License v1.0.
+- **Basic Roleplaying SRD 1.0** — © Chaosium Inc., used under the Basic Roleplaying Open Game License v1.0. Not affiliated with or endorsed by Chaosium Inc.
 
 ## About
 
