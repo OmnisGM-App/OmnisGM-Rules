@@ -32,12 +32,9 @@ const DH_RESOURCES = [
   { key: 'domain-cards', urlParent: 'domain-cards', mode: 'grid', versions: ['srd-1.0'], chapters: /\/03_Domains/ },
 ];
 
-// BRP: то же — линкуем только таблицу навыков в глоссарии.
-const BRP_RESOURCES = [
-  { key: 'skills', urlParent: 'skills', mode: 'grid', versions: ['srd-1.0'], chapters: /\/09_Glossary\/01_Skills/ },
-];
-
-const RESOURCES_BY_GAME = { dnd: DND_RESOURCES, daggerheart: DH_RESOURCES, brp: BRP_RESOURCES };
+// BRP: автолинка нет. Единственной целью была таблица навыков в глоссарии (`glossary/skills`), а её
+// хостинг уводит 301 на хаб навыков (#160), и страница не собирается (#399).
+const RESOURCES_BY_GAME = { dnd: DND_RESOURCES, daggerheart: DH_RESOURCES };
 
 // Заголовок первой колонки таблицы спелл-листа класса (по языку) — сигнал линковать её ячейки.
 const SPELL_TABLE_HEAD = new Set(['Заклинание', 'Spell']);

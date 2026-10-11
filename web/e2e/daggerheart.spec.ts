@@ -76,15 +76,14 @@ test('противники: колонка «Тип» кликабельна →
   await expect(page.locator('.hub-table[data-sortable] a[href*="/adversaries/tier/"]').first()).toBeVisible();
 });
 
-test('глоссарий «Способности» = доменные карты → скрыт из сайдбара (как D&D), но страница жива', async ({ page }) => {
+test('глоссарий «Способности» = доменные карты → скрыт из сайдбара, адрес уводит 301 на хаб', async ({ page }) => {
   await page.goto('/ru/daggerheart/srd-1.0/domain-cards/all/');
   await expect(page.locator('.rd-nav a[href$="/17_glossary/01_abilities/"]')).toHaveCount(0);
   await expect(page.locator('.rd-nav a.rd-nav-active[href$="/domain-cards/all/"]')).toBeVisible();
-  // Сама страница-дубль остаётся доступной и держит nav-контекст (не сирота).
-  const res = await page.goto('/ru/daggerheart/srd-1.0/glossary/abilities/');
-  expect(res?.status()).toBe(200);
   // «SRD» из лестницы укорачивания не выпадает: голой марки в <title> быть не должно (DPCGL §2.5(a), #166).
   await expect(page).toHaveTitle(/Daggerheart SRD 1\.0/);
+  // Дубль `glossary/abilities` хостинг уводит 301 на этот хаб (#160), поэтому он не собирается (#399):
+  // сам редирект и отсутствие страницы сверяет hosting-redirects.spec.ts.
 });
 
 test('автолинк: глава «Домены» линкует доменные карты (grid-режим) + hovercard', async ({ page }) => {

@@ -30,6 +30,8 @@ function inputsOf(web) {
       join(web, 'package-lock.json'),
       join(web, 'tsconfig.json'),
       join(web, '.env'),
+      // Набор страниц в dist зависит от `hosting.redirects`: страницы под 301 не собираются (#399).
+      join(repoRoot, 'firebase.json'),
     ],
   };
 }
