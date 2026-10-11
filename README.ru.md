@@ -57,6 +57,17 @@
 - Daggerheart SRD 1.0 — этот продукт включает материалы из [Daggerheart System Reference Document 1.0](https://www.daggerheart.com), © Critical Role, LLC., на условиях [DPCGL](https://darringtonpress.com/license); конвертировано в Markdown и переведено на русский силами OmnisGM, смысл правил не изменялся; не аффилировано с Darrington Press и не одобрено ими. См. встроенную [страницу Legal](src/daggerheart/srd-1.0/ru/00_Legal.md)
 - Basic Roleplaying SRD 1.0 — BRP OGL v1.0 © Chaosium Inc.: [LICENSE.md](src/brp/srd-1.0/LICENSE.md)
 
+Что наше и на каких условиях:
+
+- **Код** — [MIT](LICENSE), © 2026 Petr Radilov (OmnisGM): исходники сайта (`web/src`, `web/scripts`, `web/e2e`, конфиги), `scripts/`, `.github/` и инструменты в `.claude/`. MIT не покрывает игровой контент в `src/` и любые картинки и медиафайлы в `web/public/` (см. ниже).
+- **Русские переводы** следуют лицензии системы, которую переводят; для двух из них свою выбрать нельзя:
+  - D&D SRD 5.2.1 и 5.1 — перевод наш, под лицензией [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © 2026 Petr Radilov (OmnisGM). Указывайте «OmnisGM» со ссылкой на rules.omnisgm.com рядом с атрибуцией Wizards of the Coast.
+  - Daggerheart SRD 1.0 — перевод — Adaptive Content по DPCGL и распространяется на её условиях.
+  - Basic Roleplaying SRD 1.0 — перевод — Open Game Content по BRP OGL §1(d) и распространяется на её условиях.
+- **Картинки и медиафайлы** в `web/public/`:
+  - наши иллюстрации (`img/`), карточка для соцсетей (`og.png`), скриншоты приложения и иконки — © 2026 Petr Radilov (OmnisGM), все права защищены. Они не входят ни в один SRD и не покрываются ни лицензиями SRD, ни MIT;
+  - `powered-by-brp.png` — логотип *BRP*, товарный знак Chaosium Inc., показывается только так, как требует BRP OGL §15.
+
 ## Структура репозитория
 
 - `src/{game}/{version}/{en,ru}/` — Markdown-контент (вход пайплайна импорта/перевода)

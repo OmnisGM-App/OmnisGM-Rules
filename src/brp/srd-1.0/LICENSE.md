@@ -9,3 +9,7 @@ The full text of the *BRP* Open Game License, Version 1.0, together with the Pro
 > *BRP* Open Game License v 1.0 (c) copyright 2020 Chaosium Inc. *Basic Roleplaying* (c) copyright 1980–2020 Chaosium Inc.; Authors, original rules: Greg Stafford, Steve Henderson, Warren James, Steve Perrin, Sandy Petersen, Ray Turney, and Lynn Willis; developed by Jason Durall, James Lowder, and Jeff Richard.
 
 *Basic Roleplaying* and the *BRP* logo are trademarks of Chaosium Inc. Used with permission.
+
+## Open Game Content in this repository (Section 9)
+
+The Open Game Content is the rules text of BRPSRD1.0 in `en/` and its Russian translation in `ru/` (a translation is Open Game Content under Section 1(d)), excluding Prohibited Content (Section 1(e)) and Chaosium's trademarks. The site code, page summaries, cross-links and images are not Open Game Content. The same statement is on the site's BRP Legal page.

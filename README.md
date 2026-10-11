@@ -55,6 +55,17 @@ Each SRD is distributed under its own license. See `LICENSE.md` in the correspon
 - Daggerheart SRD 1.0 — this product includes materials from the [Daggerheart System Reference Document 1.0](https://www.daggerheart.com), © Critical Role, LLC. under the terms of the [DPCGL](https://darringtonpress.com/license); converted to Markdown and translated into Russian by OmnisGM, rules text unchanged; not affiliated with or endorsed by Darrington Press. See the in-app [Legal page](src/daggerheart/srd-1.0/en/00_Legal.md)
 - Basic Roleplaying SRD 1.0 — BRP OGL v1.0 © Chaosium Inc.: [LICENSE.md](src/brp/srd-1.0/LICENSE.md)
 
+What is ours, and on what terms:
+
+- **Code** — [MIT](LICENSE), © 2026 Petr Radilov (OmnisGM): the site source (`web/src`, `web/scripts`, `web/e2e`, configs), `scripts/`, `.github/` and the tooling in `.claude/`. MIT does not cover the game content under `src/`, nor any image or other media file under `web/public/` (see below).
+- **Russian translations** follow the license of the system they translate; we cannot pick our own for two of them:
+  - D&D SRD 5.2.1 and 5.1 — the translation is ours, licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © 2026 Petr Radilov (OmnisGM). Credit "OmnisGM" with a link to rules.omnisgm.com, alongside the Wizards of the Coast attribution.
+  - Daggerheart SRD 1.0 — the translation is Adaptive Content under the DPCGL and is shared on its terms.
+  - Basic Roleplaying SRD 1.0 — the translation is Open Game Content under the BRP OGL §1(d) and is shared on its terms.
+- **Images and media** under `web/public/`:
+  - our illustrations (`img/`), the social card (`og.png`), the app screenshots and the icons — © 2026 Petr Radilov (OmnisGM), all rights reserved. They are not part of any SRD and are not covered by the SRD licenses or by MIT;
+  - `powered-by-brp.png` — the *BRP* logo, a trademark of Chaosium Inc., shown only as BRP OGL §15 requires.
+
 ## Repository structure
 
 - `src/{game}/{version}/{en,ru}/` — Markdown content (input to the import/translation pipeline)
