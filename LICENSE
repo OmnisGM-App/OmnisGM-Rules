@@ -1,8 +1,3 @@
-This license covers the source code of this repository: the site under `web/` (except `web/public/img/`),
-the scripts under `scripts/` and `.github/`, and the tooling under `.claude/`. It does not cover the game
-content under `src/` (the SRDs and our translations of them) or the images under `web/public/img/`;
-their terms are listed in the "Licenses" section of README.md.
-
 MIT License
 
 Copyright (c) 2026 Petr Radilov (OmnisGM)

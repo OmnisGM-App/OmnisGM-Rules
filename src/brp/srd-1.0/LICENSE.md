@@ -12,4 +12,4 @@ The full text of the *BRP* Open Game License, Version 1.0, together with the Pro
 
 ## Open Game Content in this repository (Section 9)
 
-The Open Game Content is the rules text of BRPSRD1.0 in `en/` and its Russian translation in `ru/` (a translation is Open Game Content under Section 1(d)). The site code, page summaries, cross-links and images are not Open Game Content. The same statement is on the site's BRP Legal page.
+The Open Game Content is the rules text of BRPSRD1.0 in `en/` and its Russian translation in `ru/` (a translation is Open Game Content under Section 1(d)), excluding Prohibited Content (Section 1(e)) and Chaosium's trademarks. The site code, page summaries, cross-links and images are not Open Game Content. The same statement is on the site's BRP Legal page.

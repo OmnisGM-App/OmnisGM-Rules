@@ -96,4 +96,4 @@ Basic Roleplaying and the BRP logo are trademarks of Chaosium Inc. Used with per
 
 ## Open Game Content on OmnisGM Rules (Section 9)
 
-On rules.omnisgm.com, the Open Game Content is the rules text of the *Basic Roleplaying* System Reference Document 1.0 as reproduced on the pages of this section, together with its Russian translation (a translation is Open Game Content under Section 1(d)). The site design, navigation, page summaries, cross-links, images and code are not Open Game Content.
+On rules.omnisgm.com, the Open Game Content is the rules text of the *Basic Roleplaying* System Reference Document 1.0 as reproduced on the pages of this section, together with its Russian translation (a translation is Open Game Content under Section 1(d)), excluding Prohibited Content (Section 1(e)) and Chaosium's trademarks. The site design, navigation, page summaries, cross-links, images and code are not Open Game Content.

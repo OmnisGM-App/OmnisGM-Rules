@@ -186,4 +186,4 @@ Basic Roleplaying и логотип BRP являются товарными зн
 
 ## Open Game Content на OmnisGM Rules (раздел 9)
 
-На rules.omnisgm.com Open Game Content — это текст правил *Basic Roleplaying* System Reference Document 1.0 в том виде, в каком он воспроизведён на страницах этого раздела, вместе с его русским переводом (перевод — Open Game Content по разделу 1(d)). Оформление сайта, навигация, краткие описания страниц, перекрёстные ссылки, картинки и код Open Game Content не являются.
+На rules.omnisgm.com Open Game Content — это текст правил *Basic Roleplaying* System Reference Document 1.0 в том виде, в каком он воспроизведён на страницах этого раздела, вместе с его русским переводом (перевод — Open Game Content по разделу 1(d)), кроме Prohibited Content (раздел 1(e)) и товарных знаков Chaosium. Оформление сайта, навигация, краткие описания страниц, перекрёстные ссылки, картинки и код Open Game Content не являются.

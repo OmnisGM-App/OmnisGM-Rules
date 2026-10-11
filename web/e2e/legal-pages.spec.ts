@@ -22,8 +22,10 @@ for (const [url, text] of [
 for (const [url, text] of [
   ['/en/dnd/srd-5.2/spells/fireball/', 'Converted to Markdown, split into pages and cross-linked by OmnisGM.'],
   ['/ru/dnd/srd-5.2/spells/fireball/', 'Перевод на русский, конвертация в Markdown, разбивка на страницы и перекрёстные ссылки — OmnisGM.'],
-  ['/en/brp/srd-1.0/', 'The rules text on these pages is Open Game Content; the site design, navigation, images and code are not.'],
-  ['/ru/brp/srd-1.0/', 'Текст правил на этих страницах, включая перевод, — Open Game Content; оформление сайта, навигация, картинки и код — нет.'],
+  // Страница вне дерева навигации (glossary/* из `[...slug]`): система атрибуции — из пути URL.
+  ['/en/dnd/srd-5.2/glossary/spells/', 'Converted to Markdown, split into pages and cross-linked by OmnisGM.'],
+  ['/en/brp/srd-1.0/', 'The rules text on these pages is Open Game Content, excluding Prohibited Content (Section 1(e)) and Chaosium’s trademarks; the site design, navigation, images and code are not.'],
+  ['/ru/brp/srd-1.0/', 'Текст правил на этих страницах, включая перевод, — Open Game Content, кроме Prohibited Content (раздел 1(e)) и товарных знаков Chaosium; оформление сайта, навигация, картинки и код — нет.'],
 ] as const) {
   test(`футер: атрибуция с модификациями / OGC на ${url}`, async ({ page }) => {
     await page.goto(url);
@@ -37,7 +39,7 @@ test('логотип «Powered by BRP» ведёт на BRP SRD, а не на OR
 });
 
 test('хаб и главная не заявляют связь BRP с Call of Cthulhu / RuneQuest (BRP OGL §8)', async ({ page }) => {
-  for (const url of ['/en/', '/ru/', '/en/brp/srd-1.0/', '/ru/brp/srd-1.0/']) {
+  for (const url of ['/', '/en/', '/ru/', '/en/brp/srd-1.0/', '/ru/brp/srd-1.0/']) {
     await page.goto(url);
     // Текст самого SRD (глава 1 упоминает игры Chaosium) — за пределами хаба и главной.
     await expect(page.locator('main'), url).not.toContainText(/Call of Cthulhu|RuneQuest/);
