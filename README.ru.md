@@ -61,11 +61,11 @@
 
 - **Код** — [MIT](LICENSE), © 2026 Petr Radilov (OmnisGM): исходники сайта (`web/src`, `web/scripts`, `web/e2e`, конфиги), `scripts/`, `.github/` и инструменты в `.claude/`. MIT не покрывает игровой контент в `src/` и любые картинки и медиафайлы в `web/public/` (см. ниже).
 - **Русские переводы** следуют лицензии системы, которую переводят; для двух из них свою выбрать нельзя:
-  - D&D SRD 5.2.1 и 5.1 — перевод наш, под лицензией [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © OmnisGM. Указывайте «OmnisGM» со ссылкой на rules.omnisgm.com рядом с атрибуцией Wizards of the Coast.
+  - D&D SRD 5.2.1 и 5.1 — перевод наш, под лицензией [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), © 2026 Petr Radilov (OmnisGM). Указывайте «OmnisGM» со ссылкой на rules.omnisgm.com рядом с атрибуцией Wizards of the Coast.
   - Daggerheart SRD 1.0 — перевод — Adaptive Content по DPCGL и распространяется на её условиях.
   - Basic Roleplaying SRD 1.0 — перевод — Open Game Content по BRP OGL §1(d) и распространяется на её условиях.
 - **Картинки и медиафайлы** в `web/public/`:
-  - наши иллюстрации (`img/`), карточка для соцсетей (`og.png`), скриншоты приложения и иконки — © OmnisGM, все права защищены. Они не входят ни в один SRD и не покрываются ни лицензиями SRD, ни MIT;
+  - наши иллюстрации (`img/`), карточка для соцсетей (`og.png`), скриншоты приложения и иконки — © 2026 Petr Radilov (OmnisGM), все права защищены. Они не входят ни в один SRD и не покрываются ни лицензиями SRD, ни MIT;
   - `powered-by-brp.png` — логотип *BRP*, товарный знак Chaosium Inc., показывается только так, как требует BRP OGL §15.
 
 ## Структура репозитория
