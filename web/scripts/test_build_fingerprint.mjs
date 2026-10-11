@@ -71,6 +71,15 @@ await writeFile(cfg, 'export default {}; ');
 check(await fingerprint(web) !== base, 'правка astro.config.mjs двигает отпечаток');
 await writeFile(cfg, 'export default {};\n');
 
+// Редиректы хостинга решают, какие страницы собираются (#399): правка firebase.json — новая сборка.
+const hosting = join(root, 'firebase.json');
+await writeFile(hosting, '{"hosting":{"redirects":[]}}\n');
+const withHosting = await fingerprint(web);
+check(withHosting !== base, 'появление firebase.json двигает отпечаток');
+await writeFile(hosting, '{"hosting":{"redirects":[{}]}}\n');
+check(await fingerprint(web) !== withHosting, 'правка firebase.json двигает отпечаток');
+await rm(hosting);
+
 const script = new URL('build_fingerprint.mjs', import.meta.url).pathname;
 const stash = join(web, '.build-fingerprint');
 

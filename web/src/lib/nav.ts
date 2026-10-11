@@ -137,8 +137,8 @@ export const NAV: NavNode[] = [
       page('dh-domaincards', 'Справочник доменных карт', 'Domain Card Reference', '/daggerheart/srd-1.0/16_DomainCardReference/'),
       group('dh-glossary', 'Глоссарий', 'Glossary', [
         page('dh-g-terms', 'Термины', 'Terms', '/daggerheart/srd-1.0/17_Glossary/00_Glossary/'),
-        // Заменены нашими entity-хабами (ссылки на страницы + фасеты); плоские глоссарий-списки
-        // скрыты (hidden), но их страницы остаются доступны (currentId резолвится).
+        // Заменены нашими entity-хабами (ссылки на страницы + фасеты): плоские глоссарий-списки
+        // хостинг уводит 301 на хабы (#160) и они не собираются (#399), поэтому узлов для них нет.
         page('dh-adversaries-hub', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/adversaries/all/'),
         page('dh-g-weapons', 'Оружие (справочник)', 'Weapons (Reference)', '/daggerheart/srd-1.0/17_Glossary/03_Weapons/'),
         page('dh-g-armor', 'Броня (справочник)', 'Armor (Reference)', '/daggerheart/srd-1.0/17_Glossary/04_Armor/'),
@@ -148,12 +148,6 @@ export const NAV: NavNode[] = [
         page('dh-communities-hub', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/communities/all/'),
         page('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
         page('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
-        // Скрытые глоссарий-списки (заменены хабами выше) — узлы держим ради nav-контекста их страниц.
-        // «Способности» = доменные карты (dh-domaincards-hub) → скрыт как дубль (как в D&D).
-        hidden('dh-g-abilities', 'Способности (справочник)', 'Abilities (Reference)', '/daggerheart/srd-1.0/17_Glossary/01_Abilities/'),
-        hidden('dh-g-adversaries', 'Противники (справочник)', 'Adversaries (Reference)', '/daggerheart/srd-1.0/17_Glossary/02_Adversaries/'),
-        hidden('dh-g-ancestries', 'Происхождения (справочник)', 'Ancestries (Reference)', '/daggerheart/srd-1.0/17_Glossary/05_Ancestries/'),
-        hidden('dh-g-communities', 'Сообщества (справочник)', 'Communities (Reference)', '/daggerheart/srd-1.0/17_Glossary/08_Communities/'),
       ]),
     ]),
   ]),
@@ -171,15 +165,13 @@ export const NAV: NavNode[] = [
       page('brp-charsheet', 'Лист персонажа', 'Character Sheet', '/brp/srd-1.0/08_CharacterSheet/'),
       group('brp-glossary', 'Глоссарий (BRP)', 'Glossary', [
         page('brp-g-terms', 'Термины', 'Terms', '/brp/srd-1.0/09_Glossary/00_Glossary/'),
-        // Навыки/Профессии заменены нашими entity-хабами (ссылки на страницы + фасет категорий);
-        // плоские глоссарий-списки скрыты (hidden), страницы остаются доступны.
+        // Навыки/Профессии заменены нашими entity-хабами (ссылки на страницы + фасет категорий):
+        // плоские глоссарий-списки уводит 301 (#160), они не собираются (#399).
         page('brp-skills-hub', 'Навыки (справочник)', 'Skills (Reference)', '/brp/srd-1.0/skills/all/'),
         page('brp-g-weapons', 'Оружие', 'Weapons', '/brp/srd-1.0/09_Glossary/02_Weapons/'),
         page('brp-g-armor', 'Броня', 'Armor', '/brp/srd-1.0/09_Glossary/03_Armor/'),
         page('brp-professions-hub', 'Профессии (справочник)', 'Professions (Reference)', '/brp/srd-1.0/professions/all/'),
         page('brp-spotrules-hub', 'Точечные правила (справочник)', 'Spot Rules (Reference)', '/brp/srd-1.0/spot-rules/all/'),
-        hidden('brp-g-skills', 'Навыки', 'Skills', '/brp/srd-1.0/09_Glossary/01_Skills/'),
-        hidden('brp-g-professions', 'Профессии', 'Professions', '/brp/srd-1.0/09_Glossary/04_Professions/'),
       ]),
     ]),
   ]),

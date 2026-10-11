@@ -34,8 +34,9 @@ Playwright, получив ответ по HTTP, возвращается ДО �
 не в `dist`, и страж вечно молчал бы про эту правку.
 
 Входы: `web/src`, `web/public` и контент `src/` в корне — по «путь + размер»; `web/src/lib`,
-`web/scripts`, `astro.config.mjs`, `package.json`, `package-lock.json`, `tsconfig.json` и
-`web/.env` — чтением целиком (там правка «символ на символ» меняет вывод, не трогая размер).
+`web/scripts`, `astro.config.mjs`, `package.json`, `package-lock.json`, `tsconfig.json`,
+`web/.env` и корневой `firebase.json` (его `hosting.redirects` решают, какие страницы собираются,
+#399) — чтением целиком (там правка «символ на символ» меняет вывод, не трогая размер).
 За бортом намеренно: `.github/**` и `generate_api.py` — они собирают JSON API при деплое и в
 локальный `dist` не попадают. Считается за ~50 мс.
 
