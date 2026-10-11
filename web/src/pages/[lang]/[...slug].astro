@@ -6,13 +6,21 @@ import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
 import { classDescription } from '../../lib/class-facts';
 import { pageDescription } from '../../lib/page-description.mjs';
 import { pageTitle } from '../../lib/page-title';
+import { hostingRedirects, isRedirected } from '../../lib/hosting-redirects.mjs';
 
 export async function getStaticPaths() {
   const all = await getCollection('srd');
+  const redirects = hostingRedirects();
   return all
     // Заглушки обзора глав (напр. 06_Classes/00_Classes.md = только «# Classes») нужны контентному
     // пайплайну для PDF, но на сайте это пустая тонкая страница — роут не генерим (см. #17).
     .filter((entry) => !/\/\d+_Classes\/00_Classes$/.test(entry.id))
+    // Адрес, который хостинг уводит 301 на хаб (дубли глоссариев, #160/#163), на проде недостижим —
+    // страницу не собираем (#399): иначе она живёт только в dist, вне навигации и с сырым заголовком.
+    .filter((entry) => {
+      const ref = parseId(entry.id);
+      return !isRedirected(`/${ref.lang}/${ref.game}/${ref.version}/${ref.slug}/`, redirects);
+    })
     .map((entry) => {
     const ref = parseId(entry.id);
     return {

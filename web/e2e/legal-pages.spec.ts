@@ -22,8 +22,6 @@ for (const [url, text] of [
 for (const [url, text] of [
   ['/en/dnd/srd-5.2/spells/fireball/', 'Converted to Markdown, split into pages and cross-linked by OmnisGM.'],
   ['/ru/dnd/srd-5.2/spells/fireball/', 'Перевод на русский, конвертация в Markdown, разбивка на страницы и перекрёстные ссылки — OmnisGM.'],
-  // Страница вне дерева навигации (glossary/* из `[...slug]`): система атрибуции — из пути URL.
-  ['/en/dnd/srd-5.2/glossary/spells/', 'Converted to Markdown, split into pages and cross-linked by OmnisGM.'],
   ['/en/brp/srd-1.0/', 'The rules text on these pages is Open Game Content, excluding Prohibited Content (Section 1(e)) and Chaosium’s trademarks; the site design, navigation, images and code are not.'],
   ['/ru/brp/srd-1.0/', 'Текст правил на этих страницах, включая перевод, — Open Game Content, кроме Prohibited Content (раздел 1(e)) и товарных знаков Chaosium; оформление сайта, навигация, картинки и код — нет.'],
 ] as const) {
