@@ -49,8 +49,8 @@ const navRoots = activeSys === 'home' ? NAV : ((NAV.find((n) => n.id === activeS
 // Текст наш, не пользовательский.
 const ATTRIB: Record<string, { ru: string; en: string }> = {
   dnd: {
-    en: 'Includes material from the System Reference Document (SRD 5.2.1 / 5.1) by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>.',
-    ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>. Перевод на русский — OmnisGM.',
+    en: 'Includes material from the System Reference Document (SRD 5.2.1 / 5.1) by Wizards of the Coast, licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>. Converted to Markdown, split into pages and cross-linked by OmnisGM.',
+    ru: 'Содержит материалы System Reference Document (SRD 5.2.1 / 5.1) от Wizards of the Coast; лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>. Перевод на русский, конвертация в Markdown, разбивка на страницы и перекрёстные ссылки — OmnisGM.',
   },
   daggerheart: {
     // Формула DPCGL §4.1(a–e): копирайт, имя Public Game Content, ссылка на него, ссылка на
@@ -60,8 +60,8 @@ const ATTRIB: Record<string, { ru: string; en: string }> = {
     ru: 'Этот продукт включает материалы из Daggerheart System Reference Document 1.0, © Critical Role, LLC., на условиях <a href="https://darringtonpress.com/license" target="_blank" rel="noopener license">Darrington Press Community Gaming License (DPCGL)</a>. Подробности — на <a href="https://www.daggerheart.com" target="_blank" rel="noopener">www.daggerheart.com</a>. Текст переведён на русский и конвертирован в Markdown силами OmnisGM, отчасти на основе более ранней сообществной конверсии. Не аффилировано с Darrington Press и не одобрено ей.',
   },
   brp: {
-    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Not affiliated with or endorsed by Chaosium Inc.',
-    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Перевод на русский — OmnisGM. Не аффилировано с Chaosium Inc. и не одобрено ей.',
+    en: 'Uses the Basic Roleplaying System Reference Document, © Chaosium Inc., under the <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. The rules text on these pages is Open Game Content; the site design, navigation, images and code are not. Not affiliated with or endorsed by Chaosium Inc.',
+    ru: 'Использует Basic Roleplaying System Reference Document, © Chaosium Inc., по <a href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener license">BRP Open Game License v1.0</a>. Перевод на русский — OmnisGM. Текст правил на этих страницах, включая перевод, — Open Game Content; оформление сайта, навигация, картинки и код — нет. Не аффилировано с Chaosium Inc. и не одобрено ей.',
   },
 };
 const attribution = activeSys !== 'home' ? ATTRIB[activeSys] : undefined;
@@ -317,7 +317,7 @@ const searchUi = {
               {/* §15 BRP OGL: «prominently display … BRP logo … on the title page or its equivalent» —
                   для веба показываем официальный логотип на каждой странице BRP-раздела рядом с атрибуцией. */}
               {activeSys === 'brp' && (
-                <a class="rd-attrib-logo" href="https://www.chaosium.com/orclicense/" target="_blank" rel="noopener">
+                <a class="rd-attrib-logo" href="https://www.chaosium.com/brp-system-reference-document/" target="_blank" rel="noopener">
                   <img src="/powered-by-brp.png" alt="Powered by BRP — Basic Roleplaying, Chaosium Inc." width="80" height="80" loading="lazy" />
                 </a>
               )}

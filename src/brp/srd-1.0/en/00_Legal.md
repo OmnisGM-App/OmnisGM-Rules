@@ -93,3 +93,7 @@ Basic Roleplaying and the BRP logo are trademarks of Chaosium Inc. Used with per
 16. Severability: If any provision of this License is held to be unenforceable, such provision shall be severed only to the extent necessary to make it enforceable.
 
 17. Governing Law and Venue: The governing law for any disputes arising under this License shall be the laws of the State of Michigan, without reference to its choice of laws provisions. Venue is exclusively vested in the United States Federal District Court for the Eastern District of Michigan.
+
+## Open Game Content on OmnisGM Rules (Section 9)
+
+On rules.omnisgm.com, the Open Game Content is the rules text of the *Basic Roleplaying* System Reference Document 1.0 as reproduced on the pages of this section, together with its Russian translation (a translation is Open Game Content under Section 1(d)). The site design, navigation, page summaries, cross-links, images and code are not Open Game Content.
