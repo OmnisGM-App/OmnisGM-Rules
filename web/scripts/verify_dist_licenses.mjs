@@ -1,7 +1,7 @@
 // Лицензии систем по ВСЕМУ dist (#397): у каждой страницы D&D в футере сказано, что SRD изменён
 // (CC BY 4.0 §3(a)(1)(B)); у каждой страницы BRP — какие части Open Game Content (BRP OGL §9) и логотип
 // ведёт на BRP SRD, а не на ORC; Legal BRP несёт раздел §9; хаб и главная не заявляют связь BRP с
-// Call of Cthulhu / RuneQuest (§8). Плюс корневой LICENSE. e2e (`e2e/legal-pages.spec.ts`) в PR CI не
+// Call of Cthulhu / RuneQuest (§8). Плюс тексты OFL шрифтов и корневой LICENSE. e2e (`e2e/legal-pages.spec.ts`) в PR CI не
 // ходит — пропажу формул из шелла ловит этот гейт. Литералы свои, не из шелла.
 import { existsSync, readFileSync, readdirSync } from 'node:fs';
 import { dirname, join, relative, resolve } from 'node:path';
@@ -83,6 +83,12 @@ for (const rel of ['index.html', 'en/index.html', 'ru/index.html', 'en/brp/srd-1
   if (main && /Call of Cthulhu|RuneQuest/.test(main)) errors.push(`${rel}: упоминание Call of Cthulhu / RuneQuest (BRP OGL §8)`);
 }
 
+// Тексты SIL OFL едут рядом со шрифтами (кит 0.12, Brand#46): OFL §1 требует лицензию с каждой копией.
+for (const f of ['OFL-Inter.txt', 'OFL-JetBrainsMono.txt', 'OFL-Spectral.txt']) {
+  const p = join(DIST, 'fonts', f);
+  if (!existsSync(p) || !readFileSync(p, 'utf8').includes('SIL OPEN FONT LICENSE')) errors.push(`fonts/${f}: нет текста OFL рядом со шрифтами`);
+}
+
 const license = join(WEB, '..', 'LICENSE');
 if (!existsSync(license) || !/^MIT License$/m.test(readFileSync(license, 'utf8')) || !readFileSync(license, 'utf8').includes('Copyright (c) 2026 Petr Radilov (OmnisGM)')) {
   errors.push('корневой LICENSE: нет MIT с правообладателем');
@@ -92,4 +98,4 @@ if (errors.length) {
   console.error(`❌ Лицензии систем в dist: ${errors.length} ошибок\n  ${errors.slice(0, 20).join('\n  ')}`);
   process.exit(1);
 }
-console.log(`✅ Лицензии систем в dist: D&D ${dnd} стр., BRP ${brp} стр., Legal BRP §9, без CoC/RQ на хабе и главной, LICENSE на месте; 4 самопроверки`);
+console.log(`✅ Лицензии систем в dist: D&D ${dnd} стр., BRP ${brp} стр., Legal BRP §9, без CoC/RQ на хабе и главной, тексты OFL и LICENSE на месте; 4 самопроверки`);
