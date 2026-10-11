@@ -104,17 +104,6 @@ function pendingSources(): PendingSource[] {
   return out;
 }
 
-/** Первая сущность без картинки; `withGroups: false` — только сущности со своей страницей. */
-function pendingEntity({ withGroups = true } = {}) {
-  for (const src of pendingSources()) {
-    if (!withGroups && GROUP_PAGES.has(src.collection)) continue;
-    const found = api(src.json).find((e: { image?: string }) => !e.image);
-    if (found) return { entity: found, url: pageUrl(src, found) };
-  }
-  return null;
-}
-
-const NO_PENDING = 'во всех разделах очереди картинки уже у всех — проверять нечего, правь тест';
 
 test('разделы очереди картинок: у каждой коллекции есть страница сущности', () => {
   const sources = pendingSources();
@@ -127,12 +116,11 @@ test('JSON API: image есть у существ с файлом и отсутс
   const monsters = api('dnd/srd52/ru/monsters/all.json');
   const aboleth = monsters.find((m: { slug: string }) => m.slug === 'aboleth');
   expect(aboleth.image).toBe('https://rules.omnisgm.com/img/dnd/creatures/aboleth.webp');
-  // Поля нет вовсе, а не пустая строка/null — потребитель проверяет наличие ключа.
-  const pending = pendingEntity();
-  expect(pending, NO_PENDING).toBeTruthy();
-  expect(pending!.entity).not.toHaveProperty('image');
-  // Окружения Daggerheart делят схему с противниками, но картинок у них нет.
-  expect(api('daggerheart/srd10/ru/environments/all.json')[0]).not.toHaveProperty('image');
+  // Поля нет вовсе, а не пустая строка/null — потребитель проверяет наличие ключа. Пример — окружения
+  // Daggerheart: схема у них общая с противниками, но в очереди генератора их нет, картинка не положена.
+  // Живую сущность «без картинки пока» тут не ищем: очередь API пустеет, и тест оставался без входа
+  // (#395, ранее #274). «Нет файла — нет поля» на синтетике держит .github/scripts/test_attach_images.py.
+  for (const env of api('daggerheart/srd10/ru/environments/all.json')) expect(env).not.toHaveProperty('image');
   expect(api('daggerheart/srd10/ru/adversaries/all.json')[0].image).toContain('/img/daggerheart/creatures/');
 });
 
@@ -179,12 +167,14 @@ test('заклинание и магпредмет с иконкой — тот 
 });
 
 test('сущность без картинки: страница как раньше', async ({ page }) => {
-  // Своя страница сущности: у страницы группы вариантов шапка и og:image от варианта не зависят.
-  const pending = pendingEntity({ withGroups: false });
-  expect(pending, NO_PENDING).toBeTruthy();
+  // Окружение Daggerheart — сущность со своей страницей, которой картинка не положена (вне очереди):
+  // вход не исчезает по мере генерации, в отличие от «ещё не сгенерированной» (#395).
+  const url = '/ru/daggerheart/srd-1.0/environments/abandoned-grove/';
+  expect(api('daggerheart/srd10/ru/environments/all.json').find((e: { slug: string }) => e.slug === 'abandoned-grove'))
+    .not.toHaveProperty('image');
   // Сначала статус 200: у 404 нет портрета и og:image — всё ниже осталось бы зелёным.
-  const res = await page.goto(pending!.url);
-  expect(res?.status(), pending!.url).toBe(200);
+  const res = await page.goto(url);
+  expect(res?.status(), url).toBe(200);
   await expect(page.locator('img.ent-portrait')).toHaveCount(0);
   await expect(page.locator('head meta[property="og:image"]')).toHaveAttribute(
     'content', 'https://rules.omnisgm.com/og.png',
@@ -192,17 +182,20 @@ test('сущность без картинки: страница как рань
   await expect(page.locator('.rd-attrib-img')).toHaveCount(0);
 });
 
-test('вариант без картинки на странице группы: якорь есть, картинки у секции нет', async ({ page }) => {
+test('страница группы вариантов: картинка у секции ровно тогда, когда у варианта есть image', async ({ page }) => {
+  // Обе стороны сразу — без поиска «варианта без картинки», которого после генерации может не остаться (#395).
   const sources = pendingSources().filter((s) => GROUP_PAGES.has(s.collection));
   expect(sources.length, 'нет коллекций со страницами групп').toBeGreaterThan(0);
   const src = sources[0];
-  const entity = api(src.json).find((e: { image?: string }) => !e.image);
-  expect(entity, NO_PENDING).toBeTruthy();
-  const res = await page.goto(pageUrl(src, entity));
+  const first = api(src.json)[0];
+  const group = api(src.json).filter((e: { feature: { key: string } }) => e.feature.key === first.feature.key);
+  const res = await page.goto(pageUrl(src, first));
   expect(res?.status()).toBe(200);
-  const section = page.locator('section.class-option', { has: page.locator(`#${entity.slug}`) });
-  await expect(section).toHaveCount(1);
-  await expect(section.locator('img.class-option-image')).toHaveCount(0);
+  for (const v of group) {
+    const section = page.locator('section.class-option', { has: page.locator(`#${v.slug}`) });
+    await expect(section, v.slug).toHaveCount(1);
+    await expect(section.locator('img.class-option-image'), v.slug).toHaveCount(v.image ? 1 : 0);
+  }
 });
 
 test('очередь генератора: поле image ровно у тех, чей файл лежит', () => {
