@@ -76,6 +76,7 @@
     "scripts/test_plural.mjs",
     "scripts/verify_dist_meta_budget.mjs",
     "scripts/verify_dist_seo.mjs",
+    "scripts/verify_dist_trademark.mjs",
     "scripts/verify_no_hardcoded_urls.mjs",
     "../scripts/gen-images.mjs",
     "../scripts/install_hooks.mjs",
