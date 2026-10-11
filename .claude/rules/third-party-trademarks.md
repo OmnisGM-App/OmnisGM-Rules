@@ -23,7 +23,7 @@
      экосистемы D&D не упоминает и строки не несёт;
    - футер лендинга Table;
    - раздел 1 условий использования, четыре копии `legal/terms-of-service*.md`;
-   - страница лицензий Table `/licenses`, `legal/licenses.{en,ru}.md`.
+   - страница лицензий Table `omnisgm.com/licenses`, `legal/licenses.{en,ru}.md`.
 
    Формула записана литералами в гейтах каждой репы, и литералы эти свои, а не импорт из текста:
    - Rules: e2e `web/e2e/trademark.spec.ts` и CI-гейт `web/scripts/verify_dist_trademark.mjs`
