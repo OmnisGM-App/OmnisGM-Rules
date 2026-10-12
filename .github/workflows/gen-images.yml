@@ -22,7 +22,7 @@ on:
         required: true
         default: auto
         type: choice
-        options: [auto, spells, magic-items, class-options, rules, gear, domain-cards, creatures]
+        options: [auto, spells, magic-items, class-options, rules, species, backgrounds, feats, masteries, weapon-properties, gear, domain-cards, creatures]
       count:
         description: 'Сколько картинок за прогон (картинка ~45–50 с, прогон обрывается через час — влезает ~70)'
         required: false

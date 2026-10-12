@@ -37,7 +37,7 @@ eq(emptyKinds(sized(['spells', 0, 341], ['magic-items', 0, 383])).length, 0,
 eq(emptyKinds([]).length, 0, 'пустой список видов');
 
 // Новые виды (#380) идут раньше снаряжения: их ждут, а у снаряжения очередь длинная.
-for (const kind of ['class-options', 'rules']) {
+for (const kind of ['class-options', 'rules', 'species', 'backgrounds', 'feats', 'masteries', 'weapon-properties']) {
   if (!(ORDER.indexOf(kind) >= 0 && ORDER.indexOf(kind) < ORDER.indexOf('gear'))) {
     failed++;
     console.error(`  ✗ вид ${kind} должен стоять в ORDER раньше gear`);

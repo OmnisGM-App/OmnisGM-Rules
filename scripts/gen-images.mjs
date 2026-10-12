@@ -69,6 +69,13 @@ const KINDS = {
     // несёт таблицу сокращений (AC, C, Cha.…). Состояния 5.1 со своими страницами — из `conditions`.
     versions: { 'rules-terms': ['srd52'] },
   },
+  // Черты, мастерство и свойства оружия — знаки-эмблемы; виды с расами и предыстории — бюсты, как у существ.
+  feats: { dir: 'feats', label: 'черты', prompt: 'concepts', api: { dnd: ['feats'] } },
+  masteries: { dir: 'masteries', label: 'мастерство оружия', prompt: 'concepts', api: { dnd: ['masteries'] } },
+  // Расы 5.1 делят папку с видами 5.2: слаги совпадают (dwarf, elf), картинка у народа одна.
+  species: { dir: 'species', label: 'виды и расы', prompt: 'creatures', api: { dnd: ['species', 'races'] } },
+  backgrounds: { dir: 'backgrounds', label: 'предыстории', prompt: 'creatures', api: { dnd: ['backgrounds'] } },
+  'weapon-properties': { dir: 'weapon-properties', label: 'свойства оружия', prompt: 'concepts', api: { dnd: ['weapon-properties'] } },
   gear: {
     dir: 'gear',
     label: 'снаряжение',
@@ -88,7 +95,7 @@ const KINDS = {
 };
 
 // Порядок для KIND=auto; полноту сверяет orderProblems() (#291).
-const ORDER = ['spells', 'magic-items', 'class-options', 'rules', 'gear', 'domain-cards', 'creatures'];
+const ORDER = ['spells', 'magic-items', 'class-options', 'rules', 'species', 'backgrounds', 'feats', 'masteries', 'weapon-properties', 'gear', 'domain-cards', 'creatures'];
 
 // Функция, а не падение при импорте: иначе юнит-тест недостижим.
 export function orderProblems() {

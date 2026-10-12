@@ -73,6 +73,8 @@ const PAGE_SEGMENT: Record<string, string> = {
 };
 // Варианты классовых умений (#379) показываются на странице своей группы, у варианта — якорь.
 const GROUP_PAGES = new Set(['class-options']);
+// Мастерство и свойства оружия своих страниц не имеют: картинка нужна только полю `image` API.
+const API_ONLY = new Set(['masteries', 'weapon-properties']);
 
 const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string } }) => (GROUP_PAGES.has(s.collection)
   ? `/ru/${s.game}/${s.version}/${s.segment}/${entity.feature!.key}/#${entity.slug}`
@@ -108,7 +110,9 @@ function pendingSources(): PendingSource[] {
 test('разделы очереди картинок: у каждой коллекции есть страница сущности', () => {
   const sources = pendingSources();
   expect(sources.length).toBeGreaterThan(0);
-  const missing = sources.filter((s) => !fs.existsSync(routeFile(s))).map(routeFile);
+  const missing = sources.filter((s) => !API_ONLY.has(s.collection) && !fs.existsSync(routeFile(s))).map(routeFile);
+  const stale = sources.filter((s) => API_ONLY.has(s.collection) && fs.existsSync(routeFile(s))).map(routeFile);
+  expect(stale, `страница появилась — убери коллекцию из API_ONLY: ${stale.join(', ')}`).toEqual([]);
   expect(missing, `нет маршрутов: ${missing.join(', ')}`).toEqual([]);
 });
 
