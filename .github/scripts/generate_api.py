@@ -637,6 +637,13 @@ IMAGE_DIRS = {
         "rules-terms": "rules",
         "areas-of-effect": "rules",
         "conditions": "rules",
+        # Расы 5.1 делят папку с видами 5.2: слаги совпадают, картинка у народа одна.
+        "species": "species",
+        "races": "species",
+        "backgrounds": "backgrounds",
+        "feats": "feats",
+        "masteries": "masteries",
+        "weapon-properties": "weapon-properties",
     },
     "daggerheart": {
         "adversaries": "creatures",

@@ -445,6 +445,7 @@ FEAT_SCHEMA = {
         "repeatable": {"type": "boolean"},
         "benefits": {"type": "array", "items": _SECTION_ENTRY},
         "description_md": {"type": "string"},
+        "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "category", "prerequisite",

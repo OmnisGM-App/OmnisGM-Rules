@@ -88,6 +88,27 @@ with tempfile.TemporaryDirectory() as tmp:
     check("область воздействия — из папки rules", area.get("image"), f"{ORIGIN}/img/dnd/rules/cone.webp")
     check("вариант класса — из своей папки", option.get("image"), f"{ORIGIN}/img/dnd/class-options/metamagic-careful-spell.webp")
 
+    # Вид 5.2 и раса 5.1 с тем же слагом делят папку species; свойство оружия `reach` не берёт картинку термина.
+    for sub, slug in (("species", "dwarf"), ("backgrounds", "acolyte"), ("feats", "alert"), ("masteries", "cleave")):
+        (root / "dnd" / sub).mkdir(parents=True)
+        (root / "dnd" / sub / f"{slug}.webp").write_bytes(b"webp")
+    (root / "dnd" / "rules" / "reach.webp").write_bytes(b"webp")
+    species, race, background, feat, mastery, prop = ({"slug": s} for s in ("dwarf", "dwarf", "acolyte", "alert", "cleave", "reach"))
+    attach_images({
+        ("srd52", "en", "species"): [species],
+        ("srd51", "en", "races"): [race],
+        ("srd52", "en", "backgrounds"): [background],
+        ("srd52", "en", "feats"): [feat],
+        ("srd52", "en", "masteries"): [mastery],
+        ("srd52", "en", "weapon-properties"): [prop],
+    }, "dnd", root, ORIGIN)
+    check("вид — из папки species", species.get("image"), f"{ORIGIN}/img/dnd/species/dwarf.webp")
+    check("раса 5.1 с тем же слагом — та же картинка", race.get("image"), f"{ORIGIN}/img/dnd/species/dwarf.webp")
+    check("предыстория — из своей папки", background.get("image"), f"{ORIGIN}/img/dnd/backgrounds/acolyte.webp")
+    check("черта — из своей папки", feat.get("image"), f"{ORIGIN}/img/dnd/feats/alert.webp")
+    check("мастерство — из своей папки", mastery.get("image"), f"{ORIGIN}/img/dnd/masteries/cleave.webp")
+    check("свойство оружия не берёт картинку одноимённого термина", "image" in prop, False)
+
     # Daggerheart: своя игра — свой префикс пути.
     adversary = {"slug": "acid-burrower"}
     environment = {"slug": "haunted-city"}
