@@ -1,7 +1,7 @@
 ---
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
-import { RARITIES, raritySlug, rarityLabel, rarityRank, rarityHubLabel, type ItemLite as Item } from '../../../../../lib/magic-item-hubs';
+import { RARITIES, raritySlug, rarityRank, rarityHubLabel, itemRarities, itemRarityLabel, type ItemLite as Item } from '../../../../../lib/magic-item-hubs';
 import { pageTitle } from '../../../../../lib/page-title';
 import { hubDescription } from '../../../../../lib/entity-facts';
 import { countPhrase, countLeadEn, pluralEn } from '../../../../../lib/plural.mjs';
@@ -29,7 +29,7 @@ const verLabel = VERSION_LABEL[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 const base = `/${lang}/dnd/${verSlug}/magic-items`;
 // Редкости, реально присутствующие в версии — для футер-навигации на rarity-хабы.
-const presentRarities = RARITIES.filter((r) => items.some((it) => raritySlug(it.rarity) === r.slug));
+const presentRarities = RARITIES.filter((r) => items.some((it) => itemRarities(it).includes(r.en)));
 
 const heading = t('Все магические предметы', 'All Magic Items');
 const title = pageTitle({ name: heading, lang, game: 'dnd', version: ver });
@@ -71,12 +71,13 @@ const description = hubDescription({
       </thead>
       <tbody>
         {items.map((it) => {
-          const rs = raritySlug(it.rarity);
+          const own = itemRarities(it);
+          const rs = own.length === 1 ? raritySlug(own[0]) : undefined;
           return (
             <tr>
               <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
               <td>{it.type ?? '—'}</td>
-              <td data-sort={rarityRank(it.rarity)}>{rs ? <a href={`${base}/rarity/${rs}/`}>{rarityLabel(it.rarity, lang)}</a> : rarityLabel(it.rarity, lang)}</td>
+              <td data-sort={rarityRank(own[0])}>{rs ? <a href={`${base}/rarity/${rs}/`}>{itemRarityLabel(it, lang)}</a> : itemRarityLabel(it, lang)}</td>
               <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
             </tr>
           );

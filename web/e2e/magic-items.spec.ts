@@ -41,3 +41,16 @@ test('SEO: hreflang-тройка, индексируема, в sitemap', async (
   const sm = await (await request.get('/sitemap-0.xml')).text();
   expect(sm).toContain('/dnd/srd-5.2/magic-items/bag-of-holding/');
 });
+
+test('предмет с несколькими редкостями и с варьирующейся: подпись и хабы', async ({ page }) => {
+  await page.goto('/ru/dnd/srd-5.2/magic-items/weapon-1-2-or-3/');
+  await expect(page.locator('.item-meta-line')).toContainText('необычный, редкий или очень редкий');
+  await page.goto('/en/dnd/srd-5.2/magic-items/potions-of-healing/');
+  await expect(page.locator('.item-meta-line')).toContainText('rarity varies');
+  for (const rarity of ['uncommon', 'rare', 'very-rare']) {
+    await page.goto(`/en/dnd/srd-5.2/magic-items/rarity/${rarity}/`);
+    await expect(page.locator('.rd-doc a[href$="/magic-items/weapon-1-2-or-3/"]'), rarity).toHaveCount(1);
+  }
+  await page.goto('/en/dnd/srd-5.2/magic-items/rarity/legendary/');
+  await expect(page.locator('.rd-doc a[href$="/magic-items/weapon-1-2-or-3/"]')).toHaveCount(0);
+});

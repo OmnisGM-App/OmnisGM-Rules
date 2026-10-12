@@ -1,5 +1,6 @@
 import type { APIRoute } from 'astro';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../lib/entities';
+import { itemRarityLabel } from '../../../../lib/magic-item-hubs';
 
 // Hovercard-данные для автоссылок (issue #20, вариант B: fetch-on-hover served JSON).
 // Бакет `game/verKey/lang` → карта `resource/slug` → { name, name_en, effect(HTML), href }.
@@ -83,16 +84,9 @@ function monsterHtml(e: Record<string, unknown>, lang: string): string {
 }
 
 // Карточка предмета: «тип · редкость» + короткая выдержка описания.
-const RARITY: Record<string, [string, string]> = {
-  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
-  'very rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'],
-  artifact: ['артефакт', 'artifact'],
-};
 function itemHtml(e: Record<string, unknown>, lang: string): string {
   const type = (e.type as string) ?? '';
-  const rawR = (e.rarity as string) ?? '';
-  const rp = RARITY[rawR];
-  const rarity = rp ? (lang === 'ru' ? rp[0] : rp[1]) : rawR;
+  const rarity = itemRarityLabel(e, lang === 'ru' ? 'ru' : 'en');
   const sub = [type, rarity].filter(Boolean).join(', ');
   const ex = excerpt(e.description_md as string | undefined, 190);
   return (

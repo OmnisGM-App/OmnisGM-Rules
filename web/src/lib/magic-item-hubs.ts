@@ -1,6 +1,7 @@
 // Хабы магических предметов (issue #20): фасетные списки по редкости.
 // Роут: magic-items/rarity/[rarity]. Редкость в данных — английский ключ ('very rare');
 // URL-слаг языконезависим ('very-rare') → общий каноникал + hreflang.
+export { itemRarities, itemRarityLabel } from './item-rarity.mjs';
 export type Lang = 'en' | 'ru';
 
 export interface ItemLite {
@@ -8,7 +9,8 @@ export interface ItemLite {
   name: string;
   name_en?: string | null;
   type?: string;
-  rarity?: string; // EN-ключ: 'common' | 'uncommon' | 'rare' | 'very rare' | 'legendary' | 'artifact'
+  rarity?: string | null; // EN-ключ: 'common' | … | 'artifact'; null — редкостей несколько или она варьируется
+  rarities?: string[];    // все редкости предмета; пусто — «редкость варьируется»
   attunement?: { required?: boolean };
 }
 
@@ -24,22 +26,13 @@ export const RARITIES: { slug: string; en: string; ru: string }[] = [
 
 export const rarityBySlug = (slug: string) => RARITIES.find((r) => r.slug === slug);
 // Сырое поле rarity ('very rare') → слаг ('very-rare'); undefined, если редкость не задана/неизвестна.
-export const raritySlug = (raw?: string): string | undefined => RARITIES.find((r) => r.en === raw)?.slug;
-// Подпись редкости в единственном числе (для колонки таблицы): 'редкий' / 'rare'.
-const SINGULAR: Record<string, [string, string]> = {
-  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
-  'very-rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'], artifact: ['артефакт', 'artifact'],
-};
-export const rarityLabel = (raw: string | undefined, lang: Lang): string => {
-  const slug = raritySlug(raw);
-  return slug && SINGULAR[slug] ? SINGULAR[slug][lang === 'ru' ? 0 : 1] : (raw ?? '');
-};
+export const raritySlug = (raw?: string | null): string | undefined => RARITIES.find((r) => r.en === raw)?.slug;
 // Заголовок хаба редкости (мн. число): «Редкие предметы» / «Rare items».
 export const rarityHubLabel = (slug: string, lang: Lang): string => {
   const r = rarityBySlug(slug);
   return r ? r[lang] : slug;
 };
-export const rarityRank = (raw?: string): number => {
+export const rarityRank = (raw?: string | null): number => {
   const i = RARITIES.findIndex((r) => r.en === raw);
   return i === -1 ? 99 : i;
 };
