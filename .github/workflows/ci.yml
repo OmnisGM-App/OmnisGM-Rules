@@ -261,6 +261,11 @@ jobs:
         working-directory: web
         run: node scripts/verify_dist_redirects.mjs
 
+      # CTA сущностных страниц (#164): пропажа `entitySlug` со страницы молча возвращает общий CTA. e2e в PR CI не ходит.
+      - name: CTA в компендиум Table по dist
+        working-directory: web
+        run: node scripts/verify_dist_cta.mjs
+
       # Количественный гейт по ВСЕМУ dist (issue #185): дубли description и длинные <title>.
       # Бюджетный, а не нулевой — разделы чиним волнами; скрипт валит CI и на ухудшении, и на
       # неопущенном бюджете после улучшения (иначе гейт перестаёт ловить регрессии).

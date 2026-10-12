@@ -302,7 +302,7 @@ const searchUi = {
               а для отчётов важнее «какая страница конвертит», чем язык (#14). */}
           <a
             class="rd-cta"
-            href={compendium ? `${compendium}?${ctaUtm}` : `${funnelBase}?${ctaUtm}`}
+            href={compendium ? `${compendium}?lang=${lang}&${ctaUtm}` : `${funnelBase}?${ctaUtm}`}
             data-pagefind-ignore
             data-cta={compendium ? 'compendium' : 'funnel'}
             onclick={`window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader',page:'${currentId}',to:'${compendium ? 'compendium' : 'funnel'}'})`}
