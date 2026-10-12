@@ -41,26 +41,17 @@ def _parse_type_rarity_line(line: str, lang: str) -> dict:
         # Remove attunement parenthetical from text
         text = text[:att_match.start()].strip().rstrip(",").strip()
 
-    # Find rarity (last comma-separated part before attunement)
-    rarity = None
+    # Редкостей в строке бывает несколько («Uncommon (+1), Rare (+2), or Very Rare (+3)») или ни одной
+    # («Rarity Varies»): тип — всё до первой из них.
     item_type = ""
     subtype = None
-
-    # Split on the last comma to separate type from rarity
-    # But be careful: type may contain commas in parentheses
-    # Strategy: find rarity keywords
-    text_lower = text.lower()
-
     rarity_map = RARITIES_RU if lang == "ru" else RARITIES_EN
-    for rarity_key in sorted(rarity_map.keys(), key=len, reverse=True):
-        if rarity_key in text_lower:
-            rarity = rarity_map[rarity_key]
-            # Find position of rarity in text
-            idx = text_lower.rfind(rarity_key)
-            type_part = text[:idx].strip().rstrip(",").strip()
-            break
-    else:
-        type_part = text
+    keys = "|".join(re.escape(k) for k in sorted(rarity_map, key=len, reverse=True))
+    found = list(re.finditer(rf"(?<!\w)(?:{keys})(?!\w)", text, re.IGNORECASE))
+    varies = re.search(r"(?<!\w)(?:rarity varies|редкость варьируется)(?!\w)", text, re.IGNORECASE)
+    rarities = list(dict.fromkeys(rarity_map[m.group(0).lower()] for m in found))
+    cut = min([m.start() for m in found] + ([varies.start()] if varies else []), default=len(text))
+    type_part = text[:cut].strip().rstrip(",").strip()
 
     # Parse type and subtype
     # Pattern: "Armor (Medium or Heavy)" or "Weapon (Any Sword)"
@@ -74,7 +65,8 @@ def _parse_type_rarity_line(line: str, lang: str) -> dict:
     return {
         "type": item_type,
         "subtype": subtype,
-        "rarity": rarity,
+        "rarity": rarities[0] if len(rarities) == 1 else None,
+        "rarities": rarities,
         "attunement": {
             "required": attunement_required,
             "condition": attunement_condition,
@@ -166,6 +158,7 @@ def parse_magic_items(text: str, heading_level: int, lang: str,
             "type": type_info["type"],
             "subtype": type_info["subtype"],
             "rarity": type_info["rarity"],
+            "rarities": type_info["rarities"],
             "attunement": type_info["attunement"],
             "description_md": description_md,
             "spells": spell_refs,

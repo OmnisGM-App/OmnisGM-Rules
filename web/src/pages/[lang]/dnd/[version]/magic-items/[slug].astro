@@ -10,17 +10,11 @@ import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { magicItemDescription } from '../../../../../lib/entity-facts';
 import { pageTitle } from '../../../../../lib/page-title';
+import { itemRarityLabel } from '../../../../../lib/magic-item-hubs';
 
 // Programmatic-страницы магических предметов (issue #20, волна 3) в общем шелле ридера.
 // URL: /{lang}/dnd/{version}/magic-items/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
 const PARENT_NAV: Record<string, string> = { srd52: 'd52-magicitems', srd51: 'd51-magicitems' };
-
-// Редкость: в данных ключ по-английски (обе локали) — нормализуем двусторонним мапом.
-const RARITY: Record<string, [string, string]> = {
-  common: ['обычный', 'common'], uncommon: ['необычный', 'uncommon'], rare: ['редкий', 'rare'],
-  'very rare': ['очень редкий', 'very rare'], legendary: ['легендарный', 'legendary'],
-  artifact: ['артефакт', 'artifact'],
-};
 
 interface Sib { slug: string; name: string; type: string; rarity: string }
 
@@ -68,9 +62,7 @@ const description =
   excerpt(entity.description_md as string);
 
 const itemType = (entity.type as string) ?? '';
-const rawRarity = (entity.rarity as string) ?? '';
-const rarityPair = RARITY[rawRarity];
-const rarityLabel = rarityPair ? (lang === 'ru' ? rarityPair[0] : rarityPair[1]) : rawRarity;
+const rarityLabel = itemRarityLabel(entity, lang);
 const attune = (entity.attunement ?? {}) as { required?: boolean; condition?: string | null };
 const attuneLabel = attune.required
   ? t('требует настройки', 'requires attunement') + (attune.condition ? ` (${attune.condition})` : '')

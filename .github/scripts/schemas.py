@@ -301,6 +301,13 @@ MAGIC_ITEM_SCHEMA = {
                 {"type": "null"},
             ],
         },
+        # Все редкости из строки типа: одна — та же, что в `rarity`; несколько — у предметов «+1, +2
+        # или +3»; пусто — «редкость варьируется». `rarity` в двух последних случаях null.
+        "rarities": {
+            "type": "array",
+            "items": {"type": "string", "enum": ["common", "uncommon", "rare", "very rare",
+                                                 "legendary", "artifact"]},
+        },
         "attunement": {
             "type": "object",
             "properties": {
@@ -316,7 +323,7 @@ MAGIC_ITEM_SCHEMA = {
         "image": {"type": "string", "format": "uri"},
     },
     "required": [
-        "slug", "name", "name_en", "type", "subtype", "rarity",
+        "slug", "name", "name_en", "type", "subtype", "rarity", "rarities",
         "attunement", "description_md", "spells",
     ],
     "additionalProperties": False,

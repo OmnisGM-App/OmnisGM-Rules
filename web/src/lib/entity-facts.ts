@@ -5,7 +5,7 @@
 import { excerpt } from './entities';
 import { listFit } from './page-description.mjs';
 import { schoolLabel } from './spell-hubs';
-import { rarityLabel } from './magic-item-hubs';
+import { itemRarityLabel } from './magic-item-hubs';
 
 // Редакция D&D по ключу версии. Принимаем оба написания, которые ходят по коду: ключ API
 // («srd52», как в VERSION_SLUG) и сегмент URL («srd-5.2», как в catch-all-роуте).
@@ -251,6 +251,7 @@ interface MagicItemEntity {
   type?: unknown;
   subtype?: unknown;
   rarity?: unknown;
+  rarities?: unknown;
   attunement?: unknown;
 }
 
@@ -266,9 +267,8 @@ export function magicItemDescription(opts: {
   const { entity, lang, version } = opts;
 
   const type = str(entity.type);
-  const rawRarity = str(entity.rarity);
-  if (!type && !rawRarity) return null;
-  const rarity = rawRarity ? rarityLabel(rawRarity, lang) : '';
+  if (!type) return null;
+  const rarity = itemRarityLabel(entity, lang);
   const subtype = str(entity.subtype);
 
   const att = entity.attunement as { required?: unknown; condition?: unknown } | undefined;
