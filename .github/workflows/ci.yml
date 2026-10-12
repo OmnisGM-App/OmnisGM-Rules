@@ -141,6 +141,11 @@ jobs:
         working-directory: web
         run: node scripts/test_plural.mjs
 
+      # Адрес записи в компендиуме Table (#164): категория и baseId пишет импортёр Table, сборка Rules расхождения не увидит.
+      - name: Unit — ссылки CTA в компендиум Table
+        working-directory: web
+        run: node scripts/test_compendium_link.mjs
+
       # Политика CSP (#325): пропажа хоста в ней не роняет ни сборку, ни e2e — она роняет чужой
       # скрипт в браузере посетителя. Так и вышло: Метрика шлёт хиты зарубежных посетителей на
       # mc.yandex.com, хоста в политике не было, и с перевода в enforce счётчик для них молчал.
@@ -255,6 +260,11 @@ jobs:
       - name: Редиректы против dist
         working-directory: web
         run: node scripts/verify_dist_redirects.mjs
+
+      # CTA сущностных страниц (#164): пропажа `entitySlug` со страницы молча возвращает общий CTA. e2e в PR CI не ходит.
+      - name: CTA в компендиум Table по dist
+        working-directory: web
+        run: node scripts/verify_dist_cta.mjs
 
       # Количественный гейт по ВСЕМУ dist (issue #185): дубли description и длинные <title>.
       # Бюджетный, а не нулевой — разделы чиним волнами; скрипт валит CI и на ухудшении, и на
