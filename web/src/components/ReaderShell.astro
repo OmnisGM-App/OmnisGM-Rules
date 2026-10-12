@@ -10,6 +10,7 @@ import {
   label, routeOf, systemRoute, homeRoute, type Lang, type NavGroup,
 } from '../lib/nav';
 import { pageDates } from '../lib/content-dates.mjs';
+import { compendiumHref } from '../lib/compendium-link.mjs';
 
 export interface Props {
   lang: Lang;
@@ -28,10 +29,11 @@ export interface Props {
   imageHeight?: number;
   // Откуда собран контент сущностной страницы (#219) — для дат изменения из git.
   contentSource?: { game: string; ver: string; lang: string; resource: string };
+  entitySlug?: string;   // слаг сущности: CTA ведёт на неё в компендиум Table (#164)
   // Хаб редакции (#230): даты — по всем файлам документа.
   docSource?: { game: string; version: string; lang: string };
 }
-const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource, docSource } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource, entitySlug, docSource } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
@@ -39,6 +41,8 @@ const MAIN = 'https://omnisgm.com';
 // билингвальный корень — на «/». Table hosting trailingSlash:false → без слэша.
 const funnelBase = lang === 'ru' && !bilingual ? `${MAIN}/ru` : `${MAIN}/`;
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
+const compendium = contentSource && entitySlug ? compendiumHref(contentSource.ver, contentSource.resource, entitySlug) : null;
+const ctaUtm = `utm_source=rules&utm_medium=cta&utm_campaign=funnel&utm_content=${encodeURIComponent(currentId)}`;
 
 const activeSys = systemOf(currentId);
 const activeSysTab = SYSTEMS.find((s) => s.id === activeSys);
@@ -298,14 +302,22 @@ const searchUi = {
               а для отчётов важнее «какая страница конвертит», чем язык (#14). */}
           <a
             class="rd-cta"
-            href={`${funnelBase}?utm_source=rules&utm_medium=cta&utm_campaign=funnel&utm_content=${encodeURIComponent(currentId)}`}
+            href={compendium ? `${compendium}?${ctaUtm}` : `${funnelBase}?${ctaUtm}`}
             data-pagefind-ignore
-            onclick={`window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader',page:'${currentId}'})`}
+            data-cta={compendium ? 'compendium' : 'funnel'}
+            onclick={`window.omnisTrack&&window.omnisTrack('cta_character_sheet',{from:'reader',page:'${currentId}',to:'${compendium ? 'compendium' : 'funnel'}'})`}
           >
-            <span class="rd-cta-body">
-              <span class="rd-cta-title"><I18n en="Build your character in OmnisGM" ru="Соберите персонажа в OmnisGM" bilingual={bilingual} lang={lang} /></span>
-              <span class="rd-cta-sub"><I18n en="An interactive character sheet — for these very rules." ru="Интерактивный лист персонажа — по этим самым правилам." bilingual={bilingual} lang={lang} /></span>
-            </span>
+            {compendium ? (
+              <span class="rd-cta-body">
+                <span class="rd-cta-title">{t('Открыть в OmnisGM', 'Open in OmnisGM')}</span>
+                <span class="rd-cta-sub">{t('Эта запись в компендиуме интерактивного листа персонажа.', 'This entry in the compendium of the interactive character sheet.')}</span>
+              </span>
+            ) : (
+              <span class="rd-cta-body">
+                <span class="rd-cta-title"><I18n en="Build your character in OmnisGM" ru="Соберите персонажа в OmnisGM" bilingual={bilingual} lang={lang} /></span>
+                <span class="rd-cta-sub"><I18n en="An interactive character sheet — for these very rules." ru="Интерактивный лист персонажа — по этим самым правилам." bilingual={bilingual} lang={lang} /></span>
+              </span>
+            )}
             <span class="rd-cta-arrow" aria-hidden="true">→</span>
           </a>
 

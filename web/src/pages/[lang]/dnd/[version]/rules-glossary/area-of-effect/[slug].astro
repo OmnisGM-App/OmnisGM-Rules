@@ -61,6 +61,7 @@ const image = entityImage('dnd', 'rules', entity.slug);
   imageWidth={image ? ENTITY_IMAGE_SIZE : undefined}
   imageHeight={image ? ENTITY_IMAGE_SIZE : undefined}
   contentSource={{ game: 'dnd', ver, lang, resource: 'areas-of-effect' }}
+  entitySlug={entity.slug}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}
