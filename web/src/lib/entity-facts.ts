@@ -257,7 +257,7 @@ interface MagicItemEntity {
 
 /**
  * Фактовый <meta description> магического предмета: тип, редкость, настройка (самостоятельный
- * кластер спроса); условие настройки — только если влезает. null, если типа и редкости нет.
+ * кластер спроса); условие настройки — только если влезает. null, если типа нет.
  */
 export function magicItemDescription(opts: {
   entity: MagicItemEntity;

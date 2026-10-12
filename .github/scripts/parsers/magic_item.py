@@ -42,13 +42,16 @@ def _parse_type_rarity_line(line: str, lang: str) -> dict:
         text = text[:att_match.start()].strip().rstrip(",").strip()
 
     # Редкостей в строке бывает несколько («Uncommon (+1), Rare (+2), or Very Rare (+3)») или ни одной
-    # («Rarity Varies»): тип — всё до первой из них.
+    # (редкость варьируется): тип — всё до первой из них.
     item_type = ""
     subtype = None
     rarity_map = RARITIES_RU if lang == "ru" else RARITIES_EN
     keys = "|".join(re.escape(k) for k in sorted(rarity_map, key=len, reverse=True))
     found = list(re.finditer(rf"(?<!\w)(?:{keys})(?!\w)", text, re.IGNORECASE))
-    varies = re.search(r"(?<!\w)(?:rarity varies|редкость варьируется)(?!\w)", text, re.IGNORECASE)
+    # Формы источника: 5.2 «Rarity Varies», 5.1 ещё «Varies» и «Rarity by Figurine».
+    varies = re.search(
+        r"(?<!\w)(?:(?:rarity\s+)?varies|rarity by figurine|(?:редкость\s+)?варьируется|редкость зависит от фигурки)(?!\w)",
+        text, re.IGNORECASE)
     rarities = list(dict.fromkeys(rarity_map[m.group(0).lower()] for m in found))
     cut = min([m.start() for m in found] + ([varies.start()] if varies else []), default=len(text))
     type_part = text[:cut].strip().rstrip(",").strip()

@@ -40,6 +40,11 @@ eq("условие настройки", line("*Weapon (Warhammer), Very Rare (Re
 eq("RU: три редкости и настройка", line("*Волшебная палочка, необычный (+1), редкий (+2) или очень редкий (+3) (требуется настройка заклинателем)*", "ru"),
    ("Волшебная палочка", None, None, ["uncommon", "rare", "very rare"], True, "заклинателем"))
 eq("RU: варьируется", line("*Зелье, редкость варьируется*", "ru"), ("Зелье", None, None, [], False, None))
+eq("5.1: «Varies» без слова Rarity", line("*Scroll, Varies*"), ("Scroll", None, None, [], False, None))
+eq("5.1: редкость по фигурке", line("*Wondrous Item, Rarity by Figurine*"), ("Wondrous Item", None, None, [], False, None))
+eq("5.1 RU: «варьируется»", line("*Свиток, варьируется*", "ru"), ("Свиток", None, None, [], False, None))
+eq("5.1 RU: зависит от фигурки", line("*Чудесный предмет, редкость зависит от фигурки*", "ru"),
+   ("Чудесный предмет", None, None, [], False, None))
 eq("RU: род прилагательного", line("*Чудесный предмет, очень редкий*", "ru"),
    ("Чудесный предмет", None, "very rare", ["very rare"], False, None))
 

@@ -281,6 +281,8 @@ MONSTER_SCHEMA = {
 
 # -- Magic Item schema ---------------------------------------------------------
 
+_RARITY_ENUM = ["common", "uncommon", "rare", "very rare", "legendary", "artifact"]
+
 MAGIC_ITEM_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Magic Item",
@@ -293,11 +295,7 @@ MAGIC_ITEM_SCHEMA = {
         "subtype": {"type": ["string", "null"]},
         "rarity": {
             "anyOf": [
-                {
-                    "type": "string",
-                    "enum": ["common", "uncommon", "rare", "very rare",
-                             "legendary", "artifact"],
-                },
+                {"type": "string", "enum": _RARITY_ENUM},
                 {"type": "null"},
             ],
         },
@@ -305,8 +303,7 @@ MAGIC_ITEM_SCHEMA = {
         # или +3»; пусто — «редкость варьируется». `rarity` в двух последних случаях null.
         "rarities": {
             "type": "array",
-            "items": {"type": "string", "enum": ["common", "uncommon", "rare", "very rare",
-                                                 "legendary", "artifact"]},
+            "items": {"type": "string", "enum": _RARITY_ENUM},
         },
         "attunement": {
             "type": "object",

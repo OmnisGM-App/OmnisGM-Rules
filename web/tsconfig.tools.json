@@ -75,6 +75,7 @@
     "scripts/test_class_option_links.mjs",
     "scripts/test_page_description.mjs",
     "scripts/test_plural.mjs",
+    "scripts/test_item_rarity.mjs",
     "scripts/test_compendium_link.mjs",
     "scripts/verify_dist_licenses.mjs",
     "scripts/verify_dist_redirects.mjs",

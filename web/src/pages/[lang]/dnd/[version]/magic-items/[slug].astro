@@ -56,7 +56,7 @@ const render = (md: string | undefined | null) => {
 };
 const bodyHtml = render(entity.description_md as string);
 // Сниппет из фактов (issue #185): excerpt() первого абзаца давал дубли между 5.1 и 5.2
-// и между однотипными предметами. Откат к excerpt(), если типа и редкости в данных нет.
+// и между однотипными предметами. Откат к excerpt(), если типа в данных нет.
 const description =
   magicItemDescription({ entity, lang, version: ver }) ??
   excerpt(entity.description_md as string);

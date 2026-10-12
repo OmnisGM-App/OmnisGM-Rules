@@ -145,6 +145,11 @@ jobs:
         working-directory: web
         run: node scripts/test_plural.mjs
 
+      # Подпись редкостей магического предмета (#410): несколько редкостей и «варьируется» в сборке единичны.
+      - name: Unit — редкости магического предмета
+        working-directory: web
+        run: node scripts/test_item_rarity.mjs
+
       # Адрес записи в компендиуме Table (#164): категория и baseId пишет импортёр Table, сборка Rules расхождения не увидит.
       - name: Unit — ссылки CTA в компендиум Table
         working-directory: web
