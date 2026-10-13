@@ -808,6 +808,31 @@ BRP_SECTION_SCHEMA = {
 
 # -- Mapping resource name → schema (used by generate_api.py) -----------------
 
+# Наследие вида (#413): вариант особенности вида, который игрок выбирает (дракон-предок, родословная
+# эльфа или гнома, наследие великанов, наследие исчадий). species — слаг вида; trait — имя особенности
+# вида, чьи это варианты; details — колонки строки таблицы наследий, пусто у наследия-абзаца.
+SPECIES_LINEAGE_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "SpeciesLineage",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "species": {"type": "string"},
+        "trait": {"type": "string"},
+        "description_md": {"type": "string", "minLength": 1},
+        "details": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}, "text": {"type": "string"}},
+            "required": ["label", "text"],
+            "additionalProperties": False,
+        }},
+    },
+    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details"],
+    "additionalProperties": False,
+}
+
 RESOURCE_SCHEMAS = {
     "spells": SPELL_SCHEMA,
     "monsters": MONSTER_SCHEMA,
@@ -821,6 +846,7 @@ RESOURCE_SCHEMAS = {
     "classes": CLASS_SCHEMA,
     "subclasses": SUBCLASS_SCHEMA,
     "class-options": CLASS_OPTION_SCHEMA,
+    "species-lineages": SPECIES_LINEAGE_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
     "communities": DH_SECTION_SCHEMA,

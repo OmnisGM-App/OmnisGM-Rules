@@ -27,7 +27,7 @@ import importlib
 
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
-                     parse_conditions, parse_feats, parse_races, parse_origins,
+                     parse_conditions, parse_feats, parse_races, parse_origins, structure_species,
                      parse_class, parse_class_options, parse_subclasses,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
@@ -276,6 +276,39 @@ def inject_spell_subclasses(all_data: dict) -> None:
         for spell in all_data.get((ver, lang, "spells"), []):
             if spell["slug"] in labels:
                 spell["subclasses"] = sorted(labels[spell["slug"]])
+
+
+def build_species_lineages(all_data: dict) -> list[str]:
+    """Виды 5.2 структурой и ресурс `species-lineages` (#413).
+
+    EN разбирается по объявлению наследий, RU — по форме EN: те же абзацы по позиции. RU получает из EN
+    слаг наследия, `name_en` и коды размера; расхождение числа видов, особенностей или размеров — ошибка.
+    """
+    errors: list[str] = []
+    for (ver, lang, resource) in [k for k in all_data if k[1] == "en" and k[2] == "species"]:
+        en = all_data[(ver, "en", "species")]
+        if not en or "subraces" in en[0]:  # расы 5.1 — другая форма
+            continue
+        try:
+            en_lineages, shape = structure_species(en, "en")
+            all_data[(ver, "en", "species-lineages")] = en_lineages
+            ru = all_data.get((ver, "ru", "species"))
+            if ru is None:
+                continue
+            ru_lineages, _ = structure_species(ru, "ru", shape)
+        except ValueError as err:
+            errors.append(f"{ver}: {err}")
+            continue
+        for e, r in zip(en, ru):
+            if (r["slug"], r["size"]["options"], r["speed"], len(r["traits"])) != \
+                    (e["slug"], e["size"]["options"], e["speed"], len(e["traits"])):
+                errors.append(f"{ver}/ru/{r['slug']}: структура RU ≠ EN (вид, размер, скорость, число особенностей)")
+        for e, r in zip(en_lineages, ru_lineages):
+            if r["species"] != e["species"] or len(r["details"]) != len(e["details"]):
+                errors.append(f"{ver}/ru: наследие «{r['name']}» не сходится с EN «{e['name']}»")
+            r["slug"], r["name_en"] = e["slug"], e["name"]
+        all_data[(ver, "ru", "species-lineages")] = ru_lineages
+    return errors
 
 
 def _class_shape(c: dict) -> tuple:
@@ -794,9 +827,9 @@ def main():
         resolve_cross_refs(all_data)
         disambiguate_option_slugs(all_data)
         class_errors = (align_classes(all_data) + resolve_always_prepared(all_data)
-                        + align_class_options(all_data))
+                        + align_class_options(all_data) + build_species_lineages(all_data))
         if class_errors:
-            print("Error: классы/подклассы/варианты умений (#365, #374):", file=sys.stderr)
+            print("Error: классы/подклассы/варианты умений/виды (#365, #374, #413):", file=sys.stderr)
             for msg in class_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)
