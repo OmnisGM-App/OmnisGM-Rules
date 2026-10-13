@@ -41,12 +41,14 @@ _FACTS = {"en": ("Creature Type", "Size", "Speed"), "ru": ("Тип сущест�
 _SIZES = {"Medium": "medium", "Small": "small", "Средний": "medium", "Маленький": "small"}
 # Особенность, варианты которой — наследия вида: таблицей (строка на наследие) или абзацами
 # «**Имя.**» сразу за особенностью. Объявлено руками: в тексте вариант-абзац не отличить от особенности.
+# Четвёртое поле — шаблон EN-имени варианта-абзаца: абзац-вариант обязан ему отвечать, а абзац сразу
+# за последним вариантом — нет, иначе пропавший или лишний вариант прошёл бы молча.
 SPECIES_LINEAGES = {
-    "dragonborn": ("Draconic Ancestry", "table", 10),
-    "elf": ("Elven Lineage", "table", 3),
-    "gnome": ("Gnomish Lineage", "paragraphs", 2),
-    "goliath": ("Giant Ancestry", "paragraphs", 6),
-    "tiefling": ("Fiendish Legacy", "table", 3),
+    "dragonborn": ("Draconic Ancestry", "table", 10, None),
+    "elf": ("Elven Lineage", "table", 3, None),
+    "gnome": ("Gnomish Lineage", "paragraphs", 2, r" Gnome$"),
+    "goliath": ("Giant Ancestry", "paragraphs", 6, r"\(\w+ Giant\)$"),
+    "tiefling": ("Fiendish Legacy", "table", 3, None),
 }
 _LEAD = re.compile(r"^\*\*_?(.+?)\._?\*\*\s*(.*)$")
 
@@ -86,7 +88,7 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
 
     Форма — на вид `(индекс абзаца особенности с наследиями, вид, число)` или None. EN находит
     особенность по объявлению `SPECIES_LINEAGES`; RU получает форму EN и берёт те же абзацы по
-    позиции. `size.options` у RU и слаги наследий RU дописывает generate_api из EN.
+    позиции. Размер RU читает из своего текста; слаги наследий RU дописывает generate_api из EN.
     `traits[].lineages` — у особенности есть варианты в `species-lineages`; сами варианты в `traits`
     не попадают. У наследия-строки таблицы её колонки лежат в `details` и собраны в текст.
     """
@@ -118,6 +120,13 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
                 if index is None:
                     raise ValueError(f"{name}: lineage trait {declared[0]!r} not found")
                 spec = (index, declared[1], declared[2])
+                if declared[3]:
+                    names = [par["name"] for par in paragraphs[index + 1:index + 2 + declared[2]]]
+                    stray = [n for n in names[:declared[2]] if not re.search(declared[3], n)]
+                    extra = [n for n in names[declared[2]:] if re.search(declared[3], n)]
+                    if stray or extra:
+                        raise ValueError(f"{name}: lineages of {declared[0]!r} do not match the declaration: "
+                                         f"{stray + extra}")
         else:
             spec = shape[position]
         out_shape.append(spec)
@@ -140,6 +149,8 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
             header = tables[0]["header"]
             variants = []
             for row in tables[0]["rows"]:
+                if len(row) != len(header):
+                    raise ValueError(f"{name}: lineage row {row[0]!r} has {len(row)} cells, the header has {len(header)}")
                 details = [{"label": label, "text": cell} for label, cell in zip(header[1:], row[1:])]
                 variants.append({"name": row[0], "details": details,
                                  "description_md": "\n\n".join(f"**{d['label']}:** {d['text']}" for d in details)})

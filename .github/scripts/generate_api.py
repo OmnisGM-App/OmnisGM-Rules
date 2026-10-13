@@ -282,12 +282,12 @@ def build_species_lineages(all_data: dict) -> list[str]:
     """Виды 5.2 структурой и ресурс `species-lineages` (#413).
 
     EN разбирается по объявлению наследий, RU — по форме EN: те же абзацы по позиции. RU получает из EN
-    слаг наследия, `name_en` и коды размера; расхождение числа видов, особенностей или размеров — ошибка.
+    слаг наследия и `name_en`; расхождение числа видов, особенностей или размеров — ошибка.
     """
     errors: list[str] = []
     for (ver, lang, resource) in [k for k in all_data if k[1] == "en" and k[2] == "species"]:
         en = all_data[(ver, "en", "species")]
-        if not en or "subraces" in en[0]:  # расы 5.1 — другая форма
+        if not en:
             continue
         try:
             en_lineages, shape = structure_species(en, "en")
