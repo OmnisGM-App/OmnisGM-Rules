@@ -1,3 +1,4 @@
+import { entityPath } from '../src/lib/equipment-path.mjs';
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -81,7 +82,7 @@ const NESTED = new Set(['equipment']);
 
 const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string }; group?: string | null }) => (GROUP_PAGES.has(s.collection)
   ? `/ru/${s.game}/${s.version}/${s.segment}/${entity.feature!.key}/#${entity.slug}`
-  : `/ru/${s.game}/${s.version}/${s.segment}/${NESTED.has(s.collection) && entity.group ? `${entity.group}/` : ''}${entity.slug}/`);
+  : `/ru/${s.game}/${s.version}/${s.segment}/${entityPath(s.collection, entity)}/`);
 const routeFile = (s: PendingSource) =>
   `src/pages/[lang]/${s.game}/[version]/${s.segment}/${GROUP_PAGES.has(s.collection) ? '[group]' : NESTED.has(s.collection) ? '[...slug]' : '[slug]'}.astro`;
 

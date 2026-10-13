@@ -8,8 +8,8 @@ import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.
 import { autolinkTree } from '../../../../../lib/rehype-entity-autolink.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
-import { gearDescription } from '../../../../../lib/entity-facts';
-import { equipmentPath } from '../../../../../lib/equipment-path.mjs';
+import { gearDescription, gearGroupDescription } from '../../../../../lib/entity-facts';
+import { entityPath } from '../../../../../lib/equipment-path.mjs';
 
 // Programmatic-страницы снаряжения (issue #20, Дорожка A) — зеркало страницы маг. предмета.
 // URL: /{lang}/dnd/{version}/equipment/{slug}/ (глава 06_Equipment → /equipment/).
@@ -27,7 +27,7 @@ const SECTION: Record<string, [string, string]> = {
 };
 
 interface Sib { slug: string; name: string; section: string; path: string }
-interface Member { name: string; path: string; cost: string; weight: string }
+interface Member { name: string; path: string; cost: string; weight: string; quantity: number | null; storage: string }
 
 export function getStaticPaths() {
   const BUILDS = [
@@ -40,14 +40,15 @@ export function getStaticPaths() {
   for (const { ver, lang } of BUILDS) {
     const items = loadEntities(ver, lang, 'equipment');
     const groups = loadEntities(ver, lang, 'equipment-groups');
-    const pathOf = (m: { slug: string; group?: unknown }) => equipmentPath({ slug: m.slug, group: m.group as string | null });
+    const pathOf = (m: { slug: string; group?: unknown }) => entityPath('equipment', m);
     // «Похожие» — без предметов групп: их соседи перечислены на странице группы.
     const siblings: Sib[] = [...items.filter((m) => !m.group), ...groups].map((m) => ({
       slug: m.slug, name: m.name, section: (m.section as string) ?? '', path: pathOf(m),
     }));
     // Карта «имя снаряжения (lowercase) → путь» — для линковки пунктов «Изготовление» на их страницы.
     const craftMap: Record<string, string> = {};
-    for (const m of items) craftMap[m.name.toLowerCase()] = pathOf(m);
+    // Группы — тоже: «Изготовление» называет и их («Arcane Focus», «Holy Symbol»).
+    for (const m of [...items, ...groups]) craftMap[m.name.toLowerCase()] = pathOf(m);
     const groupNames = Object.fromEntries(groups.map((g) => [g.slug, g.name]));
     for (const entity of items) {
       const group = entity.group ? { slug: entity.group as string, name: groupNames[entity.group as string] } : null;
@@ -59,6 +60,7 @@ export function getStaticPaths() {
     for (const entity of groups) {
       const members: Member[] = items.filter((m) => m.group === entity.slug).map((m) => ({
         name: m.name, path: pathOf(m), cost: (m.cost as string) ?? '', weight: (m.weight as string) ?? '',
+        quantity: (m.quantity as number | null) ?? null, storage: (m.storage as string) ?? '',
       }));
       paths.push({
         params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
@@ -85,22 +87,8 @@ const render = (md: string | undefined | null) => {
 const bodyHtml = render(entity.description_md as string);
 // Сниппет из фактов (issue #185): цена и вес впереди — это и есть спрос по снаряжению
 // («набор взломщика днд»), а excerpt() начинал сниппет с прозы. Откат — при отсутствии обоих.
-// У группы цены нет: сниппет — её предметы с ценами, целыми пунктами в пределах лимита.
-const groupDescription = () => {
-  const head = `${entity.name} — ${t('снаряжение D&D 2024 (днд), виды и цены', 'D&D 2024 equipment, kinds and prices')}: `;
-  const listed: string[] = [];
-  for (const m of members as Member[]) {
-    const next = [...listed, `${m.name} (${m.cost})`];
-    if ((head + next.join(', ')).length > 154) break;
-    listed.push(next[next.length - 1]);
-  }
-  const list = `${head}${listed.join(', ')}.`;
-  // Короткий перечень (три символа веры) добирается началом текста группы.
-  const room = 154 - list.length;
-  return room >= 40 ? `${list} ${excerpt(entity.description_md as string, room)}` : list;
-};
 const description = isGroup
-  ? groupDescription()
+  ? gearGroupDescription({ entity, members: members as Member[], lang, version: ver })
   : gearDescription({ entity, lang, version: ver }) ?? excerpt(entity.description_md as string);
 
 const section = (entity.section as string) ?? '';
@@ -110,7 +98,10 @@ const cost = (entity.cost as string) ?? '';
 const weight = (entity.weight as string) ?? '';
 const ability = (entity.ability as string) ?? '';
 const utilize = (entity.utilize as string) ?? '';
-const variants = (entity.variants as string) ?? '';
+// Пачка боеприпасов (#412): сколько в пачке и в чём хранится.
+const quantity = (entity.quantity as number | null) ?? null;
+const storage = (entity.storage as string) ?? '';
+const bundles = (members as Member[]).some((m) => m.quantity !== null);
 const craft = Array.isArray(entity.craft) ? (entity.craft as string[]) : [];
 
 const base = `/${lang}/dnd/${verSlug}/equipment`;
@@ -183,8 +174,11 @@ const icon = entityImage('dnd', 'gear', entity.slug) ?? (group ? entityImage('dn
     {utilize && (
       <div class="item-row"><dt>{t('Использование', 'Utilize')}</dt><dd>{utilize}</dd></div>
     )}
-    {variants && (
-      <div class="item-row"><dt>{t('Варианты', 'Variants')}</dt><dd>{variants}</dd></div>
+    {quantity !== null && (
+      <div class="item-row"><dt>{t('Количество', 'Amount')}</dt><dd>{quantity}</dd></div>
+    )}
+    {storage && (
+      <div class="item-row"><dt>{t('Хранение', 'Storage')}</dt><dd>{storage}</dd></div>
     )}
     {craft.length > 0 && (
       <div class="item-row"><dt>{t('Изготовление', 'Craft')}</dt>
@@ -204,11 +198,21 @@ const icon = entityImage('dnd', 'gear', entity.slug) ?? (group ? entityImage('dn
   {isGroup && (
     <table class="item-members" data-testid="equipment-group-items">
       <thead>
-        <tr><th>{t('Предмет', 'Item')}</th><th>{t('Стоимость', 'Cost')}</th><th>{t('Вес', 'Weight')}</th></tr>
+        <tr>
+          <th>{t('Предмет', 'Item')}</th>
+          {bundles && <th>{t('Количество', 'Amount')}</th>}
+          {bundles && <th>{t('Хранение', 'Storage')}</th>}
+          <th>{t('Вес', 'Weight')}</th><th>{t('Стоимость', 'Cost')}</th>
+        </tr>
       </thead>
       <tbody>
         {members.map((m) => (
-          <tr><td><a class="ent-link" href={`${base}/${m.path}/`}>{m.name}</a></td><td>{m.cost}</td><td>{m.weight || '—'}</td></tr>
+          <tr>
+            <td><a class="ent-link" href={`${base}/${m.path}/`}>{m.name}</a></td>
+            {bundles && <td>{m.quantity ?? '—'}</td>}
+            {bundles && <td>{m.storage || '—'}</td>}
+            <td>{m.weight || '—'}</td><td>{m.cost}</td>
+          </tr>
         ))}
       </tbody>
     </table>

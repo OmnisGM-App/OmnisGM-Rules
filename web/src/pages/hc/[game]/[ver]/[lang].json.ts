@@ -1,4 +1,4 @@
-import { equipmentPath } from '../../../../lib/equipment-path.mjs';
+import { entityPath } from '../../../../lib/equipment-path.mjs';
 import type { APIRoute } from 'astro';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../lib/entities';
 import { itemRarityLabel } from '../../../../lib/magic-item-hubs';
@@ -253,8 +253,7 @@ export const GET: APIRoute = ({ params }) => {
         // EN-оригинал в шапке и в EN-карточке: у EN-сущностей name_en нет → берём name.
         name_en: (e.name_en as string) ?? (e.name as string),
         effect: body(e as unknown as Record<string, unknown>, lang),
-        // Предмет группы снаряжения живёт под ней (#412); у монстров `group` — буква указателя.
-        href: `/${lang}/${game}/${verSlug}/${urlParent}/${key === 'equipment' ? equipmentPath({ slug: e.slug, group: e.group as string | null }) : e.slug}/`,
+        href: `/${lang}/${game}/${verSlug}/${urlParent}/${entityPath(key, e)}/`,
       };
     }
   }

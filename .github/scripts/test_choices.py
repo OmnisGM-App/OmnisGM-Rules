@@ -27,9 +27,10 @@ def eq(name, got, want):
 
 RESOURCES = ("classes", "subclasses", "species", "species-lineages", "backgrounds", "feats", "class-options",
              "spells", "weapons", "equipment", "equipment-groups")
+# --site-data: сверке ссылок нужны и группы снаряжения, которых в публичном API нет.
 with tempfile.TemporaryDirectory() as out:
     run = subprocess.run([sys.executable, str(SCRIPTS / "generate_api.py"), "--src-root", str(ROOT / "src/dnd"),
-                          "--output-dir", out, "--no-validate"], capture_output=True, text=True)
+                          "--output-dir", out, "--no-validate", "--site-data"], capture_output=True, text=True)
     if run.returncode:
         print(f"❌ choices: generate_api упал\n{run.stderr[-2000:]}")
         sys.exit(1)

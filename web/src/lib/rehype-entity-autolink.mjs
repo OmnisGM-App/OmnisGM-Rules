@@ -1,6 +1,6 @@
 // Автоссылки на программные страницы сущностей (issue #20): имена сущностей в контенте
 // становятся ссылками на их страницы. Ручной обход hast-дерева — без доп. зависимостей.
-import { equipmentPath } from './equipment-path.mjs';
+import { entityPath } from './equipment-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -144,9 +144,7 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
     }
     for (const e of data) {
       if (!e || !e.name || !e.slug) continue;
-      // Предмет группы снаряжения живёт под ней: equipment/musical-instrument/lute/ (#412).
-      // Только у снаряжения: у монстров `group` — буква алфавитного указателя.
-      const entry = { name: e.name, slug: e.slug, path: key === 'equipment' ? equipmentPath(e) : e.slug, resource: key, urlParent };
+      const entry = { name: e.name, slug: e.slug, path: entityPath(key, e), resource: key, urlParent };
       if (mode === 'exact') {
         // Ключ в lowercase: SRD размечает ссылки и строчными («*лечение ран*»), и с заглавной.
         const m = /** @type {Record<string, Map<string, any>>} */ (exact)[container];

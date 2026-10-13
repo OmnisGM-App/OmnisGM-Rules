@@ -280,9 +280,16 @@ def inject_spell_subclasses(all_data: dict) -> None:
                 spell["subclasses"] = sorted(labels[spell["slug"]])
 
 
+# Ресурсы, которые нужны страницам сайта, но не входят в публичный API: пишутся только с `--site-data`.
+SITE_ONLY = {"equipment-groups"}
+
+
 def build_equipment_groups(all_data: dict) -> list[str]:
     """Составное снаряжение 5.2 (#412): записи-таблицы уходят из `equipment` в `equipment-groups`,
     в `equipment` остаются их разновидности с полем `group`.
+
+    `equipment-groups` — не ресурс API (`SITE_ONLY`): группа остаётся страницей сайта и значением поля
+    `group` у своих предметов, а в API и в компендиум Table не идёт.
 
     RU-разновидность получает слаг и `name_en` от EN по позиции в группе; число разновидностей, пачки
     и число в цене и весе обязаны совпасть — иначе RU-строка стоит не напротив своей EN.
@@ -693,8 +700,6 @@ IMAGE_DIRS = {
         "spells": "spells",
         "magic-items": "magic-items",
         "equipment": "gear",
-        # Запись-группа (#412) хранит картинку под прежним слагом: «Музыкальный инструмент» остаётся страницей.
-        "equipment-groups": "gear",
         "weapons": "gear",
         "armor": "gear",
         # Варианты классовых умений и понятия правил (#380). Состояния делят папку с терминами:
@@ -763,6 +768,8 @@ def main():
     # Карта «ресурс → исходные markdown-файлы» (#219): из неё сборка сайта берёт даты
     # изменения контента для JSON-LD (и дальше для lastmod в sitemap). Знание о том, из
     # какого файла собрана коллекция, живёт здесь, в SOURCES, — дублировать его в JS нельзя.
+    parser.add_argument("--site-data", action="store_true",
+                        help="Сборка сайта: писать и ресурсы, которых нет в публичном API (SITE_ONLY)")
     parser.add_argument("--emit-sources", default=None,
                         help="Path to write {ver/lang/resource: [source .md paths]} JSON")
     args = parser.parse_args()
@@ -976,6 +983,12 @@ def main():
             schema = RESOURCE_SCHEMAS.get(resource)
             if schema:
                 validate_entities(entities, schema, resource, f"{ver}/{lang}")
+
+    # Ресурсы только для страниц сайта: в публичный API не пишутся (решение по #412 — группа
+    # снаряжения остаётся страницей, но не записью API). Проверены выше вместе с остальными.
+    if not args.site_data:
+        for key in [k for k in all_data if k[2] in SITE_ONLY]:
+            del all_data[key]
 
     # Collectors for hierarchical meta files
     # ver → lang → resource → slugs

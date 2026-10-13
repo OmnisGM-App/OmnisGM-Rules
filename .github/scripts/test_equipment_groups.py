@@ -4,8 +4,9 @@
 
 Запуск: python3 .github/scripts/test_equipment_groups.py
 """
-import copy
+import subprocess
 import sys
+import tempfile
 from pathlib import Path
 
 SCRIPTS = Path(__file__).resolve().parent
@@ -78,9 +79,11 @@ eq("пачки боеприпасов: число и хранение",
     "needles": (50, "Pouch")})
 eq("таблица «Adventuring Gear» ушла из описаний", [slug for slug, e in en.items() if "Alchemist's Fire" in e["description_md"]
                                                    and "|" in e["description_md"]], [])
-eq("в описаниях предметов и групп нет таблиц",
-   [slug for slug, e in {**en, **{f"group:{k}": v for k, v in en_groups.items()}}.items()
-    if (e.get("group") or slug.startswith("group:")) and "|" in e["description_md"]], [])
+for lang, items, groups in (("en", en, en_groups), ("ru", ru, ru_groups)):
+    eq(f"{lang}: в описаниях предметов и групп нет ни таблиц, ни их заголовков",
+       [slug for slug, e in {**items, **{f"group:{k}": v for k, v in groups.items()}}.items()
+        if (e.get("group") or slug.startswith("group:"))
+        and ("|" in e["description_md"] or "Table:" in e["description_md"] or "Таблица:" in e["description_md"])], [])
 eq("пометка из скобок — первой строкой описания",
    (en["staff"]["name"], en["staff"]["description_md"][:20], en["amulet"]["description_md"][:13], en["wooden-staff"]["name"]),
    ("Staff", "Also a Quarterstaff.", "Worn or held.", "Wooden Staff"))
@@ -134,9 +137,27 @@ eq("RU-строки переставлены — цена не сходится 
    broken("ru", "Кости (1 см), драконьи шахматы (1 зм)", "Драконьи шахматы (1 зм), кости (1 см)"),
    ["srd52/ru/gaming-set: «Драконьи шахматы» не сходится с EN «Dice» по цене, весу или числу",
     "srd52/ru/gaming-set: «Кости» не сходится с EN «Dragonchess» по цене, весу или числу"])
+eq("RU-предмет с другим весом — не сходится с EN",
+   broken("ru", "| Сфера | 3 фнт. |", "| Сфера | 4 фнт. |"),
+   ["srd52/ru/arcane-focus: «Сфера» не сходится с EN «Orb» по цене, весу или числу"])
+eq("строка таблицы без ячейки — сборка падает",
+   broken("en", "| Needles          | 50     | Pouch   | 1 lb.  | 1 GP |", "| Needles          | 50     | Pouch   | 1 GP |"),
+   ["Ammunition: row 'Needles' has 4 cells, the header has 5"])
 eq("RU-пачка с другим числом — не сходится с EN",
    broken("ru", "| Стрелы | 20 |", "| Стрелы | 30 |"),
    ["srd52/ru/ammunition: «Стрелы» не сходится с EN «Arrows» по цене, весу или числу"])
+
+# Группа — не ресурс API: в публичной сборке её нет, в сборке сайта (--site-data) есть.
+with tempfile.TemporaryDirectory() as out:
+    for flags, want in (([], False), (["--site-data"], True)):
+        run = subprocess.run([sys.executable, str(SCRIPTS / "generate_api.py"), "--src-root", str(ROOT / "src/dnd"),
+                              "--output-dir", f"{out}/{len(flags)}", "--no-validate", *flags], capture_output=True, text=True)
+        eq(f"generate_api {' '.join(flags) or 'без флага'}: сборка прошла", run.returncode, 0)
+        eq(f"generate_api {' '.join(flags) or 'без флага'}: equipment-groups {'есть' if want else 'нет'}",
+           [(Path(out) / str(len(flags)) / "dnd/srd52" / lang / "equipment-groups").exists() for lang in ("en", "ru")],
+           [want, want])
+        eq(f"generate_api {' '.join(flags) or 'без флага'}: предметы групп в equipment на месте",
+           (Path(out) / str(len(flags)) / "dnd/srd52/en/equipment/all.json").read_text(encoding="utf-8").count('"group": "ammunition"'), 5)
 
 if failures:
     print(f"❌ equipment-groups ({len(failures)}):")

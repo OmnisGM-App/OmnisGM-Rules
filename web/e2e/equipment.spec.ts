@@ -73,12 +73,26 @@ test('предмет группы: вложенный адрес, свои це�
   await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/ru\/dnd\/srd-5\.2\/equipment\/musical-instrument\/lute\/$/);
 });
 
-test('пачка боеприпасов: число и цена пачки, плоского адреса нет', async ({ page }) => {
+test('пачка боеприпасов: число, хранение и цена пачки; плоского адреса нет', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/equipment/ammunition/');
+  const row = page.getByTestId('equipment-group-items').locator('tr', { hasText: 'Arrows' });
+  await expect(row).toContainText('20');
+  await expect(row).toContainText('Quiver');
   await page.goto('/en/dnd/srd-5.2/equipment/ammunition/arrows/');
   await expect(page.locator('.rd-doc h1')).toContainText('Arrows');
-  await expect(page.locator('.item-stat')).toContainText('1 GP');
+  const stat = page.locator('.item-stat');
+  await expect(stat).toContainText('1 GP');
+  await expect(stat.locator('.item-row', { hasText: 'Amount' })).toContainText('20');
+  await expect(stat.locator('.item-row', { hasText: 'Storage' })).toContainText('Quiver');
   const flat = await page.goto('/en/dnd/srd-5.2/equipment/arrows/');
   expect(flat?.status()).toBe(404);
+});
+
+test('«Изготовление» ведёт и на группу, и на обычный предмет', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/equipment/jeweler-s-tools/');
+  const craft = page.locator('.item-stat .item-row', { hasText: 'Craft' });
+  await expect(craft.locator('a[href$="/equipment/arcane-focus/"]')).toHaveText('Arcane Focus');
+  await expect(craft.locator('a[href$="/equipment/holy-symbol/"]')).toHaveText('Holy Symbol');
 });
 
 test('глава: ячейка таблицы ведёт на предмет группы, строка общей таблицы — на группу', async ({ page }) => {
