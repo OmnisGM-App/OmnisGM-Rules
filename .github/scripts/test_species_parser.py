@@ -90,6 +90,19 @@ eq("RU: имя своё, name_en и слаг из EN",
    (by_slug["ru"]["gnome-rock-gnome"]["name"], by_slug["ru"]["gnome-rock-gnome"]["name_en"],
     by_slug["ru"]["gnome-rock-gnome"]["trait"], by_slug["ru"]["tiefling-infernal"]["details"][0]["label"]),
    ("Скальный гном", "Rock Gnome", "Гномья родословная", "Уровень 1"))
+# RU-наследие получает слаг EN по позиции: эталон имён ловит перестановку строк внутри вида.
+RU_NAMES = {
+    "dragonborn-black": "Чёрный", "dragonborn-blue": "Синий", "dragonborn-brass": "Латунный",
+    "dragonborn-bronze": "Бронзовый", "dragonborn-copper": "Медный", "dragonborn-gold": "Золотой",
+    "dragonborn-green": "Зелёный", "dragonborn-red": "Красный", "dragonborn-silver": "Серебряный",
+    "dragonborn-white": "Белый", "elf-drow": "Дроу", "elf-high-elf": "Высший эльф", "elf-wood-elf": "Лесной эльф",
+    "gnome-forest-gnome": "Лесной гном", "gnome-rock-gnome": "Скальный гном",
+    "goliath-cloud-giant": "Прыжок облака (Облачный великан)", "goliath-fire-giant": "Ожог огня (Огненный великан)",
+    "goliath-frost-giant": "Холод мороза (Ледяной великан)", "goliath-hill-giant": "Опрокидывание холма (Холмовой великан)",
+    "goliath-stone-giant": "Стойкость камня (Каменный великан)", "goliath-storm-giant": "Гром бури (Штормовой великан)",
+    "tiefling-abyssal": "Бездны", "tiefling-chthonic": "Хтоническое", "tiefling-infernal": "Инфернальное",
+}
+eq("RU: имя каждого наследия под своим слагом", {slug: l["name"] for slug, l in by_slug["ru"].items()}, RU_NAMES)
 eq("наследия-абзацы не попали в особенности гнома и голиафа",
    [t["name"] for s in en if s["slug"] in ("gnome", "goliath") for t in s["traits"]
     if t["name"] in ("Forest Gnome", "Rock Gnome") or "Giant)" in t["name"]], [])
@@ -115,6 +128,15 @@ eq("особенность с наследиями переименована �
    ["srd52: Elf: lineage trait 'Elven Lineage' not found"])
 eq("строка таблицы наследий пропала — сборка падает",
    broken("en", "tiefling", "| Infernal ", "Infernal "), ["srd52: Tiefling: 2 lineages, declared 3"])
+eq("вариант голиафа пропал — особенность за ним не становится наследием",
+   broken("en", "goliath", "**Storm's Thunder (Storm Giant).**", "Storm's Thunder (Storm Giant)."),
+   ["srd52: Goliath: lineages of 'Giant Ancestry' do not match the declaration: ['Large Form']"])
+eq("третий вариант гнома не уходит молча в особенности",
+   broken("en", "gnome", "**Rock Gnome.**", "**Deep Gnome.** Text.\n\n**Rock Gnome.**")[0][:60],
+   "srd52: Gnome: lineages of 'Gnomish Lineage' do not match the")
+eq("строка таблицы наследий короче заголовка — сборка падает",
+   broken("en", "elf", '| Faerie Fire  | Darkness           |', "| Faerie Fire |"),
+   ["srd52: Elf: lineage row 'Drow' has 3 cells, the header has 4"])
 eq("таблица у вида без объявленных наследий — сборка падает",
    broken("en", "human", "**Skillful.**", "| A | B |\n|---|---|\n| 1 | 2 |\n\n**Skillful.**"),
    ["srd52: Human: a table in a species without a declared lineage table"])
