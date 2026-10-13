@@ -318,12 +318,15 @@ MAGIC_ITEM_SCHEMA = {
         },
         "description_md": {"type": "string"},
         "spells": {"type": "array", "items": {"type": "string"}},
+        # Разновидность семейства (#412): group — слаг семейства («Potion of Healing (greater)» →
+        # potions-of-healing), он же сегмент адреса страницы; само семейство в API не публикуется. Иначе null.
+        "group": {"type": ["string", "null"]},
         # Иконка (#202) — абсолютный URL; только у сущностей с файлом.
         "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "type", "subtype", "rarity", "rarities",
-        "attunement", "description_md", "spells",
+        "attunement", "description_md", "spells", "group",
     ],
     "additionalProperties": False,
 }
@@ -423,6 +426,33 @@ EQUIPMENT_SCHEMA = {
         "slug", "name", "name_en", "section", "cost", "weight",
         "ability", "utilize", "craft", "variants", "description_md", "group", "quantity", "storage",
     ],
+    "additionalProperties": False,
+}
+
+# Семейство магических предметов (#412): запись правил, под которой несколько предметов («Зелья
+# лечения», «Камень Иоун», «Оружие, +1, +2 или +3»). В публичный API не пишется (`SITE_ONLY`): держит
+# страницу семейства; предметы лежат в `magic-items` и ссылаются на него полем `group`.
+MAGIC_ITEM_GROUP_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "MagicItemGroup",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "type": {"type": "string"},
+        "subtype": {"type": ["string", "null"]},
+        "rarities": {"type": "array", "items": {"type": "string", "enum": _RARITY_ENUM}},
+        "attunement": {
+            "type": "object",
+            "properties": {"required": {"type": "boolean"}, "condition": {"type": ["string", "null"]}},
+            "required": ["required", "condition"],
+            "additionalProperties": False,
+        },
+        "description_md": {"type": "string", "minLength": 1},
+        "items": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    },
+    "required": ["slug", "name", "name_en", "type", "subtype", "rarities", "attunement", "description_md", "items"],
     "additionalProperties": False,
 }
 
@@ -1019,6 +1049,7 @@ RESOURCE_SCHEMAS = {
     "spells": SPELL_SCHEMA,
     "monsters": MONSTER_SCHEMA,
     "magic-items": MAGIC_ITEM_SCHEMA,
+    "magic-item-groups": MAGIC_ITEM_GROUP_SCHEMA,
     "animals": MONSTER_SCHEMA,
     "weapons": WEAPON_SCHEMA,
     "armor": ARMOR_SCHEMA,

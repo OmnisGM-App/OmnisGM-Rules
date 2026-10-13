@@ -281,7 +281,42 @@ def inject_spell_subclasses(all_data: dict) -> None:
 
 
 # Ресурсы, которые нужны страницам сайта, но не входят в публичный API: пишутся только с `--site-data`.
-SITE_ONLY = {"equipment-groups"}
+SITE_ONLY = {"equipment-groups", "magic-item-groups"}
+
+
+def build_magic_item_groups(all_data: dict) -> list[str]:
+    """Семейства магических предметов 5.2 (#412): запись-семейство уходит из `magic-items` в
+    `magic-item-groups` (только для страниц сайта), в `magic-items` остаются её разновидности с `group`.
+
+    RU-разновидность получает слаг и `name_en` от EN по позиции в семействе; число разновидностей и
+    редкость каждой обязаны совпасть.
+    """
+    errors: list[str] = []
+    for (ver, lang, resource) in [k for k in all_data if k[2] == "magic-items"]:
+        items = all_data[(ver, lang, resource)]
+        groups = [i for i in items if i.pop("_group", False)]
+        if not groups:
+            continue
+        all_data[(ver, lang, "magic-items")] = [i for i in items if i not in groups]
+        all_data[(ver, lang, "magic-item-groups")] = [
+            {"slug": g["slug"], "name": g["name"], "name_en": g["name_en"], "type": g["type"], "subtype": g["subtype"],
+             "rarities": g["rarities"], "attunement": g["attunement"], "description_md": g["description_md"],
+             "items": [i["slug"] for i in items if i["group"] == g["slug"]]} for g in groups]
+    for (ver, lang, resource) in [k for k in all_data if k[1] == "ru" and k[2] == "magic-item-groups"]:
+        en_items = all_data.get((ver, "en", "magic-items"), [])
+        ru_items = all_data[(ver, "ru", "magic-items")]
+        for group in all_data[(ver, "ru", "magic-item-groups")]:
+            en = [i for i in en_items if i["group"] == group["slug"]]
+            ru = [i for i in ru_items if i["group"] == group["slug"]]
+            if len(en) != len(ru):
+                errors.append(f"{ver}/ru/{group['slug']}: разновидностей RU {len(ru)}, EN {len(en)}")
+                continue
+            for e, r in zip(en, ru):
+                if r["rarity"] != e["rarity"]:
+                    errors.append(f"{ver}/ru/{group['slug']}: «{r['name']}» ({r['rarity']}) не сходится с EN «{e['name']}» ({e['rarity']})")
+                r["slug"], r["name_en"] = e["slug"], e["name"]
+            group["items"] = [i["slug"] for i in ru]
+    return errors
 
 
 def build_equipment_groups(all_data: dict) -> list[str]:
@@ -822,7 +857,7 @@ def main():
             entities = parse_monsters(text, heading_level, lang, after, SKIP_HEADINGS_MONSTER)
             resource = out_resource or "monsters"
         elif entity_type == "magic_item":
-            entities = parse_magic_items(text, heading_level, lang, after)
+            entities = parse_magic_items(text, heading_level, lang, after, families=ver == "srd52")
             resource = "magic-items"
         elif entity_type == "weapon":
             entities = parse_weapons(text, lang)
@@ -925,7 +960,8 @@ def main():
         # Resolve cross-references
         resolve_cross_refs(all_data)
         disambiguate_option_slugs(all_data)
-        class_errors = (build_equipment_groups(all_data) + align_classes(all_data) + resolve_always_prepared(all_data)
+        class_errors = (build_equipment_groups(all_data) + build_magic_item_groups(all_data)
+                        + align_classes(all_data) + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + build_species_lineages(all_data)
                         + build_backgrounds(all_data))
         class_errors = class_errors or attach_choices(all_data)
