@@ -352,7 +352,10 @@ def _class_shape(c: dict) -> tuple:
                (r["values"].values() if isinstance(r["values"], dict) else r["values"])])
              for r in prog["rows"]],
             c["hit_die"], c["proficiencies"]["skills"]["choose"],
-            c["proficiencies"]["tools"] is None)
+            c["proficiencies"]["tools"] is None,
+            [bool(c["multiclass"][k]["text"]) for k in ("armor", "weapons")],
+            c["multiclass"]["tools"] is None,
+            c["multiclass"]["skills"] and bool(re.search(r"skill list|из списка", c["multiclass"]["skills"]["text"])))
 
 
 def _subclass_shape(s: dict) -> tuple:
@@ -392,6 +395,10 @@ def align_classes(all_data: dict) -> list[str]:
             for kind in ("armor", "weapons"):
                 r["proficiencies"][kind]["categories"] = e["proficiencies"][kind]["categories"]
             r["proficiencies"]["skills"]["options"] = e["proficiencies"]["skills"]["options"]
+            for kind in ("armor", "weapons"):
+                r["multiclass"][kind]["categories"] = e["multiclass"][kind]["categories"]
+            if e["multiclass"]["skills"]:
+                r["multiclass"]["skills"]["options"] = e["multiclass"]["skills"]["options"]
             keys = [c["key"] for c in e["progression"]["columns"]]
             for rc, key in zip(r["progression"]["columns"], keys):
                 rc["key"] = key
