@@ -288,7 +288,15 @@ def build_equipment_groups(all_data: dict) -> list[str]:
     и число в цене и весе обязаны совпасть — иначе RU-строка стоит не напротив своей EN.
     """
     errors: list[str] = []
-    number = lambda text: re.sub(r"[^\d½¼.,]", "", text or "")  # noqa: E731
+    coins = {"зм": "gp", "см": "sp", "мм": "cp", "эм": "ep", "пм": "pp"}
+
+    def number(text):
+        """Число и монета без языка: «1 зм» и «1 GP» равны, «1 см» и «1 GP» — нет."""
+        text = (text or "").lower()
+        unit = next((code for word, code in coins.items() if word in text), None) or \
+            next((code for code in coins.values() if code in text), "")
+        return re.sub(r"[^\d½¼.,]", "", text) + unit
+
     for (ver, lang, resource) in [k for k in all_data if k[2] == "equipment"]:
         items = all_data[(ver, lang, resource)]
         groups = [i for i in items if i.pop("_group", False)]

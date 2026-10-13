@@ -95,6 +95,11 @@ jobs:
       - name: Unit — объявления выборов JSON API
         run: python3 .github/scripts/test_choices.py
 
+      # Составное снаряжение (#412): разновидности режутся из таблиц и строки «Variants»; пропавшая
+      # строка или RU-строка не напротив своей EN должны ронять сборку, а не давать предмет с чужой ценой.
+      - name: Unit — группы снаряжения JSON API
+        run: python3 .github/scripts/test_equipment_groups.py
+
       # Строка «тип, редкость» магического предмета: предмет с тремя редкостями получал последнюю найденную.
       - name: Unit — редкость магических предметов
         run: python3 .github/scripts/test_magic_item_parser.py

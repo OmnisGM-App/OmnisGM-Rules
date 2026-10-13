@@ -1,5 +1,6 @@
 // Автоссылки на программные страницы сущностей (issue #20): имена сущностей в контенте
 // становятся ссылками на их страницы. Ручной обход hast-дерева — без доп. зависимостей.
+import { equipmentPath } from './equipment-path.mjs';
 import fs from 'node:fs';
 import path from 'node:path';
 
@@ -25,6 +26,8 @@ const DND_RESOURCES = [
   { key: 'weapons', urlParent: 'weapons', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'armor', urlParent: 'armor', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
   { key: 'equipment', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2', 'srd-5.1'] },
+  // Группы снаряжения (#412): «Музыкальный инструмент» в ячейке таблицы ведёт на страницу группы.
+  { key: 'equipment-groups', urlParent: 'equipment', mode: 'cells', versions: ['srd-5.2'] },
 ];
 
 // Daggerheart: имена в прозе не размечены — линкуем только ячейки сетки доменных карт.
@@ -141,7 +144,9 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
     }
     for (const e of data) {
       if (!e || !e.name || !e.slug) continue;
-      const entry = { name: e.name, slug: e.slug, resource: key, urlParent };
+      // Предмет группы снаряжения живёт под ней: equipment/musical-instrument/lute/ (#412).
+      // Только у снаряжения: у монстров `group` — буква алфавитного указателя.
+      const entry = { name: e.name, slug: e.slug, path: key === 'equipment' ? equipmentPath(e) : e.slug, resource: key, urlParent };
       if (mode === 'exact') {
         // Ключ в lowercase: SRD размечает ссылки и строчными («*лечение ран*»), и с заглавной.
         const m = /** @type {Record<string, Map<string, any>>} */ (exact)[container];
@@ -212,7 +217,7 @@ function linkifyText(value, textMap, skip, ctx) {
 }
 
 /**
- * @param {{slug: string, resource: string, urlParent: string}} entry
+ * @param {{slug: string, path: string, resource: string, urlParent: string}} entry
  * @param {string} text
  * @param {{game: string, lang: string, verSlug: string, verKey: string}} ctx
  */
@@ -222,7 +227,7 @@ function linkNode(entry, text, ctx) {
     tagName: 'a',
     properties: {
       className: ['ent-link'],
-      href: `/${ctx.lang}/${ctx.game}/${ctx.verSlug}/${entry.urlParent}/${entry.slug}/`,
+      href: `/${ctx.lang}/${ctx.game}/${ctx.verSlug}/${entry.urlParent}/${entry.path}/`,
       'data-hc': `${ctx.game}/${ctx.verKey}/${ctx.lang}/${entry.resource}/${entry.slug}`,
     },
     children: [{ type: 'text', value: text }],
