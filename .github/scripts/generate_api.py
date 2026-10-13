@@ -354,7 +354,8 @@ def _class_shape(c: dict) -> tuple:
             c["hit_die"], c["proficiencies"]["skills"]["choose"],
             c["proficiencies"]["tools"] is None,
             [bool(c["multiclass"][k]["text"]) for k in ("armor", "weapons")],
-            c["multiclass"]["tools"] is None, c["multiclass"]["skills"] is None)
+            c["multiclass"]["tools"] is None,
+            c["multiclass"]["skills"] and bool(re.search(r"skill list|из списка", c["multiclass"]["skills"]["text"])))
 
 
 def _subclass_shape(s: dict) -> tuple:

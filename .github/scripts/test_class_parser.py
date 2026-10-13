@@ -441,9 +441,10 @@ for lang in ("en", "ru"):
     eq(f"{lang}: владения второго класса у 12 классов", got, MULTICLASS)
     for c in live[("srd52", lang, "classes")]:
         m = c["multiclass"]
-        eq(f"{lang}/{c['slug']}: пустое владение — пустой текст",
-           [bool(m[k]["text"]) for k in ("weapons", "armor")],
-           [bool(m[k]["categories"]) for k in ("weapons", "armor")])
+        if lang == "ru":  # текст свой, категории из EN
+            eq(f"ru/{c['slug']}: пустое владение — пустой текст",
+               [bool(m[k]["text"]) for k in ("weapons", "armor")],
+               [bool(m[k]["categories"]) for k in ("weapons", "armor")])
         if m["skills"]:
             eq(f"{lang}/{c['slug']}: один навык", m["skills"]["choose"], 1)
 eq("EN плут: инструмент текстом", {c["slug"]: c for c in live[("srd52", "en", "classes")]}
@@ -474,6 +475,22 @@ eq("RU: незнакомый фрагмент роняет сборку",
    multiclass_error("ru", "01_Barbarian.md", "владение воинским оружием и владение щитами",
                     "владение воинским оружием, владение огнестрельным оружием и владение щитами"),
    "Варвар: unknown multiclass trait 'владение огнестрельным оружием'")
+eq("повтор вида владения роняет сборку со своей причиной",
+   multiclass_error("en", "01_Barbarian.md", "proficiency with Martial weapons",
+                    "proficiency with Martial weapons, proficiency with Martial weapons"),
+   "Barbarian: second multiclass weapons trait 'proficiency with Martial weapons'")
+eq("строка мультикласса без кости хитов роняет сборку",
+   multiclass_error("en", "05_Fighter.md", "Hit Point Die, proficiency with Martial weapons",
+                    "proficiency with Martial weapons")[:46],
+   "Fighter: multiclass line without the hit die: ")
+eq("строка без двоеточия с владением роняет сборку",
+   multiclass_error("en", "06_Monk.md", "Gain the Hit Point Die trait from",
+                    "Gain the Hit Point Die trait and proficiency with Firearms from")[:31],
+   "Monk: unknown multiclass line: ")
+eq("RU: строка без двоеточия с владением роняет сборку",
+   multiclass_error("ru", "12_Wizard.md", "Получите Кость Хитов из таблицы",
+                    "Получите Кость Хитов и владение щитами из таблицы")[:36],
+   "Волшебник: unknown multiclass line: ")
 eq("доспехи без известной категории роняют сборку",
    multiclass_error("en", "11_Warlock.md", "training with Light armor.", "training with Spiked armor."),
    "Warlock: no armor category in 'training with Spiked armor'")
@@ -484,8 +501,13 @@ eq("RU-класс с лишним владением мультикласса �
    ru_class_mutant("monk", lambda c: c["multiclass"]["armor"].update(text="владение щитами")), True)
 eq("RU-класс без навыка мультикласса — ошибка структуры",
    ru_class_mutant("ranger", lambda c: c["multiclass"].update(skills=None)), True)
-eq("RU-класс с лишним инструментом мультикласса — ошибка структуры",
+eq("RU-класс без инструмента мультикласса — ошибка структуры",
    ru_class_mutant("bard", lambda c: c["multiclass"].update(tools=None)), True)
+eq("RU-класс без оружия мультикласса — ошибка структуры",
+   ru_class_mutant("fighter", lambda c: c["multiclass"]["weapons"].update(text="")), True)
+eq("RU-класс с любым навыком вместо навыка из списка — ошибка структуры",
+   ru_class_mutant("ranger", lambda c: c["multiclass"]["skills"].update(
+       text="владение одним навыком по вашему выбору")), True)
 
 if failures:
     print(f"❌ classes/subclasses/class-options ({len(failures)}):")

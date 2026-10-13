@@ -473,6 +473,45 @@ _CLASS_FEATURE = {
 
 _ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
 
+# Владения класса: одна форма у `proficiencies` и `multiclass`.
+_PROF_ARMOR = {
+    "type": "object",
+    "properties": {
+        "text": {"type": "string"},
+        "categories": {"type": "array", "items": {
+            "type": "string", "enum": ["light", "medium", "heavy", "shield"]}},
+    },
+    "required": ["text", "categories"],
+    "additionalProperties": False,
+}
+# categories — категории целиком; частичное владение («воинское со свойством Лёгкое») остаётся в text.
+_PROF_WEAPONS = {
+    "type": "object",
+    "properties": {
+        "text": {"type": "string"},
+        "categories": {"type": "array", "items": {"type": "string", "enum": ["simple", "martial"]}},
+    },
+    "required": ["text", "categories"],
+    "additionalProperties": False,
+}
+_PROF_TOOLS = {
+    "type": ["object", "null"],
+    "properties": {"text": {"type": "string"}},
+    "required": ["text"],
+    "additionalProperties": False,
+}
+# options — слаги навыков; null — любой навык на выбор.
+_PROF_SKILLS = {
+    "type": "object",
+    "properties": {
+        "text": {"type": "string"},
+        "choose": {"type": "integer", "minimum": 1},
+        "options": {"type": ["array", "null"], "items": {"type": "string"}},
+    },
+    "required": ["text", "choose", "options"],
+    "additionalProperties": False,
+}
+
 CLASS_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Class",
@@ -496,95 +535,18 @@ CLASS_SCHEMA = {
         "saving_throws": {"type": "array", "items": _ABILITY_CODE, "minItems": 2, "maxItems": 2},
         "proficiencies": {
             "type": "object",
-            "properties": {
-                "armor": {
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string"},
-                        "categories": {"type": "array", "items": {
-                            "type": "string", "enum": ["light", "medium", "heavy", "shield"]}},
-                    },
-                    "required": ["text", "categories"],
-                    "additionalProperties": False,
-                },
-                # categories — категории целиком; частичное владение («воинское со
-                # свойством Лёгкое») остаётся в text.
-                "weapons": {
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string"},
-                        "categories": {"type": "array", "items": {
-                            "type": "string", "enum": ["simple", "martial"]}},
-                    },
-                    "required": ["text", "categories"],
-                    "additionalProperties": False,
-                },
-                "tools": {
-                    "type": ["object", "null"],
-                    "properties": {"text": {"type": "string"}},
-                    "required": ["text"],
-                    "additionalProperties": False,
-                },
-                # options — слаги навыков; null — любой навык на выбор.
-                "skills": {
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string"},
-                        "choose": {"type": "integer", "minimum": 1},
-                        "options": {"type": ["array", "null"], "items": {"type": "string"}},
-                    },
-                    "required": ["text", "choose", "options"],
-                    "additionalProperties": False,
-                },
-            },
+            "properties": {"armor": _PROF_ARMOR, "weapons": _PROF_WEAPONS, "tools": _PROF_TOOLS,
+                           "skills": _PROF_SKILLS},
             "required": ["armor", "weapons", "tools", "skills"],
             "additionalProperties": False,
         },
-        # Владения второго класса (#414): форма как у proficiencies; пустое владение — text "" и
-        # categories []; skills.options — навыки класса при выборе «из списка класса», null — любой.
+        # Владения второго класса (#414): форма как у proficiencies, но text — фрагмент строки
+        # мультикласса («training with Light armor»), а не значение из таблицы черт; пустое владение —
+        # text "" и categories []; skills.options — навыки класса при выборе «из списка класса», null — любой.
         "multiclass": {
             "type": "object",
-            "properties": {
-                "armor": {
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string"},
-                        "categories": {"type": "array", "items": {
-                            "type": "string", "enum": ["light", "medium", "heavy", "shield"]}},
-                    },
-                    "required": ["text", "categories"],
-                    "additionalProperties": False,
-                },
-                # categories — категории целиком; частичное владение («воинское со
-                # свойством Лёгкое») остаётся в text.
-                "weapons": {
-                    "type": "object",
-                    "properties": {
-                        "text": {"type": "string"},
-                        "categories": {"type": "array", "items": {
-                            "type": "string", "enum": ["simple", "martial"]}},
-                    },
-                    "required": ["text", "categories"],
-                    "additionalProperties": False,
-                },
-                "tools": {
-                    "type": ["object", "null"],
-                    "properties": {"text": {"type": "string"}},
-                    "required": ["text"],
-                    "additionalProperties": False,
-                },
-                # options — слаги навыков; null — любой навык на выбор.
-                "skills": {
-                    "type": ["object", "null"],
-                    "properties": {
-                        "text": {"type": "string"},
-                        "choose": {"type": "integer", "minimum": 1},
-                        "options": {"type": ["array", "null"], "items": {"type": "string"}},
-                    },
-                    "required": ["text", "choose", "options"],
-                    "additionalProperties": False,
-                },
-            },
+            "properties": {"armor": _PROF_ARMOR, "weapons": _PROF_WEAPONS, "tools": _PROF_TOOLS,
+                           "skills": {**_PROF_SKILLS, "type": ["object", "null"]}},
             "required": ["armor", "weapons", "tools", "skills"],
             "additionalProperties": False,
         },

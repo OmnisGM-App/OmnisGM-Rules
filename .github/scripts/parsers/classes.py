@@ -145,6 +145,9 @@ def _weapons(text: str, lang: str) -> dict:
 
 _MULTICLASS_HEADING = {"en": "As a Multiclass Character", "ru": "Как мультиклассовый персонаж"}
 _HIT_DIE = {"en": "Hit Point Die", "ru": "Кость Хитов"}
+# Строка без перечня: второй класс даёт только кость хитов. Любая другая строка без двоеточия роняет сборку.
+_MULTICLASS_BARE = {"en": r"Gain the Hit Point Die(?: trait)? from the Core \w+ Traits table\.",
+                    "ru": r"Получите (?:черту )?Кость Хитов из таблицы Основные черты \w+\."}
 # Что даёт второй класс: фрагмент строки → вид владения. Словарь закрыт — незнакомый фрагмент роняет сборку.
 _MULTICLASS_KINDS = {
     "en": ((r"^proficiency with Martial weapons$", "weapons"),
@@ -164,7 +167,8 @@ _MULTICLASS_SPLIT = {"en": r",\s*(?:and\s+)?|\s+and\s+(?=training|proficiency)",
 def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> dict:
     """Владения второго класса из первой строки раздела «As a Multiclass Character» (#414).
 
-    Форма — как у `proficiencies`; пустое владение — текст "" и категории []. `skills.options` —
+    Форма — как у `proficiencies`; пустое владение — текст "" и категории []. `text` — фрагмент строки
+    как в правилах («training with Light armor»), а не значение из таблицы черт. `skills.options` —
     список навыков класса, когда выбор «из списка класса», и null при любом навыке.
     """
     start = next((i for i, l in enumerate(lines)
@@ -182,9 +186,13 @@ def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> d
             if fragment == _HIT_DIE[lang]:
                 continue
             kind = next((k for pattern, k in _MULTICLASS_KINDS[lang] if re.match(pattern, fragment)), None)
-            if not kind or kind in found:
+            if not kind:
                 raise ValueError(f"{name}: unknown multiclass trait {fragment!r}")
+            if kind in found:
+                raise ValueError(f"{name}: second multiclass {kind} trait {fragment!r}")
             found[kind] = fragment
+    elif not re.fullmatch(_MULTICLASS_BARE[lang], line):
+        raise ValueError(f"{name}: unknown multiclass line: {line!r}")
     en = lang == "en"
     armor = _armor(found.get("armor", ""), lang)
     if en and "armor" in found and not armor["categories"]:
