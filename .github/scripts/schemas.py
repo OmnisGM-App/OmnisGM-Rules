@@ -850,7 +850,8 @@ SPECIES_SCHEMA = {
 
 # Предыстория SRD 5.2 (#413). feat.variant — вариант черты слагом класса («Magic Initiate (Cleric)»);
 # tool.slug — предмет из `equipment`, у выбора — null и tool.choose_from со слагом записи, чьи
-# разновидности выбираются. Правило распределения прибавок характеристик — в тексте главы, не здесь.
+# разновидности выбираются. equipment_md — markdown строки «Choose A or B», остальные text — без разметки.
+# Правило распределения прибавок характеристик — в тексте главы, не здесь.
 _SLUG_OR_NULL = {"type": ["string", "null"]}
 BACKGROUND_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -887,11 +888,11 @@ BACKGROUND_SCHEMA = {
             "required": ["text", "slug", "choose_from"],
             "additionalProperties": False,
         },
-        "equipment": {"type": "string", "minLength": 1},
+        "equipment_md": {"type": "string", "minLength": 1},
         "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "description_md", "ability_scores", "feat", "skills", "tool",
-                 "equipment"],
+                 "equipment_md"],
     "additionalProperties": False,
 }
 

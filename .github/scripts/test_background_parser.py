@@ -55,10 +55,11 @@ for lang in ("en", "ru"):
        BACKGROUNDS)
 en = {b["slug"]: b for b in live[("srd52", "en", "backgrounds")]}
 ru = {b["slug"]: b for b in live[("srd52", "ru", "backgrounds")]}
-eq("EN: текст фактов без отсылок «see …» и без курсива",
+eq("EN: text-поля без отсылок «see …» и без разметки; equipment_md — markdown как в источнике",
    (en["acolyte"]["feat"]["text"], en["soldier"]["tool"]["text"], en["sage"]["skills"]["text"],
-    en["criminal"]["equipment"][:16]),
+    en["criminal"]["equipment_md"][:16]),
    ("Magic Initiate (Cleric)", "Choose one kind of Gaming Set", "Arcana and History", "*Choose A or B:*"))
+eq("служебная форма в API не уходит", [k for b in en.values() for k in b if k.startswith("_")], [])
 eq("RU: текст свой", (ru["acolyte"]["feat"]["text"], ru["soldier"]["tool"]["text"], ru["sage"]["ability_scores"]["text"]),
    ("Посвящённый в магию (Жрец)", "Выберите один игровой набор", "Телосложение, Интеллект, Мудрость"))
 eq("описание предыстории не тронуто", [b["description_md"] for b in live[("srd52", "en", "backgrounds")]],
@@ -66,11 +67,14 @@ eq("описание предыстории не тронуто", [b["descriptio
 
 
 # --- Отказы ---------------------------------------------------------------------------
-def broken(lang, slug, old, new, drop=None):
+def broken(lang, slug, old, new, drop=None, reslug=None):
     data = copy.deepcopy(pristine)
     if drop:
-        data[("srd52", "en", drop[0])] = [e for e in data[("srd52", "en", drop[0])] if e["slug"] != drop[1]]
+        data[("srd52", drop[2] if len(drop) > 2 else "en", drop[0])] = [
+            e for e in data[("srd52", drop[2] if len(drop) > 2 else "en", drop[0])] if e["slug"] != drop[1]]
     target = next(b for b in data[("srd52", lang, "backgrounds")] if b["slug"] == slug)
+    if reslug:
+        target["slug"] = reslug
     if old not in target["description_md"]:
         return [f"нет фрагмента {old!r}"]
     target["description_md"] = target["description_md"].replace(old, new)
@@ -79,6 +83,16 @@ def broken(lang, slug, old, new, drop=None):
 
 eq("предыстория без строки черты роняет сборку",
    [e[:44] for e in broken("en", "criminal", "**Feat:**", "Feat:")], ["srd52: Criminal: background facts ['Ability "])
+eq("пустой факт не берёт значением следующую строку",
+   [e[-17:] for e in broken("en", "criminal", "**Feat:** Alert (see \"Feats\")", "**Feat:**")], ["each with a value"])
+eq("повтор метки факта роняет сборку",
+   [e[:36] for e in broken("en", "criminal", "**Feat:**", "**Feat:** Alert\n\n**Feat:**")],
+   ["srd52: Criminal: background facts ['"])
+eq("две характеристики вместо трёх роняют сборку",
+   broken("en", "soldier", "Strength, Dexterity, Constitution", "Strength, Dexterity"),
+   ["srd52: Soldier: three ability scores expected in 'Strength, Dexterity'"])
+eq("третий навык роняет сборку", broken("en", "sage", "Arcana and History", "Arcana, History and Stealth"),
+   ["srd52: Sage: two known skills expected in 'Arcana, History and Stealth'"])
 eq("незнакомая характеристика роняет сборку",
    broken("en", "sage", "Constitution, Intelligence, Wisdom", "Constitution, Intellect, Wisdom"),
    ["srd52: Sage: three ability scores expected in 'Constitution, Intellect, Wisdom'"])
@@ -94,6 +108,22 @@ eq("инструмент, которого нет в equipment, роняет с�
 eq("родитель выбора инструмента, которого нет в equipment, роняет сборку",
    broken("en", "soldier", "", "", drop=("equipment", "gaming-set")),
    ["srd52/en/soldier: tool choice «gaming-set» не найден в equipment"])
+RU_SHAPE = "(характеристики, навыки, вариант черты, выбор инструмента)"
+eq("RU: вариант черты пропал — расхождение с EN",
+   [e[-len(RU_SHAPE):] for e in broken("ru", "acolyte", "Посвящённый в магию (Жрец)", "Посвящённый в магию")], [RU_SHAPE])
+eq("RU: три навыка — расхождение с EN",
+   [e[:43] for e in broken("ru", "sage", "Магия и История", "Магия, История и Скрытность")],
+   ["srd52/ru/sage: форма RU (3, 3, True, False)"])
+eq("RU: конкретный инструмент вместо выбора — расхождение с EN",
+   [e[:47] for e in broken("ru", "soldier", "*Выберите один игровой набор*", "Игральные кости")],
+   ["srd52/ru/soldier: форма RU (3, 2, False, False)"])
+eq("RU: две характеристики — расхождение с EN",
+   [e[:45] for e in broken("ru", "criminal", "Ловкость, Телосложение, Интеллект", "Ловкость, Интеллект")],
+   ["srd52/ru/criminal: форма RU (2, 2, False, Fal"])
+eq("RU-предыстория, которой нет в EN, — ошибка",
+   broken("ru", "sage", "", "", reslug="hermit"), ["srd52/ru/hermit: предыстории нет в EN"])
+eq("RU без одной предыстории — ошибка числа",
+   broken("en", "sage", "", "", drop=("backgrounds", "soldier", "ru")), ["srd52: backgrounds EN 4, RU 3"])
 eq("RU-предыстория без строки навыков роняет сборку",
    [e[:35] for e in broken("ru", "acolyte", "**Владение навыками:**", "Владение навыками:")],
    ["srd52: Послушник: background facts "])

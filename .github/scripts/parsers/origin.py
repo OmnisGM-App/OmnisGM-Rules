@@ -187,16 +187,18 @@ def structure_backgrounds(backgrounds: list[dict], lang: str) -> None:
 
     `feat.variant` — вариант черты из скобок («Magic Initiate (Cleric)» → `cleric`); `tool.slug` —
     слаг предмета в `equipment`, а у выбора («Choose one kind of Gaming Set») — null и `tool.choose_from`
-    со слагом родителя. RU получает коды и слаги из EN в generate_api.
+    со слагом родителя. RU получает коды и слаги из EN в generate_api; из своего текста он отдаёт форму
+    (`_shape`), по которой generate_api сверяет его с EN. `equipment_md` — markdown, остальные тексты — нет.
     """
     from .classes import ABILITY_CODES, SKILLS  # noqa: PLC0415 — общий словарь кодов
     en = lang == "en"
     labels = _BACKGROUND_FACTS[lang]
     for bg in backgrounds:
-        facts = dict(re.findall(r"(?m)^\*\*(.+?):\*\*\s*(.+)$", bg["description_md"]))
-        missing = [label for label in labels if label not in facts]
-        if missing or len(facts) != len(labels):
-            raise ValueError(f"{bg['name']}: background facts {sorted(facts)}, expected {list(labels)}")
+        pairs = re.findall(r"(?m)^\*\*(.+?):\*\*[ \t]*(.*)$", bg["description_md"])
+        facts = dict(pairs)
+        if sorted(label for label, _ in pairs) != sorted(labels) or not all(value.strip() for _, value in pairs):
+            raise ValueError(f"{bg['name']}: background facts {[label for label, _ in pairs]}, "
+                             f"expected {list(labels)}, each with a value")
         abilities, feat, skills, tool, equipment = (facts[label].strip() for label in labels)
         feat = _SEE.sub("", feat)
         tool = _SEE.sub("", tool)
@@ -204,7 +206,10 @@ def structure_backgrounds(backgrounds: list[dict], lang: str) -> None:
         bg["feat"] = {"text": feat, "slug": None, "variant": None}
         bg["skills"] = {"text": skills, "slugs": None}
         bg["tool"] = {"text": tool.strip("*"), "slug": None, "choose_from": None}
-        bg["equipment"] = equipment
+        bg["equipment_md"] = equipment
+        # Форма из собственного текста: число характеристик и навыков, есть ли вариант черты и выбор инструмента.
+        bg["_shape"] = (len(abilities.split(",")), len([n for n in re.split(r",| and | и ", skills) if n.strip()]),
+                        bool(re.search(r"\([^)]+\)$", feat)), tool.startswith("*"))
         if not en:
             continue
         codes = [ABILITY_CODES.get(word.strip().lower()) for word in abilities.split(",")]

@@ -340,12 +340,17 @@ def build_backgrounds(all_data: dict) -> list[str]:
             if not source:
                 errors.append(f"{ver}/ru/{bg['slug']}: предыстории нет в EN")
                 continue
+            if bg["_shape"] != source["_shape"]:
+                errors.append(f"{ver}/ru/{bg['slug']}: форма RU {bg['_shape']} ≠ EN {source['_shape']} "
+                              "(характеристики, навыки, вариант черты, выбор инструмента)")
             bg["ability_scores"]["abilities"] = source["ability_scores"]["abilities"]
             bg["feat"].update(slug=source["feat"]["slug"], variant=source["feat"]["variant"])
             bg["skills"]["slugs"] = source["skills"]["slugs"]
             bg["tool"].update(slug=source["tool"]["slug"], choose_from=source["tool"]["choose_from"])
         if len(ru) != len(en):
             errors.append(f"{ver}: backgrounds EN {len(en)}, RU {len(ru)}")
+        for bg in en + ru:
+            del bg["_shape"]
     return errors
 
 
