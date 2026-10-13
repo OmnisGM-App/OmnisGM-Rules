@@ -4,6 +4,8 @@ Schemas follow JSON Schema Draft 7 (subset supported by the ``jsonschema`` libra
 Each schema describes a single entity object produced by the corresponding parser.
 """
 
+import choices as _choices
+
 # -- Shared sub-schemas -------------------------------------------------------
 
 _SECTION_ENTRY = {
@@ -434,6 +436,61 @@ CONDITION_SCHEMA = {
     "additionalProperties": False,
 }
 
+# -- Объявление выбора (#413) ---------------------------------------------------
+# Что игрок выбирает при сборке персонажа: вид выбора, сколько, откуда варианты, когда можно заменить.
+# count — число или «уровень класса → всего на этом уровне». from — закрытый список (values null —
+# целиком), записи ресурса по фильтру или то, что у персонажа уже есть. or — второй источник на тот же
+# выбор. levels — уровни класса, на которых умение с этим выбором даётся снова. level — уровень, с
+# которого появляется этот выбор, когда он позже уровня умения. suggest — черта, которую текст умения советует взять.
+# replace — самый ранний момент замены: short-rest значит «на коротком или долгом отдыхе».
+# Ключи фильтра и поля записей, которые они читают, — словарь `FILTERS` в choices.py. Значение "@id" —
+# ответ на выбор с этим id в той же записи; level: "slots" — круги, на которые у персонажа есть ячейки,
+# "cantrip-or-slots" — они же и заговоры. Условие, которого нет в данных, остаётся в тексте хозяина.
+_FILTER = {"type": "object", "additionalProperties": False, "properties": {
+    key: {"type": ["string", "integer", "boolean", "array"], "items": {"type": "string"}}
+    for key in sorted({key for keys in _choices.FILTERS.values() for key in keys})}}
+_CHOICE_SOURCE = {"oneOf": [
+    {"type": "object",
+     "properties": {"list": {"type": "string", "enum": list(_choices.LISTS)},
+                    "values": {"type": ["array", "null"], "items": {"type": "string"}, "minItems": 1}},
+     "required": ["list", "values"], "additionalProperties": False},
+    {"type": "object",
+     "properties": {"resource": {"type": "string", "enum": list(_choices.RESOURCES)}, "filter": _FILTER},
+     "required": ["resource", "filter"], "additionalProperties": False},
+    {"type": "object",
+     "properties": {"character": {"type": "string", "enum": list(_choices.CHARACTER)}, "filter": _FILTER},
+     "required": ["character", "filter"], "additionalProperties": False},
+]}
+_LEVEL = {"type": "integer", "minimum": 1, "maximum": 20}
+_CHOICES = {"type": "array", "items": {
+    "type": "object",
+    "properties": {
+        "id": {"type": "string", "minLength": 1},
+        "kind": {"type": "string", "enum": list(_choices.KINDS)},
+        "count": {"oneOf": [
+            {"type": "integer", "minimum": 1},
+            {"type": "array", "minItems": 1, "items": {
+                "type": "object",
+                "properties": {"level": _LEVEL, "count": {"type": "integer", "minimum": 1}},
+                "required": ["level", "count"], "additionalProperties": False}},
+        ]},
+        "from": _CHOICE_SOURCE,
+        "or": _CHOICE_SOURCE,
+        "replace": {"type": "string", "enum": list(_choices.REPLACE)},
+        "levels": {"type": "array", "items": _LEVEL, "minItems": 2},
+        "level": _LEVEL,
+        # Черта, которую правила советуют взять («Defense is recommended»).
+        "suggest": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"],
+                    "additionalProperties": False},
+        # Прибавки характеристик: допустимые распределения и потолок значения.
+        "increase": {"type": "array", "minItems": 1, "items": {
+            "type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}}},
+        "max": {"type": "integer"},
+    },
+    "required": ["id", "kind", "count", "from", "replace"],
+    "additionalProperties": False,
+}}
+
 # -- Feat schema ---------------------------------------------------------------
 
 FEAT_SCHEMA = {
@@ -449,6 +506,8 @@ FEAT_SCHEMA = {
         "repeatable": {"type": "boolean"},
         "benefits": {"type": "array", "items": _SECTION_ENTRY},
         "description_md": {"type": "string"},
+        # Только у черт 5.2: черты 5.1 делят схему и выборов не несут.
+        "choices": _CHOICES,
         "image": {"type": "string", "format": "uri"},
     },
     "required": [
@@ -466,8 +525,9 @@ _CLASS_FEATURE = {
         "level": {"type": "integer", "minimum": 1, "maximum": 20},
         "name": {"type": "string"},
         "description_md": {"type": "string"},
+        "choices": _CHOICES,
     },
-    "required": ["level", "name", "description_md"],
+    "required": ["level", "name", "description_md", "choices"],
     "additionalProperties": False,
 }
 
@@ -600,6 +660,8 @@ CLASS_SCHEMA = {
         },
         "features": {"type": "array", "items": _CLASS_FEATURE},
         "always_prepared": _ALWAYS_PREPARED,
+        # Выборы самого класса, не умения: инструменты из таблицы черт (бард, монах).
+        "choices": _CHOICES,
         "spellcasting": {
             "type": ["object", "null"],
             "properties": {
@@ -619,7 +681,7 @@ CLASS_SCHEMA = {
     "required": [
         "slug", "name", "name_en", "hit_die", "primary_ability", "saving_throws",
         "proficiencies", "multiclass", "starting_equipment", "progression", "features", "always_prepared",
-        "spellcasting",
+        "choices", "spellcasting",
     ],
     "additionalProperties": False,
 }
@@ -692,10 +754,11 @@ CLASS_OPTION_SCHEMA = {
         }]},
         "repeatable": {"type": "boolean"},
         "description_md": {"type": "string", "minLength": 1},
+        "choices": _CHOICES,
         "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "class", "subclass", "feature", "granted_by",
-                 "selection", "prerequisites", "cost", "repeatable", "description_md"],
+                 "selection", "prerequisites", "cost", "repeatable", "description_md", "choices"],
     "additionalProperties": False,
 }
 
@@ -832,26 +895,30 @@ SPECIES_SCHEMA = {
             "additionalProperties": False,
         },
         "speed": {"type": "integer", "minimum": 5},
+        # Выбор самого вида: размер, когда их два.
+        "choices": _CHOICES,
         "traits": {"type": "array", "minItems": 1, "items": {
             "type": "object",
             "properties": {
                 "name": {"type": "string", "minLength": 1},
                 "description_md": {"type": "string", "minLength": 1},
                 "lineages": {"type": "boolean"},
+                "choices": _CHOICES,
             },
-            "required": ["name", "description_md", "lineages"],
+            "required": ["name", "description_md", "lineages", "choices"],
             "additionalProperties": False,
         }},
         "image": {"type": "string", "format": "uri"},
     },
-    "required": ["slug", "name", "name_en", "description_md", "creature_type", "size", "speed", "traits"],
+    "required": ["slug", "name", "name_en", "description_md", "creature_type", "size", "speed", "traits",
+                 "choices"],
     "additionalProperties": False,
 }
 
 # Предыстория SRD 5.2 (#413). feat.variant — вариант черты слагом класса («Magic Initiate (Cleric)»);
 # tool.slug — предмет из `equipment`, у выбора — null и tool.choose_from со слагом записи, чьи
 # разновидности выбираются. equipment_md — markdown строки «Choose A or B», остальные text — без разметки.
-# Правило распределения прибавок характеристик — в тексте главы, не здесь.
+# Правило распределения прибавок характеристик — выбором `ability-scores` в choices.
 _SLUG_OR_NULL = {"type": ["string", "null"]}
 BACKGROUND_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -889,10 +956,11 @@ BACKGROUND_SCHEMA = {
             "additionalProperties": False,
         },
         "equipment_md": {"type": "string", "minLength": 1},
+        "choices": _CHOICES,
         "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "description_md", "ability_scores", "feat", "skills", "tool",
-                 "equipment_md"],
+                 "equipment_md", "choices"],
     "additionalProperties": False,
 }
 
