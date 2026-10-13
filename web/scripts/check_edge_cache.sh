@@ -18,14 +18,25 @@ status() {  # $1 — путь; печатает cf-cache-status
 }
 
 fail=0
+# Для «cacheable» проходом считается только HIT, но не с первого раза: REVALIDATED значит, что истёк
+# max-age и edge переспросил origin (следующий запрос на тот же PoP — уже HIT), а MISS после прогрева
+# бывает, когда запросы с раннера попадают на разные PoP Cloudflare. Поэтому до ATTEMPTS попыток с паузой
+# PAUSE секунд (ложный красный Health check 2026-10-13, run 38406564551). no-cache-объект HIT не даст
+# никогда (замер: EXPIRED), так что подмену правила проверка по-прежнему ловит.
+ATTEMPTS="${ATTEMPTS:-3}"
+PAUSE="${PAUSE:-2}"
 check() {  # $1 — путь, $2 — «cacheable» | «bypass»
   local path="$1" want="$2"
   status "$path" > /dev/null          # первый запрос — прогрев (MISS)
   local st; st=$(status "$path")
   case "$want" in
     cacheable)
+      local i=1
+      while [ "$st" != "HIT" ] && [ "$i" -lt "$ATTEMPTS" ]; do
+        i=$((i+1)); sleep "$PAUSE"; st=$(status "$path")
+      done
       if [ "$st" = "HIT" ]; then echo "  ✔ $path — $st"
-      else echo "  ✘ $path — $st (ожидался HIT: правило не кэширует этот тип)"; fail=1; fi ;;
+      else echo "  ✘ $path — $st после $i попыток (ожидался HIT: правило не кэширует этот тип)"; fail=1; fi ;;
     bypass)
       if [ "$st" = "HIT" ]; then echo "  ✘ $path — HIT (origin отдаёт no-cache, кэшировать нельзя)"; fail=1
       else echo "  ✔ $path — $st"; fi ;;
