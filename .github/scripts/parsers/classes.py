@@ -106,9 +106,13 @@ _ALWAYS_PREPARED = {
     "en": r"always have the ((?:\*[^*]+\*(?:,? and |, )?)+) spells? prepared",
     "ru": r"всегда (?:подготовлено заклинание|держите подготовленными заклинания) ((?:\*[^*]+\*(?: и |, )?)+)",
 }
-# Фраза с именем заклинания, которую шаблон выше не разобрал, роняет сборку.
-_ALWAYS_PREPARED_HINT = {"en": r"always have[^.;]*\*[^.;]*prepared",
-                         "ru": r"всегда[^.;]*подготовл[^.;]*\*|всегда[^.;]*\*[^.;]*подготовл"}
+# Предложение с именем заклинания курсивом и словами «always … prepared» в любом порядке, которое
+# шаблон выше не разобрал, роняет сборку.
+_ALWAYS_PREPARED_HINT = {
+    "en": r"(?i)always[^.;]*\*[^.;]*prepared|\*[^.;]*always[^.;]*prepared|\*[^.;]*prepared[^.;]*always",
+    "ru": r"(?i)всегда[^.;]*подготовл[^.;]*\*|всегда[^.;]*\*[^.;]*подготовл|\*[^.;]*всегда[^.;]*подготовл"
+          r"|\*[^.;]*подготовл[^.;]*всегда",
+}
 
 
 def _always_prepared(features: list[dict], lang: str, name: str) -> list[dict]:
@@ -118,12 +122,12 @@ def _always_prepared(features: list[dict], lang: str, name: str) -> list[dict]:
     """
     out = []
     for f in features:
-        found = re.search(_ALWAYS_PREPARED[lang], f["description_md"])
-        if found:
-            out.append({"level": f["level"], "spells": re.findall(r"\*([^*]+)\*", found.group(1)),
-                        "choice": None})
-        elif re.search(_ALWAYS_PREPARED_HINT[lang], f["description_md"]):
+        spells = [spell for found in re.finditer(_ALWAYS_PREPARED[lang], f["description_md"])
+                  for spell in re.findall(r"\*([^*]+)\*", found.group(1))]
+        if re.search(_ALWAYS_PREPARED_HINT[lang], re.sub(_ALWAYS_PREPARED[lang], "", f["description_md"])):
             raise ValueError(f"{name}: «{f['name']}» names an always prepared spell in an unknown form")
+        if spells:
+            out.append({"level": f["level"], "spells": spells, "choice": None})
     return out
 
 

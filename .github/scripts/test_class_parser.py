@@ -133,7 +133,8 @@ for lang in ("en", "ru"):
        {c["slug"]: [(r["level"], r["spells"]) for r in c["always_prepared"]]
         for c in live[("srd52", lang, "classes")] if c["always_prepared"]}, CLASS_ALWAYS)
     eq(f"{lang}: choice у класса — null",
-       {r["choice"] for c in live[("srd52", lang, "classes")] for r in c["always_prepared"]}, {None})
+       [r["choice"] for c in live[("srd52", lang, "classes")] for r in c["always_prepared"]
+        if r["choice"] is not None], [])
 
 
 def class_error(lang, name, old, new):
@@ -154,6 +155,22 @@ eq("имя заклинания в незнакомой форме роняет 
 eq("RU: имя заклинания в незнакомой форме роняет сборку",
    class_error("ru", "08_Ranger.md", "У вас всегда подготовлено заклинание *Метка охотника*.",
                "У вас всегда есть подготовленное заклинание *Метка охотника*."),
+   "Следопыт: «Избранный враг» names an always prepared spell in an unknown form")
+UNKNOWN = "Ranger: «Favored Enemy» names an always prepared spell in an unknown form"
+MARK = "You always have the *Hunter's Mark* spell prepared."
+eq("вторая фраза в том же умении не теряется",
+   next(c for c in parse_class(read("en", "08_Ranger.md").replace(
+       MARK, MARK + " You also always have the *Alarm* spell prepared."), "en"))["always_prepared"],
+   [{"level": 1, "spells": ["Hunter's Mark", "Alarm"], "choice": None}])
+eq("незнакомая форма рядом со знакомой роняет сборку",
+   class_error("en", "08_Ranger.md", MARK, MARK + " You also always have *Alarm* prepared."), UNKNOWN)
+eq("обратный порядок слов роняет сборку",
+   class_error("en", "08_Ranger.md", MARK, "The *Hunter's Mark* spell is always prepared for you."), UNKNOWN)
+eq("форма с заглавной буквы роняет сборку",
+   class_error("en", "08_Ranger.md", MARK, "Always have *Hunter's Mark* prepared."), UNKNOWN)
+eq("RU: обратный порядок слов роняет сборку",
+   class_error("ru", "08_Ranger.md", "У вас всегда подготовлено заклинание *Метка охотника*.",
+               "Заклинание *Метка охотника* у вас всегда подготовлено."),
    "Следопыт: «Избранный враг» names an always prepared spell in an unknown form")
 eq("выбор игрока («those spells») — не строка always_prepared",
    [c for c in live[("srd52", "en", "classes")] if c["slug"] == "wizard"][0]["always_prepared"], [])
