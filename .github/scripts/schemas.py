@@ -848,6 +848,53 @@ SPECIES_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Предыстория SRD 5.2 (#413). feat.variant — вариант черты слагом класса («Magic Initiate (Cleric)»);
+# tool.slug — предмет из `equipment`, у выбора — null и tool.choose_from со слагом записи, чьи
+# разновидности выбираются. Правило распределения прибавок характеристик — в тексте главы, не здесь.
+_SLUG_OR_NULL = {"type": ["string", "null"]}
+BACKGROUND_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Background",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "description_md": {"type": "string"},
+        "ability_scores": {
+            "type": "object",
+            "properties": {"text": {"type": "string"},
+                           "abilities": {"type": "array", "items": _ABILITY_CODE, "minItems": 3, "maxItems": 3}},
+            "required": ["text", "abilities"],
+            "additionalProperties": False,
+        },
+        "feat": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}, "slug": {"type": "string"}, "variant": _SLUG_OR_NULL},
+            "required": ["text", "slug", "variant"],
+            "additionalProperties": False,
+        },
+        "skills": {
+            "type": "object",
+            "properties": {"text": {"type": "string"},
+                           "slugs": {"type": "array", "items": {"type": "string"}, "minItems": 2, "maxItems": 2}},
+            "required": ["text", "slugs"],
+            "additionalProperties": False,
+        },
+        "tool": {
+            "type": "object",
+            "properties": {"text": {"type": "string"}, "slug": _SLUG_OR_NULL, "choose_from": _SLUG_OR_NULL},
+            "required": ["text", "slug", "choose_from"],
+            "additionalProperties": False,
+        },
+        "equipment": {"type": "string", "minLength": 1},
+        "image": {"type": "string", "format": "uri"},
+    },
+    "required": ["slug", "name", "name_en", "description_md", "ability_scores", "feat", "skills", "tool",
+                 "equipment"],
+    "additionalProperties": False,
+}
+
 # Наследие вида (#413): вариант особенности вида, который игрок выбирает (дракон-предок, родословная
 # эльфа или гнома, наследие великанов, наследие исчадий). species — слаг вида; trait — имя особенности
 # вида, чьи это варианты; details — колонки строки таблицы наследий, пусто у наследия-абзаца.
@@ -887,6 +934,7 @@ RESOURCE_SCHEMAS = {
     "subclasses": SUBCLASS_SCHEMA,
     "class-options": CLASS_OPTION_SCHEMA,
     "species": SPECIES_SCHEMA,
+    "backgrounds": BACKGROUND_SCHEMA,
     "species-lineages": SPECIES_LINEAGE_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
