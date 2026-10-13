@@ -78,7 +78,7 @@ const GROUP_PAGES = new Set(['class-options']);
 const API_ONLY = new Set(['masteries', 'weapon-properties']);
 
 // Снаряжение (#412): предмет группы живёт под ней, поэтому маршрут — с остатком пути.
-const NESTED = new Set(['equipment']);
+const NESTED = new Set(['equipment', 'magic-items']);
 
 const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string }; group?: string | null }) => (GROUP_PAGES.has(s.collection)
   ? `/ru/${s.game}/${s.version}/${s.segment}/${entity.feature!.key}/#${entity.slug}`

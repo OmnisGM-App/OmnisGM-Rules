@@ -96,6 +96,9 @@ def _extract_spell_refs(description: str) -> list[str]:
 #   paragraphs — абзац «**_Имя (Редкость)._**» на предмет; абзацы без редкости относятся к предыдущему;
 #   bonus      — «+1, +2 или +3»: предмет на бонус, редкость — из строки типа записи.
 # Число — сколько разновидностей: расхождение роняет сборку.
+# Имя разновидности — как в тексте. Где текст даёт одно уточнение («Absorption», «Anchor», «Silver»),
+# имя семейства ставится впереди, как сам текст делает у поясов: «Ioun Stone (Absorption)». У фигурок
+# имя в тексте самостоятельное («Bronze Griffon») и остаётся как есть (`BARE_NAMES`).
 MAGIC_FAMILIES = {
     "potions-of-healing": ("rows", 4),
     "potion-of-giant-strength": ("rows", 5),
@@ -110,6 +113,7 @@ MAGIC_FAMILIES = {
     "wand-of-the-war-mage-1-2-or-3": ("bonus", 3),
     "weapon-1-2-or-3": ("bonus", 3),
 }
+BARE_NAMES = {"figurine-of-wondrous-power"}
 _RARITY_WORDS = {**RARITIES_EN, **RARITIES_RU}
 _RARITY_ALT = "|".join(sorted((re.escape(w) for w in _RARITY_WORDS), key=len, reverse=True))
 _VARIETY_LEAD = re.compile(rf"^\*\*_(.+?) \(({_RARITY_ALT})\)\._\*\*\s*(.*)$", re.IGNORECASE)
@@ -171,7 +175,9 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
         for line in _without_tables(body).split("\n"):
             lead = _VARIETY_LEAD.match(line.strip())
             if lead:
-                rows.append({"name": f"{parent['name']} ({lead.group(1).strip()})", "rarity": _rarity(lead.group(2), where),
+                own = lead.group(1).strip()
+                rows.append({"name": own if parent["slug"] in BARE_NAMES else f"{parent['name']} ({own})",
+                             "rarity": _rarity(lead.group(2), where),
                              "text": [lead.group(3).strip()]})
             elif rows:
                 rows[-1]["text"].append(line)

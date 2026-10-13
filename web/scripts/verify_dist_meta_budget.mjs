@@ -11,7 +11,7 @@ const DIST = resolve(here, '../dist');
 const BUDGET = {
   dupDescriptionPages: 0,
   // Имя, тип и редакцию лестница в page-title.ts не режет; метка Daggerheart несёт «SRD» (DPCGL §2.5, #166).
-  longTitlePages: 17,
+  longTitlePages: 1,
   // Страниц с неуникальным <title>. Метка редакции («D&D 2024»/«D&D 2014») специально не
   // выпадает из лестницы — иначе одноимённые страницы 5.1 и 5.2 схлопнутся в дубли.
   dupTitlePages: 0,

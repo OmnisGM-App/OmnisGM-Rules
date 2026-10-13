@@ -94,6 +94,8 @@ test('hovercard-эндпоинт: есть карточки оружия/дос�
   // Предмет группы снаряжения (#412): карточка ведёт на вложенный адрес; у группы — своя карточка.
   expect(ru['equipment/lute']?.href).toBe('/ru/dnd/srd-5.2/equipment/musical-instrument/lute/');
   expect(ru['equipment-groups/musical-instrument']?.href).toBe('/ru/dnd/srd-5.2/equipment/musical-instrument/');
+  expect(ru['magic-items/potion-of-healing']?.href).toBe('/ru/dnd/srd-5.2/magic-items/potions-of-healing/potion-of-healing/');
+  expect(ru['magic-item-groups/ioun-stone']?.href).toBe('/ru/dnd/srd-5.2/magic-items/ioun-stone/');
 });
 
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
@@ -212,7 +214,7 @@ test('EN/RU: набор слинкованных состояний совпад
         !/\/spells\/[^/]+\/$/.test(p) &&
         !/\/monsters-a-z\/[^/]+\/$/.test(p) &&
         !/\/animals\/[^/]+\/$/.test(p) &&
-        !/\/magic-items\/[^/]+\/$/.test(p) &&
+        !/\/magic-items\/.+\/$/.test(p) &&
         !/\/equipment\/.+\/$/.test(p) &&
         !/\/feats\/[^/]+\/$/.test(p),
     );

@@ -42,15 +42,43 @@ test('SEO: hreflang-тройка, индексируема, в sitemap', async (
   expect(sm).toContain('/dnd/srd-5.2/magic-items/bag-of-holding/');
 });
 
-test('предмет с несколькими редкостями и с варьирующейся: подпись и хабы', async ({ page }) => {
-  await page.goto('/ru/dnd/srd-5.2/magic-items/weapon-1-2-or-3/');
+// Семейства (#412): запись «Оружие, +1, +2 или +3» — страница на прежнем адресе, её предметы — под ней,
+// каждый со своей редкостью и в своём хабе редкости.
+test('семейство: прежний адрес, подпись редкостей, перечень предметов, без перехода в компендиум', async ({ page }) => {
+  const res = await page.goto('/ru/dnd/srd-5.2/magic-items/weapon-1-2-or-3/');
+  expect(res?.status()).toBe(200);
   await expect(page.locator('.item-meta-line')).toContainText('необычный, редкий или очень редкий');
+  const items = page.getByTestId('magic-item-group-items');
+  await expect(items.locator('tbody tr')).toHaveCount(3);
+  await expect(items.locator('a[href="/ru/dnd/srd-5.2/magic-items/weapon-1-2-or-3/weapon-2/"]')).toHaveText('Оружие +2');
+  await expect(items.locator('tr', { hasText: 'Оружие +2' })).toContainText('редкий');
+  await expect(page.locator('a[href*="omnisgm.com/compendium"]')).toHaveCount(0);
   await page.goto('/en/dnd/srd-5.2/magic-items/potions-of-healing/');
   await expect(page.locator('.item-meta-line')).toContainText('rarity varies');
-  for (const rarity of ['uncommon', 'rare', 'very-rare']) {
+  await expect(page.getByTestId('magic-item-group-items').locator('tbody tr')).toHaveCount(4);
+});
+
+test('предмет семейства: вложенный адрес, одна редкость, ссылка на семейство и в компендиум', async ({ page }) => {
+  const res = await page.goto('/en/dnd/srd-5.2/magic-items/potions-of-healing/potion-of-healing-greater/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Potion of Healing (greater)');
+  const stat = page.locator('.item-stat');
+  await expect(stat.locator('.item-row', { hasText: 'Rarity' })).toContainText('uncommon');
+  await expect(stat.locator('a[href="/en/dnd/srd-5.2/magic-items/potions-of-healing/"]')).toHaveText('Potions of Healing');
+  await expect(page.locator('.rd-doc')).toContainText('4d4 + 4');
+  await expect(page.locator('a[href*="/compendium/dnd2024/magic-item/potion-of-healing-greater?"]').first()).toBeAttached();
+  const flat = await page.goto('/en/dnd/srd-5.2/magic-items/potion-of-healing-greater/');
+  expect(flat?.status()).toBe(404);
+});
+
+test('хабы редкости: предмет семейства стоит в хабе своей редкости с вложенным адресом', async ({ page }) => {
+  for (const [rarity, slug] of [['uncommon', 'weapon-1'], ['rare', 'weapon-2'], ['very-rare', 'weapon-3']]) {
     await page.goto(`/en/dnd/srd-5.2/magic-items/rarity/${rarity}/`);
-    await expect(page.locator('.rd-doc a[href$="/magic-items/weapon-1-2-or-3/"]'), rarity).toHaveCount(1);
+    await expect(page.locator(`.rd-doc a[href$="/magic-items/weapon-1-2-or-3/${slug}/"]`), rarity).toHaveCount(1);
+    // Само семейство в хабах не стоит: у него нет своей редкости.
+    await expect(page.locator('.rd-doc a[href$="/magic-items/weapon-1-2-or-3/"]'), rarity).toHaveCount(0);
   }
   await page.goto('/en/dnd/srd-5.2/magic-items/rarity/legendary/');
-  await expect(page.locator('.rd-doc a[href$="/magic-items/weapon-1-2-or-3/"]')).toHaveCount(0);
+  await expect(page.locator('.rd-doc a[href*="/magic-items/weapon-1-2-or-3/"]')).toHaveCount(0);
+  await expect(page.locator('.rd-doc a[href$="/magic-items/armor-1-2-or-3/armor-3/"]')).toHaveCount(1);
 });

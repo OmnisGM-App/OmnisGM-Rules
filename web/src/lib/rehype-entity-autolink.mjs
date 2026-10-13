@@ -19,6 +19,8 @@ const DND_RESOURCES = [
   { key: 'animals', urlParent: 'animals', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
   { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
+  // Семейства магических предметов (#412): курсив «Potions of Healing» ведёт на страницу семейства.
+  { key: 'magic-item-groups', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
   // Черты не размечены и омонимичны словам (Defense/Archery) → режим 'feats': точные ячейки
   // таблиц классов, а в прозе — только много-словные имена.
   { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2', 'srd-5.1'] },
@@ -75,16 +77,21 @@ const EXACT_ALIASES = {
     },
     'magic-items': {
       'bag-of-holding': ['Сумкой вместимости', 'Сумку вместимости'], 'bead-of-force': ['Бусины силы'],
-      'belt-of-giant-strength': ['Поясом силы великана'], 'gauntlets-of-ogre-power': ['Перчатками силы огра'],
+      'gauntlets-of-ogre-power': ['Перчатками силы огра'],
       'portable-hole': ['Переносной дырой', 'Переносной дыры'],
       'dragon-orb': ['Сфера драконов'], 'gloves-of-missile-snaring': ['Перчатку похищения снарядов'],
       'handy-haversack': ['Практичным рюкзаком'],
-      'horn-of-valhalla': ['Рога Валгаллы'], 'oil-of-etherealness': ['Масла эфирности'],
+      'oil-of-etherealness': ['Масла эфирности'],
       'oil-of-slipperiness': ['Маслом скольжения'],
-      'potions-of-healing': ['Зелье лечения'], 'ring-of-djinni-summoning': ['Кольца призыва джинна'],
+      'ring-of-djinni-summoning': ['Кольца призыва джинна'],
       'spell-scroll': ['Свитке заклинания', 'Свитки заклинаний', 'Свитков заклинаний'],
       'sphere-of-annihilation': ['Сферу уничтожения', 'Сферы уничтожения'],
       'sun-blade': ['Солнечным клинком'], 'universal-solvent': ['Универсального растворителя'],
+    },
+    // Семейства (#412): склонённое имя семейства ведёт на его страницу. «Зелье лечения» теперь
+    // само имя предмета семейства и в псевдонимах не нуждается.
+    'magic-item-groups': {
+      'belt-of-giant-strength': ['Поясом силы великана'], 'horn-of-valhalla': ['Рога Валгаллы'],
     },
   },
   'dnd/en': {

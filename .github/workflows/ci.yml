@@ -100,6 +100,11 @@ jobs:
       - name: Unit — группы снаряжения JSON API
         run: python3 .github/scripts/test_equipment_groups.py
 
+      # Семейства магических предметов (#412): редкость предмета берётся из строки таблицы, из скобок
+      # абзаца или из строки типа; пропавшая строка или RU не напротив EN должны ронять сборку.
+      - name: Unit — семейства магических предметов JSON API
+        run: python3 .github/scripts/test_magic_item_families.py
+
       # Строка «тип, редкость» магического предмета: предмет с тремя редкостями получал последнюю найденную.
       - name: Unit — редкость магических предметов
         run: python3 .github/scripts/test_magic_item_parser.py
