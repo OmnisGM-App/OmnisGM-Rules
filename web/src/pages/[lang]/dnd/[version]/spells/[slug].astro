@@ -10,6 +10,7 @@ import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { spellClassSlugs, classLabel, levelLabel } from '../../../../../lib/spell-hubs';
+import { subclassLinker } from '../../../../../lib/spell-subclass-links.mjs';
 import { spellDescription } from '../../../../../lib/entity-facts';
 import { pageTitle } from '../../../../../lib/page-title';
 
@@ -44,17 +45,20 @@ export function getStaticPaths() {
     // Локализованные имена форм области (shape=slug): «cone»→«Конус»/«Cone» + для hovercard.
     const aoeNames: Record<string, string> = {};
     for (const a of loadEntities(ver, lang, 'areas-of-effect')) aoeNames[a.slug] = a.name;
+    // Подклассы и имена классов для строки «Подклассы» — один раз на сборку, без умений и прогрессии.
+    const subclasses = loadEntities(ver, lang, 'subclasses').map((x) => ({ slug: x.slug, name: x.name, class: x.class as string }));
+    const classNames = loadEntities(ver, lang, 'classes').map((c) => ({ slug: c.slug, name: c.name }));
     for (const entity of spells) {
       paths.push({
         params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
-        props: { entity, ver, lang, siblings, aoeNames },
+        props: { entity, ver, lang, siblings, aoeNames, subclasses, classNames },
       });
     }
   }
   return paths;
 }
 
-const { entity, ver, lang, siblings, aoeNames } = Astro.props;
+const { entity, ver, lang, siblings, aoeNames, subclasses, classNames } = Astro.props;
 const verSlug = VERSION_SLUG[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
@@ -94,32 +98,15 @@ const CLASS_SLUG: Record<string, string> = {
   Бард: 'bard', Жрец: 'cleric', Друид: 'druid', Паладин: 'paladin', Следопыт: 'ranger',
   Чародей: 'sorcerer', Колдун: 'warlock', Волшебник: 'wizard',
 };
-// Подпись подкласса из `spells.subclasses` («Круг Земли (Засушливая земля)») → запись ресурса
-// `subclasses`: её класс и имя класса берутся из данных. Якорь секции на странице класса — слаг
-// заголовка «Подкласс друида: Круг Земли», которого в данных нет; без якоря ссылка ведёт на класс.
-const SUBCLASS_ANCHOR: Record<string, { ru: string; en: string }> = {
-  'life-domain':        { ru: 'подкласс-жреца-домен-жизни',            en: 'cleric-subclass-life-domain' },
-  'oath-of-devotion':   { ru: 'подкласс-паладина-клятва-преданности',   en: 'paladin-subclass-oath-of-devotion' },
-  'fiend-patron':       { ru: 'подкласс-колдуна-покровитель-исчадие',   en: 'warlock-subclass-fiend-patron' },
-  'draconic-sorcery':   { ru: 'подкласс-чародея-драконье-чародейство',  en: 'sorcerer-subclass-draconic-sorcery' },
-  'circle-of-the-land': { ru: 'подкласс-друида-круг-земли',            en: 'druid-subclass-circle-of-the-land' },
-};
-const subclassEntities = loadEntities(ver, lang, 'subclasses') as unknown as Array<{ slug: string; name: string; class: string }>;
-const classNames = new Map(loadEntities(ver, lang, 'classes').map((c) => [c.slug, c.name]));
-const subClass = (s: string) => subclassEntities.find((x) => s === x.name || s.startsWith(`${x.name} (`));
-const subClsName = (s: string) => classNames.get(subClass(s)?.class ?? '') ?? '';
-const subUrl = (s: string) => {
-  const sub = subClass(s)!;
-  const anchor = SUBCLASS_ANCHOR[sub.slug]?.[lang === 'ru' ? 'ru' : 'en'];
-  return classUrl(sub.class) + (anchor ? `#${anchor}` : '');
-};
 const classUrl = (slug: string) => `/${lang}/dnd/${verSlug}/classes/${slug}/`;
+// Подпись подкласса из `spells.subclasses` → класс и ссылка на секцию подкласса (#367).
+const subLink = subclassLinker(subclasses, classNames, { lang, classUrl });
 const classList = (Array.isArray(entity.classes) ? entity.classes : []) as string[];
 // Подклассы показываем ТОЛЬКО когда их родительский класс НЕ имеет заклинание в полном списке
-// (иначе грант подкласса избыточен — сам класс уже даёт доступ). Напр. Aid на списке Жреца →
-// «Жрец: Домен жизни» не показываем; Fireball не на списке Колдуна → «Колдун: Исчадие» остаётся.
+// (иначе грант подкласса избыточен — сам класс уже даёт доступ).
 const subList = ((Array.isArray(entity.subclasses) ? entity.subclasses : []) as string[])
-  .filter((s) => !classList.includes(subClsName(s)));
+  .map((label) => ({ label, link: subLink(label) }))
+  .filter(({ link }) => !classList.includes(link?.className ?? ''));
 
 // Компоненты: аббревиатуры В/С/М с нативным тултипом (полное слово при наведении на ПК).
 const comp = (entity.components ?? {}) as Record<string, unknown>;
@@ -222,10 +209,10 @@ const icon = entityImage('dnd', 'spells', entity.slug);
       <div class="spell-meta-row">
         <dt>{t('Подклассы', 'Subclasses')}</dt>
         <dd>
-          {subList.map((s, i) => (
-            <Fragment>{i > 0 ? ', ' : ''}{subClass(s)
-              ? <a href={subUrl(s)}>{subClsName(s)}: {s}</a>
-              : s}</Fragment>
+          {subList.map(({ label, link }, i) => (
+            <Fragment>{i > 0 ? ', ' : ''}{link
+              ? <a href={link.href}>{link.className}: {label}</a>
+              : label}</Fragment>
           ))}
         </dd>
       </div>
