@@ -11,12 +11,17 @@ import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities
 import { magicItemDescription } from '../../../../../lib/entity-facts';
 import { pageTitle } from '../../../../../lib/page-title';
 import { itemRarityLabel } from '../../../../../lib/magic-item-hubs';
+import { entityPath } from '../../../../../lib/equipment-path.mjs';
 
 // Programmatic-страницы магических предметов (issue #20, волна 3) в общем шелле ридера.
 // URL: /{lang}/dnd/{version}/magic-items/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
+// Семейство (#412) — «Зелья лечения», «Камень Иоун», «Оружие, +1, +2 или +3» — остаётся страницей на
+// прежнем адресе и ведёт на свои предметы; предмет семейства живёт под ним:
+// /magic-items/potions-of-healing/potion-of-healing-greater/.
 const PARENT_NAV: Record<string, string> = { srd52: 'd52-magicitems', srd51: 'd51-magicitems' };
 
-interface Sib { slug: string; name: string; type: string; rarity: string }
+interface Sib { slug: string; name: string; type: string; rarity: string; path: string }
+interface Member { name: string; path: string; rarity: string }
 
 export function getStaticPaths() {
   const BUILDS = [
@@ -28,21 +33,36 @@ export function getStaticPaths() {
   const paths = [];
   for (const { ver, lang } of BUILDS) {
     const items = loadEntities(ver, lang, 'magic-items');
-    const siblings: Sib[] = items.map((m) => ({
-      slug: m.slug, name: m.name,
+    const groups = loadEntities(ver, lang, 'magic-item-groups');
+    // «Похожие» — без предметов семейств: их соседи перечислены на странице семейства.
+    const siblings: Sib[] = [...items.filter((m) => !m.group), ...groups].map((m) => ({
+      slug: m.slug, name: m.name, path: entityPath('magic-items', m),
       type: (m.type as string) ?? '', rarity: (m.rarity as string) ?? '',
     }));
+    const groupNames = Object.fromEntries(groups.map((g) => [g.slug, g.name]));
     for (const entity of items) {
+      const group = entity.group ? { slug: entity.group as string, name: groupNames[entity.group as string] } : null;
+      paths.push({
+        params: { lang, version: VERSION_SLUG[ver], slug: entityPath('magic-items', entity) },
+        props: { entity, ver, lang, siblings, group, members: [] as Member[] },
+      });
+    }
+    for (const entity of groups) {
+      const members: Member[] = items.filter((m) => m.group === entity.slug).map((m) => ({
+        name: m.name, path: entityPath('magic-items', m), rarity: itemRarityLabel(m, lang),
+      }));
       paths.push({
         params: { lang, version: VERSION_SLUG[ver], slug: entity.slug },
-        props: { entity, ver, lang, siblings },
+        props: { entity, ver, lang, siblings, group: null, members },
       });
     }
   }
   return paths;
 }
 
-const { entity, ver, lang, siblings } = Astro.props;
+const { entity, ver, lang, siblings, group, members } = Astro.props;
+// Семейство — запись правил, под которой несколько предметов: вместо одной редкости — их перечень.
+const isGroup = members.length > 0;
 const verSlug = VERSION_SLUG[ver];
 const t = (ru: string, en: string) => (lang === 'ru' ? ru : en);
 
@@ -76,16 +96,20 @@ const sameType = (siblings as Sib[])
   .filter((s) => s.slug !== entity.slug && s.type === itemType)
   .slice(0, 8);
 
-const upLink = { href: `${base}/`, ru: 'Магические предметы', en: 'Magic Items' };
+// Предмет семейства поднимается на страницу семейства, остальное — в главу.
+const upLink = group
+  ? { href: `${base}/${group.slug}/`, ru: group.name, en: group.name }
+  : { href: `${base}/`, ru: 'Магические предметы', en: 'Magic Items' };
 const kind = t('Магический предмет', 'Magic Item');
 const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
 // Иконка сущности (#202): она же og:image страницы — вместо общего og.png.
-const icon = entityImage('dnd', 'magic-items', entity.slug);
+// У предмета семейства без своей картинки — картинка семейства.
+const icon = entityImage('dnd', 'magic-items', entity.slug) ?? (group ? entityImage('dnd', 'magic-items', group.slug) : null);
 ---
 
 <ReaderShell
   contentSource={{ game: 'dnd', ver, lang, resource: 'magic-items' }}
-  entitySlug={entity.slug}
+  entitySlug={isGroup ? undefined : entity.slug}
   lang={lang}
   currentId={PARENT_NAV[ver]}
   title={title}
@@ -118,7 +142,24 @@ const icon = entityImage('dnd', 'magic-items', entity.slug);
       <div class="item-row"><dt>{t('Настройка', 'Attunement')}</dt>
         <dd>{t('требуется', 'required')}{attune.condition ? ` (${attune.condition})` : ''}</dd></div>
     )}
+    {group && (
+      <div class="item-row"><dt>{t('Семейство', 'Family')}</dt>
+        <dd><a class="ent-link" href={`${base}/${group.slug}/`}>{group.name}</a></dd></div>
+    )}
   </dl>
+
+  {isGroup && (
+    <table class="item-members" data-testid="magic-item-group-items">
+      <thead>
+        <tr><th>{t('Предмет', 'Item')}</th><th>{t('Редкость', 'Rarity')}</th></tr>
+      </thead>
+      <tbody>
+        {(members as Member[]).map((m) => (
+          <tr><td><a class="ent-link" href={`${base}/${m.path}/`}>{m.name}</a></td><td>{m.rarity}</td></tr>
+        ))}
+      </tbody>
+    </table>
+  )}
 
   <Fragment set:html={bodyHtml} />
 
@@ -127,7 +168,7 @@ const icon = entityImage('dnd', 'magic-items', entity.slug);
       <span class="ent-related-h">{t(`Ещё: ${itemType}`, `More ${itemType}`)}</span>
       <span class="ent-related-list">
         {sameType.map((r) => (
-          <a href={`${base}/${r.slug}/`}>{r.name}</a>
+          <a href={`${base}/${r.path}/`}>{r.name}</a>
         ))}
       </span>
     </nav>
@@ -157,6 +198,14 @@ const icon = entityImage('dnd', 'magic-items', entity.slug);
     color: var(--og-text-muted); font-weight: 600;
   }
   .item-row dd { margin: 0; color: var(--og-text-2); }
+
+  /* Предметы семейства (#412): строка на предмет со ссылкой на его страницу. */
+  .item-members { width: 100%; margin: 0 0 24px; border-collapse: collapse; }
+  .item-members th, .item-members td { padding: 6px 10px; border-bottom: 1px solid var(--og-border); text-align: left; }
+  .item-members th {
+    font-family: var(--font-mono); font-size: 12px; letter-spacing: 0.6px; text-transform: uppercase;
+    color: var(--og-text-muted); font-weight: 600;
+  }
 
   .ent-related { display: block; margin-top: 40px; padding-top: 20px; border-top: 1px solid var(--og-border); }
   .ent-related-h {

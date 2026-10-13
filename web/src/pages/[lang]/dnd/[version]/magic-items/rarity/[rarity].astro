@@ -1,4 +1,5 @@
 ---
+import { entityPath } from '../../../../../../lib/equipment-path.mjs';
 import ReaderShell from '../../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../../lib/entities';
 import { pageTitle } from '../../../../../../lib/page-title';
@@ -94,7 +95,7 @@ const otherRarities = RARITIES.filter((r) => r.slug !== rSlug && present.has(r.s
       <tbody>
         {items.map((it) => (
           <tr>
-            <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
+            <td><a href={`${base}/${entityPath('magic-items', it)}/`}>{it.name}</a></td>
             <td>{it.type ?? '—'}</td>
             <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>
           </tr>

@@ -2,7 +2,7 @@
 
 import re
 
-from .base import split_blocks, extract_names
+from .base import split_blocks, extract_names, slugify, last_table, without_tables
 
 
 # Rarity mappings
@@ -88,9 +88,125 @@ def _extract_spell_refs(description: str) -> list[str]:
     return spells
 
 
+# --- Семейства: одна запись правил — несколько предметов (#412) ---------------------------------
+# Запись-семейство становится группой (страница сайта, не запись API), её разновидности — записями.
+# Разновидность — та, что отличается редкостью или текстом правил. Вид семейства:
+#   rows       — строка таблицы на предмет: имя — первая ячейка, редкость — последняя;
+#   horn       — строка таблицы «тип рога», редкость — из строки типа записи;
+#   paragraphs — абзац «**_Имя (Редкость)._**» на предмет; абзацы без редкости относятся к предыдущему;
+#   bonus      — «+1, +2 или +3»: предмет на бонус, редкость — из строки типа записи.
+# Число — сколько разновидностей: расхождение роняет сборку.
+# Имя разновидности — как в тексте. Где текст даёт одно уточнение («Absorption», «Anchor», «Silver»),
+# имя семейства ставится впереди, как сам текст делает у поясов: «Ioun Stone (Absorption)». У фигурок
+# имя в тексте самостоятельное («Bronze Griffon») и остаётся как есть (`BARE_NAMES`).
+MAGIC_FAMILIES = {
+    "potions-of-healing": ("rows", 4),
+    "potion-of-giant-strength": ("rows", 5),
+    "belt-of-giant-strength": ("rows", 5),
+    "horn-of-valhalla": ("horn", 4),
+    "ioun-stone": ("paragraphs", 14),
+    "feather-token": ("paragraphs", 6),
+    "figurine-of-wondrous-power": ("paragraphs", 9),
+    "ammunition-1-2-or-3": ("bonus", 3),
+    "armor-1-2-or-3": ("bonus", 3),
+    "shield-1-2-or-3": ("bonus", 3),
+    "wand-of-the-war-mage-1-2-or-3": ("bonus", 3),
+    "weapon-1-2-or-3": ("bonus", 3),
+}
+BARE_NAMES = {"figurine-of-wondrous-power"}
+_RARITY_WORDS = {**RARITIES_EN, **RARITIES_RU}
+_RARITY_ALT = "|".join(sorted((re.escape(w) for w in _RARITY_WORDS), key=len, reverse=True))
+_VARIETY_LEAD = re.compile(rf"^\*\*_(.+?) \(({_RARITY_ALT})\)\._\*\*\s*(.*)$", re.IGNORECASE)
+_BONUS_LABEL = {"en": "Bonus", "ru": "Бонус"}
+
+
+def _rarity(word: str, where: str) -> str:
+    code = _RARITY_WORDS.get(word.strip().lower())
+    if not code:
+        raise ValueError(f"{where}: unknown rarity {word!r}")
+    return code
+
+
+def _rarity_by_mark(type_line: str, where: str) -> dict[str, str]:
+    """«Uncommon (+1), Rare (+2), or Very Rare (+3)» → {"+1": uncommon, …}; у рога — по металлу."""
+    out: dict[str, str] = {}
+    for word, marks in re.findall(rf"({_RARITY_ALT})\s*\(([^)]+)\)", type_line, flags=re.IGNORECASE):
+        for mark in re.split(r"\s+(?:or|или)\s+|,\s*", marks):
+            out[mark.strip().lower()] = _rarity(word, where)
+    return out
+
+
+def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
+    """Разновидности семейства как записи `magic-items`; слаг и `name_en` — только у EN."""
+    kind, expected = MAGIC_FAMILIES[parent["slug"]]
+    where = parent["name"]
+    body = parent["description_md"]
+    rows: list[dict] = []  # name, rarity, text
+    if kind in ("rows", "horn"):
+        header, table = last_table(body)
+        prose = without_tables(body)
+        by_mark = _rarity_by_mark(type_line, where) if kind == "horn" else {}
+        for cells in table:
+            if len(cells) != len(header):
+                raise ValueError(f"{where}: row {cells[0]!r} has {len(cells)} cells, the header has {len(header)}")
+            if kind == "rows":
+                name, rarity, facts = cells[0], _rarity(cells[-1], where), list(zip(header[1:-1], cells[1:-1]))
+            else:  # 1d100 | Horn Type | Spirits | Requirement
+                rarity = by_mark.get(cells[1].lower())
+                if not rarity:
+                    raise ValueError(f"{where}: no rarity for {cells[1]!r} in {type_line!r}")
+                name, facts = f"{parent['name']} ({cells[1]})", list(zip(header[2:], cells[2:]))
+            rows.append({"name": name, "rarity": rarity,
+                         "text": "\n\n".join([prose] + [f"**{label}:** {value}" for label, value in facts])})
+    elif kind == "paragraphs":
+        intro: list[str] = []
+        for line in without_tables(body).split("\n"):
+            lead = _VARIETY_LEAD.match(line.strip())
+            if lead:
+                own = lead.group(1).strip()
+                rows.append({"name": own if parent["slug"] in BARE_NAMES else f"{parent['name']} ({own})",
+                             "rarity": _rarity(lead.group(2), where),
+                             "text": [lead.group(3).strip()]})
+            elif rows:
+                rows[-1]["text"].append(line)
+            else:
+                intro.append(line)
+        head = "\n".join(intro).strip()
+        for row in rows:
+            row["text"] = "\n\n".join(t for t in (head, "\n".join(row["text"]).strip()) if t)
+    else:  # bonus
+        by_mark = _rarity_by_mark(type_line, where)
+        base = re.split(r",\s*\+1", parent["name"])[0].strip()
+        for bonus in ("+1", "+2", "+3"):
+            if bonus not in by_mark:
+                raise ValueError(f"{where}: no rarity for {bonus} in {type_line!r}")
+            rows.append({"name": f"{base} {bonus}", "rarity": by_mark[bonus],
+                         "text": f"{body}\n\n**{_BONUS_LABEL[lang]}:** {bonus}"})
+    if len(rows) != expected:
+        raise ValueError(f"{where}: {len(rows)} varieties, declared {expected}")
+    en = lang == "en"
+    return [{
+        "slug": slugify(row["name"]) if en else None,
+        "name": row["name"],
+        "name_en": None,
+        "type": parent["type"],
+        "subtype": parent["subtype"],
+        "rarity": row["rarity"],
+        "rarities": [row["rarity"]],
+        "attunement": parent["attunement"],
+        "description_md": row["text"],
+        "spells": _extract_spell_refs(row["text"]),
+        "group": parent["slug"],
+    } for row in rows]
+
+
 def parse_magic_items(text: str, heading_level: int, lang: str,
-                      after: str | None = None, skip_headings: set | None = None) -> list[dict]:
-    """Parse all magic item blocks from markdown text."""
+                      after: str | None = None, skip_headings: set | None = None,
+                      families: bool = False) -> list[dict]:
+    """Parse all magic item blocks from markdown text.
+
+    `families` — резать семейства на разновидности (#412): только SRD 5.2, для неё они и объявлены.
+    """
     blocks = split_blocks(text, heading_level, after)
     items = []
 
@@ -165,7 +281,13 @@ def parse_magic_items(text: str, heading_level: int, lang: str,
             "attunement": type_info["attunement"],
             "description_md": description_md,
             "spells": spell_refs,
+            "group": None,
         }
-        items.append(item)
+        if families and slug in MAGIC_FAMILIES:
+            # Семейство — группа (`_group`): в `magic-items` идут её разновидности (#412).
+            items.append({**item, "_group": True})
+            items.extend(_varieties(item, type_line, lang))
+        else:
+            items.append(item)
 
     return items

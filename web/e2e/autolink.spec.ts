@@ -94,6 +94,8 @@ test('hovercard-эндпоинт: есть карточки оружия/дос�
   // Предмет группы снаряжения (#412): карточка ведёт на вложенный адрес; у группы — своя карточка.
   expect(ru['equipment/lute']?.href).toBe('/ru/dnd/srd-5.2/equipment/musical-instrument/lute/');
   expect(ru['equipment-groups/musical-instrument']?.href).toBe('/ru/dnd/srd-5.2/equipment/musical-instrument/');
+  expect(ru['magic-items/potion-of-healing']?.href).toBe('/ru/dnd/srd-5.2/magic-items/potions-of-healing/potion-of-healing/');
+  expect(ru['magic-item-groups/ioun-stone']?.href).toBe('/ru/dnd/srd-5.2/magic-items/ioun-stone/');
 });
 
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
@@ -101,6 +103,28 @@ test('предметы: имя в курсиве линкуется на стр�
   const link = page.locator('.rd-doc em a.ent-link[href*="/dnd/srd-5.2/magic-items/"]').first();
   await expect(link).toBeVisible();
   await expect(link).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/magic-items\//);
+});
+
+test('семейства магических предметов: курсив в прозе ведёт на страницу семейства (#412)', async ({ page }) => {
+  const hrefOf = (text: string) => page.locator('.rd-doc em a.ent-link', { hasText: new RegExp(`^${text}$`) }).first();
+  await page.goto('/ru/dnd/srd-5.2/magic-items/');
+  // Склонённые формы — псевдонимы семейства, не предмета.
+  await expect(hrefOf('Поясом силы великана')).toHaveAttribute('href', '/ru/dnd/srd-5.2/magic-items/belt-of-giant-strength/');
+  await expect(hrefOf('Рога Валгаллы')).toHaveAttribute('href', '/ru/dnd/srd-5.2/magic-items/horn-of-valhalla/');
+  await expect(hrefOf('Поясом силы великана')).toHaveAttribute('data-hc', 'dnd/srd52/ru/magic-item-groups/belt-of-giant-strength');
+  await page.goto('/en/dnd/srd-5.2/magic-items/');
+  await expect(hrefOf('Potions of Healing')).toHaveAttribute('href', '/en/dnd/srd-5.2/magic-items/potions-of-healing/');
+  await expect(hrefOf('Ioun Stone')).toHaveAttribute('href', '/en/dnd/srd-5.2/magic-items/ioun-stone/');
+  // Имя предмета семейства — на вложенную страницу предмета.
+  await expect(hrefOf('Potion of Healing')).toHaveAttribute('href', '/en/dnd/srd-5.2/magic-items/potions-of-healing/potion-of-healing/');
+});
+
+test('снаряжение: одноимённый магический предмет не отбирает ячейку перечня (Зелье лечения, #412)', async ({ page }) => {
+  for (const [lang, name] of [['en', 'Potion of Healing'], ['ru', 'Зелье лечения']]) {
+    await page.goto(`/${lang}/dnd/srd-5.2/equipment/`);
+    const cell = page.locator('.rd-doc td a.ent-link', { hasText: new RegExp(`^${name}$`) }).first();
+    await expect(cell).toHaveAttribute('href', `/${lang}/dnd/srd-5.2/equipment/potion-of-healing/`);
+  }
 });
 
 test('черты: ячейка таблицы класса (Увеличение характеристики) линкуется на страницу черты', async ({ page }) => {
@@ -212,7 +236,7 @@ test('EN/RU: набор слинкованных состояний совпад
         !/\/spells\/[^/]+\/$/.test(p) &&
         !/\/monsters-a-z\/[^/]+\/$/.test(p) &&
         !/\/animals\/[^/]+\/$/.test(p) &&
-        !/\/magic-items\/[^/]+\/$/.test(p) &&
+        !/\/magic-items\/.+\/$/.test(p) &&
         !/\/equipment\/.+\/$/.test(p) &&
         !/\/feats\/[^/]+\/$/.test(p),
     );
