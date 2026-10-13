@@ -100,6 +100,33 @@ def _features(lines: list[str]) -> list[dict]:
              "description_md": "\n".join(f["body"]).strip()} for f in _feature_blocks(lines)]
 
 
+# «You always have the *X* spell prepared» в теле умения класса (#366). Таблицы подклассов и выбор
+# игрока («the chosen spells», «those spells») сюда не попадают: в них нет имени заклинания курсивом.
+_ALWAYS_PREPARED = {
+    "en": r"always have the ((?:\*[^*]+\*(?:,? and |, )?)+) spells? prepared",
+    "ru": r"всегда (?:подготовлено заклинание|держите подготовленными заклинания) ((?:\*[^*]+\*(?: и |, )?)+)",
+}
+# Фраза с именем заклинания, которую шаблон выше не разобрал, роняет сборку.
+_ALWAYS_PREPARED_HINT = {"en": r"always have[^.;]*\*[^.;]*prepared",
+                         "ru": r"всегда[^.;]*подготовл[^.;]*\*|всегда[^.;]*\*[^.;]*подготовл"}
+
+
+def _always_prepared(features: list[dict], lang: str, name: str) -> list[dict]:
+    """Заклинания, которые класс держит подготовленными всегда: форма как у подкласса, `choice` — null.
+
+    `spells` — ИМЕНА до резолва в слаги в generate_api.
+    """
+    out = []
+    for f in features:
+        found = re.search(_ALWAYS_PREPARED[lang], f["description_md"])
+        if found:
+            out.append({"level": f["level"], "spells": re.findall(r"\*([^*]+)\*", found.group(1)),
+                        "choice": None})
+        elif re.search(_ALWAYS_PREPARED_HINT[lang], f["description_md"]):
+            raise ValueError(f"{name}: «{f['name']}» names an always prepared spell in an unknown form")
+    return out
+
+
 def _abilities(text: str) -> list[str]:
     found = re.findall(r"[A-Za-z]+", text)
     codes = [ABILITY_CODES[w.lower()] for w in found if w.lower() in ABILITY_CODES]
@@ -334,6 +361,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
         "starting_equipment": traits["starting_equipment"],
         "progression": progression,
         "features": features,
+        "always_prepared": _always_prepared(features, lang, name),
         "spellcasting": _spellcasting(features, progression) if en else None,
     }]
 

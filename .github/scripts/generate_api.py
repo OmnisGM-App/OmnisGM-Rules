@@ -351,6 +351,7 @@ def _class_shape(c: dict) -> tuple:
               [re.sub(r"\D", "", v) for v in
                (r["values"].values() if isinstance(r["values"], dict) else r["values"])])
              for r in prog["rows"]],
+            [(r["level"], len(r["spells"])) for r in c["always_prepared"]],
             c["hit_die"], c["proficiencies"]["skills"]["choose"],
             c["proficiencies"]["tools"] is None,
             [bool(c["multiclass"][k]["text"]) for k in ("armor", "weapons")],
@@ -412,14 +413,14 @@ def align_classes(all_data: dict) -> list[str]:
 
 
 def resolve_always_prepared(all_data: dict) -> list[str]:
-    """Имена заклинаний в `always_prepared` подклассов → слаги из spells/all.json того же языка.
+    """Имена заклинаний в `always_prepared` классов и подклассов → слаги из spells/all.json того же языка.
 
     Нерезолвленное имя — ошибка сборки: потребитель (компендиум Table#766) связывает подкласс
     с заклинанием только по слагу. RU-таблица обязана дать те же слаги, что EN.
     """
     errors = []
     for (ver, lang, resource), entities in all_data.items():
-        if resource != "subclasses":
+        if resource not in ("classes", "subclasses"):
             continue
         lookup = {}
         for sp in all_data.get((ver, lang, "spells"), []):
@@ -435,7 +436,7 @@ def resolve_always_prepared(all_data: dict) -> list[str]:
                     slugs.append(slug)
                 row["spells"] = slugs
     for (ver, lang, resource), ru_entities in all_data.items():
-        if lang != "ru" or resource != "subclasses":
+        if lang != "ru" or resource not in ("classes", "subclasses"):
             continue
         en_by_slug = {s["slug"]: s for s in all_data.get((ver, "en", resource), [])}
         for r in ru_entities:
