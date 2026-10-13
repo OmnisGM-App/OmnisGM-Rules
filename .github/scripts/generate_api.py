@@ -36,6 +36,7 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_brp_skills, parse_brp_professions, parse_brp_spot_rules)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
+from choices import attach_choices
 
 
 def load_game_config(game: str):
@@ -872,6 +873,7 @@ def main():
         class_errors = (align_classes(all_data) + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + build_species_lineages(all_data)
                         + build_backgrounds(all_data))
+        class_errors = class_errors or attach_choices(all_data)
         if class_errors:
             print("Error: классы/подклассы/варианты умений/виды/предыстории (#365, #374, #413):", file=sys.stderr)
             for msg in class_errors:
