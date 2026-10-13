@@ -79,6 +79,11 @@ jobs:
       - name: Unit — классы, подклассы и варианты умений JSON API
         run: python3 .github/scripts/test_class_parser.py
 
+      # Виды структурой и ресурс species-lineages (#413): наследия гнома и голиафа в тексте не
+      # отличить от особенностей — их держит объявление; RU разбирается по форме EN.
+      - name: Unit — виды и наследия JSON API
+        run: python3 .github/scripts/test_species_parser.py
+
       # Строка «тип, редкость» магического предмета: предмет с тремя редкостями получал последнюю найденную.
       - name: Unit — редкость магических предметов
         run: python3 .github/scripts/test_magic_item_parser.py

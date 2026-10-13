@@ -808,6 +808,71 @@ BRP_SECTION_SCHEMA = {
 
 # -- Mapping resource name → schema (used by generate_api.py) -----------------
 
+# Вид SRD 5.2 (#413). size.options — коды размеров; два кода — выбор при выборе вида. traits —
+# особенности по порядку текста; lineages: true — варианты особенности лежат в `species-lineages`.
+# Расы 5.1 живут под ресурсом `races` и этой схемой не проверяются.
+SPECIES_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Species",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "description_md": {"type": "string"},
+        "creature_type": {"type": "string", "minLength": 1},
+        "size": {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "options": {"type": "array", "items": {"type": "string", "enum": ["medium", "small"]},
+                            "minItems": 1},
+            },
+            "required": ["text", "options"],
+            "additionalProperties": False,
+        },
+        "speed": {"type": "integer", "minimum": 5},
+        "traits": {"type": "array", "minItems": 1, "items": {
+            "type": "object",
+            "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "description_md": {"type": "string", "minLength": 1},
+                "lineages": {"type": "boolean"},
+            },
+            "required": ["name", "description_md", "lineages"],
+            "additionalProperties": False,
+        }},
+        "image": {"type": "string", "format": "uri"},
+    },
+    "required": ["slug", "name", "name_en", "description_md", "creature_type", "size", "speed", "traits"],
+    "additionalProperties": False,
+}
+
+# Наследие вида (#413): вариант особенности вида, который игрок выбирает (дракон-предок, родословная
+# эльфа или гнома, наследие великанов, наследие исчадий). species — слаг вида; trait — имя особенности
+# вида, чьи это варианты; details — колонки строки таблицы наследий, пусто у наследия-абзаца.
+SPECIES_LINEAGE_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "SpeciesLineage",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "species": {"type": "string"},
+        "trait": {"type": "string"},
+        "description_md": {"type": "string", "minLength": 1},
+        "details": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"label": {"type": "string"}, "text": {"type": "string"}},
+            "required": ["label", "text"],
+            "additionalProperties": False,
+        }},
+    },
+    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details"],
+    "additionalProperties": False,
+}
+
 RESOURCE_SCHEMAS = {
     "spells": SPELL_SCHEMA,
     "monsters": MONSTER_SCHEMA,
@@ -821,6 +886,8 @@ RESOURCE_SCHEMAS = {
     "classes": CLASS_SCHEMA,
     "subclasses": SUBCLASS_SCHEMA,
     "class-options": CLASS_OPTION_SCHEMA,
+    "species": SPECIES_SCHEMA,
+    "species-lineages": SPECIES_LINEAGE_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
     "communities": DH_SECTION_SCHEMA,
