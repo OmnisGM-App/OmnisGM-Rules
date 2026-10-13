@@ -26,7 +26,7 @@ def eq(name, got, want):
 
 
 RESOURCES = ("classes", "subclasses", "species", "species-lineages", "backgrounds", "feats", "class-options",
-             "spells", "weapons", "equipment")
+             "spells", "weapons", "equipment", "equipment-groups")
 with tempfile.TemporaryDirectory() as out:
     run = subprocess.run([sys.executable, str(SCRIPTS / "generate_api.py"), "--src-root", str(ROOT / "src/dnd"),
                           "--output-dir", out, "--no-validate"], capture_output=True, text=True)
@@ -174,8 +174,9 @@ eq("учёный волшебника — экспертиза в одном и�
    {"character": "skill-proficiencies",
     "filter": {"values": ["arcana", "history", "investigation", "medicine", "nature", "religion"]}})
 eq("выборы самого класса: инструменты барда и монаха",
-   {slug: [(c["kind"], c["count"], c["from"]["list"]) for c in cls["choices"]] for slug, cls in classes.items() if cls["choices"]},
-   {"bard": [("tool", 3, "musical-instruments")], "monk": [("tool", 1, "artisan-tools-or-musical-instruments")]})
+   {slug: [(c["kind"], c["count"], c["from"]) for c in cls["choices"]] for slug, cls in classes.items() if cls["choices"]},
+   {"bard": [("tool", 3, {"resource": "equipment", "filter": {"group": "musical-instrument"}})],
+    "monk": [("tool", 1, {"list": "artisan-tools-or-musical-instruments", "values": None})]})
 eq("Круг Земли: земля из ключей always_prepared, замена на долгом отдыхе",
    (one(feature("en", "subclasses", "circle-of-the-land", "Circle of the Land Spells"), "land")["from"]["values"],
     one(feature("en", "subclasses", "circle-of-the-land", "Circle of the Land Spells"), "land")["replace"]),
@@ -202,7 +203,7 @@ eq("предыстории: прибавки из своих трёх харак
    {slug: (True, [[2, 1], [1, 1, 1]], 20) for slug in backgrounds})
 eq("выбор инструмента — только у солдата",
    {slug: [c["from"] for c in b["choices"] if c["kind"] == "tool"] for slug, b in backgrounds.items()},
-   {"acolyte": [], "criminal": [], "sage": [], "soldier": [{"resource": "equipment", "filter": {"variants_of": "gaming-set"}}]})
+   {"acolyte": [], "criminal": [], "sage": [], "soldier": [{"resource": "equipment", "filter": {"group": "gaming-set"}}]})
 
 feats = by_slug("en", "feats")
 eq("Magic Initiate: список заклинаний — выбор, на него ссылаются заговоры",
@@ -302,8 +303,8 @@ for name, tables, want in (
      "feats/skilled: школы 'evocatoin' нет"),
     ("круга вне словаря нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "spell", 1, choices.res("spells", level="any"))])},
      "feats/skilled: круг заклинания 'any' вне словаря"),
-    ("записи снаряжения с разновидностями нет", {"BACKGROUNDS": {"soldier": [choices.ch("tool", "tool", 1, choices.res("equipment", variants_of="no-such"))]}},
-     "backgrounds/soldier: записи снаряжения с разновидностями 'no-such' нет"),
+    ("группы снаряжения нет", {"BACKGROUNDS": {"soldier": [choices.ch("tool", "tool", 1, choices.res("equipment", group="no-such"))]}},
+     "backgrounds/soldier: группы снаряжения 'no-such' нет"),
     ("подклассов класса нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "subclass", 1, choices.res("subclasses", **{"class": "artificer"}))])},
      "feats/skilled: класса 'artificer' нет"),
     ("наследий вида нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "lineage", 1, choices.res("species-lineages", species="orc"))])},

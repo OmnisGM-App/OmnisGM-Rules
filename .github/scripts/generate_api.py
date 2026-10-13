@@ -280,6 +280,42 @@ def inject_spell_subclasses(all_data: dict) -> None:
                 spell["subclasses"] = sorted(labels[spell["slug"]])
 
 
+def build_equipment_groups(all_data: dict) -> list[str]:
+    """Составное снаряжение 5.2 (#412): записи-таблицы уходят из `equipment` в `equipment-groups`,
+    в `equipment` остаются их разновидности с полем `group`.
+
+    RU-разновидность получает слаг и `name_en` от EN по позиции в группе; число разновидностей, пачки
+    и число в цене и весе обязаны совпасть — иначе RU-строка стоит не напротив своей EN.
+    """
+    errors: list[str] = []
+    number = lambda text: re.sub(r"[^\d½¼.,]", "", text or "")  # noqa: E731
+    for (ver, lang, resource) in [k for k in all_data if k[2] == "equipment"]:
+        items = all_data[(ver, lang, resource)]
+        groups = [i for i in items if i.pop("_group", False)]
+        if not groups:
+            continue
+        all_data[(ver, lang, "equipment")] = [i for i in items if i not in groups]
+        all_data[(ver, lang, "equipment-groups")] = [
+            {"slug": g["slug"], "name": g["name"], "name_en": g["name_en"], "section": g["section"],
+             "description_md": g["description_md"],
+             "items": [i["slug"] for i in items if i["group"] == g["slug"]]} for g in groups]
+    for (ver, lang, resource) in [k for k in all_data if k[1] == "ru" and k[2] == "equipment-groups"]:
+        en_items = all_data.get((ver, "en", "equipment"), [])
+        ru_items = all_data[(ver, "ru", "equipment")]
+        for group in all_data[(ver, "ru", "equipment-groups")]:
+            en = [i for i in en_items if i["group"] == group["slug"]]
+            ru = [i for i in ru_items if i["group"] == group["slug"]]
+            if len(en) != len(ru):
+                errors.append(f"{ver}/ru/{group['slug']}: разновидностей RU {len(ru)}, EN {len(en)}")
+                continue
+            for e, r in zip(en, ru):
+                if (number(r["cost"]), number(r["weight"]), r["quantity"]) != (number(e["cost"]), number(e["weight"]), e["quantity"]):
+                    errors.append(f"{ver}/ru/{group['slug']}: «{r['name']}» не сходится с EN «{e['name']}» по цене, весу или числу")
+                r["slug"], r["name_en"] = e["slug"], e["name"]
+            group["items"] = [i["slug"] for i in ru]
+    return errors
+
+
 def build_species_lineages(all_data: dict) -> list[str]:
     """Виды 5.2 структурой и ресурс `species-lineages` (#413).
 
@@ -316,7 +352,7 @@ def build_species_lineages(all_data: dict) -> list[str]:
 def build_backgrounds(all_data: dict) -> list[str]:
     """Предыстории 5.2 структурой (#413): характеристики, черта, навыки и инструмент — кодами и слагами.
 
-    Слаг черты сверяется с `feats`, слаг инструмента и родителя выбора — с `equipment`, вариант черты —
+    Слаг черты сверяется с `feats`, слаг инструмента — с `equipment`, группа выбора — с `equipment-groups`, вариант черты —
     с `classes`. RU разбирается на те же факты и получает коды и слаги из EN по слагу предыстории.
     """
     errors: list[str] = []
@@ -329,10 +365,12 @@ def build_backgrounds(all_data: dict) -> list[str]:
         except ValueError as err:
             errors.append(f"{ver}: {err}")
             continue
-        known = {res: {e["slug"] for e in all_data.get((ver, "en", res), [])} for res in ("feats", "equipment", "classes")}
+        known = {res: {e["slug"] for e in all_data.get((ver, "en", res), [])}
+                 for res in ("feats", "equipment", "equipment-groups", "classes")}
         for bg in en:
             for what, slug, res in (("feat", bg["feat"]["slug"], "feats"), ("feat variant", bg["feat"]["variant"], "classes"),
-                                    ("tool", bg["tool"]["slug"], "equipment"), ("tool choice", bg["tool"]["choose_from"], "equipment")):
+                                    ("tool", bg["tool"]["slug"], "equipment"),
+                                    ("tool choice", bg["tool"]["choose_from"], "equipment-groups")):
                 if slug is not None and slug not in known[res]:
                     errors.append(f"{ver}/en/{bg['slug']}: {what} «{slug}» не найден в {res}")
         en_by_slug = {bg["slug"]: bg for bg in en}
@@ -647,6 +685,8 @@ IMAGE_DIRS = {
         "spells": "spells",
         "magic-items": "magic-items",
         "equipment": "gear",
+        # Запись-группа (#412) хранит картинку под прежним слагом: «Музыкальный инструмент» остаётся страницей.
+        "equipment-groups": "gear",
         "weapons": "gear",
         "armor": "gear",
         # Варианты классовых умений и понятия правил (#380). Состояния делят папку с терминами:
@@ -870,7 +910,7 @@ def main():
         # Resolve cross-references
         resolve_cross_refs(all_data)
         disambiguate_option_slugs(all_data)
-        class_errors = (align_classes(all_data) + resolve_always_prepared(all_data)
+        class_errors = (build_equipment_groups(all_data) + align_classes(all_data) + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + build_species_lineages(all_data)
                         + build_backgrounds(all_data))
         class_errors = class_errors or attach_choices(all_data)
