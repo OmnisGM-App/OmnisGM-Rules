@@ -43,6 +43,20 @@ by round three or four, after that review was picking apart fix prose and promis
 - Open threads after the fix commit — only those where the decision is the owner's; in the round
   comment they are listed by name.
 
+## Merge readiness
+
+A PR is ready to merge when all three hold, and only then the owner's explicit command merges it:
+
+1. **CI is green** — the required check of the ruleset has passed on the final head (plus the full
+   e2e matrix where the repo's gate demands it).
+2. **Every review thread is answered and resolved** — including the threads of the CI auto-review.
+   The author replies to and resolves auto-review threads themselves, per "Resolving threads" above
+   (hash + one line / «не чиню: причина» / «➡️ #N»); they are not left for the owner. The only
+   threads that may stay open are those where the decision is the owner's, listed by name in the
+   round comment.
+3. **No review round is in flight** — a merge cancels the running auto-review; wait for it to post
+   and close its threads first.
+
 ## Sign of a loop — stop
 
 Three consecutive rounds without ❗ while the number of remarks does not decrease, or two consecutive rounds where all
