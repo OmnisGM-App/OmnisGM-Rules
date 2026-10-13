@@ -29,13 +29,14 @@ test('компоненты В/С/М — стилизованная подска�
 });
 
 test('классы и подклассы — ссылки; подкласс скрыт, если класс уже в списке', async ({ page }) => {
-  // Fireball: классы Чародей/Волшебник; даётся подклассом Исчадие (Колдун) — Колдуна нет в
-  // списке классов, поэтому «Колдун: Исчадие» показывается.
+  // Fireball: классы Чародей/Волшебник; даётся подклассом «Покровитель: Исчадие» (Колдун) — Колдуна
+  // нет в списке классов, поэтому подкласс показывается. Круг Земли — с типом земли (#367).
   await page.goto('/ru/dnd/srd-5.2/spells/fireball/');
   const meta = page.locator('.spell-meta');
   await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/sorcerer/"]', { hasText: /^Чародей$/ })).toBeVisible();
   await expect(meta).toContainText('Подклассы');
-  await expect(meta.locator('a[href^="/ru/dnd/srd-5.2/classes/warlock/#"]', { hasText: 'Колдун: Исчадие' })).toBeVisible();
+  await expect(meta.locator('a[href^="/ru/dnd/srd-5.2/classes/warlock/#"]', { hasText: 'Колдун: Покровитель: Исчадие' })).toBeVisible();
+  await expect(meta.locator('a[href="/ru/dnd/srd-5.2/classes/druid/#подкласс-друида-круг-земли"]', { hasText: 'Друид: Круг Земли (Засушливая земля)' })).toBeVisible();
 
   // Aid: даётся Домом жизни (Жрец) и Клятвой преданности (Паладин), но оба класса уже в полном
   // списке Aid → строка подклассов избыточна и НЕ показывается.
