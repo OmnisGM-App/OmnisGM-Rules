@@ -14,7 +14,7 @@ ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import config  # noqa: E402
 from generate_api import (align_class_options, align_classes, disambiguate_option_slugs,  # noqa: E402
-                          resolve_always_prepared, slug_collisions)
+                          inject_spell_subclasses, resolve_always_prepared, slug_collisions)
 from parsers import parse_class, parse_class_options, parse_spells, parse_subclasses  # noqa: E402
 from parsers.classes import CANTRIP_PREREQS, COST_UNITS  # noqa: E402
 from schemas import CLASS_OPTION_SCHEMA  # noqa: E402
@@ -185,6 +185,20 @@ align_classes(bad)
 next(c for c in bad[("srd52", "ru", "classes")] if c["name"] == "Паладин")["always_prepared"][1]["spells"][0] = "Божественная кара"
 eq("RU-класс с другим заклинанием — ошибка расхождения с EN",
    any("ru/paladin" in e and "≠ EN" in e for e in resolve_always_prepared(bad)), True)
+# `spells.subclasses` выводится из `always_prepared` (#367): имя подкласса из ресурса, выбор в скобках.
+tagged = copy.deepcopy(live)
+inject_spell_subclasses(tagged)
+for lang, fireball, aid in (
+        ("en", ["Circle of the Land (Arid Land)", "Fiend Patron"], ["Life Domain", "Oath of Devotion"]),
+        ("ru", ["Круг Земли (Засушливая земля)", "Покровитель: Исчадие"], ["Домен жизни", "Клятва преданности"])):
+    spells = {s["slug"]: s for s in tagged[("srd52", lang, "spells")]}
+    eq(f"{lang}: подклассы огненного шара — с типом земли", spells["fireball"]["subclasses"], fireball)
+    eq(f"{lang}: подклассы Aid", spells["aid"]["subclasses"], aid)
+    eq(f"{lang}: заклинание вне таблиц подклассов — без поля", "subclasses" in spells["acid-arrow"], False)
+    granted = {slug for sub in tagged[("srd52", lang, "subclasses")]
+               for row in sub["always_prepared"] for slug in row["spells"]}
+    eq(f"{lang}: поле стоит ровно у заклинаний из always_prepared",
+       {slug for slug, sp in spells.items() if "subclasses" in sp}, granted)
 ru_cls = {c["slug"]: c for c in live[("srd52", "ru", "classes")]}
 eq("RU чародей: коды из EN, текст свой", (ru_cls["sorcerer"]["name_en"],
                                           ru_cls["sorcerer"]["saving_throws"],
