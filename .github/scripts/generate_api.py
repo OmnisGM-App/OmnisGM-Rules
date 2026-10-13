@@ -27,7 +27,8 @@ import importlib
 
 from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
-                     parse_conditions, parse_feats, parse_races, parse_origins, structure_species,
+                     parse_conditions, parse_feats, parse_races, parse_origins, structure_backgrounds,
+                     structure_species,
                      parse_class, parse_class_options, parse_subclasses,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
@@ -308,6 +309,48 @@ def build_species_lineages(all_data: dict) -> list[str]:
                 errors.append(f"{ver}/ru: наследие «{r['name']}» не сходится с EN «{e['name']}»")
             r["slug"], r["name_en"] = e["slug"], e["name"]
         all_data[(ver, "ru", "species-lineages")] = ru_lineages
+    return errors
+
+
+def build_backgrounds(all_data: dict) -> list[str]:
+    """Предыстории 5.2 структурой (#413): характеристики, черта, навыки и инструмент — кодами и слагами.
+
+    Слаг черты сверяется с `feats`, слаг инструмента и родителя выбора — с `equipment`, вариант черты —
+    с `classes`. RU разбирается на те же факты и получает коды и слаги из EN по слагу предыстории.
+    """
+    errors: list[str] = []
+    for (ver, lang, resource) in [k for k in all_data if k[1] == "en" and k[2] == "backgrounds"]:
+        en = all_data[(ver, "en", "backgrounds")]
+        ru = all_data.get((ver, "ru", "backgrounds"), [])
+        try:
+            structure_backgrounds(en, "en")
+            structure_backgrounds(ru, "ru")
+        except ValueError as err:
+            errors.append(f"{ver}: {err}")
+            continue
+        known = {res: {e["slug"] for e in all_data.get((ver, "en", res), [])} for res in ("feats", "equipment", "classes")}
+        for bg in en:
+            for what, slug, res in (("feat", bg["feat"]["slug"], "feats"), ("feat variant", bg["feat"]["variant"], "classes"),
+                                    ("tool", bg["tool"]["slug"], "equipment"), ("tool choice", bg["tool"]["choose_from"], "equipment")):
+                if slug is not None and slug not in known[res]:
+                    errors.append(f"{ver}/en/{bg['slug']}: {what} «{slug}» не найден в {res}")
+        en_by_slug = {bg["slug"]: bg for bg in en}
+        for bg in ru:
+            source = en_by_slug.get(bg["slug"])
+            if not source:
+                errors.append(f"{ver}/ru/{bg['slug']}: предыстории нет в EN")
+                continue
+            if bg["_shape"] != source["_shape"]:
+                errors.append(f"{ver}/ru/{bg['slug']}: форма RU {bg['_shape']} ≠ EN {source['_shape']} "
+                              "(характеристики, навыки, вариант черты, выбор инструмента)")
+            bg["ability_scores"]["abilities"] = source["ability_scores"]["abilities"]
+            bg["feat"].update(slug=source["feat"]["slug"], variant=source["feat"]["variant"])
+            bg["skills"]["slugs"] = source["skills"]["slugs"]
+            bg["tool"].update(slug=source["tool"]["slug"], choose_from=source["tool"]["choose_from"])
+        if len(ru) != len(en):
+            errors.append(f"{ver}: backgrounds EN {len(en)}, RU {len(ru)}")
+        for bg in en + ru:
+            del bg["_shape"]
     return errors
 
 
@@ -827,9 +870,10 @@ def main():
         resolve_cross_refs(all_data)
         disambiguate_option_slugs(all_data)
         class_errors = (align_classes(all_data) + resolve_always_prepared(all_data)
-                        + align_class_options(all_data) + build_species_lineages(all_data))
+                        + align_class_options(all_data) + build_species_lineages(all_data)
+                        + build_backgrounds(all_data))
         if class_errors:
-            print("Error: классы/подклассы/варианты умений/виды (#365, #374, #413):", file=sys.stderr)
+            print("Error: классы/подклассы/варианты умений/виды/предыстории (#365, #374, #413):", file=sys.stderr)
             for msg in class_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)

@@ -172,3 +172,55 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
                 "details": variant["details"],
             })
     return lineages, out_shape
+
+
+# --- Предыстории структурой (#413) ------------------------------------------------------------
+_BACKGROUND_FACTS = {
+    "en": ("Ability Scores", "Feat", "Skill Proficiencies", "Tool Proficiency", "Equipment"),
+    "ru": ("Характеристики", "Черта", "Владение навыками", "Владение инструментами", "Снаряжение"),
+}
+_SEE = re.compile(r"\s*\((?:see|см\.) [\"«][^)]*\)$")
+
+
+def structure_backgrounds(backgrounds: list[dict], lang: str) -> None:
+    """Дописывает предыстории её пять фактов полями; коды и слаги — только из EN-текста.
+
+    `feat.variant` — вариант черты из скобок («Magic Initiate (Cleric)» → `cleric`); `tool.slug` —
+    слаг предмета в `equipment`, а у выбора («Choose one kind of Gaming Set») — null и `tool.choose_from`
+    со слагом родителя. RU получает коды и слаги из EN в generate_api; из своего текста он отдаёт форму
+    (`_shape`), по которой generate_api сверяет его с EN. `equipment_md` — markdown, остальные тексты — нет.
+    """
+    from .classes import ABILITY_CODES, SKILLS  # noqa: PLC0415 — общий словарь кодов
+    en = lang == "en"
+    labels = _BACKGROUND_FACTS[lang]
+    for bg in backgrounds:
+        pairs = re.findall(r"(?m)^\*\*(.+?):\*\*[ \t]*(.*)$", bg["description_md"])
+        facts = dict(pairs)
+        if sorted(label for label, _ in pairs) != sorted(labels) or not all(value.strip() for _, value in pairs):
+            raise ValueError(f"{bg['name']}: background facts {[label for label, _ in pairs]}, "
+                             f"expected {list(labels)}, each with a value")
+        abilities, feat, skills, tool, equipment = (facts[label].strip() for label in labels)
+        feat = _SEE.sub("", feat)
+        tool = _SEE.sub("", tool)
+        bg["ability_scores"] = {"text": abilities, "abilities": None}
+        bg["feat"] = {"text": feat, "slug": None, "variant": None}
+        bg["skills"] = {"text": skills, "slugs": None}
+        bg["tool"] = {"text": tool.strip("*"), "slug": None, "choose_from": None}
+        bg["equipment_md"] = equipment
+        # Форма из собственного текста: число характеристик и навыков, есть ли вариант черты и выбор инструмента.
+        bg["_shape"] = (len(abilities.split(",")), len([n for n in re.split(r",| and | и ", skills) if n.strip()]),
+                        bool(re.search(r"\([^)]+\)$", feat)), tool.startswith("*"))
+        if not en:
+            continue
+        codes = [ABILITY_CODES.get(word.strip().lower()) for word in abilities.split(",")]
+        if len(codes) != 3 or None in codes:
+            raise ValueError(f"{bg['name']}: three ability scores expected in {abilities!r}")
+        bg["ability_scores"]["abilities"] = codes
+        named = re.fullmatch(r"(.+?)(?: \(([^)]+)\))?", feat)
+        bg["feat"].update(slug=slugify(named.group(1)), variant=slugify(named.group(2)) if named.group(2) else None)
+        names = [n.strip() for n in re.split(r",| and ", skills) if n.strip()]
+        if len(names) != 2 or any(n not in SKILLS for n in names):
+            raise ValueError(f"{bg['name']}: two known skills expected in {skills!r}")
+        bg["skills"]["slugs"] = [slugify(n) for n in names]
+        choice = re.fullmatch(r"\*Choose one kind of (.+?)\*", tool)
+        bg["tool"].update(slug=None if choice else slugify(tool), choose_from=slugify(choice.group(1)) if choice else None)

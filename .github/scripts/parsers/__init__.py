@@ -7,7 +7,7 @@ from .equipment import parse_equipment
 from .condition import parse_conditions
 from .feat import parse_feats
 from .race import parse_races
-from .origin import parse_origins, structure_species
+from .origin import parse_origins, structure_backgrounds, structure_species
 from .classes import parse_class, parse_class_options, parse_subclasses
 from .glossary_defs import parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables
 from .daggerheart import (parse_ancestries, parse_communities, parse_domain_cards,

@@ -84,6 +84,11 @@ jobs:
       - name: Unit — виды и наследия JSON API
         run: python3 .github/scripts/test_species_parser.py
 
+      # Предыстории структурой (#413): слаги черты, инструмента и варианта черты — связи для листа;
+      # RU получает их из EN.
+      - name: Unit — предыстории JSON API
+        run: python3 .github/scripts/test_background_parser.py
+
       # Строка «тип, редкость» магического предмета: предмет с тремя редкостями получал последнюю найденную.
       - name: Unit — редкость магических предметов
         run: python3 .github/scripts/test_magic_item_parser.py
