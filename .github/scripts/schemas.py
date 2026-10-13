@@ -540,6 +540,54 @@ CLASS_SCHEMA = {
             "required": ["armor", "weapons", "tools", "skills"],
             "additionalProperties": False,
         },
+        # Владения второго класса (#414): форма как у proficiencies; пустое владение — text "" и
+        # categories []; skills.options — навыки класса при выборе «из списка класса», null — любой.
+        "multiclass": {
+            "type": "object",
+            "properties": {
+                "armor": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "categories": {"type": "array", "items": {
+                            "type": "string", "enum": ["light", "medium", "heavy", "shield"]}},
+                    },
+                    "required": ["text", "categories"],
+                    "additionalProperties": False,
+                },
+                # categories — категории целиком; частичное владение («воинское со
+                # свойством Лёгкое») остаётся в text.
+                "weapons": {
+                    "type": "object",
+                    "properties": {
+                        "text": {"type": "string"},
+                        "categories": {"type": "array", "items": {
+                            "type": "string", "enum": ["simple", "martial"]}},
+                    },
+                    "required": ["text", "categories"],
+                    "additionalProperties": False,
+                },
+                "tools": {
+                    "type": ["object", "null"],
+                    "properties": {"text": {"type": "string"}},
+                    "required": ["text"],
+                    "additionalProperties": False,
+                },
+                # options — слаги навыков; null — любой навык на выбор.
+                "skills": {
+                    "type": ["object", "null"],
+                    "properties": {
+                        "text": {"type": "string"},
+                        "choose": {"type": "integer", "minimum": 1},
+                        "options": {"type": ["array", "null"], "items": {"type": "string"}},
+                    },
+                    "required": ["text", "choose", "options"],
+                    "additionalProperties": False,
+                },
+            },
+            "required": ["armor", "weapons", "tools", "skills"],
+            "additionalProperties": False,
+        },
         "starting_equipment": {"type": "string"},
         # values — по ключу колонки из columns; spell_slots — 9 кругов (0 — нет ячеек), null у
         # классов без колонок кругов (у колдуна ячейки — колонки spell-slots / slot-level).
@@ -588,7 +636,7 @@ CLASS_SCHEMA = {
     },
     "required": [
         "slug", "name", "name_en", "hit_die", "primary_ability", "saving_throws",
-        "proficiencies", "starting_equipment", "progression", "features", "spellcasting",
+        "proficiencies", "multiclass", "starting_equipment", "progression", "features", "spellcasting",
     ],
     "additionalProperties": False,
 }

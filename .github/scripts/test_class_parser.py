@@ -408,6 +408,85 @@ dup[("srd52", "en", "class-options")][1]["slug"] = dup[("srd52", "en", "class-op
 eq("дубль слага внутри ресурса — ошибка сборки",
    any("class-options: слаг" in e for e in slug_collisions(dup, "dnd")), True)
 
+# --- Владения второго класса (#414) ---------------------------------------------------
+RANGER_SKILLS = ["animal-handling", "athletics", "insight", "investigation", "nature", "perception",
+                 "stealth", "survival"]
+ROGUE_SKILLS = ["acrobatics", "athletics", "deception", "insight", "intimidation", "investigation",
+                "perception", "persuasion", "sleight-of-hand", "stealth"]
+# класс: (оружие, доспехи, навык: None — нет / "any" / список класса, инструмент)
+MULTICLASS = {
+    "barbarian": (["martial"], ["shield"], None, False),
+    "bard": ([], ["light"], "any", True),
+    "cleric": ([], ["light", "medium", "shield"], None, False),
+    "druid": ([], ["light", "shield"], None, False),
+    "fighter": (["martial"], ["light", "medium", "shield"], None, False),
+    "monk": ([], [], None, False),
+    "paladin": (["martial"], ["light", "medium", "shield"], None, False),
+    "ranger": (["martial"], ["light", "medium", "shield"], RANGER_SKILLS, False),
+    "rogue": ([], ["light"], ROGUE_SKILLS, True),
+    "sorcerer": ([], [], None, False),
+    "warlock": ([], ["light"], None, False),
+    "wizard": ([], [], None, False),
+}
+
+
+def multiclass_row(c):
+    m = c["multiclass"]
+    skills = None if m["skills"] is None else (m["skills"]["options"] or "any")
+    return (m["weapons"]["categories"], m["armor"]["categories"], skills, m["tools"] is not None)
+
+
+for lang in ("en", "ru"):
+    got = {c["slug"]: multiclass_row(c) for c in live[("srd52", lang, "classes")]}
+    eq(f"{lang}: владения второго класса у 12 классов", got, MULTICLASS)
+    for c in live[("srd52", lang, "classes")]:
+        m = c["multiclass"]
+        eq(f"{lang}/{c['slug']}: пустое владение — пустой текст",
+           [bool(m[k]["text"]) for k in ("weapons", "armor")],
+           [bool(m[k]["categories"]) for k in ("weapons", "armor")])
+        if m["skills"]:
+            eq(f"{lang}/{c['slug']}: один навык", m["skills"]["choose"], 1)
+eq("EN плут: инструмент текстом", {c["slug"]: c for c in live[("srd52", "en", "classes")]}
+   ["rogue"]["multiclass"]["tools"], {"text": "proficiency with Thieves' Tools"})
+eq("RU жрец: «а также щитами» — один фрагмент доспехов", ru_cls["cleric"]["multiclass"]["armor"]["text"],
+   "владение Лёгкими и Средними доспехами, а также щитами")
+eq("RU следопыт: текст свой, навыки из EN", (ru_cls["ranger"]["multiclass"]["skills"]["text"],
+                                           ru_cls["ranger"]["multiclass"]["skills"]["options"]),
+   ("владение одним навыком на ваш выбор из списка навыков следопыта", RANGER_SKILLS))
+
+
+def multiclass_error(lang, name, old, new):
+    text = read(lang, name)
+    if old not in text:
+        return f"нет фрагмента {old!r}"
+    try:
+        parse_class(text.replace(old, new), lang)
+    except ValueError as err:
+        return str(err)
+    return None
+
+
+eq("незнакомый фрагмент строки мультикласса роняет сборку",
+   multiclass_error("en", "05_Fighter.md", "proficiency with Martial weapons, and training",
+                    "proficiency with Martial weapons, proficiency with Firearms, and training"),
+   "Fighter: unknown multiclass trait 'proficiency with Firearms'")
+eq("RU: незнакомый фрагмент роняет сборку",
+   multiclass_error("ru", "01_Barbarian.md", "владение воинским оружием и владение щитами",
+                    "владение воинским оружием, владение огнестрельным оружием и владение щитами"),
+   "Варвар: unknown multiclass trait 'владение огнестрельным оружием'")
+eq("доспехи без известной категории роняют сборку",
+   multiclass_error("en", "11_Warlock.md", "training with Light armor.", "training with Spiked armor."),
+   "Warlock: no armor category in 'training with Spiked armor'")
+eq("класс без раздела мультикласса роняет сборку",
+   multiclass_error("en", "12_Wizard.md", "#### As a Multiclass Character", "#### As a Second Class"),
+   "Wizard: no «As a Multiclass Character» line")
+eq("RU-класс с лишним владением мультикласса — ошибка структуры",
+   ru_class_mutant("monk", lambda c: c["multiclass"]["armor"].update(text="владение щитами")), True)
+eq("RU-класс без навыка мультикласса — ошибка структуры",
+   ru_class_mutant("ranger", lambda c: c["multiclass"].update(skills=None)), True)
+eq("RU-класс с лишним инструментом мультикласса — ошибка структуры",
+   ru_class_mutant("bard", lambda c: c["multiclass"].update(tools=None)), True)
+
 if failures:
     print(f"❌ classes/subclasses/class-options ({len(failures)}):")
     for f in failures:

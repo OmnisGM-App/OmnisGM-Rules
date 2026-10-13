@@ -143,6 +143,68 @@ def _weapons(text: str, lang: str) -> dict:
     return {"text": text, "categories": cats}
 
 
+_MULTICLASS_HEADING = {"en": "As a Multiclass Character", "ru": "Как мультиклассовый персонаж"}
+_HIT_DIE = {"en": "Hit Point Die", "ru": "Кость Хитов"}
+# Что даёт второй класс: фрагмент строки → вид владения. Словарь закрыт — незнакомый фрагмент роняет сборку.
+_MULTICLASS_KINDS = {
+    "en": ((r"^proficiency with Martial weapons$", "weapons"),
+           (r"^training with .+$", "armor"),
+           (r"^proficiency in one skill of your choice(?: from the \w+'s skill list)?$", "skills"),
+           (r"^proficiency with (?:one Musical Instrument of your choice|Thieves' Tools)$", "tools")),
+    "ru": ((r"^владение воинским оружием$", "weapons"),
+           (r"^владение .*(?:доспехами|щитами)$", "armor"),
+           (r"^владение одним навыком (?:по вашему выбору|на ваш выбор из списка навыков \w+)$", "skills"),
+           (r"^владение (?:одним музыкальным инструментом по вашему выбору|воровскими инструментами)$", "tools")),
+}
+# «Light and Medium armor and Shields» и «Лёгкими и Средними доспехами, а также щитами» — один фрагмент.
+_MULTICLASS_SPLIT = {"en": r",\s*(?:and\s+)?|\s+and\s+(?=training|proficiency)",
+                     "ru": r",(?!\s*а также)\s*|\s+и\s+(?=владение)"}
+
+
+def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> dict:
+    """Владения второго класса из первой строки раздела «As a Multiclass Character» (#414).
+
+    Форма — как у `proficiencies`; пустое владение — текст "" и категории []. `skills.options` —
+    список навыков класса, когда выбор «из списка класса», и null при любом навыке.
+    """
+    start = next((i for i, l in enumerate(lines)
+                  if l.startswith("#") and _clean(l).lstrip("# ").strip() == _MULTICLASS_HEADING[lang]), None)
+    line = next((l.strip()[2:].strip() for l in lines[start + 1:] if l.strip().startswith("- ")),
+                None) if start is not None else None
+    if not line:
+        raise ValueError(f"{name}: no «{_MULTICLASS_HEADING[lang]}» line")
+    if _HIT_DIE[lang] not in line:
+        raise ValueError(f"{name}: multiclass line without the hit die: {line!r}")
+    found: dict[str, str] = {}
+    if ":" in line:
+        for fragment in re.split(_MULTICLASS_SPLIT[lang], line.split(":", 1)[1].strip().rstrip(".")):
+            fragment = fragment.strip()
+            if fragment == _HIT_DIE[lang]:
+                continue
+            kind = next((k for pattern, k in _MULTICLASS_KINDS[lang] if re.match(pattern, fragment)), None)
+            if not kind or kind in found:
+                raise ValueError(f"{name}: unknown multiclass trait {fragment!r}")
+            found[kind] = fragment
+    en = lang == "en"
+    armor = _armor(found.get("armor", ""), lang)
+    if en and "armor" in found and not armor["categories"]:
+        raise ValueError(f"{name}: no armor category in {found['armor']!r}")
+    skills = None
+    if "skills" in found:
+        from_class = bool(re.search(r"skill list|из списка", found["skills"]))
+        skills = {"text": found["skills"], "choose": 1,
+                  "options": class_skills["options"] if en and from_class else None}
+        if en and from_class and not class_skills["options"]:
+            raise ValueError(f"{name}: multiclass skill from the class list, but the class has none")
+    return {
+        "armor": armor,
+        "weapons": {"text": found.get("weapons", ""),
+                    "categories": (["martial"] if "weapons" in found else []) if en else None},
+        "tools": {"text": found["tools"]} if "tools" in found else None,
+        "skills": skills,
+    }
+
+
 def _slot_count(cell: str, level: str, name: str) -> int:
     if cell == "—":
         return 0
@@ -243,6 +305,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
     progression = _progression(prog_table, lang, name)
     features = _features(class_lines)
     en = lang == "en"
+    skills = _skills(traits["skills"], lang)
     return [{
         "slug": slugify(name) if en else None,
         "name": name,
@@ -257,8 +320,9 @@ def parse_class(text: str, lang: str) -> list[dict]:
             "armor": _armor(traits["armor"], lang),
             "weapons": _weapons(traits["weapons"], lang),
             "tools": {"text": traits["tools"]} if "tools" in traits else None,
-            "skills": _skills(traits["skills"], lang),
+            "skills": skills,
         },
+        "multiclass": _multiclass(class_lines, lang, name, skills),
         "starting_equipment": traits["starting_equipment"],
         "progression": progression,
         "features": features,
