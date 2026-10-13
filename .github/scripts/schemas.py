@@ -409,13 +409,39 @@ EQUIPMENT_SCHEMA = {
         "craft": {"type": "array", "items": {"type": "string"}},
         "variants": {"type": ["string", "null"]},
         "description_md": {"type": "string"},
+        # Разновидность составной записи (#412): group — слаг группы («лютня» → musical-instrument), он же
+        # сегмент адреса страницы; сама группа в API не публикуется. quantity и storage — у пачки
+        # боеприпасов (20 стрел, колчан). Иначе null. variants после нарезки всегда null: поле оставлено
+        # до правки импортёра Table, который его читает.
+        "group": {"type": ["string", "null"]},
+        "quantity": {"type": ["integer", "null"], "minimum": 1},
+        "storage": {"type": ["string", "null"]},
         # Картинка (#202) — абсолютный URL; только у сущностей с файлом.
         "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "section", "cost", "weight",
-        "ability", "utilize", "craft", "variants", "description_md",
+        "ability", "utilize", "craft", "variants", "description_md", "group", "quantity", "storage",
     ],
+    "additionalProperties": False,
+}
+
+# Группа снаряжения (#412): запись-таблица правил («Музыкальный инструмент», «Боеприпасы») — не предмет.
+# Сами предметы лежат в `equipment` и ссылаются на группу полем `group`; items — их слаги по порядку текста.
+# В публичный API группа не пишется (`SITE_ONLY` в generate_api): схема держит данные страниц сайта.
+EQUIPMENT_GROUP_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "EquipmentGroup",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "section": {"type": "string", "enum": ["tools", "adventuring_gear"]},
+        "description_md": {"type": "string", "minLength": 1},
+        "items": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    },
+    "required": ["slug", "name", "name_en", "section", "description_md", "items"],
     "additionalProperties": False,
 }
 
@@ -997,6 +1023,7 @@ RESOURCE_SCHEMAS = {
     "weapons": WEAPON_SCHEMA,
     "armor": ARMOR_SCHEMA,
     "equipment": EQUIPMENT_SCHEMA,
+    "equipment-groups": EQUIPMENT_GROUP_SCHEMA,
     "conditions": CONDITION_SCHEMA,
     "feats": FEAT_SCHEMA,
     "classes": CLASS_SCHEMA,

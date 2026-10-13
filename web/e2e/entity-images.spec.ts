@@ -1,3 +1,4 @@
+import { entityPath } from '../src/lib/equipment-path.mjs';
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
@@ -76,11 +77,14 @@ const GROUP_PAGES = new Set(['class-options']);
 // Мастерство и свойства оружия своих страниц не имеют: картинка нужна только полю `image` API.
 const API_ONLY = new Set(['masteries', 'weapon-properties']);
 
-const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string } }) => (GROUP_PAGES.has(s.collection)
+// Снаряжение (#412): предмет группы живёт под ней, поэтому маршрут — с остатком пути.
+const NESTED = new Set(['equipment']);
+
+const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string }; group?: string | null }) => (GROUP_PAGES.has(s.collection)
   ? `/ru/${s.game}/${s.version}/${s.segment}/${entity.feature!.key}/#${entity.slug}`
-  : `/ru/${s.game}/${s.version}/${s.segment}/${entity.slug}/`);
+  : `/ru/${s.game}/${s.version}/${s.segment}/${entityPath(s.collection, entity)}/`);
 const routeFile = (s: PendingSource) =>
-  `src/pages/[lang]/${s.game}/[version]/${s.segment}/${GROUP_PAGES.has(s.collection) ? '[group]' : '[slug]'}.astro`;
+  `src/pages/[lang]/${s.game}/[version]/${s.segment}/${GROUP_PAGES.has(s.collection) ? '[group]' : NESTED.has(s.collection) ? '[...slug]' : '[slug]'}.astro`;
 
 /** Коллекции очереди, от вида, который генератор закрывает первым, к последнему. */
 function pendingSources(): PendingSource[] {

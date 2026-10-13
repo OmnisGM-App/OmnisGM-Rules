@@ -1,3 +1,4 @@
+import { entityPath } from '../../../../lib/equipment-path.mjs';
 import type { APIRoute } from 'astro';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../lib/entities';
 import { itemRarityLabel } from '../../../../lib/magic-item-hubs';
@@ -205,6 +206,7 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   { key: 'weapons', urlParent: 'weapons', body: (e, lang) => weaponHtml(e, lang) },
   { key: 'armor', urlParent: 'armor', body: (e, lang) => armorHtml(e, lang) },
   { key: 'equipment', urlParent: 'equipment', body: (e, lang) => equipHtml(e, lang) },
+  { key: 'equipment-groups', urlParent: 'equipment', body: (e, lang) => equipHtml(e, lang) },
   // Свойства/мастерства оружия — только карточка-определение (страниц нет; href не используется
   // клиентом для gloss-подсказок).
   { key: 'weapon-properties', urlParent: 'weapon-properties', body: (e) => defHtml(e.description_md as string) },
@@ -251,7 +253,7 @@ export const GET: APIRoute = ({ params }) => {
         // EN-оригинал в шапке и в EN-карточке: у EN-сущностей name_en нет → берём name.
         name_en: (e.name_en as string) ?? (e.name as string),
         effect: body(e as unknown as Record<string, unknown>, lang),
-        href: `/${lang}/${game}/${verSlug}/${urlParent}/${e.slug}/`,
+        href: `/${lang}/${game}/${verSlug}/${urlParent}/${entityPath(key, e)}/`,
       };
     }
   }

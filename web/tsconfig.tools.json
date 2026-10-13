@@ -74,6 +74,7 @@
     "scripts/test_img_headers.mjs",
     "scripts/test_class_option_links.mjs",
     "scripts/test_spell_subclass_links.mjs",
+    "scripts/test_entity_path.mjs",
     "scripts/test_page_description.mjs",
     "scripts/test_plural.mjs",
     "scripts/test_item_rarity.mjs",

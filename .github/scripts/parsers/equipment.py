@@ -236,6 +236,9 @@ def _parse_bold_italic_blocks(section_text: str, section: str,
             "craft": [],
             "variants": None,
             "description_md": description_md,
+            "group": None,
+            "quantity": None,
+            "storage": None,
         })
 
     return items
@@ -271,6 +274,118 @@ def _parse_51_equipment(text: str, lang: str) -> list[dict]:
         items.extend(_parse_bold_italic_blocks(tools_text, "tools", tools_table, lang))
 
     return items
+
+
+# ---------------------------------------------------------------------------
+# SRD 5.2: составные записи → отдельные предметы (#412)
+# ---------------------------------------------------------------------------
+
+# Запись-таблица, а не предмет: её разновидности становятся записями `equipment`, сама она уходит в
+# `equipment-groups`. Откуда разновидности: `table` — последняя таблица раздела (строка на предмет),
+# `variants` — строка «Variants: Dice (1 SP), …». Число — сколько их: расхождение роняет сборку.
+COMPOSITE_GEAR = {
+    "ammunition": ("table", 5),
+    "arcane-focus": ("table", 5),
+    "druidic-focus": ("table", 3),
+    "holy-symbol": ("table", 3),
+    "gaming-set": ("variants", 4),
+    "musical-instrument": ("variants", 10),
+}
+_SMALL_WORDS = {"of", "the", "a", "an", "and", "or"}
+_TABLE_TITLE = re.compile(r"^(?:Table|Таблица):.*$")
+
+
+def _item_name(raw: str, lang: str) -> str:
+    """Имя разновидности как у остальных записей: EN — заглавными по словам, RU — с заглавной буквы."""
+    raw = raw.strip()
+    if lang != "en":
+        return raw[:1].upper() + raw[1:]
+    words = raw.split(" ")
+    return " ".join(w if i and w.lower() in _SMALL_WORDS else "-".join(part[:1].upper() + part[1:] for part in w.split("-"))
+                    for i, w in enumerate(words))
+
+
+def _last_table(body: str) -> tuple[list[str], list[list[str]]]:
+    lines = body.split("\n")
+    end = len(lines) - 1
+    while end >= 0 and not lines[end].strip().startswith("|"):
+        end -= 1
+    start = end
+    while start > 0 and lines[start - 1].strip().startswith("|"):
+        start -= 1
+    rows = [[c.strip() for c in line.strip().strip("|").split("|")] for line in lines[start:end + 1]]
+    rows = [r for r in rows if not set("".join(r)) <= set("-: ")]
+    return (rows[0], rows[1:]) if rows else ([], [])
+
+
+def _prose(body: str) -> str:
+    """Текст записи без таблиц и их заголовков и без строки «Variants»: общий абзац для каждой разновидности."""
+    kept = [line for line in body.split("\n")
+            if not line.strip().startswith("|") and not _TABLE_TITLE.match(line.strip())
+            and not re.match(r"^\*\*(?:Variants|Варианты):?\*\*", line.strip())]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+
+
+def _split_note(cell: str) -> tuple[str, str | None]:
+    """«Staff (also a Quarterstaff)» → имя и пометка из скобок."""
+    m = re.match(r"^(.+?)\s*\(([^)]+)\)$", cell)
+    return (m.group(1).strip(), m.group(2).strip()) if m else (cell.strip(), None)
+
+
+def _varieties(parent: dict, body: str, lang: str) -> list[dict]:
+    """Разновидности составной записи как записи `equipment`.
+
+    Слаг и `name_en` есть только у EN: RU получает их по позиции в группе в generate_api.
+    Свойства инструмента (характеристика, использование, создание) — от записи-родителя.
+    """
+    kind, expected = COMPOSITE_GEAR[parent["slug"]]
+    rows: list[dict] = []
+    if kind == "table":
+        header, table = _last_table(body)
+        for cells in table:
+            if len(cells) != len(header):
+                raise ValueError(f"{parent['name']}: row {cells[0]!r} has {len(cells)} cells, the header has {len(header)}")
+            name, note = _split_note(cells[0])
+            # Таблица пачек: Type | Amount | Storage | Weight | Cost; таблицы фокусировок: имя | Weight | Cost.
+            quantity, storage = (cells[1], cells[2]) if len(cells) == 5 else (None, None)
+            if quantity is not None and not quantity.isdigit():
+                raise ValueError(f"{parent['name']}: amount {quantity!r} of {name!r} is not a number")
+            rows.append({"name": name, "note": note, "weight": cells[-2], "cost": cells[-1],
+                         "quantity": int(quantity) if quantity else None, "storage": storage})
+    else:
+        for part in re.findall(r"[^,(]+\([^)]*\)", parent["variants"] or ""):
+            name, inside = _split_note(part.strip(" ,"))
+            facts = [f.strip() for f in (inside or "").split(",")]
+            rows.append({"name": name, "note": None, "cost": facts[0], "weight": facts[1] if len(facts) > 1 else parent["weight"],
+                         "quantity": None, "storage": None})
+    if len(rows) != expected:
+        raise ValueError(f"{parent['name']}: {len(rows)} varieties, declared {expected}")
+    prose = _prose(body)
+    en = lang == "en"
+    out = []
+    for row in rows:
+        name = _item_name(row["name"], lang)
+        note = (row["note"][:1].upper() + row["note"][1:] + ".") if row["note"] else None
+        weight = None if row["weight"] in ("—", "-", "") else row["weight"]
+        # Строка веса в тексте инструмента — родительская («Varies»): у разновидности вес свой.
+        text = re.sub(r"(?m)^(\*\*(?:Weight|Вес):\*\*) .*$", lambda m: f"{m.group(1)} {weight or '—'}", prose)
+        out.append({
+            "slug": slugify(name) if en else None,
+            "name": name,
+            "name_en": None,
+            "section": parent["section"],
+            "cost": row["cost"],
+            "weight": weight,
+            "ability": parent["ability"],
+            "utilize": parent["utilize"],
+            "craft": parent["craft"],
+            "variants": None,
+            "description_md": "\n\n".join(t for t in (note, text) if t),
+            "group": parent["slug"],
+            "quantity": row["quantity"],
+            "storage": row["storage"],
+        })
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -331,7 +446,15 @@ def parse_equipment(text: str, heading_level: int, lang: str,
             "craft": craft,
             "variants": variants,
             "description_md": description_md,
+            "group": None,
+            "quantity": None,
+            "storage": None,
         }
-        items.append(item)
+        if slug in COMPOSITE_GEAR:
+            # Сама запись-таблица — в `equipment-groups` (помечается `_group`), в `equipment` — её разновидности.
+            items.append({**item, "description_md": _prose(body), "_group": True})
+            items.extend(_varieties(item, body, lang))
+        else:
+            items.append(item)
 
     return items

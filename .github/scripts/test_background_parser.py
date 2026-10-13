@@ -36,7 +36,8 @@ def slugs(*names):
 
 pristine = {("srd52", lang, "backgrounds"): backgrounds(lang) for lang in ("en", "ru")}
 pristine[("srd52", "en", "feats")] = slugs("magic-initiate", "alert", "savage-attacker")
-pristine[("srd52", "en", "equipment")] = slugs("calligrapher-s-supplies", "thieves-tools", "gaming-set")
+pristine[("srd52", "en", "equipment")] = slugs("calligrapher-s-supplies", "thieves-tools")
+pristine[("srd52", "en", "equipment-groups")] = slugs("gaming-set")
 pristine[("srd52", "en", "classes")] = slugs("cleric", "wizard")
 live = copy.deepcopy(pristine)
 eq("живой корпус: ошибок нет", build_backgrounds(live), [])
@@ -105,9 +106,9 @@ eq("вариант черты, которого нет в classes, роняет 
 eq("инструмент, которого нет в equipment, роняет сборку",
    broken("en", "criminal", "", "", drop=("equipment", "thieves-tools")),
    ["srd52/en/criminal: tool «thieves-tools» не найден в equipment"])
-eq("родитель выбора инструмента, которого нет в equipment, роняет сборку",
-   broken("en", "soldier", "", "", drop=("equipment", "gaming-set")),
-   ["srd52/en/soldier: tool choice «gaming-set» не найден в equipment"])
+eq("группа выбора инструмента, которой нет в equipment-groups, роняет сборку",
+   broken("en", "soldier", "", "", drop=("equipment-groups", "gaming-set")),
+   ["srd52/en/soldier: tool choice «gaming-set» не найден в equipment-groups"])
 RU_SHAPE = "(характеристики, навыки, вариант черты, выбор инструмента)"
 eq("RU: вариант черты пропал — расхождение с EN",
    [e[-len(RU_SHAPE):] for e in broken("ru", "acolyte", "Посвящённый в магию (Жрец)", "Посвящённый в магию")], [RU_SHAPE])

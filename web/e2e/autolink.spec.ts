@@ -91,6 +91,9 @@ test('hovercard-эндпоинт: есть карточки оружия/дос�
   expect(ru['weapons/greataxe']?.effect).toContain('рубящий');
   expect(ru['armor/plate-armor']?.name_en).toBe('Plate Armor');
   expect(ru['equipment/acid']?.name_en).toBe('Acid');
+  // Предмет группы снаряжения (#412): карточка ведёт на вложенный адрес; у группы — своя карточка.
+  expect(ru['equipment/lute']?.href).toBe('/ru/dnd/srd-5.2/equipment/musical-instrument/lute/');
+  expect(ru['equipment-groups/musical-instrument']?.href).toBe('/ru/dnd/srd-5.2/equipment/musical-instrument/');
 });
 
 test('предметы: имя в курсиве линкуется на страницу предмета', async ({ page }) => {
@@ -210,7 +213,7 @@ test('EN/RU: набор слинкованных состояний совпад
         !/\/monsters-a-z\/[^/]+\/$/.test(p) &&
         !/\/animals\/[^/]+\/$/.test(p) &&
         !/\/magic-items\/[^/]+\/$/.test(p) &&
-        !/\/equipment\/[^/]+\/$/.test(p) &&
+        !/\/equipment\/.+\/$/.test(p) &&
         !/\/feats\/[^/]+\/$/.test(p),
     );
   expect(chapters.length).toBeGreaterThan(10);

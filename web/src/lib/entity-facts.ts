@@ -244,6 +244,33 @@ export function gearDescription(opts: {
   return fit([`${withProse} ${rules}`, withProse]);
 }
 
+/**
+ * <meta description> группы снаряжения (#412): у группы цены нет, спрос — «какие бывают и сколько
+ * стоят». Предметы с ценами целыми пунктами в пределах лимита; короткий перечень добирается началом текста.
+ */
+export function gearGroupDescription(opts: {
+  entity: { name: string; description_md?: unknown };
+  members: Array<{ name: string; cost: string }>;
+  lang: 'en' | 'ru';
+  version: string;
+}): string {
+  const { entity, members, lang, version } = opts;
+  const ed = editionLabel(version);
+  const head = lang === 'ru'
+    ? `${entity.name} — снаряжение ${ed} (днд), виды и цены: `
+    : `${entity.name} — ${ed} equipment, kinds and prices: `;
+  const listed: string[] = [];
+  for (const m of members) {
+    const item = `${m.name} (${m.cost})`;
+    if ((head + [...listed, item].join(', ')).length + 1 > LIMIT) break;
+    listed.push(item);
+  }
+  const list = `${head}${listed.join(', ')}.`;
+  const MIN_TAIL = 40;
+  const room = LIMIT - list.length - 1;
+  return room >= MIN_TAIL ? `${list} ${excerpt(str(entity.description_md), room)}` : list;
+}
+
 // ── Магические предметы ──────────────────────────────────────────────────────
 
 interface MagicItemEntity {

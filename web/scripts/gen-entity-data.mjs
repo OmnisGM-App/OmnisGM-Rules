@@ -31,7 +31,8 @@ for (const { game, srcRoot } of GAMES) {
   try {
     execFileSync(
       python,
-      [script, '--game', game, '--src-root', srcRoot, '--output-dir', outDir, '--no-validate',
+      // --site-data: страницам нужны и ресурсы вне публичного API (группы снаряжения, #412).
+      [script, '--game', game, '--src-root', srcRoot, '--output-dir', outDir, '--no-validate', '--site-data',
        '--emit-sources', sourcesFile],
       { stdio: 'inherit' },
     );

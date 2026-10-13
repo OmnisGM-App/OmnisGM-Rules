@@ -19,7 +19,7 @@ KINDS = ("subclass", "feat", "option", "skill", "skill-or-tool", "expertise", "t
          "spell", "spell-list", "damage-type", "ability-score", "spellcasting-ability", "lineage", "size", "land")
 # Закрытые списки: values — подмножество, null — список целиком.
 LISTS = ("skills", "abilities", "damage-types", "sizes", "languages", "tools", "skills-or-tools",
-         "musical-instruments", "artisan-tools-or-musical-instruments", "classes", "lands")
+         "artisan-tools-or-musical-instruments", "classes", "lands")
 RESOURCES = ("feats", "subclasses", "class-options", "spells", "weapons", "species-lineages", "equipment")
 CHARACTER = ("skill-proficiencies", "weapon-proficiencies", "known-cantrips", "spellbook")
 # Когда выбор можно заменить — самый ранний момент: `short-rest` значит «на коротком или долгом отдыхе»
@@ -35,8 +35,8 @@ FILTERS = {
     "class-options": {"class": "`class`", "feature": "`feature.key`"},
     "species-lineages": {"species": "`species`"},
     "weapons": {"type": "`type`: melee | ranged"},
-    # Разновидности, перечисленные в `variants` записи с этим слагом (игровой набор → кости, карты…).
-    "equipment": {"variants_of": "слаг записи `equipment`"},
+    # Предметы группы (игровой набор → кости, карты…): слаг записи `equipment-groups`.
+    "equipment": {"group": "`group`"},
     "spells": {
         # Слаг класса, список слагов или "@id" — ответ на выбор с этим id у того же хозяина.
         # У заклинания класс стоит именем в `classes`; имя берётся из `classes[].name` по слагу.
@@ -173,7 +173,7 @@ EPIC_BOON = {
 
 # Владение инструментом из таблицы черт класса — выбор самого класса, не умения.
 CLASSES = {
-    "bard": [ch("instruments", "tool", 3, lst("musical-instruments"))],
+    "bard": [ch("instruments", "tool", 3, res("equipment", group="musical-instrument"))],
     "monk": [ch("tool", "tool", 1, lst("artisan-tools-or-musical-instruments"))],
 }
 
@@ -212,7 +212,7 @@ SPECIES_TRAITS = {
 # increase — допустимые распределения: +2 и +1 либо по +1 к каждой из трёх.
 BACKGROUND = [ch("ability-scores", "ability-score", 1, lst("abilities", "{abilities}"), increase=[[2, 1], [1, 1, 1]], max=20)]
 BACKGROUNDS = {
-    "soldier": [ch("tool", "tool", 1, res("equipment", variants_of="{tool.choose_from}"))],
+    "soldier": [ch("tool", "tool", 1, res("equipment", group="{tool.choose_from}"))],
 }
 
 
@@ -340,8 +340,8 @@ def _check_filter(name, flt, where, known, ids, errors):
         errors.append(f"{where}: подклассов класса {flt.get('class')!r} нет")
     if name == "species-lineages" and flt.get("species") not in known["lineage-species"]:
         errors.append(f"{where}: наследий вида {flt.get('species')!r} нет")
-    if name == "equipment" and flt.get("variants_of") not in known["equipment-with-variants"]:
-        errors.append(f"{where}: записи снаряжения с разновидностями {flt.get('variants_of')!r} нет")
+    if name == "equipment" and flt.get("group") not in known["equipment-groups"]:
+        errors.append(f"{where}: группы снаряжения {flt.get('group')!r} нет")
 
 
 def _check(choice, where, known, ids, errors):
@@ -387,7 +387,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     errors: list[str] = []
     en = {res_: all_data.get((ver, "en", res_), []) for res_ in
           ("classes", "subclasses", "species", "species-lineages", "backgrounds", "feats", "class-options",
-           "spells", "weapons", "equipment")}
+           "spells", "weapons", "equipment", "equipment-groups")}
     known = {
         "resources": {name for name, items in en.items() if items},
         "classes": {c["slug"] for c in en["classes"]},
@@ -396,7 +396,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         "option-groups": {(o["class"], o["feature"]["key"]) for o in en["class-options"] if o["selection"] == "learned"},
         "subclass-classes": {s["class"] for s in en["subclasses"]},
         "lineage-species": {l["species"] for l in en["species-lineages"]},
-        "equipment-with-variants": {e["slug"] for e in en["equipment"] if e.get("variants")},
+        "equipment-groups": {g["slug"] for g in en["equipment-groups"]},
     }
     used: set = set()
 

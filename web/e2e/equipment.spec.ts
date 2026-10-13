@@ -46,3 +46,58 @@ test('SEO: hreflang-тройка, индексируема, в sitemap', async (
   const sm = await (await request.get('/sitemap-0.xml')).text();
   expect(sm).toContain('/dnd/srd-5.2/equipment/acid/');
 });
+
+// Составное снаряжение (#412): группа остаётся страницей на прежнем адресе, её предметы — под ней.
+test('группа: прежний адрес, перечень предметов со ссылками, без перехода в компендиум', async ({ page }) => {
+  const res = await page.goto('/ru/dnd/srd-5.2/equipment/musical-instrument/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Музыкальный инструмент');
+  const items = page.getByTestId('equipment-group-items');
+  await expect(items.locator('tbody tr')).toHaveCount(10);
+  const lute = items.locator('a[href="/ru/dnd/srd-5.2/equipment/musical-instrument/lute/"]');
+  await expect(lute).toHaveText('Лютня');
+  await expect(items.locator('tr', { hasText: 'Лютня' })).toContainText('35 зм');
+  // Группа — не запись компендиума Table: кнопки перехода на неё нет.
+  await expect(page.locator('a[href*="omnisgm.com/compendium"]')).toHaveCount(0);
+});
+
+test('предмет группы: вложенный адрес, свои цена и вес, ссылка на группу и в компендиум', async ({ page }) => {
+  const res = await page.goto('/ru/dnd/srd-5.2/equipment/musical-instrument/lute/');
+  expect(res?.status()).toBe(200);
+  await expect(page.locator('.rd-doc h1')).toContainText('Лютня');
+  const stat = page.locator('.item-stat');
+  await expect(stat).toContainText('35 зм');
+  await expect(stat).toContainText('2 фнт.');
+  await expect(stat.locator('a[href="/ru/dnd/srd-5.2/equipment/musical-instrument/"]')).toHaveText('Музыкальный инструмент');
+  await expect(page.locator('a[href*="/compendium/dnd2024/item/lute?"]').first()).toBeAttached();
+  await expect(page.locator('link[rel="canonical"]')).toHaveAttribute('href', /\/ru\/dnd\/srd-5\.2\/equipment\/musical-instrument\/lute\/$/);
+});
+
+test('пачка боеприпасов: число, хранение и цена пачки; плоского адреса нет', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/equipment/ammunition/');
+  const row = page.getByTestId('equipment-group-items').locator('tr', { hasText: 'Arrows' });
+  await expect(row).toContainText('20');
+  await expect(row).toContainText('Quiver');
+  await page.goto('/en/dnd/srd-5.2/equipment/ammunition/arrows/');
+  await expect(page.locator('.rd-doc h1')).toContainText('Arrows');
+  const stat = page.locator('.item-stat');
+  await expect(stat).toContainText('1 GP');
+  await expect(stat.locator('.item-row', { hasText: 'Amount' })).toContainText('20');
+  await expect(stat.locator('.item-row', { hasText: 'Storage' })).toContainText('Quiver');
+  const flat = await page.goto('/en/dnd/srd-5.2/equipment/arrows/');
+  expect(flat?.status()).toBe(404);
+});
+
+test('«Изготовление» ведёт и на группу, и на обычный предмет', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/equipment/jeweler-s-tools/');
+  const craft = page.locator('.item-stat .item-row', { hasText: 'Craft' });
+  await expect(craft.locator('a[href$="/equipment/arcane-focus/"]')).toHaveText('Arcane Focus');
+  await expect(craft.locator('a[href$="/equipment/holy-symbol/"]')).toHaveText('Holy Symbol');
+});
+
+test('глава: ячейка таблицы ведёт на предмет группы, строка общей таблицы — на группу', async ({ page }) => {
+  await page.goto('/en/dnd/srd-5.2/equipment/');
+  await expect(page.locator('.rd-doc td a.ent-link[href$="/equipment/ammunition/arrows/"]').first()).toHaveText('Arrows');
+  await expect(page.locator('.rd-doc td a.ent-link[href$="/equipment/arcane-focus/crystal/"]').first()).toHaveText('Crystal');
+  await expect(page.locator('.rd-doc td a.ent-link[href$="/equipment/arcane-focus/"]').first()).toHaveText('Arcane Focus');
+});
