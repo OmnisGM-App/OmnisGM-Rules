@@ -1,121 +1,121 @@
 name: Claude auto-review
 
-# КОПИЯ единого шаблона: источник правды — OmnisGM-App/claude-plugins
-# .github/workflows/claude-review.yml (reusable). На Free-плане GitHub не даёт звать
-# private reusable из другой репы (проверено экспериментом 2026-09-06: same-repo ок,
-# cross-repo startup_failure) — потому в репах живут копии; с Team-планом копию можно
-# заменить тонким вызовом `uses: …@master` + `secrets: inherit`.
+# A COPY of the shared template: source of truth — OmnisGM-App/claude-plugins
+# .github/workflows/claude-review.yml (reusable). On the GitHub Free plan a private reusable
+# workflow cannot be called from another repo (verified by experiment 2026-09-06: same-repo ok,
+# cross-repo startup_failure) — so the repos keep copies; with the Team plan the copy can be
+# replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
-# Авто-ревью каждого коммита PR (#443-процесс, скилл omnisgm-review из плагина omnisgm).
-# Новый пуш в PR ревью НЕ запускает (v2.42: один авто-прогон на PR); мёрж/закрытие отменяет идущее.
-# Работает на личной подписке владельца: CLAUDE_CODE_OAUTH_TOKEN из `claude setup-token`.
-# v2.27 (этап 1 плана экономии токенов, 2026-09-16): REPO_DIR — `${{ github.workspace }}`
-# (буквальный `$GITHUB_WORKSPACE` не раскрывался: 6 отказов подряд в run 35097394123);
-# `--model opus` явно; `npm run test:*` в allowlist (гейты test:dice/test:rules/test:css);
-# путь плагина в промт из шага Prepare (Glob — фолбэк). Хуки плагина (SubagentStop,
-# PreToolUse) приезжают с плагином 1.7.0 сами.
-# v2.47 (2026-10-07): журнал — маркер рана против дубля при ошибке GitHub, текст в лог
-#   при неудаче, без паузы после последней попытки (ревью Table PR #849).
-# v2.46 (2026-10-06): шаг журнала — continue-on-error + 3 попытки: сбой GitHub на нём
-#   больше не красит джобу после опубликованного ревью (run 37520167275).
-# v2.45 (2026-09-29): сбой symbols.py пишется строкой в INDEX.md (линзы видят причину, а не
-# голую ошибку Read); проза «одним git grep» снята — grep идёт на каждое имя (ревью Table#742).
-# v2.44 (2026-09-29): Prepare собирает 07-symbols.md — экспорты, тронутые диффом, и их
-# вызывающие по голове, один раз на прогон скриптом (scripts/symbols.py); линзы читают его
-# вместо собственных проб по тем же именам (рубрика TOK-7/SCOPE-4).
-# v2.43 (2026-09-29): модели ЗАКРЕПЛЕНЫ полными ID и задан effort. Алиасы плавают с версией
-# CLI, которую claude-code-action ставит на каждом прогоне: `opus` стал Opus 5.5 в 2.1.280
-# (у нас — 23.09 в середине дня), `sonnet` стал Sonnet 5.5 в 2.1.284 (28.09 вечером) — модели
-# менялись без нашего решения. У Opus 5.5 дефолтный effort `medium` (у Opus 5 был `high`), и с
-# 23.09 главный цикл и линзы C/F/V тихо опустились на ступень: медиана $/прогон 14.9 → 5.6,
-# средних на ревью 4.4 → 1.9. Поэтому главный цикл — `--model claude-opus-5-5` и `--effort high`,
-# а алиасы `opus`/`sonnet` в вызовах Agent (линзы) — через переменные окружения у шага (см. env).
-# Смена модели/effort — только с замером реплеем (workflow_dispatch по тому же PR).
-# v2.42 (2026-09-22): авто-ревью ВКЛЮЧЕНО — ровно ОДИН автоматический прогон на PR (решение
-# владельца): pull_request только opened/ready_for_review (+closed для отмены), без synchronize/
-# reopened. Фикс-раунды и повторы — кнопкой workflow_dispatch (`force` для полного конвейера).
-# v2.41 (2026-09-22, аудит 8): Prepare выкладывает файлы диффа по голове PR в $OUT/src/ (агенты
-# читают Read, не `git show` — до 115 лишних вызовов за прогон) и гоняет базовый `tsc --noEmit`
-# по каждому tsconfig → 06-runfacts.md; хроника дампа размечена по агентам ([who]).
-# v2.40 (2026-09-22): шапка без «+N инлайнов» (решение владельца: сколько из находок
-# инлайны — неважно) и правильные формы «1 среднее / 2 ремарки».
-# v2.39 (2026-09-22): вход `force` у кнопки — полный конвейер даже на уже отревьюенной голове
-# (iter_state --force → mode=pipeline); нужен для повторов и замеров на живом PR.
-# v2.38 (2026-09-22): DISPATCH ≠ REPLAY. Кнопка на ОТКРЫТОМ PR — настоящий раунд ревью (воркфлоу
-# ручной с v2.34): merge-коммит воссоздаётся как раньше, но метка «🔁 Реплей» и `--replay` у
-# iter_state — только когда PR не OPEN (смёржен/закрыт). Run 35724815885 пометил живое ревью #630
-# реплеем.
-# v2.37 (2026-09-22): дамп транскрипта считает по агентам (parent_tool_use_id): вызовы
-# инструментов, отказы, токены usage — замер видит цену каждой линзы, а не только сумму.
-# v2.36 (2026-09-22): маркетплейс для action — ВСЕГДА локальный клон из RUNNER_TEMP (он и так
-# есть с v2.33); URL-вариант снят. Причина: на персистентном раннере ~/.claude/settings.json
-# помнит объявление маркетплейса, и смена вида источника (path ↔ URL) валит `marketplace add`
-# («its network source differs from the one declared», run 35719739780). Шаг Purge снимает
-# старое объявление из settings.json.
-# v2.35 (2026-09-22, токен-аудит волна 7): Prepare считает РЕЖИМ ИТЕРАЦИИ (iter_state.py →
-# строка ITER: в INDEX.md + fix-diff.patch), ставит зависимости (`npm ci`) и собирает workspace
-# `shared` — факты среды в 06-runfacts.md; главный цикл ни 02-pr-comments.md, ни npm ci больше
-# не трогает. `Bash(npm ci:*)` снят из allowlist.
-# v2.34 (2026-09-22): только workflow_dispatch — авто-триггер PR закомментирован (см. `on:`).
-# v2.33 (2026-09-22, токен-аудит волна 6): каталог прогона уникален — OUT=/tmp/review/<ветка>-<UTC>
-# (два PR на одном self-hosted раннере больше не затирают друг друга; хвосты старше 12 ч чистятся
-# по возрасту). Клон маркетплейса — ВСЕГДА, до Prepare: его скрипты режут дифф на слайсы, строят
-# дайджест и сверяют голову/список файлов ДО Клода (4–6 opus-ходов главного цикла ушли в bash);
-# результат сверки — строка `RECALC:` в INDEX.md. Путь скилла в промт — из этого клона всегда.
-# v2.32 (2026-09-22): `packages: read` + NODE_AUTH_TOKEN у джобы — `npm ci` тянет приватные
-# @omnisgm-app/* из GitHub Packages; без токена реплей 35692325404 шёл без tsc/юнитов/мутаций.
-# v2.31 (2026-09-22): вход `plugin_ref` у workflow_dispatch — замер ветки плагина ДО мёржа в
-# master: клон маркетплейса на этой ветке кладётся в $RUNNER_TEMP и отдаётся action'у
-# ЛОКАЛЬНЫМ ПУТЁМ (plugin_marketplaces принимает путь), путь скилла в промт — оттуда же.
-# Пусто (и любое событие PR) — прежний клон master по URL.
-# v2.30: allowlist `Bash(npm run:*)` вместо `npm run test:*` — двоеточие в правиле ломало
-# матч, `npm run test:css` резался (реплей 35112973775); build/lint агентам режет хук плагина.
-# v2.29: дамп транскрипта печатает model диспатча Agent. Плагин 1.7.2: хук-подсказчик больше
-# не режет `npm ci` главному циклу (реплей 35110978839 прошёл без node_modules).
-# v2.28: workflow_dispatch с номером PR — реплей-прогон на любом (в т.ч. смёрженном) PR для
-# замера стоимости: Prepare воссоздаёт merge-коммит из головы PR и родителя мёржа, тело
-# ревью помечается «реплей». Условия PR-события на dispatch не действуют.
-# v2.26: поиск каталога плагина — Glob, не ls (ls ~/.claude/plugins блокируется политикой).
-# v2.25: CLAUDE_PLUGINS_TOKEN (fine-grained PAT на claude-plugins) нужен продуктовым репам —
-# клонировать приватный маркетплейс и писать журнал в claude-plugins#1. В самой репе
-# claude-plugins секрета нет и не нужно: github.token читает свою репу и пишет в свои ишьи,
-# поэтому везде `secrets.CLAUDE_PLUGINS_TOKEN || github.token` (пустой секрет → фолбэк).
-# До этого все раны ревью в claude-plugins падали «Invalid username or token» (7/14/16.09).
+# Auto-review of every PR commit (#443 process, skill omnisgm-review from the omnisgm plugin).
+# A new push to the PR does NOT start a review (v2.42: one auto run per PR); merge/close cancels the running one.
+# Runs on the owner's personal subscription: CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`.
+# v2.27 (stage 1 of the token-saving plan, 2026-09-16): REPO_DIR — `${{ github.workspace }}`
+# (the literal `$GITHUB_WORKSPACE` was not expanded: 6 denials in a row in run 35097394123);
+# `--model opus` explicitly; `npm run test:*` in the allowlist (gates test:dice/test:rules/test:css);
+# plugin path into the prompt from the Prepare step (Glob — fallback). Plugin hooks (SubagentStop,
+# PreToolUse) arrive with plugin 1.7.0 by themselves.
+# v2.47 (2026-10-07): journal — run marker against a duplicate on a GitHub error, text to the log
+#   on failure, no pause after the last attempt (review of Table PR #849).
+# v2.46 (2026-10-06): journal step — continue-on-error + 3 attempts: a GitHub failure on it
+#   no longer paints the job red after a published review (run 37520167275).
+# v2.45 (2026-09-29): a symbols.py failure is written as a line into INDEX.md (lenses see the cause, not
+# a bare Read error); the prose "with a single git grep" removed — grep goes per name (review Table#742).
+# v2.44 (2026-09-29): Prepare builds 07-symbols.md — exports touched by the diff and their
+# callers at the head, once per run by a script (scripts/symbols.py); lenses read it
+# instead of their own probes on the same names (rubric TOK-7/SCOPE-4).
+# v2.43 (2026-09-29): models PINNED by full IDs and effort set. Aliases drift with the CLI
+# version that claude-code-action installs on every run: `opus` became Opus 5.5 in 2.1.280
+# (for us — 23.09 midday), `sonnet` became Sonnet 5.5 in 2.1.284 (28.09 evening) — models
+# changed without our decision. Opus 5.5 has default effort `medium` (Opus 5 had `high`), and since
+# 23.09 the main loop and lenses C/F/V silently dropped a step: median $/run 14.9 → 5.6,
+# mediums per review 4.4 → 1.9. Hence the main loop — `--model claude-opus-5-5` and `--effort high`,
+# and the aliases `opus`/`sonnet` in Agent calls (lenses) — via environment variables of the step (see env).
+# Changing model/effort — only with a replay measurement (workflow_dispatch on the same PR).
+# v2.42 (2026-09-22): auto-review ENABLED — exactly ONE automatic run per PR (owner's
+# decision): pull_request only opened/ready_for_review (+closed for cancellation), no synchronize/
+# reopened. Fix rounds and repeats — via the workflow_dispatch button (`force` for the full pipeline).
+# v2.41 (2026-09-22, audit 8): Prepare lays out the diff files at the PR head in $OUT/src/ (agents
+# read with Read, not `git show` — up to 115 extra calls per run) and runs a baseline `tsc --noEmit`
+# per tsconfig → 06-runfacts.md; the dump chronicle is attributed per agent ([who]).
+# v2.40 (2026-09-22): header without "+N inlines" (owner's decision: how many of the findings
+# are inlines — irrelevant) and correct forms "1 среднее / 2 ремарки" (Russian plurals in the review body).
+# v2.39 (2026-09-22): `force` input on the button — full pipeline even on an already reviewed head
+# (iter_state --force → mode=pipeline); needed for repeats and measurements on a live PR.
+# v2.38 (2026-09-22): DISPATCH ≠ REPLAY. The button on an OPEN PR — a real review round (the workflow
+# is manual since v2.34): the merge commit is recreated as before, but the "🔁 Реплей" (replay) mark and `--replay` for
+# iter_state — only when the PR is not OPEN (merged/closed). Run 35724815885 marked live review #630
+# as a replay.
+# v2.37 (2026-09-22): transcript dump counts per agent (parent_tool_use_id): tool calls,
+# denials, usage tokens — the measurement sees the price of each lens, not only the sum.
+# v2.36 (2026-09-22): marketplace for the action — ALWAYS the local clone from RUNNER_TEMP (it exists
+# since v2.33 anyway); the URL variant removed. Reason: on a persistent runner ~/.claude/settings.json
+# remembers the marketplace declaration, and changing the source kind (path ↔ URL) breaks `marketplace add`
+# ("its network source differs from the one declared", run 35719739780). The Purge step removes
+# the old declaration from settings.json.
+# v2.35 (2026-09-22, token audit wave 7): Prepare computes the ITERATION MODE (iter_state.py →
+# `ITER:` line in INDEX.md + fix-diff.patch), installs dependencies (`npm ci`) and builds the workspace
+# `shared` — environment facts in 06-runfacts.md; the main loop no longer touches 02-pr-comments.md
+# or npm ci. `Bash(npm ci:*)` removed from the allowlist.
+# v2.34 (2026-09-22): workflow_dispatch only — the PR auto-trigger commented out (see `on:`).
+# v2.33 (2026-09-22, token audit wave 6): the run directory is unique — OUT=/tmp/review/<branch>-<UTC>
+# (two PRs on one self-hosted runner no longer overwrite each other; leftovers older than 12 h are cleaned
+# by age). Marketplace clone — ALWAYS, before Prepare: its scripts cut the diff into slices, build
+# the digest and check the head/file list BEFORE Claude (4–6 opus turns of the main loop moved to bash);
+# the check result — a `RECALC:` line in INDEX.md. Skill path into the prompt — always from this clone.
+# v2.32 (2026-09-22): `packages: read` + NODE_AUTH_TOKEN on the job — `npm ci` pulls private
+# @omnisgm-app/* from GitHub Packages; without the token replay 35692325404 ran without tsc/units/mutations.
+# v2.31 (2026-09-22): `plugin_ref` input on workflow_dispatch — measuring a plugin branch BEFORE merging into
+# master: the marketplace clone on that branch is placed in $RUNNER_TEMP and handed to the action
+# as a LOCAL PATH (plugin_marketplaces accepts a path), the skill path into the prompt — from there too.
+# Empty (and any PR event) — the previous master clone by URL.
+# v2.30: allowlist `Bash(npm run:*)` instead of `npm run test:*` — the colon in the rule broke the
+# match, `npm run test:css` was cut (replay 35112973775); build/lint for agents is cut by the plugin hook.
+# v2.29: transcript dump prints the model of the Agent dispatch. Plugin 1.7.2: the hint hook no longer
+# cuts `npm ci` for the main loop (replay 35110978839 passed without node_modules).
+# v2.28: workflow_dispatch with a PR number — a replay run on any (incl. merged) PR for
+# cost measurement: Prepare recreates the merge commit from the PR head and the merge parent, the review
+# body is marked "replay". PR-event conditions do not apply on dispatch.
+# v2.26: plugin directory lookup — Glob, not ls (ls ~/.claude/plugins is blocked by policy).
+# v2.25: CLAUDE_PLUGINS_TOKEN (fine-grained PAT for claude-plugins) is needed by the product repos —
+# to clone the private marketplace and write the journal to claude-plugins#1. In the claude-plugins repo
+# itself the secret does not exist and is not needed: github.token reads its own repo and writes to its own issues,
+# hence everywhere `secrets.CLAUDE_PLUGINS_TOKEN || github.token` (empty secret → fallback).
+# Before that all review runs in claude-plugins failed with "Invalid username or token" (7/14/16.09).
 on:
-  # v2.42 (2026-09-22): ОДИН авто-прогон на PR — opened (не-драфт) ИЛИ ready_for_review (драфт
-  # при opened скипается условием джобы, так что второго прогона не бывает). synchronize и
-  # reopened НЕ слушаем: каждый новый пуш — не новый счёт, фикс-раунд запускает владелец
-  # кнопкой. БЕЗ edited (2026-09-12): правка описания гоняла скип-джобу и серый «Skipped»
-  # затирал зелёный чек. closed — трюк: ран в той же concurrency-группе отменяет идущее
-  # ревью при мёрже/закрытии PR и сам завершается скипом.
+  # v2.42 (2026-09-22): ONE auto run per PR — opened (non-draft) OR ready_for_review (a draft
+  # on opened is skipped by the job condition, so there is never a second run). synchronize and
+  # reopened are NOT listened to: every new push is not a new bill, a fix round is started by the owner
+  # via the button. WITHOUT edited (2026-09-12): editing the description ran the skip job and the grey "Skipped"
+  # overwrote the green check. closed — a trick: a run in the same concurrency group cancels the running
+  # review on PR merge/close and itself ends as skipped.
   pull_request:
     types: [opened, ready_for_review, closed]
   workflow_dispatch:
     inputs:
       pr:
-        description: 'Номер PR для реплей-прогона (можно смёрженный)'
+        description: 'PR number for a replay run (may be merged)'
         required: true
         type: string
       plugin_ref:
-        description: 'Ветка/тег claude-plugins для замера (пусто = master)'
+        description: 'claude-plugins branch/tag to measure (empty = master)'
         required: false
         type: string
         default: ''
       force:
-        description: 'Полный конвейер даже если голова уже отревьюена'
+        description: 'Full pipeline even if the head is already reviewed'
         type: boolean
         default: false
 
 concurrency:
-  # Одна группа на PR: closed (или кнопка) отменяет текущее ревью.
+  # One group per PR: closed (or the button) cancels the current review.
   group: claude-review-${{ github.event.pull_request.number || inputs.pr }}
   cancel-in-progress: true
 
 jobs:
   review:
-    # Ревьюим только PR в default-ветку (dev/master/main — у каждой репы своя): стек-PR
-    # дождётся пуша после ретаргета base. Драфты и dependabot — скип. closed не ревьюится
-    # (он только отменяет группу).
+    # Review only PRs into the default branch (dev/master/main — each repo has its own): a stacked PR
+    # waits for a push after the base retarget. Drafts and dependabot — skip. closed is not reviewed
+    # (it only cancels the group).
     if: >-
       github.event_name == 'workflow_dispatch' || (
       github.event.action != 'closed' &&
@@ -130,19 +130,19 @@ jobs:
       issues: write
       id-token: write
       actions: read
-      packages: read   # установка приватных @omnisgm-app/* из GitHub Packages (npm ci)
+      packages: read   # installing private @omnisgm-app/* from GitHub Packages (npm ci)
     env:
-      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # v2.32: для npm ci в песочницах агентов
+      NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # v2.32: for npm ci in agent sandboxes
     steps:
       - name: Checkout PR
         uses: actions/checkout@v7
         with:
-          # Полная история: ревью сверяет опоры по базовой ветке (git diff base...head).
+          # Full history: the review checks anchors against the base branch (git diff base...head).
           fetch-depth: 0
 
-      # Самодостаточность на self-hosted: Node 22 (jsdom/undici требуют >=22)
-      # и gh CLI (на self-hosted его нет в PATH). На ubuntu-latest оба шага
-      # почти no-op: node ставится из кэша, gh уже есть.
+      # Self-sufficiency on self-hosted: Node 22 (jsdom/undici require >=22)
+      # and gh CLI (on self-hosted it is not in PATH). On ubuntu-latest both steps are
+      # almost no-op: node is installed from cache, gh is already there.
       - name: Setup Node 22
         uses: actions/setup-node@v7
         with:
@@ -153,13 +153,13 @@ jobs:
         run: |
           command -v gh >/dev/null && { gh --version | head -1; exit 0; }
           v=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
-          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "нет сборки gh для $(uname -m)"; exit 1;; esac
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
           curl -sL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
 
-      # v2.33: клон маркетплейса ВСЕГДА и ДО Prepare — его скрипты (slice_diff, digest_context)
-      # нужны шагу Prepare, а action ставит плагин позже. plugin_ref (v2.31) выбирает ветку;
-      # пусто — master. Клон свежий каждый ран (self-hosted персистентен).
+      # v2.33: marketplace clone ALWAYS and BEFORE Prepare — its scripts (slice_diff, digest_context)
+      # are needed by the Prepare step, and the action installs the plugin later. plugin_ref (v2.31) picks the branch;
+      # empty — master. The clone is fresh every run (self-hosted is persistent).
       - name: Fetch plugin scripts
         shell: bash
         env:
@@ -168,11 +168,11 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/omnisgm-marketplace"
           git clone -q --depth 1 --branch "${PLUGIN_REF:-master}" "https://x-access-token:${GH_PLUGINS_TOKEN}@github.com/OmnisGM-App/claude-plugins.git" "$RUNNER_TEMP/omnisgm-marketplace"
-          echo "плагин с ветки ${PLUGIN_REF:-master}: $(git -C "$RUNNER_TEMP/omnisgm-marketplace" rev-parse --short HEAD), версия $(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/.claude-plugin/plugin.json'))['version'])")"
+          echo "plugin from branch ${PLUGIN_REF:-master}: $(git -C "$RUNNER_TEMP/omnisgm-marketplace" rev-parse --short HEAD), version $(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/.claude-plugin/plugin.json'))['version'])")"
 
-      # Экономия ходов Клода: контекст PR снимается скриптом ДО старта (аналог
-      # fetch_pr.sh локального конвейера) — Клод начинает сразу с чтения файлов.
-      # v2.33: сюда же — нарезка слайсов, дайджест и сверка головы/списка файлов.
+      # Saving Claude turns: the PR context is captured by a script BEFORE the start (analogous to
+      # fetch_pr.sh of the local pipeline) — Claude starts right away with reading files.
+      # v2.33: also here — slicing, digest and the head/file list check.
       - name: Prepare review context
         id: prep
         shell: bash
@@ -188,12 +188,12 @@ jobs:
         run: |
           REPLAY=""
           if [ -n "$DISPATCH" ]; then
-            # v2.38: реплей = кнопка на НЕоткрытом PR; на открытом это обычный раунд.
+            # v2.38: replay = the button on a NON-open PR; on an open one it is a regular round.
             [ "$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)" = "OPEN" ] || REPLAY=1
-            # Реплей: рабочая копия = default branch; воссоздаём то, что даёт событие PR —
-            # merge-коммит с головой PR вторым родителем, база = родитель мёржа (смёрженный PR)
-            # либо живая base-ветка. Имена веток кладём в remote-refs, чтобы `origin/<base>` и
-            # `origin/<headref>` из ci-pipeline.md работали как обычно.
+            # Replay: working copy = default branch; we recreate what the PR event gives —
+            # a merge commit with the PR head as the second parent, base = the merge parent (merged PR)
+            # or the live base branch. Branch names go into remote-refs so that `origin/<base>` and
+            # `origin/<headref>` from ci-pipeline.md work as usual.
             read -r headref baseref merged headsha < <(gh pr view "$PR" --repo "$REPO" --json headRefName,baseRefName,mergeCommit,headRefOid --jq '"\(.headRefName) \(.baseRefName) \(.mergeCommit.oid // "-") \(.headRefOid)"')
             git fetch -q origin "refs/pull/$PR/head:refs/remotes/origin/$headref"
             if [ "$merged" != "-" ]; then basesha=$(git rev-parse "$merged^"); else basesha=$(git rev-parse "origin/$baseref"); fi
@@ -201,56 +201,56 @@ jobs:
             git -c user.email=ci@omnisgm -c user.name=replay checkout -q "$basesha"
             git -c user.email=ci@omnisgm -c user.name=replay merge -q --no-ff --no-edit "origin/$headref"
             BASE=replay-base; HEADREF=$headref
-            echo "реплей PR #$PR: голова $headsha, база $basesha ($baseref), merged=$merged"
+            echo "replay of PR #$PR: head $headsha, base $basesha ($baseref), merged=$merged"
           fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"; echo "headref=$HEADREF" >> "$GITHUB_OUTPUT"; echo "replay=$REPLAY" >> "$GITHUB_OUTPUT"
-          # v2.33: каталог прогона уникален — ветка + UTC-метка. Два PR одной репы идут
-          # параллельно (concurrency-группа на PR), на персистентном self-hosted раннере
-          # общий /tmp/review затирал бы контекст и отчёты соседа. Старые прогоны чистим по
-          # возрасту (отменённый ран свой финальный шаг не выполняет — случай Table#529/v2.24);
-          # глобы /tmp/*-sandbox и *.tar — наследие промта до 1.6.13.
+          # v2.33: the run directory is unique — branch + UTC stamp. Two PRs of one repo run
+          # in parallel (concurrency group per PR); on a persistent self-hosted runner a
+          # shared /tmp/review would overwrite the neighbour's context and reports. Old runs are cleaned by
+          # age (a cancelled run does not execute its final step — the Table#529/v2.24 case);
+          # the globs /tmp/*-sandbox and *.tar — legacy of the prompt before 1.6.13.
           OUT="/tmp/review/$(printf '%s' "$HEADREF" | tr -c 'A-Za-z0-9._-' '_')-$(date -u +%Y%m%d-%H%M%S)"
           mkdir -p /tmp/review
           find /tmp/review -mindepth 1 -maxdepth 1 -mmin +720 -exec rm -rf {} + 2>/dev/null || true
           rm -rf /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
-          mkdir -p "$OUT"; echo "out=$OUT" >> "$GITHUB_OUTPUT"; echo "каталог прогона: $OUT"
-          gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nголова: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | файлов: \(.changedFiles)\n\n\(.body)"' > $OUT/00-pr.md
+          mkdir -p "$OUT"; echo "out=$OUT" >> "$GITHUB_OUTPUT"; echo "run directory: $OUT"
+          gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nhead: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | files: \(.changedFiles)\n\n\(.body)"' > $OUT/00-pr.md
           git diff "origin/${BASE}...HEAD" > $OUT/01-diff.patch
-          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- коммент \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- ревью \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > $OUT/02-pr-comments.md || true
+          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- comment \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- review \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > $OUT/02-pr-comments.md || true
           git diff --name-only "origin/${BASE}...HEAD" > $OUT/04-files.txt
           for n in $(grep -oE '#[0-9]+' $OUT/00-pr.md | tr -d '#' | sort -un | head -5); do
             [ "$n" = "$PR" ] && continue
-            gh issue view "$n" --repo "$REPO" --json number,title,body,state,comments --jq '"# Ишья #\(.number) (\(.state)): \(.title)\n\n\(.body)\n\n" + ([.comments[] | "--- коммент \(.author.login)\n\(.body)\n\n"] | join(""))' > "$OUT/03-issue-$n.md" 2>/dev/null || rm -f "$OUT/03-issue-$n.md"
+            gh issue view "$n" --repo "$REPO" --json number,title,body,state,comments --jq '"# Issue #\(.number) (\(.state)): \(.title)\n\n\(.body)\n\n" + ([.comments[] | "--- comment \(.author.login)\n\(.body)\n\n"] | join(""))' > "$OUT/03-issue-$n.md" 2>/dev/null || rm -f "$OUT/03-issue-$n.md"
           done
-          { echo "# INDEX прогона (контекст подготовлен CI)"; echo; wc -l $OUT/*.md $OUT/*.patch $OUT/*.txt 2>/dev/null; } > $OUT/INDEX.md
-          # v2.33: сверка головы и списка файлов — детерминированная, делаем здесь, не в Клоде.
-          # HEAD события pull_request (и реплея) — merge-коммит, голова PR = HEAD^2 (Table#529).
-          # Список файлов: у стековых PR после фаст-форварда базы дифф `...HEAD` подмешивает
-          # соседа (News#86), `gh pr diff` застревает на старом merge-base (Rules#309) — истина
-          # `origin/<base>...HEAD^2`; расхождение пересчитываем и объявляем строкой RECALC:.
+          { echo "# Run INDEX (context prepared by CI)"; echo; wc -l $OUT/*.md $OUT/*.patch $OUT/*.txt 2>/dev/null; } > $OUT/INDEX.md
+          # v2.33: head and file list check — deterministic, done here, not in Claude.
+          # HEAD of a pull_request event (and of a replay) is the merge commit, PR head = HEAD^2 (Table#529).
+          # File list: for stacked PRs after a base fast-forward the `...HEAD` diff mixes in the
+          # neighbour (News#86), `gh pr diff` gets stuck on the old merge-base (Rules#309) — the truth is
+          # `origin/<base>...HEAD^2`; a discrepancy is recomputed and announced by a RECALC: line.
           SKILL="$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/skills/omnisgm-review"
           headpr=$(gh pr view "$PR" --repo "$REPO" --json headRefOid --jq .headRefOid)
           headwc=$(git rev-parse HEAD^2 2>/dev/null || git rev-parse HEAD)
-          [ "$headpr" = "$headwc" ] || echo "RECALC: голова рабочей копии $headwc ≠ голова PR $headpr — контекст мог устареть (Table#529), оговорку в шапку ревью" >> "$OUT/INDEX.md"
+          [ "$headpr" = "$headwc" ] || echo "RECALC: working copy head $headwc ≠ PR head $headpr — the context may be stale (Table#529), add a caveat to the review header" >> "$OUT/INDEX.md"
           { git diff --name-only "origin/${BASE}...HEAD^2" 2>/dev/null || true; } | sort > "$OUT/.files-truth"
           if [ -s "$OUT/.files-truth" ] && ! diff -q <(sort "$OUT/04-files.txt") "$OUT/.files-truth" >/dev/null; then
             git diff --output="$OUT/01-diff.patch" "origin/${BASE}...HEAD^2"
             cp "$OUT/.files-truth" "$OUT/04-files.txt"
-            echo "RECALC: список файлов пересчитан по origin/${BASE}...HEAD^2 (дифф против merge-коммита расходился — стековый PR или сдвиг базы), оговорку в шапку ревью" >> "$OUT/INDEX.md"
+            echo "RECALC: file list recomputed by origin/${BASE}...HEAD^2 (the diff against the merge commit diverged — stacked PR or base shift), add a caveat to the review header" >> "$OUT/INDEX.md"
           fi
           { gh pr diff "$PR" --repo "$REPO" --name-only 2>/dev/null || true; } | sort > "$OUT/.files-gh"
           if [ -s "$OUT/.files-gh" ] && ! diff -q "$OUT/.files-gh" "$OUT/.files-truth" >/dev/null; then
-            echo "RECALC: gh pr diff --name-only расходится с origin/${BASE}...HEAD^2 — работаем по git (Rules#309), оговорку в шапку ревью" >> "$OUT/INDEX.md"
+            echo "RECALC: gh pr diff --name-only diverges from origin/${BASE}...HEAD^2 — working by git (Rules#309), add a caveat to the review header" >> "$OUT/INDEX.md"
           fi
           rm -f "$OUT/.files-truth" "$OUT/.files-gh"
           python3 "$SKILL/scripts/slice_diff.py" "$OUT"
           python3 "$SKILL/scripts/digest_context.py" "$OUT"
-          # v2.44: экспорты, тронутые диффом, и их вызывающие по голове — один раз на прогон
-          # скриптом вместо проб каждой линзы (07-symbols.md; рубрика TOK-7/SCOPE-4).
+          # v2.44: exports touched by the diff and their callers at the head — once per run
+          # by a script instead of probes by each lens (07-symbols.md; rubric TOK-7/SCOPE-4).
           python3 "$SKILL/scripts/symbols.py" "$OUT" "$PWD" "$headwc" \
-            || echo "07-symbols.md: не собран (symbols.py exit $?) — линзы ставят свои пробы" | tee -a "$OUT/INDEX.md"
-          # v2.41: текстовые файлы диффа по голове PR — один раз в $OUT/src/ (аудит 8, [1]).
-          # Удалённые и бинарные файлы пропускаются (их нет в голове / изображения вне ревью).
+            || echo "07-symbols.md: not built (symbols.py exit $?) — lenses run their own probes" | tee -a "$OUT/INDEX.md"
+          # v2.41: text files of the diff at the PR head — once in $OUT/src/ (audit 8, [1]).
+          # Deleted and binary files are skipped (absent at the head / images are outside the review).
           mkdir -p "$OUT/src"; nsrc=0
           git ls-tree -r --name-only "$headwc" > "$OUT/.head-files"
           grep -Fxf "$OUT/.head-files" "$OUT/04-files.txt" | grep -Eiv '\.(png|jpe?g|gif|webp|ico|woff2?|ttf|otf|pdf|zip)$' > "$OUT/.src-list" || true
@@ -260,23 +260,23 @@ jobs:
             git show "$headwc:$p" > "$OUT/src/$p" && nsrc=$((nsrc+1))
           done < "$OUT/.src-list"
           rm -f "$OUT/.head-files" "$OUT/.src-list"
-          echo "src/: $nsrc файлов диффа по голове PR (текстовые, существующие в голове)" >> "$OUT/INDEX.md"
-          # v2.35: режим итерации — по последнему опубликованному ревью и git, а не чтением
-          # 02-pr-comments.md моделью (правило остановки, fix-diff, чистый мёрж базы — всё там).
+          echo "src/: $nsrc diff files at the PR head (text, existing at the head)" >> "$OUT/INDEX.md"
+          # v2.35: iteration mode — from the last published review and git, not from the model
+          # reading 02-pr-comments.md (stop rule, fix-diff, clean base merge — all there).
           gh pr view "$PR" --repo "$REPO" --json reviews > "$OUT/.reviews.json" || echo '{"reviews":[]}' > "$OUT/.reviews.json"
           python3 "$SKILL/scripts/iter_state.py" "$OUT" "$PWD" "$BASE" "$headwc" $( [ -n "$REPLAY" ] && echo --replay ) $( [ -n "$FORCE" ] && echo --force )
           rm -f "$OUT/.reviews.json"
-          # v2.35: зависимости и сборка workspace shared — детерминированный shell, не ход модели.
-          # Факты среды ТЕКУЩЕГО прогона — только в 06-runfacts.md (история в 02/05 — не факты).
+          # v2.35: dependencies and the shared workspace build — deterministic shell, not a model turn.
+          # Environment facts of the CURRENT run — only in 06-runfacts.md (history in 02/05 is not facts).
           : > "$OUT/06-runfacts.md"
           if [ -f package.json ]; then
             ci=0; npm ci > "$OUT/.npm-ci.log" 2>&1 || ci=$?
             echo "npm ci: exit $ci" >> "$OUT/06-runfacts.md"; tail -3 "$OUT/.npm-ci.log"
             if [ "$ci" = 0 ] && [ -f shared/package.json ]; then
               b=0; npm run build --workspace=shared > "$OUT/.shared-build.log" 2>&1 || b=$?
-              if [ "$b" = 0 ]; then echo "shared/dist: собран" >> "$OUT/06-runfacts.md"; else echo "shared/dist: НЕ собран (exit $b)" >> "$OUT/06-runfacts.md"; tail -5 "$OUT/.shared-build.log"; fi
+              if [ "$b" = 0 ]; then echo "shared/dist: built" >> "$OUT/06-runfacts.md"; else echo "shared/dist: NOT built (exit $b)" >> "$OUT/06-runfacts.md"; tail -5 "$OUT/.shared-build.log"; fi
             fi
-            # v2.41: базовый тайпчек один раз на прогон — агенты берут факт из 06-runfacts.md (аудит 8, [3]).
+            # v2.41: baseline typecheck once per run — agents take the fact from 06-runfacts.md (audit 8, [3]).
             if [ "$ci" = 0 ]; then
               for cfg in tsconfig.json frontend/tsconfig.json; do
                 [ -f "$cfg" ] || continue
@@ -287,24 +287,24 @@ jobs:
             fi
             rm -f "$OUT/.npm-ci.log" "$OUT/.shared-build.log"
           else
-            echo "npm ci: не требуется (нет package.json)" >> "$OUT/06-runfacts.md"
+            echo "npm ci: not needed (no package.json)" >> "$OUT/06-runfacts.md"
           fi
           cat "$OUT/06-runfacts.md"
           ls -la "$OUT/" && wc -l "$OUT/01-diff.patch" && { grep '^RECALC:\|^ITER:' "$OUT/INDEX.md" || true; }
-          # v2.33: путь скилла для промта — всегда из клона маркетплейса (шаг Fetch plugin scripts);
-          # тот же master, что ставит action, либо ветка plugin_ref.
+          # v2.33: skill path for the prompt — always from the marketplace clone (step Fetch plugin scripts);
+          # the same master the action installs, or the plugin_ref branch.
           echo "skill=$SKILL" >> "$GITHUB_OUTPUT"
 
-      # v2.22: персистентный self-hosted раннер НЕ обновляет плагин — claude-code-action
-      # видит «already installed» и пропускает установку, ревью идёт по древнему кэшу
-      # (ран Table 34631615126 работал по 1.2.0 без ci-pipeline.md и упал без публикации).
-      # Сносим состояние плагинов целиком — action ставит свежий master заново каждый ран.
-      # На эфемерных ubuntu-latest каталога нет — шаг no-op.
+      # v2.22: a persistent self-hosted runner does NOT update the plugin — claude-code-action
+      # sees "already installed" and skips the install, the review runs on an ancient cache
+      # (Table run 34631615126 worked on 1.2.0 without ci-pipeline.md and failed without publishing).
+      # We wipe the plugin state entirely — the action installs fresh master anew every run.
+      # On ephemeral ubuntu-latest the directory does not exist — the step is a no-op.
       - name: Purge stale plugin cache (self-hosted)
         shell: bash
         run: |
           rm -rf ~/.claude/plugins
-          # v2.36: объявление маркетплейса живёт в settings.json, а не в plugins/ — снимаем и его.
+          # v2.36: the marketplace declaration lives in settings.json, not in plugins/ — remove it too.
           [ -f ~/.claude/settings.json ] && python3 - <<'PY'
           import json, os
           p = os.path.expanduser("~/.claude/settings.json")
@@ -319,17 +319,17 @@ jobs:
         uses: anthropics/claude-code-action@v1
         env:
           GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
-          # v2.43: алиасы `opus`/`sonnet` в вызовах Agent резолвятся через эти переменные,
-          # а не через версию CLI на раннере.
+          # v2.43: the aliases `opus`/`sonnet` in Agent calls resolve via these variables,
+          # not via the CLI version on the runner.
           ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-5-5
           ANTHROPIC_DEFAULT_SONNET_MODEL: claude-sonnet-5-5
         with:
           claude_code_oauth_token: ${{ secrets.CLAUDE_CODE_OAUTH_TOKEN }}
           github_token: ${{ github.token }}
           track_progress: false
-          # Маркетплейс приватный — клонится fine-grained PAT-ом (contents: read
-          # на OmnisGM-App/claude-plugins); секрет в URL маскируется логами Actions.
-          # v2.36: всегда локальный клон (шаг Fetch plugin scripts: master либо ветка plugin_ref).
+          # The marketplace is private — cloned with a fine-grained PAT (contents: read
+          # on OmnisGM-App/claude-plugins); the secret in the URL is masked by Actions logs.
+          # v2.36: always the local clone (step Fetch plugin scripts: master or the plugin_ref branch).
           plugin_marketplaces: ${{ runner.temp }}/omnisgm-marketplace
           plugins: |
             omnisgm@omnisgm
@@ -340,13 +340,14 @@ jobs:
             --add-dir /tmp
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
-            Ты — ГЛАВНЫЙ ЦИКЛ мультиагентного CI-ревью PR. Каталог скилла:
-            ${{ steps.prep.outputs.skill }} — прочитай инструментом Read ДВА файла оттуда:
-            references/ci-pipeline.md (весь конвейер и правила — следуй им) и
-            references/triage.md (состав агентов и модели). Промты агентов лежат в
-            references/agents/ — их читает САМ агент, ты не читаешь и не вкладываешь.
+            You are the MAIN LOOP of the multi-agent CI review of a PR. Skill directory:
+            ${{ steps.prep.outputs.skill }} — read TWO files from there with the Read tool:
+            references/ci-pipeline.md (the whole pipeline and the rules — follow them) and
+            references/triage.md (agent composition and models). Agent prompts live in
+            references/agents/ — the agent reads them ITSELF, you do not read or embed them.
+            The review is posted to the PR in Russian. Write in Russian.
 
-            ПРОГОН: PR=#${{ github.event.pull_request.number || inputs.pr }}
+            RUN: PR=#${{ github.event.pull_request.number || inputs.pr }}
             REPO=${{ github.repository }} BASE=${{ steps.prep.outputs.base }}
             HEADREF=${{ steps.prep.outputs.headref }}
             REPO_DIR=${{ github.workspace }} OUT=${{ steps.prep.outputs.out }}
@@ -364,8 +365,9 @@ jobs:
           python3 - <<'PY'
           import json, os, re, subprocess, sys
           rd = os.environ["RUN_OUT"]
-          # Тело ревью собирается ДЕТЕРМИНИРОВАННО из 90-verdict.json — модель тело не пишет
-          # и дописать в него ничего не может (сага «много текста» v2.8/2.12/2.16 закрыта формой).
+          # The review body is assembled DETERMINISTICALLY from 90-verdict.json — the model does not write the body
+          # and cannot append anything to it (the "too much text" saga v2.8/2.12/2.16 is closed by the form).
+          # The body strings below are Russian on purpose: the review posted to the PR is in Russian.
           vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
           if os.path.exists(vf):
               v = json.load(open(vf))
@@ -397,24 +399,24 @@ jobs:
                       if v.get("triage_skips"):
                           hdr += f" (триаж: {v['triage_skips']})"
                   body = hdr + ". Находки: " + " / ".join(parts) + "."
-              # 90-body-findings.md дочитывается и при нуле находок: там живёт
-              # строка-оговорка деградации одиночного прохода (контракт ci-pipeline).
+              # 90-body-findings.md is appended even with zero findings: it holds
+              # the caveat line of the single-pass degradation (ci-pipeline contract).
               bff = f"{rd}/90-body-findings.md"
               if os.path.exists(bff):
                   body += "\n\n" + open(bff).read().strip()
           elif os.path.exists(bf):
-              # Деградационный фолбэк: свободное тело одиночного прохода старого контракта.
-              print("::warning::90-verdict.json нет — опубликован фолбэк 90-final-review.md (деградация контракта)")
+              # Degradation fallback: the free-form body of a single pass under the old contract.
+              print("::warning::no 90-verdict.json — published the fallback 90-final-review.md (contract degradation)")
               body = open(bf).read().strip()
           else:
-              print("::error::Клод не сформировал 90-verdict.json — ревью не опубликовано")
+              print("::error::Claude did not produce 90-verdict.json — review not published")
               sys.exit(1)
           try:
               inl = json.load(open(f"{rd}/90-inline.json"))
               assert isinstance(inl, list)
           except Exception:
               inl = []
-          # валидные номера строк из диффа: RIGHT — после-версия, LEFT — до-версия
+          # valid line numbers from the diff: RIGHT — the after-version, LEFT — the before-version
           right, left, cur, oldp = {}, {}, None, None
           for ln in open(f"{rd}/01-diff.patch", encoding="utf-8", errors="replace"):
               m = re.match(r"--- a/(.*)", ln)
@@ -422,7 +424,7 @@ jobs:
                   oldp = m.group(1).strip(); continue
               m = re.match(r"\+\+\+ (?:b/(.*)|(/dev/null))", ln)
               if m:
-                  # удалённый файл: "+++ /dev/null" — путь берём из "--- a/…"
+                  # deleted file: "+++ /dev/null" — the path is taken from "--- a/…"
                   cur = (m.group(1) or oldp or "").strip(); right.setdefault(cur, set()); left.setdefault(cur, set()); continue
               m = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", ln)
               if m and cur:
@@ -449,17 +451,17 @@ jobs:
               payload["comments"] = [{"path": c["path"], "line": c["line"], "side": c.get("side", "RIGHT"), "body": c["body"]} for c in good]
           r = post(payload)
           if r.returncode and good:
-              print("::warning::POST с инлайнами упал, публикую всё в теле:", r.stderr[:500])
+              print("::warning::POST with inlines failed, publishing everything in the body:", r.stderr[:500])
               r = post({"event": "COMMENT", "body": body + "\n\n---\nИнлайны (fallback):\n" + as_body_list(good)})
           if r.returncode:
-              print("::error::публикация ревью не удалась:", r.stderr[:1000]); sys.exit(1)
-          print("ревью опубликовано")
+              print("::error::review publication failed:", r.stderr[:1000]); sys.exit(1)
+          print("review published")
           PY
 
       - name: Post journal observation
         if: always()
-        # Журнал некритичен: сбой GitHub на этом шаге не должен красить джобу (run 37520167275 —
-        # GraphQL "Something went wrong" после успешной публикации ревью). Три попытки, затем warning.
+        # The journal is non-critical: a GitHub failure on this step must not paint the job red (run 37520167275 —
+        # GraphQL "Something went wrong" after a successful review publication). Three attempts, then a warning.
         continue-on-error: true
         env:
           RUN_OUT: ${{ steps.prep.outputs.out }}
@@ -467,19 +469,19 @@ jobs:
         shell: bash
         run: |
           f="$RUN_OUT/95-journal.md"
-          [ -f "$f" ] || { echo "наблюдений нет"; exit 0; }
-          # Маркер рана: ошибка GitHub не гарантирует, что addComment не применился —
-          # перед повтором ищем маркер в свежих комментах, чтобы не постить дубль.
+          [ -f "$f" ] || { echo "no observations"; exit 0; }
+          # Run marker: a GitHub error does not guarantee that addComment was not applied —
+          # before a retry we look for the marker in recent comments so as not to post a duplicate.
           marker="<!-- run ${GITHUB_RUN_ID} -->"
           printf '\n%s\n' "$marker" >> "$f"
           posted() { gh api "repos/OmnisGM-App/claude-plugins/issues/1/comments?per_page=10&sort=created&direction=desc" --jq '.[].body' 2>/dev/null | grep -qF "$marker"; }
           for i in 1 2 3; do
-            [ "$i" -gt 1 ] && posted && { echo "комментарий уже записан (попытка $((i-1)))"; exit 0; }
+            [ "$i" -gt 1 ] && posted && { echo "comment already posted (attempt $((i-1)))"; exit 0; }
             gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$f" && exit 0
-            [ "$i" -lt 3 ] && { echo "попытка $i не удалась, пауза"; sleep $((i * 10)); }
+            [ "$i" -lt 3 ] && { echo "attempt $i failed, pausing"; sleep $((i * 10)); }
           done
-          echo "::group::Журнал, который не удалось отправить"; cat "$f"; echo "::endgroup::"
-          echo "::warning::журнал не отправлен после 3 попыток — текст в логе этого шага"
+          echo "::group::Journal that could not be sent"; cat "$f"; echo "::endgroup::"
+          echo "::warning::journal not sent after 3 attempts — the text is in the log of this step"
           exit 1
 
       - name: Dump execution transcript (debug)
@@ -487,12 +489,12 @@ jobs:
         shell: bash
         run: |
           f="$RUNNER_TEMP/claude-execution-output.json"
-          [ -f "$f" ] || { echo "нет $f"; exit 0; }
+          [ -f "$f" ] || { echo "no $f"; exit 0; }
           python3 - "$f" <<'PYEOF'
           import json, sys
           from collections import defaultdict
           msgs = json.load(open(sys.argv[1]))
-          # v2.37: атрибуция по агентам — id диспатча Task → метка; сообщения агента несут parent_tool_use_id.
+          # v2.37: attribution per agent — Task dispatch id → label; agent messages carry parent_tool_use_id.
           label, stat = {}, defaultdict(lambda: {"calls": 0, "denied": 0, "in": 0, "out": 0, "cache": 0})
           for m in msgs:
               if m.get("type") == "assistant":
@@ -500,7 +502,7 @@ jobs:
                       if c.get("type") == "tool_use" and c.get("name") in ("Agent", "Task"):
                           label[c.get("id")] = f"{(c.get('input') or {}).get('description', '?')} [{(c.get('input') or {}).get('model', '-')}]"
           for m in msgs:
-              who = label.get(m.get("parent_tool_use_id"), "главный цикл")
+              who = label.get(m.get("parent_tool_use_id"), "main loop")
               t = m.get("type")
               if t == "assistant":
                   u = m.get("message", {}).get("usage") or {}
@@ -509,14 +511,14 @@ jobs:
                   stat[who]["calls"] += sum(1 for c in m.get("message", {}).get("content", []) if c.get("type") == "tool_use")
               elif t == "user":
                   stat[who]["denied"] += sum(1 for c in m.get("message", {}).get("content", []) if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error"))
-          print("=== ПО АГЕНТАМ: вызовы / отказы / input / output / cache-токены")
+          print("=== PER AGENT: calls / denied / input / output / cache tokens")
           for who, s in sorted(stat.items(), key=lambda kv: -(kv[1]["in"] + kv[1]["cache"])):
               print(f"  {who:45s} {s['calls']:4d} {s['denied']:3d} {s['in']:9d} {s['out']:8d} {s['cache']:10d}")
-          print("=== ХРОНИКА")
+          print("=== CHRONICLE")
           for m in msgs:
               t = m.get("type")
-              # v2.41: владелец каждой строки хроники (аудит 8, [7]) — параллельные агенты больше не перемешаны.
-              who = label.get(m.get("parent_tool_use_id"), "главный цикл").split(" [")[0]
+              # v2.41: the owner of every chronicle line (audit 8, [7]) — parallel agents are no longer interleaved.
+              who = label.get(m.get("parent_tool_use_id"), "main loop").split(" [")[0]
               if t == "assistant":
                   for c in m.get("message", {}).get("content", []):
                       if c.get("type") == "text" and c.get("text", "").strip():
@@ -524,7 +526,7 @@ jobs:
                       elif c.get("type") == "tool_use":
                           inp = c.get("input", {})
                           if c.get("name") in ("Agent", "Task"):
-                              # v2.29: модель диспатча видна в дампе (замер маршрутизации моделей)
+                              # v2.29: the dispatch model is visible in the dump (model routing measurement)
                               print(f"[{who}] TOOL {c.get('name')} model={inp.get('model', '-')} {inp.get('description', '')!r}: {str(inp.get('prompt', ''))[:120]!r}")
                           else:
                               print(f"[{who}] TOOL {c.get('name')}: {json.dumps(inp, ensure_ascii=False)[:220]}")
@@ -537,10 +539,10 @@ jobs:
                           print(f"  !! [{who}] DENIED/ERROR: {str(body)[:300]}")
           PYEOF
 
-      # v2.24: на персистентном self-hosted раннере песочницы агентов (~0.5 ГБ каждая,
-      # node_modules внутри) никто не удалял — 189 штук за два месяца, ENOSPC на обоих
-      # раннерах 2026-09-15. Сносим всё, что ран оставил в /tmp, при любом исходе
-      # (кроме отмены — её добирает старт следующего рана). На ubuntu-latest — no-op.
+      # v2.24: on a persistent self-hosted runner nobody deleted the agent sandboxes (~0.5 GB each,
+      # node_modules inside) — 189 of them in two months, ENOSPC on both
+      # runners on 2026-09-15. We wipe everything the run left in /tmp, on any outcome
+      # (except cancellation — the start of the next run picks that up). On ubuntu-latest — no-op.
       - name: Clean up runner scratch (self-hosted)
         if: always()
         shell: bash

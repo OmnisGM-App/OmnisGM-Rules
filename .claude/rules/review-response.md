@@ -1,50 +1,50 @@
-# Ответ на ревью: как закрыть раунд, а не открыть следующий
+# Responding to review: close the round, don't open the next one
 
-Копия шаблона из OmnisGM-App/claude-plugins/templates/review-response.md — править там,
-раскатывать копиями. Дополняет `authoring-pitfalls.md` (классы ошибок в самом PR); здесь —
-поведение ПОСЛЕ того, как ревью пришло. Каждый пуш в PR запускает полный раунд авторевью
-(6–8 агентов), поэтому цена лишнего пуша — целый раунд, а не «минутка».
+Copy of the template from OmnisGM-App/claude-plugins/templates/review-response.md — edit there,
+roll out as copies. Complements `authoring-pitfalls.md` (error classes in the PR itself); here —
+behaviour AFTER the review has arrived. Every push to a PR starts a full auto-review round
+(6–8 agents), so the price of an extra push is a whole round, not "a minute".
 
-Откуда: Table#574 (11 раундов за сутки) и Table#576 (9 раундов) — исходные дефекты кончились
-на третьем-четвёртом раунде, дальше ревью разбирало прозу фиксов и обещания в комментариях.
+Origin: Table#574 (11 rounds in a day) and Table#576 (9 rounds) — the original defects ran out
+by round three or four, after that review was picking apart fix prose and promises in comments.
 
-## Порядок ответа на раунд
+## Order of responding to a round
 
-1. **Сначала список решений, потом код.** По каждой находке — одно из трёх: «чиню», «не чиню:
-   причина в одну строку», «отдельной ишьёй #N». Список идёт в тред PR ОДНИМ комментом до
-   правок. «Не чиню» законно для ремарок, и для средних тоже, если аргумент по существу.
-2. **Один коммит на раунд, один пуш.** Все правки раунда собираются в один коммит. Пуш
-   «ещё поправил комментарий» — это ещё один полный раунд.
-3. **Чинить код, не прозу.** Ответ на находку — правка кода или теста либо аргумент в треде.
-   Не дописывать в код комментарий-объяснение: каждая фраза-обещание («тест сторожит»,
-   «единственное место», «гарантирует», «не может произойти») — кандидат в находку
-   следующего раунда. Обещание, которое не держит код или тест, снимается, а не обрастает
-   оговоркой.
-4. **Тест по рецепту ревью — только после прогона в обе стороны**: зелёный на чистом коде,
-   красный на мутанте. Упал на чистом или вход недостижим — рецепт не подходит; сказать это
-   в треде, тест не коммитить.
-5. **Тело PR и блок «Проверено» — с финальной головы, один раз.** Порядок строго: код →
-   прогон → тело. Любой пуш кода после снятия делает блок устаревшим (`authoring-pitfalls`
-   п.4), и ревью это поймает. Не переснимать, пока нет новых коммитов.
-6. **Ремарки не порождают раунда.** Они чинятся в том же коммите, что ❗ и средние, либо
-   откладываются словом в треде. Раунд без ❗ и без средних = PR готов к гейту: ничего не
-   пушить «на всякий случай», написать владельцу.
-7. **Инструментальный код** (гейты, скрипты, тесты, CI) чинится в объёме ❗. Мутационная
-   планка продуктового кода к тестам гейта не применяется, «сторожа сторожа» не строятся.
-   Спорное — вопрос владельцу в треде, не коммит.
-8. **Не спорить с ревью в коде.** Спор — только в треде, с грепом или прогоном.
-9. **Ремарка о недостижимом входе закрывается словом, не коммитом.** «Писателя у поля сегодня нет», «такой вход не производится» — ответ в треде с грепом производителя; тест или гард на гипотетический вход не пишется и раунда не порождает (шесть таких ремарок за неделю 22–28.09, каждая тянула раунд). Если ревью само называет находку следствием своего рецепта прошлого раунда — это самокоррекция ревьюера, в список решений идёт строкой «принято, ревью», без правки.
+1. **Decision list first, code second.** For every finding — one of three: «чиню» (fixing), «не чиню:
+   причина в одну строку» (not fixing: one-line reason), «отдельной ишьёй #N» (separate issue #N). The list goes to the PR thread as ONE comment before
+   the edits. «Не чиню» is legitimate for remarks, and for medium ones too if the argument is substantive.
+2. **One commit per round, one push.** All edits of the round go into one commit. A push
+   "also fixed a comment" is another full round.
+3. **Fix code, not prose.** The response to a finding is a code or test edit, or an argument in the thread.
+   Do not add an explanatory comment to the code: every promise phrase ("a test guards this",
+   "the only place", "guarantees", "cannot happen") is a candidate finding
+   for the next round. A promise that no code or test holds is removed, not wrapped in
+   a caveat.
+4. **A test per review's recipe — only after running it both ways**: green on clean code,
+   red on the mutant. Fails on clean code or the input is unreachable — the recipe does not fit; say so
+   in the thread, do not commit the test.
+5. **PR body and the «Проверено» (Verified) block — from the final head, once.** Strict order: code →
+   run → body. Any code push after the snapshot makes the block stale (`authoring-pitfalls`
+   item 4), and review will catch it. Do not re-snapshot while there are no new commits.
+6. **Remarks do not spawn a round.** They are fixed in the same commit as ❗ and medium ones, or
+   deferred with a word in the thread. A round with no ❗ and no medium findings = PR ready for the gate: push nothing
+   "just in case", write to the owner.
+7. **Instrumental code** (gates, scripts, tests, CI) is fixed in the scope of ❗. The mutation
+   bar for product code does not apply to gate tests; no "guards for the guards" are built.
+   Anything disputable — a question to the owner in the thread, not a commit.
+8. **Do not argue with review in code.** Arguments — only in the thread, with a grep or a run.
+9. **A remark about an unreachable input is closed with a word, not a commit.** «Писателя у поля сегодня нет» (nothing writes this field today), «такой вход не производится» (no such input is produced) — a thread reply with a grep of the producer; no test or guard for a hypothetical input is written and no round is spawned (six such remarks in the week of 22–28.09, each one dragged a round). If review itself calls a finding a consequence of its own recipe from a previous round — that is the reviewer's self-correction; it goes into the decision list as the line «принято, ревью» (accepted, review), with no edit.
 
-## Резолв тредов
+## Resolving threads
 
-- Тред резолвится с доказательством: хеш коммита + одна строка «что изменено», либо
-  «не чиню: причина», либо «➡️ #N». «Поправил» без хеша — не закрытие.
-- Тред без ответа не резолвится. Тред с вопросом ревьюера закрывается ответом на вопрос.
-- Открытые треды после фикс-коммита — только те, где решение за владельцем; в комменте
-  раунда они перечислены поимённо.
+- A thread is resolved with proof: commit hash + one line "what changed", or
+  «не чиню: причина» (not fixing: reason), or «➡️ #N». «Поправил» (fixed) without a hash is not a closure.
+- A thread without a reply is not resolved. A thread with a reviewer's question is closed by answering the question.
+- Open threads after the fix commit — only those where the decision is the owner's; in the round
+  comment they are listed by name.
 
-## Признак цикла — стоп
+## Sign of a loop — stop
 
-Три раунда подряд без ❗ при неубывающем числе ремарок, или два раунда подряд, где все
-находки — про комментарии и тело PR. В этом случае не пушить: написать владельцу «готов к
-гейту, остались ремарки: …» и ждать решения. Дальнейшие раунды — только по его слову.
+Three consecutive rounds without ❗ while the number of remarks does not decrease, or two consecutive rounds where all
+findings are about comments and the PR body. In that case do not push: write to the owner «готов к
+гейту, остались ремарки: …» (ready for the gate, remaining remarks: …) and wait for a decision. Further rounds — only on their word.
