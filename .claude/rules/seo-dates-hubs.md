@@ -5,63 +5,63 @@ paths:
   - "firebase.json"
 ---
 
-# SEO-механика сайта: даты, sitemap, хабы, крошки (#219, #221, #230, #220)
+# Site SEO mechanics: dates, sitemap, hubs, breadcrumbs (#219, #221, #230, #220)
 
-## Даты контента для JSON-LD (#219)
+## Content dates for JSON-LD (#219)
 
-`datePublished`/`dateModified` у `Article` берутся из **истории git** по исходному markdown:
-`web/scripts/gen-content-dates.mjs` (prebuild) делает один проход `git log --name-only` по `src/`
-и пишет карту в `web/src/data/content-dates.json` (gitignored), а `web/src/lib/content-dates.mjs`
-отдаёт даты странице. Сущностная страница знает свой ресурс и передаёт `contentSource` в
-`ReaderShell`; какие `.md` стоят за ресурсом — говорит `_sources.json` от парсера
-(`generate_api.py --emit-sources`), чтобы это знание не дублировалось в JS.
+`datePublished`/`dateModified` on `Article` come from the **git history** of the source markdown:
+`web/scripts/gen-content-dates.mjs` (prebuild) does one pass of `git log --name-only` over `src/`
+and writes the map to `web/src/data/content-dates.json` (gitignored), while `web/src/lib/content-dates.mjs`
+serves the dates to the page. An entity page knows its resource and passes `contentSource` to
+`ReaderShell`; which `.md` files stand behind a resource is told by `_sources.json` from the parser
+(`generate_api.py --emit-sources`), so that this knowledge is not duplicated in JS.
 
-**Мелкий клон дат не даёт.** `actions/checkout` без `fetch-depth: 0` не привозит историю, и
-страницы остаются БЕЗ дат — намеренно: дата билда на 6000 страницах означала бы «всё обновилось
-разом». Поэтому в `ci.yml` и `deploy.yml` стоит `fetch-depth: 0` + `filter: blob:none`, а гейт
-`verify_dist_meta_budget.mjs` валит сборку, если Article остался без обязательных полей.
+**A shallow clone yields no dates.** `actions/checkout` without `fetch-depth: 0` brings no history, and
+pages are left WITHOUT dates — deliberately: a build date on 6000 pages would mean "everything updated
+at once". That is why `ci.yml` and `deploy.yml` have `fetch-depth: 0` + `filter: blob:none`, and the gate
+`verify_dist_meta_budget.mjs` fails the build if an Article is left without the required fields.
 
-## lastmod в sitemap (#221)
+## lastmod in the sitemap (#221)
 
-Проставляется postbuild-скриптом `web/scripts/add_sitemap_lastmod.mjs`: он читает `dateModified`
-из JSON-LD уже собранных страниц (#219) и вписывает `<lastmod>` в `dist/sitemap-N.xml`. Так
-маршрутизация и карта «URL → исходный файл» нигде не дублируются — sitemap и разметка страницы
-согласованы по построению. Скрипт идемпотентен и валит сборку, если дат нет вовсе или они
-пропали больше чем у 1% URL (без даты законно только языковые хабы — у них нет `Article`).
+Set by the postbuild script `web/scripts/add_sitemap_lastmod.mjs`: it reads `dateModified`
+from the JSON-LD of the already built pages (#219) and writes `<lastmod>` into `dist/sitemap-N.xml`. This way
+the routing and the "URL → source file" map are not duplicated anywhere — the sitemap and the page markup
+agree by construction. The script is idempotent and fails the build if there are no dates at all or they
+went missing on more than 1% of URLs (only the language hubs are legitimately dateless — they have no `Article`).
 
-## Хабы уровня документа (#230)
+## Document-level hubs (#230)
 
-`/{lang}/{game}/{version}/` — страница самой редакции: оглавление всех разделов (классы
-разворачиваются списком) плюс справочники с числом сущностей. Шаблон один —
-`web/src/components/DocHub.astro`, страницы-маршруты тонкие (по одной на игру). Ссылки строятся
-из того же NAV-дерева, что и сайдбар, числа — из `meta.json` того же JSON API, что кормит сами
-страницы: второго источника правды не заводим. Даты для JSON-LD — по ВСЕМ файлам документа
-(`datesForDoc`), потому что своего markdown у хаба нет.
+`/{lang}/{game}/{version}/` — the page of the edition itself: a table of contents of all sections (classes
+expand into a list) plus the reference lists with entity counts. One template —
+`web/src/components/DocHub.astro`, the route pages are thin (one per game). Links are built
+from the same NAV tree as the sidebar, the counts — from the `meta.json` of the same JSON API that feeds the
+pages themselves: no second source of truth. Dates for JSON-LD — across ALL files of the document
+(`datesForDoc`), because the hub has no markdown of its own.
 
-Зачем: по аудиту 2026-09-01 главный дефицит сайта — краулинг («обнаружена, не проиндексирована»
-5 807 URL из 5 975), а верхнего узла структуры не было вовсе. Крошка документа с #230 ведёт
-на хаб (раньше — на «первую содержательную страницу», компромисс варианта 2 из #220).
-Уровень системы (`/{lang}/dnd/`) собственной страницы НЕ имеет — 301 на свежую редакцию
-в `firebase.json`: у D&D две редакции плюс конверсионный документ, честного содержимого для
-такой страницы нет.
+Why: per the 2026-09-01 audit the site's main deficit is crawling ("Discovered – currently not indexed"
+for 5 807 URLs out of 5 975), and there was no top-level structure node at all. Since #230 the document breadcrumb leads
+to the hub (previously — to the "first content page", the compromise of option 2 from #220).
+The system level (`/{lang}/dnd/`) has NO page of its own — a 301 to the latest edition
+in `firebase.json`: D&D has two editions plus a conversion document, there is no honest content for
+such a page.
 
-## Эмулятор Firebase ≠ прод по синтаксису редиректов (#230)
+## Firebase emulator ≠ prod in redirect syntax (#230)
 
-Эмулятор матчит `source` через path-to-regexp и понимает ограничения вида `/:lang(en|ru)`;
-**продовый Hosting их не понимает** — правило молча не срабатывает, URL отдаёт 404. Поймано
-на редиректах уровня системы: на эмуляторе все три вели куда надо, после релиза `/ru/dnd`
-вернул 404. Пишем маршруты явно (по одному правилу на язык) либо через ключ `regex` (RE2),
-а **проверяем после деплоя на самом проде** — зелёный эмулятор здесь ничего не доказывает.
-(Для заголовков эмулятор по-прежнему авторитетен: слияние правил по ключам совпадает.)
+The emulator matches `source` via path-to-regexp and understands constraints like `/:lang(en|ru)`;
+**prod Hosting does not understand them** — the rule silently does not fire, the URL returns 404. Caught
+on the system-level redirects: on the emulator all three led where they should, after the release `/ru/dnd`
+returned 404. Write routes explicitly (one rule per language) or via the `regex` key (RE2),
+and **verify after deploy on prod itself** — a green emulator proves nothing here.
+(For headers the emulator remains authoritative: the merging of rules by key matches.)
 
-## Хлебные крошки (#220)
+## Breadcrumbs (#220)
 
-Разметка `BreadcrumbList` и видимая строка `.rd-crumb` строятся из ОДНОГО массива в
-`web/src/components/ReaderShell.astro` — у Google требование «разметка описывает видимое».
-Уровни берутся из NAV-дерева не один-в-один: игра и редакция схлопнуты в одну крошку документа
-(ссылка — первая содержательная страница редакции, Legal пропускается), а группа без собственной
-страницы («Классы», «Глоссарий») остаётся видимым текстом, но в разметку не идёт — иначе ей
-подставляется «первая страница-лист внутри», а это и давало дубли URL и ссылку на варвара.
-Сущностные страницы дописывают себя последним уровнем (их `currentId` — глава-родитель).
-Держат: гейты в `verify_dist_meta_budget.mjs` (дублей URL в трейле 0, ссылок в никуда 0) и
+The `BreadcrumbList` markup and the visible `.rd-crumb` row are built from ONE array in
+`web/src/components/ReaderShell.astro` — Google's requirement is "markup describes what is visible".
+The levels are not taken from the NAV tree one-to-one: game and edition are collapsed into one document crumb
+(the link — the edition's first content page, Legal is skipped), and a group without its own
+page («Классы» "Classes", «Глоссарий» "Glossary") stays as visible text but does not go into the markup — otherwise it
+gets "the first leaf page inside" substituted, and that is what produced duplicate URLs and a link to the barbarian.
+Entity pages append themselves as the last level (their `currentId` is the parent chapter).
+Held by: the gates in `verify_dist_meta_budget.mjs` (duplicate URLs in the trail 0, links to nowhere 0) and
 `web/e2e/seo-breadcrumbs.spec.ts`.
