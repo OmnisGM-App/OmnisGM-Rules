@@ -52,6 +52,20 @@ def one(owner, key):
 
 classes = by_slug("en", "classes")
 
+
+# --- Поле есть везде; RU — те же выборы, что EN -------------------------------------------------
+def all_choices(lang):
+    out = {}
+    for res, nested in (("classes", "features"), ("subclasses", "features"), ("species", "traits"),
+                        ("backgrounds", None), ("feats", None), ("class-options", None)):
+        for e in live[("srd52", lang, res)]:
+            if res != "subclasses":
+                out[(res, e["slug"])] = e["choices"]
+            for index, item in enumerate(e[nested]) if nested else ():
+                out[(res, e["slug"], index)] = item["choices"]
+    return out
+
+
 # --- Все 12 классов: подкласс, черта на уровнях улучшения характеристик, эпический дар ------------
 ASI = {slug: [4, 8, 12, 16] for slug in classes} | {"fighter": [4, 6, 8, 12, 14, 16], "rogue": [4, 8, 10, 12, 16]}
 eq("улучшение характеристик: уровни каждого класса",
@@ -59,9 +73,19 @@ eq("улучшение характеристик: уровни каждого �
 eq("подкласс: из подклассов своего класса",
    {slug: one(feature("en", "classes", slug, f"{c['name']} Subclass"), "subclass")["from"] for slug, c in classes.items()},
    {slug: {"resource": "subclasses", "filter": {"class": slug}} for slug in classes})
-eq("эпический дар: любая черта, категория — подсказкой",
-   {(c["from"]["filter"] == {}, c["suggest"]["category"]) for slug in classes
-    for c in feature("en", "classes", slug, "Epic Boon")["choices"]}, {(True, "epic_boon")})
+eq("эпический дар: любая черта, подсказка — дар, который советует текст класса",
+   {slug: (c["from"]["filter"], c["suggest"]["slug"]) for slug in classes
+    for c in feature("en", "classes", slug, "Epic Boon")["choices"]},
+   {slug: ({}, boon) for slug, boon in {
+       "barbarian": "boon-of-irresistible-offense", "bard": "boon-of-spell-recall", "cleric": "boon-of-fate",
+       "druid": "boon-of-dimensional-travel", "fighter": "boon-of-combat-prowess",
+       "monk": "boon-of-irresistible-offense", "paladin": "boon-of-truesight", "ranger": "boon-of-dimensional-travel",
+       "rogue": "boon-of-the-night-spirit", "sorcerer": "boon-of-dimensional-travel", "warlock": "boon-of-fate",
+       "wizard": "boon-of-spell-recall"}.items()})
+eq("подсказки из текста: защита у воина, умелый у человека",
+   (one(feature("en", "classes", "fighter", "Fighting Style"), "feat")["suggest"],
+    one(feature("en", "species", "human", "Versatile"), "feat")["suggest"]),
+   ({"slug": "defense"}, {"slug": "skilled"}))
 
 # --- Число по уровням ---------------------------------------------------------------------------
 def steps(owner, key):
@@ -83,11 +107,51 @@ eq("экспертиза: бард, плут, следопыт (два умен�
 eq("воззвания колдуна — по колонке",
    steps(feature("en", "classes", "warlock", "Eldritch Invocations"), "invocations"),
    [(1, 1), (2, 3), (5, 5), (7, 6), (9, 7), (12, 8), (15, 9), (18, 10)])
-eq("заговоры барда — по колонке, замена на уровне; подготовленные жреца — на долгом отдыхе",
-   (steps(feature("en", "classes", "bard", "Spellcasting"), "cantrips"),
-    one(feature("en", "classes", "bard", "Spellcasting"), "cantrips")["replace"],
-    one(feature("en", "classes", "cleric", "Spellcasting"), "prepared")["replace"]),
-   ([(1, 2), (4, 3), (10, 4)], "level", "long-rest"))
+# Числа выписаны из таблиц классов SRD 5.2 («Cantrips», «Prepared Spells»), не из собранной прогрессии.
+FULL = [(1, 4), (2, 5), (3, 6), (4, 7), (5, 9), (6, 10), (7, 11), (8, 12), (9, 14), (10, 15), (11, 16), (13, 17),
+        (15, 18), (17, 19), (18, 20), (19, 21), (20, 22)]
+HALF = [(1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (7, 7), (9, 9), (11, 10), (13, 11), (15, 12), (17, 14), (19, 15)]
+CASTERS = {
+    "bard": ("Spellcasting", [(1, 2), (4, 3), (10, 4)], "level", FULL, "level"),
+    "cleric": ("Spellcasting", [(1, 3), (4, 4), (10, 5)], "level", FULL, "long-rest"),
+    "druid": ("Spellcasting", [(1, 2), (4, 3), (10, 4)], "level", FULL, "long-rest"),
+    "paladin": ("Spellcasting", None, None, HALF, "long-rest"),
+    "ranger": ("Spellcasting", None, None, HALF, "long-rest"),
+    "sorcerer": ("Spellcasting", [(1, 4), (4, 5), (10, 6)], "level", [(1, 2), (2, 4)] + FULL[2:], "level"),
+    "warlock": ("Pact Magic", [(1, 2), (4, 3), (10, 4)], "level",
+                [(1, 2), (2, 3), (3, 4), (4, 5), (5, 6), (6, 7), (7, 8), (8, 9), (9, 10), (11, 11), (13, 12), (15, 13),
+                 (17, 14), (19, 15)], "level"),
+    "wizard": ("Spellcasting", [(1, 3), (4, 4), (10, 5)], "long-rest",
+               FULL[:12] + [(14, 18), (15, 19), (16, 21), (17, 22), (18, 23), (19, 24), (20, 25)], "long-rest"),
+}
+
+
+def caster(slug, name):
+    f = feature("en", "classes", slug, name)
+    cantrips = next((c for c in f["choices"] if c["id"] == "cantrips"), None)
+    return (name, steps(f, "cantrips") if cantrips else None, cantrips["replace"] if cantrips else None,
+            steps(f, "prepared"), one(f, "prepared")["replace"])
+
+
+eq("заговоры и подготовленные заклинания восьми заклинателей: число по уровням и замена",
+   {slug: caster(slug, row[0]) for slug, row in CASTERS.items()}, CASTERS)
+
+# Числа, написанные руками в объявлениях: (ресурс, слаг, умение или None, id) → сколько.
+MANUAL = {
+    ("class-options", "pact-of-the-tome", None, "cantrips"): 3, ("class-options", "pact-of-the-tome", None, "rituals"): 2,
+    ("class-options", "blessed-warrior", None, "cantrips"): 2, ("class-options", "druidic-warrior", None, "cantrips"): 2,
+    ("class-options", "thaumaturge", None, "cantrip"): 1, ("class-options", "magician", None, "cantrip"): 1,
+    ("feats", "skilled", None, "proficiencies"): 3, ("feats", "magic-initiate", None, "cantrips"): 2,
+    ("feats", "magic-initiate", None, "spell"): 1,
+    ("subclasses", "college-of-lore", "Bonus Proficiencies", "skills"): 3,
+    ("subclasses", "college-of-lore", "Magical Discoveries", "spells"): 2,
+    ("subclasses", "evoker", "Evocation Savant", "spells"): 2,
+    ("classes", "ranger", "Deft Explorer", "languages"): 2, ("classes", "rogue", "Thieves' Cant", "language"): 1,
+    ("classes", "wizard", "Signature Spells", "spells"): 2,
+}
+eq("ручные числа объявлений",
+   {key: one(feature("en", key[0], key[1], key[2]) if key[2] else by_slug("en", key[0])[key[1]], key[3])["count"]
+    for key in MANUAL}, MANUAL)
 eq("тайный аркан: четыре выбора со своим уровнем и кругом",
    [(c["id"], c["level"], c["from"]["filter"]["level"]) for c in feature("en", "classes", "warlock", "Mystic Arcanum")["choices"]],
    [("arcanum-6", 11, 6), ("arcanum-7", 13, 7), ("arcanum-8", 15, 8), ("arcanum-9", 17, 9)])
@@ -98,6 +162,10 @@ eq("боевой стиль паладина: черта или вариант �
     one(feature("en", "classes", "paladin", "Fighting Style"), "feat")["or"]),
    ({"resource": "feats", "filter": {"category": "fighting_style"}},
     {"resource": "class-options", "filter": {"class": "paladin", "feature": "fighting-style"}}))
+eq("боевой стиль меняется при уровне только у воина",
+   {slug: one(feature("en", "classes", slug, "Fighting Style"), "feat")["replace"] for slug in ("fighter", "paladin", "ranger")}
+   | {"champion": one(feature("en", "subclasses", "champion", "Additional Fighting Style"), "feat")["replace"]},
+   {"fighter": "level", "paladin": "never", "ranger": "never", "champion": "never"})
 eq("первобытное знание варвара — из списка навыков класса",
    one(feature("en", "classes", "barbarian", "Primal Knowledge"), "skill")["from"]["values"],
    classes["barbarian"]["proficiencies"]["skills"]["options"])
@@ -134,7 +202,7 @@ eq("предыстории: прибавки из своих трёх харак
    {slug: (True, [[2, 1], [1, 1, 1]], 20) for slug in backgrounds})
 eq("выбор инструмента — только у солдата",
    {slug: [c["from"] for c in b["choices"] if c["kind"] == "tool"] for slug, b in backgrounds.items()},
-   {"acolyte": [], "criminal": [], "sage": [], "soldier": [{"resource": "equipment", "filter": {"group": "gaming-set"}}]})
+   {"acolyte": [], "criminal": [], "sage": [], "soldier": [{"resource": "equipment", "filter": {"variants_of": "gaming-set"}}]})
 
 feats = by_slug("en", "feats")
 eq("Magic Initiate: список заклинаний — выбор, на него ссылаются заговоры",
@@ -149,23 +217,24 @@ eq("прибавки черт: ASI, дары, борец",
     "boon-of-spell-recall": ([[1]], 30, ["int", "wis", "cha"]), "boon-of-the-night-spirit": ([[1]], 30, None),
     "boon-of-truesight": ([[1]], 30, None)})
 eq("варианты умений с выбором",
-   sorted(o["slug"] for o in live[("srd52", "en", "class-options")] if o["choices"]), sorted(choices.CLASS_OPTIONS))
-
-# --- Поле есть везде; RU — те же выборы, что EN -------------------------------------------------
-def all_choices(lang):
-    out = {}
-    for res, nested in (("classes", "features"), ("subclasses", "features"), ("species", "traits"),
-                        ("backgrounds", None), ("feats", None), ("class-options", None)):
-        for e in live[("srd52", lang, res)]:
-            if res != "subclasses":
-                out[(res, e["slug"])] = e["choices"]
-            for index, item in enumerate(e[nested]) if nested else ():
-                out[(res, e["slug"], index)] = item["choices"]
-    return out
-
+   sorted(o["slug"] for o in live[("srd52", "en", "class-options")] if o["choices"]),
+   ["agonizing-blast", "blessed-warrior", "druidic-warrior", "eldritch-spear", "lessons-of-the-first-ones",
+    "magician", "pact-of-the-tome", "repelling-blast", "thaumaturge"])
+eq("умелый: навык или инструмент", (one(feats["skilled"], "proficiencies")["kind"],
+                                    one(feats["skilled"], "proficiencies")["from"]["list"]),
+   ("skill-or-tool", "skills-or-tools"))
+eq("заговоры воззваний — из известных заговоров колдуна, условие в тексте",
+   {slug: one(by_slug("en", "class-options")[slug], "cantrip")["from"]
+    for slug in ("agonizing-blast", "eldritch-spear", "repelling-blast")},
+   {slug: {"character": "known-cantrips", "filter": {"class": "warlock"}}
+    for slug in ("agonizing-blast", "eldritch-spear", "repelling-blast")})
+eq("ключи фильтров — только из словаря",
+   sorted({(src.get("resource") or src.get("character"), key) for v in all_choices("en").values() for c in v
+           for src in (c["from"], c.get("or", {})) for key in src.get("filter", {})}
+          - {(name, key) for name, keys in choices.FILTERS.items() for key in keys}), [])
 
 eq("RU несёт те же выборы, что EN, у каждой записи, умения и особенности", all_choices("ru"), all_choices("en"))
-eq("всего объявлено выборов", sum(len(v) for v in all_choices("en").values()), 130)
+eq("всего объявлено выборов", sum(len(v) for v in all_choices("en").values()), 132)
 
 
 # --- Отказы: сборка на испорченных объявлениях и данных -----------------------------------------
@@ -217,6 +286,53 @@ eq("повтор id выбора — сборка падает",
    rebuilt(FEATS=also("FEATS", "skilled", [choices.ch("a", "skill", 1, choices.lst("skills")),
                                            choices.ch("a", "tool", 1, choices.lst("tools"))])),
    ["feats/skilled: повтор id выбора в ['a', 'a']"])
+STYLE_OR = lambda source: also("CLASS_FEATURES", ("paladin", "Fighting Style"),  # noqa: E731
+                               [choices.ch("feat", "feat", 1, choices.STYLE, **{"or": source})])
+for name, tables, want in (
+    ("класса в фильтре нет", {"CLASS_OPTIONS": also("CLASS_OPTIONS", "blessed-warrior",
+                                                   [choices.ch("c", "spell", 2, choices.res("spells", **{"class": "wizrd"}))])},
+     "class-options/blessed-warrior: класса 'wizrd' нет"),
+    ("ключа фильтра нет в словаре", {"CLASS_OPTIONS": also("CLASS_OPTIONS", "agonizing-blast",
+                                                          [choices.ch("c", "spell", 1, choices.own("known-cantrips", deals="damage"))])},
+     "class-options/agonizing-blast: ключа фильтра 'deals' у источника 'known-cantrips' нет"),
+    ("ссылка @id без такого выбора", {"FEATS": also("FEATS", "skilled",
+                                                    [choices.ch("c", "spell", 1, choices.res("spells", **{"class": "@spell-lst"}))])},
+     "feats/skilled: ссылка '@spell-lst' — выбора с таким id у хозяина нет"),
+    ("школы нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "spell", 1, choices.res("spells", school="evocatoin"))])},
+     "feats/skilled: школы 'evocatoin' нет"),
+    ("круга вне словаря нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "spell", 1, choices.res("spells", level="any"))])},
+     "feats/skilled: круг заклинания 'any' вне словаря"),
+    ("записи снаряжения с разновидностями нет", {"BACKGROUNDS": {"soldier": [choices.ch("tool", "tool", 1, choices.res("equipment", variants_of="no-such"))]}},
+     "backgrounds/soldier: записи снаряжения с разновидностями 'no-such' нет"),
+    ("подклассов класса нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "subclass", 1, choices.res("subclasses", **{"class": "artificer"}))])},
+     "feats/skilled: класса 'artificer' нет"),
+    ("наследий вида нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "lineage", 1, choices.res("species-lineages", species="orc"))])},
+     "feats/skilled: наследий вида 'orc' нет"),
+    ("черты-подсказки нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "feat", 1, choices.ANY_FEAT, suggest={"slug": "no-such"})])},
+     "feats/skilled: черты-подсказки 'no-such' нет"),
+    ("подсказка не слагом", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "feat", 1, choices.ANY_FEAT, suggest={"category": "origin"})])},
+     "feats/skilled: подсказка — только слаг черты, получено ['category']"),
+    ("списка нет в словаре", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "skill", 1, choices.lst("hobbies"))])},
+     "feats/skilled: список 'hobbies' вне словаря"),
+    ("плохое значение во втором источнике", {"CLASS_FEATURES": STYLE_OR(choices.res("feats", category="heroic"))},
+     "classes/paladin/Fighting Style: категории черт 'heroic' нет"),
+    ("типа оружия нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "weapon-mastery", 1, choices.res("weapons", type="thrown"))])},
+     "feats/skilled: типа оружия 'thrown' нет"),
+):
+    eq(f"{name} — сборка падает", [e for e in rebuilt(**tables) if e == want], [want])
+
+
+def whole_spell_list(data):
+    # Список заклинаний, объявленный целиком, не роняет сверку варианта предыстории исключением.
+    choices.FEATS["magic-initiate"][0]["from"]["values"] = None
+
+
+saved_values = choices.FEATS["magic-initiate"][0]["from"]["values"]
+try:
+    eq("список заклинаний целиком: вариант предыстории сверяется с классами", rebuilt(whole_spell_list), [])
+finally:
+    choices.FEATS["magic-initiate"][0]["from"]["values"] = saved_values
+
 eq("вид выбора вне словаря — сборка падает",
    rebuilt(FEATS=also("FEATS", "skilled", [choices.ch("a", "hobby", 1, choices.lst("skills"))])),
    ["feats/skilled: вид 'hobby' или замена 'never' вне словаря"])
@@ -250,4 +366,4 @@ if failures:
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print("✅ choices: 130 объявлений выбора, число по уровням, источники, RU копией EN, отказы сборки")
+print("✅ choices: 132 объявления выбора, число по уровням, источники, RU копией EN, отказы сборки")

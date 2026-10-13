@@ -441,10 +441,14 @@ CONDITION_SCHEMA = {
 # count — число или «уровень класса → всего на этом уровне». from — закрытый список (values null —
 # целиком), записи ресурса по фильтру или то, что у персонажа уже есть. or — второй источник на тот же
 # выбор. levels — уровни класса, на которых умение с этим выбором даётся снова. level — уровень, с
-# которого появляется этот выбор, когда он позже уровня умения. suggest — что правила советуют взять.
-# Значение фильтра "@id" — ответ на выбор с этим id в той же записи; "slots" — круги, на которые есть ячейки.
-_FILTER = {"type": "object", "additionalProperties": {
-    "type": ["string", "integer", "boolean", "array"], "items": {"type": "string"}}}
+# которого появляется этот выбор, когда он позже уровня умения. suggest — черта, которую текст умения советует взять.
+# replace — самый ранний момент замены: short-rest значит «на коротком или долгом отдыхе».
+# Ключи фильтра и поля записей, которые они читают, — словарь `FILTERS` в choices.py. Значение "@id" —
+# ответ на выбор с этим id в той же записи; level: "slots" — круги, на которые у персонажа есть ячейки,
+# "cantrip-or-slots" — они же и заговоры. Условие, которого нет в данных, остаётся в тексте хозяина.
+_FILTER = {"type": "object", "additionalProperties": False, "properties": {
+    key: {"type": ["string", "integer", "boolean", "array"], "items": {"type": "string"}}
+    for key in sorted({key for keys in _choices.FILTERS.values() for key in keys})}}
 _CHOICE_SOURCE = {"oneOf": [
     {"type": "object",
      "properties": {"list": {"type": "string", "enum": list(_choices.LISTS)},
@@ -475,7 +479,9 @@ _CHOICES = {"type": "array", "items": {
         "replace": {"type": "string", "enum": list(_choices.REPLACE)},
         "levels": {"type": "array", "items": _LEVEL, "minItems": 2},
         "level": _LEVEL,
-        "suggest": {"type": "object", "additionalProperties": {"type": "string"}},
+        # Черта, которую правила советуют взять («Defense is recommended»).
+        "suggest": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"],
+                    "additionalProperties": False},
         # Прибавки характеристик: допустимые распределения и потолок значения.
         "increase": {"type": "array", "minItems": 1, "items": {
             "type": "array", "minItems": 1, "items": {"type": "integer", "minimum": 1}}},

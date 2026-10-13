@@ -8,17 +8,53 @@
 Стартовое снаряжение «A или B» остаётся текстом.
 """
 
-ABILITIES = ("str", "dex", "con", "int", "wis", "cha")
+from parsers.base import slugify
+from parsers.classes import ABILITY_CODES, SKILLS
+
+ABILITIES = tuple(ABILITY_CODES.values())
+SKILL_SLUGS = tuple(sorted(slugify(name) for name in SKILLS))
 DAMAGE_TYPES = ("acid", "bludgeoning", "cold", "fire", "force", "lightning", "necrotic", "piercing",
                 "poison", "psychic", "radiant", "slashing", "thunder")
-KINDS = ("subclass", "feat", "option", "skill", "expertise", "tool", "language", "weapon-mastery", "spell",
-         "spell-list", "damage-type", "ability-score", "spellcasting-ability", "lineage", "size", "land")
+KINDS = ("subclass", "feat", "option", "skill", "skill-or-tool", "expertise", "tool", "language", "weapon-mastery",
+         "spell", "spell-list", "damage-type", "ability-score", "spellcasting-ability", "lineage", "size", "land")
 # Закрытые списки: values — подмножество, null — список целиком.
 LISTS = ("skills", "abilities", "damage-types", "sizes", "languages", "tools", "skills-or-tools",
          "musical-instruments", "artisan-tools-or-musical-instruments", "classes", "lands")
 RESOURCES = ("feats", "subclasses", "class-options", "spells", "weapons", "species-lineages", "equipment")
 CHARACTER = ("skill-proficiencies", "weapon-proficiencies", "known-cantrips", "spellbook")
+# Когда выбор можно заменить — самый ранний момент: `short-rest` значит «на коротком или долгом отдыхе»
+# (так в тексте у всех четырёх мест), `long-rest` — только на долгом, `level` — при получении уровня класса.
 REPLACE = ("never", "level", "long-rest", "short-rest")
+
+# Словарь фильтра: источник → ключ → какое поле записи он читает. Ключа вне словаря сборка не пропустит.
+# Фильтр сужает по данным; условие, которого в данных нет («заговор, наносящий урон»), остаётся в тексте
+# хозяина выбора и в фильтр не пишется.
+FILTERS = {
+    "feats": {"category": "`category`"},
+    "subclasses": {"class": "`class`"},
+    "class-options": {"class": "`class`", "feature": "`feature.key`"},
+    "species-lineages": {"species": "`species`"},
+    "weapons": {"type": "`type`: melee | ranged"},
+    # Разновидности, перечисленные в `variants` записи с этим слагом (игровой набор → кости, карты…).
+    "equipment": {"variants_of": "слаг записи `equipment`"},
+    "spells": {
+        # Слаг класса, список слагов или "@id" — ответ на выбор с этим id у того же хозяина.
+        # У заклинания класс стоит именем в `classes`; имя берётся из `classes[].name` по слагу.
+        "class": "`classes`",
+        # Число — круг; "slots" — круги, на которые у персонажа есть ячейки; "cantrip-or-slots" — они же и заговоры.
+        "level": "`level`",
+        "max_level": "`level`, не выше",
+        "school": "`school`, слагом",
+        "ritual": "`casting_time.ritual`",
+    },
+    "skill-proficiencies": {"values": "слаги навыков, из которых выбирают"},
+    "weapon-proficiencies": {},
+    "known-cantrips": {"class": "класс, чьи заговоры считаются"},
+    "spellbook": {"level": "`level`", "casting_time": "`casting_time.type`"},
+}
+SPELL_LEVELS = ("slots", "cantrip-or-slots")
+SCHOOLS = ("abjuration", "conjuration", "divination", "enchantment", "evocation", "illusion", "necromancy",
+           "transmutation")
 
 
 def lst(name, values=None):
@@ -50,7 +86,7 @@ CLASS_FEATURES = {
     # «…or another feat of your choice for which you qualify»: любая черта, названная — подсказкой.
     ("*", "Ability Score Improvement"): [
         ch("feat", "feat", 1, ANY_FEAT, suggest={"slug": "ability-score-improvement"})],
-    ("*", "Epic Boon"): [ch("feat", "feat", 1, ANY_FEAT, suggest={"category": "epic_boon"})],
+    ("*", "Epic Boon"): [ch("feat", "feat", 1, ANY_FEAT, suggest={"slug": "{epic-boon}"})],
 
     ("barbarian", "Weapon Mastery"): [
         ch("weapons", "weapon-mastery", ("column", "weapon-mastery"), res("weapons", type="melee"), "long-rest")],
@@ -73,19 +109,20 @@ CLASS_FEATURES = {
     ("druid", "Primal Order"): [ch("option", "option", 1, res("class-options", **{"class": "druid"}, feature="primal-order"))],
     ("druid", "Elemental Fury"): [ch("option", "option", 1, res("class-options", **{"class": "druid"}, feature="elemental-fury"))],
 
-    ("fighter", "Fighting Style"): [ch("feat", "feat", 1, STYLE, "level")],
+    ("fighter", "Fighting Style"): [ch("feat", "feat", 1, STYLE, "level", suggest={"slug": "defense"})],
     ("fighter", "Weapon Mastery"): [
         ch("weapons", "weapon-mastery", ("column", "weapon-mastery"), res("weapons"), "long-rest")],
 
     # «Instead of choosing one of those feats, you can choose the option below» — второй источник в `or`.
+    # Замены черты у паладина и следопыта в тексте нет (у воина есть): меняются только заговоры варианта.
     ("paladin", "Fighting Style"): [
-        ch("feat", "feat", 1, STYLE, "level", **{"or": res("class-options", **{"class": "paladin"}, feature="fighting-style")})],
+        ch("feat", "feat", 1, STYLE, **{"or": res("class-options", **{"class": "paladin"}, feature="fighting-style")})],
     ("paladin", "Weapon Mastery"): [ch("weapons", "weapon-mastery", 2, own("weapon-proficiencies"), "long-rest")],
     ("paladin", "Spellcasting"): [
         ch("prepared", "spell", ("column", "prepared-spells"), res("spells", **{"class": "paladin"}, level="slots"), "long-rest")],
 
     ("ranger", "Fighting Style"): [
-        ch("feat", "feat", 1, STYLE, "level", **{"or": res("class-options", **{"class": "ranger"}, feature="fighting-style")})],
+        ch("feat", "feat", 1, STYLE, **{"or": res("class-options", **{"class": "ranger"}, feature="fighting-style")})],
     ("ranger", "Weapon Mastery"): [ch("weapons", "weapon-mastery", 2, own("weapon-proficiencies"), "long-rest")],
     ("ranger", "Spellcasting"): [
         ch("prepared", "spell", ("column", "prepared-spells"), res("spells", **{"class": "ranger"}, level="slots"), "long-rest")],
@@ -126,6 +163,14 @@ CLASS_FEATURES = {
     ("wizard", "Signature Spells"): [ch("spells", "spell", 2, own("spellbook", level=3))],
 }
 
+# «Boon of … is recommended» в умении Epic Boon каждого класса — подсказка выбора черты.
+EPIC_BOON = {
+    "barbarian": "boon-of-irresistible-offense", "bard": "boon-of-spell-recall", "cleric": "boon-of-fate",
+    "druid": "boon-of-dimensional-travel", "fighter": "boon-of-combat-prowess", "monk": "boon-of-irresistible-offense",
+    "paladin": "boon-of-truesight", "ranger": "boon-of-dimensional-travel", "rogue": "boon-of-the-night-spirit",
+    "sorcerer": "boon-of-dimensional-travel", "warlock": "boon-of-fate", "wizard": "boon-of-spell-recall",
+}
+
 # Владение инструментом из таблицы черт класса — выбор самого класса, не умения.
 CLASSES = {
     "bard": [ch("instruments", "tool", 3, lst("musical-instruments"))],
@@ -160,14 +205,14 @@ SPECIES_TRAITS = {
     ("gnome", "Gnomish Lineage"): [ch("spellcasting-ability", "spellcasting-ability", 1, lst("abilities", MENTAL))],
     ("tiefling", "Fiendish Legacy"): [ch("spellcasting-ability", "spellcasting-ability", 1, lst("abilities", MENTAL))],
     ("human", "Skillful"): [ch("skill", "skill", 1, lst("skills"))],
-    ("human", "Versatile"): [ch("feat", "feat", 1, res("feats", category="origin"))],
+    ("human", "Versatile"): [ch("feat", "feat", 1, res("feats", category="origin"), suggest={"slug": "skilled"})],
 }
 
 # --- Предыстории: правило прибавок у всех одно; характеристики — свои, подставляет сборка ---------
 # increase — допустимые распределения: +2 и +1 либо по +1 к каждой из трёх.
 BACKGROUND = [ch("ability-scores", "ability-score", 1, lst("abilities", "{abilities}"), increase=[[2, 1], [1, 1, 1]], max=20)]
 BACKGROUNDS = {
-    "soldier": [ch("tool", "tool", 1, res("equipment", group="{tool.choose_from}"))],
+    "soldier": [ch("tool", "tool", 1, res("equipment", variants_of="{tool.choose_from}"))],
 }
 
 
@@ -192,14 +237,18 @@ FEATS = {
         ch("spellcasting-ability", "spellcasting-ability", 1, lst("abilities", MENTAL)),
         ch("cantrips", "spell", 2, res("spells", **{"class": "@spell-list"}, level=0), "level"),
         ch("spell", "spell", 1, res("spells", **{"class": "@spell-list"}, level=1), "level")],
-    "skilled": [ch("proficiencies", "skill", 3, lst("skills-or-tools"))],
+    "skilled": [ch("proficiencies", "skill-or-tool", 3, lst("skills-or-tools"))],
 }
 
 # --- Варианты классовых умений -------------------------------------------------------------------
 CLASS_OPTIONS = {
-    "agonizing-blast": [ch("cantrip", "spell", 1, own("known-cantrips", **{"class": "warlock"}, deals="damage"))],
-    "eldritch-spear": [ch("cantrip", "spell", 1, own("known-cantrips", **{"class": "warlock"}, deals="damage", min_range=10))],
-    "repelling-blast": [ch("cantrip", "spell", 1, own("known-cantrips", **{"class": "warlock"}, requires="attack-roll"))],
+    # Условие заговора («наносит урон», «дальность от 10 футов», «требует броска атаки») — в тексте варианта.
+    "agonizing-blast": [ch("cantrip", "spell", 1, own("known-cantrips", **{"class": "warlock"}))],
+    "eldritch-spear": [ch("cantrip", "spell", 1, own("known-cantrips", **{"class": "warlock"}))],
+    "repelling-blast": [ch("cantrip", "spell", 1, own("known-cantrips", **{"class": "warlock"}))],
+    # Лишний заговор сверх колонки прогрессии; меняется как заговоры класса — при получении уровня.
+    "thaumaturge": [ch("cantrip", "spell", 1, res("spells", **{"class": "cleric"}, level=0), "level")],
+    "magician": [ch("cantrip", "spell", 1, res("spells", **{"class": "druid"}, level=0), "level")],
     "blessed-warrior": [ch("cantrips", "spell", 2, res("spells", **{"class": "cleric"}, level=0), "level")],
     "druidic-warrior": [ch("cantrips", "spell", 2, res("spells", **{"class": "druid"}, level=0), "level")],
     "lessons-of-the-first-ones": [ch("feat", "feat", 1, res("feats", category="origin"))],
@@ -210,9 +259,6 @@ CLASS_OPTIONS = {
 
 
 # --- Сборка: объявления → поле `choices` ---------------------------------------------------------
-SKILL_SLUGS = ("acrobatics", "animal-handling", "arcana", "athletics", "deception", "history", "insight",
-               "intimidation", "investigation", "medicine", "nature", "perception", "performance",
-               "persuasion", "religion", "sleight-of-hand", "stealth", "survival")
 _LIST_VALUES = {"skills": SKILL_SLUGS, "abilities": ABILITIES, "damage-types": DAMAGE_TYPES,
                 "sizes": ("medium", "small")}
 
@@ -265,8 +311,41 @@ def _build(declared, context, where, errors, cls=None, levels=None):
     return out
 
 
-def _check(choice, where, known, errors):
-    """Ссылки объявления разрешаются: список, ресурс с фильтром, слаги."""
+def _check_filter(name, flt, where, known, ids, errors):
+    """Ключи фильтра — из словаря `FILTERS`, значения разрешаются в данных."""
+    for key in sorted(set(flt) - set(FILTERS[name])):
+        errors.append(f"{where}: ключа фильтра {key!r} у источника {name!r} нет")
+    classes = [flt["class"]] if isinstance(flt.get("class"), str) else flt.get("class", [])
+    for cls in classes if name in ("spells", "known-cantrips", "subclasses", "class-options") else ():
+        if cls.startswith("@"):
+            if cls[1:] not in ids:
+                errors.append(f"{where}: ссылка {cls!r} — выбора с таким id у хозяина нет")
+        elif cls not in known["classes"]:
+            errors.append(f"{where}: класса {cls!r} нет")
+    if name in ("spells", "spellbook"):
+        level = flt.get("level")
+        if level is not None and level not in SPELL_LEVELS and not (isinstance(level, int) and 0 <= level <= 9):
+            errors.append(f"{where}: круг заклинания {level!r} вне словаря")
+        if flt.get("school") not in (None, *SCHOOLS):
+            errors.append(f"{where}: школы {flt['school']!r} нет")
+    if name == "skill-proficiencies" and [v for v in flt.get("values", []) if v not in SKILL_SLUGS]:
+        errors.append(f"{where}: навыки {flt['values']} не из словаря")
+    if name == "feats" and flt.get("category") not in (None, *known["feat-categories"]):
+        errors.append(f"{where}: категории черт {flt['category']!r} нет")
+    if name == "weapons" and flt.get("type") not in (None, "melee", "ranged"):
+        errors.append(f"{where}: типа оружия {flt['type']!r} нет")
+    if name == "class-options" and (flt.get("class"), flt.get("feature")) not in known["option-groups"]:
+        errors.append(f"{where}: группы вариантов {flt.get('class')}/{flt.get('feature')} нет")
+    if name == "subclasses" and flt.get("class") not in known["subclass-classes"]:
+        errors.append(f"{where}: подклассов класса {flt.get('class')!r} нет")
+    if name == "species-lineages" and flt.get("species") not in known["lineage-species"]:
+        errors.append(f"{where}: наследий вида {flt.get('species')!r} нет")
+    if name == "equipment" and flt.get("variants_of") not in known["equipment-with-variants"]:
+        errors.append(f"{where}: записи снаряжения с разновидностями {flt.get('variants_of')!r} нет")
+
+
+def _check(choice, where, known, ids, errors):
+    """Ссылки объявления разрешаются: список, ресурс или своё с фильтром, id другого выбора, слаги."""
     if choice["kind"] not in KINDS or choice["replace"] not in REPLACE:
         errors.append(f"{where}: вид {choice['kind']!r} или замена {choice['replace']!r} вне словаря")
     for source in [choice["from"]] + ([choice["or"]] if "or" in choice else []):
@@ -278,35 +357,33 @@ def _check(choice, where, known, errors):
                     allowed is not None and [v for v in source["values"] if v not in allowed])):
                 errors.append(f"{where}: значения {source['values']} не из списка {source['list']!r}")
         elif "resource" in source:
-            resource, flt = source["resource"], source["filter"]
-            if resource not in RESOURCES or resource not in known["resources"]:
-                errors.append(f"{where}: ресурса {resource!r} нет")
-                continue
-            for cls in ([flt["class"]] if isinstance(flt.get("class"), str) else flt.get("class", [])):
-                if not (cls.startswith("@") or cls in known["classes"]):
-                    errors.append(f"{where}: класса {cls!r} нет")
-            if resource == "feats" and flt.get("category") not in (None, *known["feat-categories"]):
-                errors.append(f"{where}: категории черт {flt['category']!r} нет")
-            if resource == "class-options" and (flt.get("class"), flt.get("feature")) not in known["option-groups"]:
-                errors.append(f"{where}: группы вариантов {flt.get('class')}/{flt.get('feature')} нет")
-            if resource == "subclasses" and flt.get("class") not in known["subclass-classes"]:
-                errors.append(f"{where}: подклассов класса {flt.get('class')!r} нет")
-            if resource == "species-lineages" and flt.get("species") not in known["lineage-species"]:
-                errors.append(f"{where}: наследий вида {flt.get('species')!r} нет")
-            if resource == "equipment" and flt.get("group") not in known["equipment"]:
-                errors.append(f"{where}: записи снаряжения {flt.get('group')!r} нет")
+            if source["resource"] not in RESOURCES or source["resource"] not in known["resources"]:
+                errors.append(f"{where}: ресурса {source['resource']!r} нет")
+            else:
+                _check_filter(source["resource"], source["filter"], where, known, ids, errors)
         elif source.get("character") not in CHARACTER:
             errors.append(f"{where}: источник {source!r} вне словаря")
+        else:
+            _check_filter(source["character"], source["filter"], where, known, ids, errors)
     suggest = choice.get("suggest", {})
     if "slug" in suggest and suggest["slug"] not in known["feats"]:
         errors.append(f"{where}: черты-подсказки {suggest['slug']!r} нет")
-    if "category" in suggest and suggest["category"] not in known["feat-categories"]:
-        errors.append(f"{where}: категории-подсказки {suggest['category']!r} нет")
+    if set(suggest) - {"slug"}:
+        errors.append(f"{where}: подсказка — только слаг черты, получено {sorted(suggest)}")
 
 
-def attach_choices(all_data: dict, ver: str = "srd52") -> list[str]:
+def attach_choices(all_data: dict) -> list[str]:
     """Пишет `choices` классам и их умениям, подклассам, видам и их особенностям, предысториям, чертам
-    и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции."""
+    и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции.
+
+    Объявления написаны для редакции, у которой есть ресурс классов; остальные версии не трогаются."""
+    errors: list[str] = []
+    for ver in sorted({key[0] for key in all_data if key[1:] == ("en", "classes")}):
+        errors += _attach(all_data, ver)
+    return errors
+
+
+def _attach(all_data: dict, ver: str) -> list[str]:
     errors: list[str] = []
     en = {res_: all_data.get((ver, "en", res_), []) for res_ in
           ("classes", "subclasses", "species", "species-lineages", "backgrounds", "feats", "class-options",
@@ -319,18 +396,20 @@ def attach_choices(all_data: dict, ver: str = "srd52") -> list[str]:
         "option-groups": {(o["class"], o["feature"]["key"]) for o in en["class-options"] if o["selection"] == "learned"},
         "subclass-classes": {s["class"] for s in en["subclasses"]},
         "lineage-species": {l["species"] for l in en["species-lineages"]},
-        "equipment": {e["slug"] for e in en["equipment"]},
+        "equipment-with-variants": {e["slug"] for e in en["equipment"] if e.get("variants")},
     }
     used: set = set()
 
     def put(owner, declared, context, where, cls=None, levels=None):
         owner["choices"] = _build(declared, context, where, errors, cls, levels)
+        ids = {choice["id"] for choice in owner["choices"]}
         for choice in owner["choices"]:
-            _check(choice, where, known, errors)
+            _check(choice, where, known, ids, errors)
 
     for cls in en["classes"]:
         slug = cls["slug"]
-        context = {"{class}": slug, "{class-skills}": cls["proficiencies"]["skills"]["options"]}
+        context = {"{class}": slug, "{class-skills}": cls["proficiencies"]["skills"]["options"],
+                   "{epic-boon}": EPIC_BOON.get(slug, "")}
         put(cls, CLASSES.get(slug, []), context, f"classes/{slug}")
         used.add(("class", slug))
         for feature in cls["features"]:
@@ -370,7 +449,7 @@ def attach_choices(all_data: dict, ver: str = "srd52") -> list[str]:
         # Вариант черты предыстории — значение выбора «список заклинаний» этой черты.
         variant, feat = bg["feat"]["variant"], feats.get(bg["feat"]["slug"], {})
         lists = [c["from"]["values"] for c in feat.get("choices", []) if c["kind"] == "spell-list"]
-        if variant and not any(variant in values for values in lists):
+        if variant and not any(variant in (values if values is not None else known["classes"]) for values in lists):
             errors.append(f"backgrounds/{bg['slug']}: варианта черты {variant!r} нет среди выборов «{bg['feat']['slug']}»")
     for option in en["class-options"]:
         put(option, CLASS_OPTIONS.get(option["slug"], []), {}, f"class-options/{option['slug']}")
