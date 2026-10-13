@@ -100,6 +100,37 @@ def _features(lines: list[str]) -> list[dict]:
              "description_md": "\n".join(f["body"]).strip()} for f in _feature_blocks(lines)]
 
 
+# «You always have the *X* spell prepared» в теле умения класса (#366). Таблицы подклассов и выбор
+# игрока («the chosen spells», «those spells») сюда не попадают: в них нет имени заклинания курсивом.
+_ALWAYS_PREPARED = {
+    "en": r"always have the ((?:\*[^*]+\*(?:,? and |, )?)+) spells? prepared",
+    "ru": r"всегда (?:подготовлено заклинание|держите подготовленными заклинания) ((?:\*[^*]+\*(?: и |, )?)+)",
+}
+# Предложение с именем заклинания курсивом и словами «always … prepared» в любом порядке, которое
+# шаблон выше не разобрал, роняет сборку.
+_ALWAYS_PREPARED_HINT = {
+    "en": r"(?i)always[^.;]*\*[^.;]*prepared|\*[^.;]*always[^.;]*prepared|\*[^.;]*prepared[^.;]*always",
+    "ru": r"(?i)всегда[^.;]*подготовл[^.;]*\*|всегда[^.;]*\*[^.;]*подготовл|\*[^.;]*всегда[^.;]*подготовл"
+          r"|\*[^.;]*подготовл[^.;]*всегда",
+}
+
+
+def _always_prepared(features: list[dict], lang: str, name: str) -> list[dict]:
+    """Заклинания, которые класс держит подготовленными всегда: форма как у подкласса, `choice` — null.
+
+    `spells` — ИМЕНА до резолва в слаги в generate_api.
+    """
+    out = []
+    for f in features:
+        spells = [spell for found in re.finditer(_ALWAYS_PREPARED[lang], f["description_md"])
+                  for spell in re.findall(r"\*([^*]+)\*", found.group(1))]
+        if re.search(_ALWAYS_PREPARED_HINT[lang], re.sub(_ALWAYS_PREPARED[lang], "", f["description_md"])):
+            raise ValueError(f"{name}: «{f['name']}» names an always prepared spell in an unknown form")
+        if spells:
+            out.append({"level": f["level"], "spells": spells, "choice": None})
+    return out
+
+
 def _abilities(text: str) -> list[str]:
     found = re.findall(r"[A-Za-z]+", text)
     codes = [ABILITY_CODES[w.lower()] for w in found if w.lower() in ABILITY_CODES]
@@ -334,6 +365,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
         "starting_equipment": traits["starting_equipment"],
         "progression": progression,
         "features": features,
+        "always_prepared": _always_prepared(features, lang, name),
         "spellcasting": _spellcasting(features, progression) if en else None,
     }]
 

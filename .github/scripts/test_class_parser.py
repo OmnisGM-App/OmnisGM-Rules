@@ -120,6 +120,71 @@ for lang in ("en", "ru"):
     eq(f"{lang}: draconic-sorcery ур. 3",
        subs["draconic-sorcery"]["always_prepared"][0]["spells"],
        ["alter-self", "chromatic-orb", "command", "dragon-s-breath"])
+# Заклинания, всегда подготовленные на уровне класса (#366): умения с именем заклинания.
+CLASS_ALWAYS = {
+    "bard": [(20, ["power-word-heal", "power-word-kill"])],
+    "druid": [(1, ["speak-with-animals"])],
+    "paladin": [(2, ["divine-smite"]), (5, ["find-steed"])],
+    "ranger": [(1, ["hunter-s-mark"])],
+    "warlock": [(9, ["contact-other-plane"])],
+}
+for lang in ("en", "ru"):
+    eq(f"{lang}: always_prepared классов — слаги по уровням, без выбора",
+       {c["slug"]: [(r["level"], r["spells"]) for r in c["always_prepared"]]
+        for c in live[("srd52", lang, "classes")] if c["always_prepared"]}, CLASS_ALWAYS)
+    eq(f"{lang}: choice у класса — null",
+       [r["choice"] for c in live[("srd52", lang, "classes")] for r in c["always_prepared"]
+        if r["choice"] is not None], [])
+
+
+def class_error(lang, name, old, new):
+    text = read(lang, name)
+    if old not in text:
+        return f"нет фрагмента {old!r}"
+    try:
+        parse_class(text.replace(old, new), lang)
+    except ValueError as err:
+        return str(err)
+    return None
+
+
+eq("имя заклинания в незнакомой форме роняет сборку",
+   class_error("en", "08_Ranger.md", "You always have the *Hunter's Mark* spell prepared.",
+               "You always have *Hunter's Mark* prepared."),
+   "Ranger: «Favored Enemy» names an always prepared spell in an unknown form")
+eq("RU: имя заклинания в незнакомой форме роняет сборку",
+   class_error("ru", "08_Ranger.md", "У вас всегда подготовлено заклинание *Метка охотника*.",
+               "У вас всегда есть подготовленное заклинание *Метка охотника*."),
+   "Следопыт: «Избранный враг» names an always prepared spell in an unknown form")
+UNKNOWN = "Ranger: «Favored Enemy» names an always prepared spell in an unknown form"
+MARK = "You always have the *Hunter's Mark* spell prepared."
+eq("вторая фраза в том же умении не теряется",
+   next(c for c in parse_class(read("en", "08_Ranger.md").replace(
+       MARK, MARK + " You also always have the *Alarm* spell prepared."), "en"))["always_prepared"],
+   [{"level": 1, "spells": ["Hunter's Mark", "Alarm"], "choice": None}])
+eq("незнакомая форма рядом со знакомой роняет сборку",
+   class_error("en", "08_Ranger.md", MARK, MARK + " You also always have *Alarm* prepared."), UNKNOWN)
+eq("обратный порядок слов роняет сборку",
+   class_error("en", "08_Ranger.md", MARK, "The *Hunter's Mark* spell is always prepared for you."), UNKNOWN)
+eq("форма с заглавной буквы роняет сборку",
+   class_error("en", "08_Ranger.md", MARK, "Always have *Hunter's Mark* prepared."), UNKNOWN)
+eq("RU: обратный порядок слов роняет сборку",
+   class_error("ru", "08_Ranger.md", "У вас всегда подготовлено заклинание *Метка охотника*.",
+               "Заклинание *Метка охотника* у вас всегда подготовлено."),
+   "Следопыт: «Избранный враг» names an always prepared spell in an unknown form")
+eq("выбор игрока («those spells») — не строка always_prepared",
+   [c for c in live[("srd52", "en", "classes")] if c["slug"] == "wizard"][0]["always_prepared"], [])
+
+bad = copy.deepcopy(pristine)
+align_classes(bad)
+next(c for c in bad[("srd52", "en", "classes")] if c["slug"] == "ranger")["always_prepared"][0]["spells"][0] = "Hunters Mark"
+eq("неизвестное заклинание класса — ошибка сборки с именем",
+   any("en/ranger" in e and "«Hunters Mark»" in e for e in resolve_always_prepared(bad)), True)
+bad = copy.deepcopy(pristine)
+align_classes(bad)
+next(c for c in bad[("srd52", "ru", "classes")] if c["name"] == "Паладин")["always_prepared"][1]["spells"][0] = "Божественная кара"
+eq("RU-класс с другим заклинанием — ошибка расхождения с EN",
+   any("ru/paladin" in e and "≠ EN" in e for e in resolve_always_prepared(bad)), True)
 # `spells.subclasses` выводится из `always_prepared` (#367): имя подкласса из ресурса, выбор в скобках.
 tagged = copy.deepcopy(live)
 inject_spell_subclasses(tagged)
@@ -182,6 +247,8 @@ def drop_column(c):
 
 
 eq("RU-класс без колонки прогрессии — ошибка структуры", ru_class_mutant("sorcerer", drop_column), True)
+eq("RU-класс без строки always_prepared — ошибка структуры",
+   ru_class_mutant("druid", lambda c: c["always_prepared"].clear()), True)
 eq("RU-класс без инструментов — ошибка структуры",
    ru_class_mutant("druid", lambda c: c["proficiencies"].update(tools=None)), True)
 eq("RU-класс с другой костью хитов — ошибка структуры",

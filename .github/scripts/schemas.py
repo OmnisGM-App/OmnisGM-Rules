@@ -512,6 +512,25 @@ _PROF_SKILLS = {
     "additionalProperties": False,
 }
 
+# Заклинания, подготовленные всегда: у подкласса — строки таблиц, у класса — умения с именем
+# заклинания (#366). spells — слаги из spells/all.json; choice — таблица-альтернатива
+# (Круг Земли: земля), null у подкласса с одной таблицей и у класса.
+_ALWAYS_PREPARED = {"type": "array", "items": {
+    "type": "object",
+    "properties": {
+        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+        "spells": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "choice": {
+            "type": ["object", "null"],
+            "properties": {"key": {"type": "string"}, "name": {"type": "string"}},
+            "required": ["key", "name"],
+            "additionalProperties": False,
+        },
+    },
+    "required": ["level", "spells", "choice"],
+    "additionalProperties": False,
+}}
+
 CLASS_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Class",
@@ -580,6 +599,7 @@ CLASS_SCHEMA = {
             "additionalProperties": False,
         },
         "features": {"type": "array", "items": _CLASS_FEATURE},
+        "always_prepared": _ALWAYS_PREPARED,
         "spellcasting": {
             "type": ["object", "null"],
             "properties": {
@@ -598,7 +618,8 @@ CLASS_SCHEMA = {
     },
     "required": [
         "slug", "name", "name_en", "hit_die", "primary_ability", "saving_throws",
-        "proficiencies", "multiclass", "starting_equipment", "progression", "features", "spellcasting",
+        "proficiencies", "multiclass", "starting_equipment", "progression", "features", "always_prepared",
+        "spellcasting",
     ],
     "additionalProperties": False,
 }
@@ -614,23 +635,7 @@ SUBCLASS_SCHEMA = {
         "class": {"type": "string"},
         "description_md": {"type": "string"},
         "features": {"type": "array", "items": _CLASS_FEATURE},
-        # spells — слаги из spells/all.json; choice — таблица-альтернатива (Круг Земли: земля),
-        # null у подкласса с одной таблицей.
-        "always_prepared": {"type": "array", "items": {
-            "type": "object",
-            "properties": {
-                "level": {"type": "integer", "minimum": 1, "maximum": 20},
-                "spells": {"type": "array", "items": {"type": "string"}, "minItems": 1},
-                "choice": {
-                    "type": ["object", "null"],
-                    "properties": {"key": {"type": "string"}, "name": {"type": "string"}},
-                    "required": ["key", "name"],
-                    "additionalProperties": False,
-                },
-            },
-            "required": ["level", "spells", "choice"],
-            "additionalProperties": False,
-        }},
+        "always_prepared": _ALWAYS_PREPARED,
     },
     "required": ["slug", "name", "name_en", "class", "description_md", "features",
                  "always_prepared"],
