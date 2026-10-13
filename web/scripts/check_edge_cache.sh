@@ -18,14 +18,23 @@ status() {  # $1 — путь; печатает cf-cache-status
 }
 
 fail=0
+# Для «cacheable» HIT и REVALIDATED равнозначны: REVALIDATED значит, что запись в кэше есть, просто
+# истёк max-age и edge переспросил origin — правило тип кэширует. MISS/DYNAMIC после прогрева бывает,
+# когда запросы с раннера попадают на разные PoP Cloudflare — поэтому до ATTEMPTS попыток с паузой
+# (ложный красный Health check 2026-10-13, run 38406564551).
+ATTEMPTS="${ATTEMPTS:-3}"
 check() {  # $1 — путь, $2 — «cacheable» | «bypass»
   local path="$1" want="$2"
   status "$path" > /dev/null          # первый запрос — прогрев (MISS)
   local st; st=$(status "$path")
   case "$want" in
     cacheable)
-      if [ "$st" = "HIT" ]; then echo "  ✔ $path — $st"
-      else echo "  ✘ $path — $st (ожидался HIT: правило не кэширует этот тип)"; fail=1; fi ;;
+      local i=1
+      while [ "$st" != "HIT" ] && [ "$st" != "REVALIDATED" ] && [ "$i" -lt "$ATTEMPTS" ]; do
+        i=$((i+1)); sleep 2; st=$(status "$path")
+      done
+      if [ "$st" = "HIT" ] || [ "$st" = "REVALIDATED" ]; then echo "  ✔ $path — $st"
+      else echo "  ✘ $path — $st после $i попыток (ожидался HIT/REVALIDATED: правило не кэширует этот тип)"; fail=1; fi ;;
     bypass)
       if [ "$st" = "HIT" ]; then echo "  ✘ $path — HIT (origin отдаёт no-cache, кэшировать нельзя)"; fail=1
       else echo "  ✔ $path — $st"; fi ;;
