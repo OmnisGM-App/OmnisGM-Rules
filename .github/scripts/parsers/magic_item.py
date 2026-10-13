@@ -2,7 +2,7 @@
 
 import re
 
-from .base import split_blocks, extract_names, slugify
+from .base import split_blocks, extract_names, slugify, last_table, without_tables
 
 
 # Rarity mappings
@@ -127,18 +127,6 @@ def _rarity(word: str, where: str) -> str:
     return code
 
 
-def _table(lines: list[str]) -> tuple[list[str], list[list[str]]]:
-    rows = [[c.strip() for c in line.strip().strip("|").split("|")] for line in lines if line.strip().startswith("|")]
-    rows = [r for r in rows if not set("".join(r)) <= set("-: ")]
-    return (rows[0], rows[1:]) if rows else ([], [])
-
-
-def _without_tables(text: str) -> str:
-    kept = [line for line in text.split("\n")
-            if not line.strip().startswith("|") and not re.match(r"^(?:Table|Таблица):", line.strip())]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
-
-
 def _rarity_by_mark(type_line: str, where: str) -> dict[str, str]:
     """«Uncommon (+1), Rare (+2), or Very Rare (+3)» → {"+1": uncommon, …}; у рога — по металлу."""
     out: dict[str, str] = {}
@@ -155,8 +143,8 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
     body = parent["description_md"]
     rows: list[dict] = []  # name, rarity, text
     if kind in ("rows", "horn"):
-        header, table = _table(body.split("\n"))
-        prose = _without_tables(body)
+        header, table = last_table(body)
+        prose = without_tables(body)
         by_mark = _rarity_by_mark(type_line, where) if kind == "horn" else {}
         for cells in table:
             if len(cells) != len(header):
@@ -172,7 +160,7 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
                          "text": "\n\n".join([prose] + [f"**{label}:** {value}" for label, value in facts])})
     elif kind == "paragraphs":
         intro: list[str] = []
-        for line in _without_tables(body).split("\n"):
+        for line in without_tables(body).split("\n"):
             lead = _VARIETY_LEAD.match(line.strip())
             if lead:
                 own = lead.group(1).strip()

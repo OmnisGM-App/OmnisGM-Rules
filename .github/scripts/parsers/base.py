@@ -124,3 +124,28 @@ def get_list_prop(body: str, labels: list[str]) -> str | None:
         if m:
             return m.group(1).strip()
     return None
+
+
+TABLE_TITLE = re.compile(r"^(?:Table|Таблица):.*$")
+
+
+def last_table(body: str) -> tuple[list[str], list[list[str]]]:
+    """Шапка и строки последней таблицы текста; без таблицы — пустые списки."""
+    lines = body.split("\n")
+    end = len(lines) - 1
+    while end >= 0 and not lines[end].strip().startswith("|"):
+        end -= 1
+    start = end
+    while start > 0 and lines[start - 1].strip().startswith("|"):
+        start -= 1
+    rows = [[c.strip() for c in line.strip().strip("|").split("|")] for line in lines[start:end + 1]]
+    rows = [r for r in rows if not set("".join(r)) <= set("-: ")]
+    return (rows[0], rows[1:]) if rows else ([], [])
+
+
+def without_tables(body: str, also: re.Pattern | None = None) -> str:
+    """Текст без таблиц и их заголовков; `also` — ещё строки, которые выпадают."""
+    kept = [line for line in body.split("\n")
+            if not line.strip().startswith("|") and not TABLE_TITLE.match(line.strip())
+            and not (also and also.match(line.strip()))]
+    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()

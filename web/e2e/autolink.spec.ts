@@ -105,6 +105,28 @@ test('предметы: имя в курсиве линкуется на стр�
   await expect(link).toHaveAttribute('data-hc', /^dnd\/srd52\/en\/magic-items\//);
 });
 
+test('семейства магических предметов: курсив в прозе ведёт на страницу семейства (#412)', async ({ page }) => {
+  const hrefOf = (text: string) => page.locator('.rd-doc em a.ent-link', { hasText: new RegExp(`^${text}$`) }).first();
+  await page.goto('/ru/dnd/srd-5.2/magic-items/');
+  // Склонённые формы — псевдонимы семейства, не предмета.
+  await expect(hrefOf('Поясом силы великана')).toHaveAttribute('href', '/ru/dnd/srd-5.2/magic-items/belt-of-giant-strength/');
+  await expect(hrefOf('Рога Валгаллы')).toHaveAttribute('href', '/ru/dnd/srd-5.2/magic-items/horn-of-valhalla/');
+  await expect(hrefOf('Поясом силы великана')).toHaveAttribute('data-hc', 'dnd/srd52/ru/magic-item-groups/belt-of-giant-strength');
+  await page.goto('/en/dnd/srd-5.2/magic-items/');
+  await expect(hrefOf('Potions of Healing')).toHaveAttribute('href', '/en/dnd/srd-5.2/magic-items/potions-of-healing/');
+  await expect(hrefOf('Ioun Stone')).toHaveAttribute('href', '/en/dnd/srd-5.2/magic-items/ioun-stone/');
+  // Имя предмета семейства — на вложенную страницу предмета.
+  await expect(hrefOf('Potion of Healing')).toHaveAttribute('href', '/en/dnd/srd-5.2/magic-items/potions-of-healing/potion-of-healing/');
+});
+
+test('снаряжение: одноимённый магический предмет не отбирает ячейку перечня (Зелье лечения, #412)', async ({ page }) => {
+  for (const [lang, name] of [['en', 'Potion of Healing'], ['ru', 'Зелье лечения']]) {
+    await page.goto(`/${lang}/dnd/srd-5.2/equipment/`);
+    const cell = page.locator('.rd-doc td a.ent-link', { hasText: new RegExp(`^${name}$`) }).first();
+    await expect(cell).toHaveAttribute('href', `/${lang}/dnd/srd-5.2/equipment/potion-of-healing/`);
+  }
+});
+
 test('черты: ячейка таблицы класса (Увеличение характеристики) линкуется на страницу черты', async ({ page }) => {
   // Источник выровнен к каноническому имени черты — матч без алиасов.
   await page.goto('/ru/dnd/srd-5.2/classes/fighter/');

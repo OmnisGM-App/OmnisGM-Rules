@@ -2,7 +2,7 @@
 
 import re
 
-from .base import split_blocks, extract_names, get_prop, slugify
+from .base import split_blocks, extract_names, get_prop, slugify, last_table, without_tables
 
 
 def _parse_cost_from_heading(heading: str) -> tuple[str, str | None]:
@@ -292,7 +292,6 @@ COMPOSITE_GEAR = {
     "musical-instrument": ("variants", 10),
 }
 _SMALL_WORDS = {"of", "the", "a", "an", "and", "or"}
-_TABLE_TITLE = re.compile(r"^(?:Table|Таблица):.*$")
 
 
 def _item_name(raw: str, lang: str) -> str:
@@ -305,25 +304,12 @@ def _item_name(raw: str, lang: str) -> str:
                     for i, w in enumerate(words))
 
 
-def _last_table(body: str) -> tuple[list[str], list[list[str]]]:
-    lines = body.split("\n")
-    end = len(lines) - 1
-    while end >= 0 and not lines[end].strip().startswith("|"):
-        end -= 1
-    start = end
-    while start > 0 and lines[start - 1].strip().startswith("|"):
-        start -= 1
-    rows = [[c.strip() for c in line.strip().strip("|").split("|")] for line in lines[start:end + 1]]
-    rows = [r for r in rows if not set("".join(r)) <= set("-: ")]
-    return (rows[0], rows[1:]) if rows else ([], [])
+_VARIANTS_LINE = re.compile(r"^\*\*(?:Variants|Варианты):?\*\*")
 
 
 def _prose(body: str) -> str:
     """Текст записи без таблиц и их заголовков и без строки «Variants»: общий абзац для каждой разновидности."""
-    kept = [line for line in body.split("\n")
-            if not line.strip().startswith("|") and not _TABLE_TITLE.match(line.strip())
-            and not re.match(r"^\*\*(?:Variants|Варианты):?\*\*", line.strip())]
-    return re.sub(r"\n{3,}", "\n\n", "\n".join(kept)).strip()
+    return without_tables(body, _VARIANTS_LINE)
 
 
 def _split_note(cell: str) -> tuple[str, str | None]:
@@ -341,7 +327,7 @@ def _varieties(parent: dict, body: str, lang: str) -> list[dict]:
     kind, expected = COMPOSITE_GEAR[parent["slug"]]
     rows: list[dict] = []
     if kind == "table":
-        header, table = _last_table(body)
+        header, table = last_table(body)
         for cells in table:
             if len(cells) != len(header):
                 raise ValueError(f"{parent['name']}: row {cells[0]!r} has {len(cells)} cells, the header has {len(header)}")

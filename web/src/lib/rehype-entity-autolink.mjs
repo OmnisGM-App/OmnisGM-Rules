@@ -136,9 +136,11 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
   const cells = new Map();
   const grid = new Map();
   // Имена magic-items/monsters — зарезервированы: их не линкуем как cells (редкие кросс-ресурс
-  // коллизии: «Свиток заклинания» = equipment+magic-item, «Страж-щит» = magic-item+monster).
-  // magic-items/monsters идут в RESOURCES раньше оружия → к моменту cells набор полон.
-  const reserved = new Set();
+  // коллизии: «Страж-щит» = magic-item+monster). magic-items/monsters идут в RESOURCES раньше
+  // оружия → к моменту cells набор полон. Исключение — одноимённая запись снаряжения («Зелье
+  // лечения», #412): ячейки линкуются только в перечнях с колонкой цены, там это снаряжение.
+  /** @type {Map<string, string>} */
+  const reserved = new Map();
   for (const { key, urlParent, mode, container, versions, chapters } of
     (/** @type {Record<string, any[]>} */ (RESOURCES_BY_GAME)[game] || [])) {
     if (versions && !versions.includes(version)) continue;
@@ -169,7 +171,9 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
         if (e.name.trim().split(/\s+/).length >= 2) textEntries.push(entry);
       } else if (mode === 'cells') {
         const k = e.name.toLowerCase();
-        if (!reserved.has(k) && !cells.has(k)) cells.set(k, entry);
+        const taken = reserved.get(k);
+        const free = !taken || (taken === 'magic-items' && key === 'equipment');
+        if (free && !cells.has(k)) cells.set(k, entry);
       } else if (mode === 'grid') {
         const k = e.name.toLowerCase();
         if (!grid.has(k)) grid.set(k, { ...entry, chapters });
@@ -177,7 +181,7 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
       }
-      if (key === 'magic-items' || key === 'monsters') reserved.add(e.name.toLowerCase());
+      if (key === 'magic-items' || key === 'monsters') reserved.set(e.name.toLowerCase(), key);
     }
   }
   let text = null;

@@ -88,6 +88,22 @@ ru_groups = {g["slug"]: g for g in live[("srd52", "ru", "magic-item-groups")]}
 eq("EN: 12 семейств, 62 предмета — слаг, имя, одна редкость",
    {slug: [(i, en[i]["name"], en[i]["rarity"]) for i in g["items"]] for slug, g in en_groups.items()}, FAMILIES)
 eq("всего предметов семейств", sum(len(v) for v in FAMILIES.values()), 62)
+# Семейство: имя, тип и редкости — как в строке типа записи; пустые редкости — «Rarity Varies».
+GROUP_FACTS = {
+    "ammunition-1-2-or-3": ("Ammunition, +1, +2, or +3", "Weapon", ["uncommon", "rare", "very rare"]),
+    "armor-1-2-or-3": ("Armor, +1, +2, or +3", "Armor", ["rare", "very rare", "legendary"]),
+    "belt-of-giant-strength": ("Belt of Giant Strength", "Wondrous Item", []),
+    "feather-token": ("Feather Token", "Wondrous Item", []),
+    "figurine-of-wondrous-power": ("Figurine of Wondrous Power", "Wondrous Item", []),
+    "horn-of-valhalla": ("Horn of Valhalla", "Wondrous Item", ["rare", "very rare", "legendary"]),
+    "ioun-stone": ("Ioun Stone", "Wondrous Item", []),
+    "potion-of-giant-strength": ("Potion of Giant Strength", "Potion", []),
+    "potions-of-healing": ("Potions of Healing", "Potion", []),
+    "shield-1-2-or-3": ("Shield, +1, +2, or +3", "Armor", ["uncommon", "rare", "very rare"]),
+    "wand-of-the-war-mage-1-2-or-3": ("Wand of the War Mage, +1, +2, or +3", "Wand", ["uncommon", "rare", "very rare"]),
+    "weapon-1-2-or-3": ("Weapon, +1, +2, or +3", "Weapon", ["uncommon", "rare", "very rare"]),
+}
+eq("EN-семейства: имя, тип, редкости", {s: (g["name"], g["type"], g["rarities"]) for s, g in en_groups.items()}, GROUP_FACTS)
 eq("у каждого предмета семейства rarities — его одна редкость",
    [s for g in en_groups.values() for s in g["items"] if en[s]["rarities"] != [en[s]["rarity"]]], [])
 eq("записи-семейства ушли из magic-items", sorted(set(FAMILIES) & set(en)), [])
@@ -120,23 +136,67 @@ eq("в описаниях предметов семейств нет табли�
    [s for lang_items, groups in ((en, en_groups), (ru, ru_groups)) for g in groups.values() for s in g["items"]
     if "|" in lang_items[s]["description_md"] and s != "ebony-fly"], [])
 
-# RU: слаг и name_en — от EN по позиции; эталон имён ловит перестановку.
+# RU: слаг и name_en — от EN по позиции, сборка сверяет только редкость. Эталон всех 62 имён ловит
+# перестановку абзацев одной редкости.
 RU_NAMES = {
+    # Ammunition, +1, +2, or +3
+    "ammunition-1": "Боеприпасы +1", "ammunition-2": "Боеприпасы +2", "ammunition-3": "Боеприпасы +3",
+    # Armor, +1, +2, or +3
+    "armor-1": "Доспех +1", "armor-2": "Доспех +2", "armor-3": "Доспех +3",
+    # Belt of Giant Strength
+    "belt-of-giant-strength-hill": "Пояс силы великана (холмовой)",
+    "belt-of-giant-strength-frost-or-stone": "Пояс силы великана (ледяной или каменный)",
+    "belt-of-giant-strength-fire": "Пояс силы великана (огненный)",
+    "belt-of-giant-strength-cloud": "Пояс силы великана (облачный)",
+    "belt-of-giant-strength-storm": "Пояс силы великана (штормовой)",
+    # Feather Token
+    "feather-token-anchor": "Перо-талисман (Якорь)", "feather-token-bird": "Перо-талисман (Птица)",
+    "feather-token-fan": "Перо-талисман (Веер)", "feather-token-swan-boat": "Перо-талисман (Лебединая лодка)",
+    "feather-token-tree": "Перо-талисман (Дерево)", "feather-token-whip": "Перо-талисман (Кнут)",
+    # Figurine of Wondrous Power
+    "bronze-griffon": "Бронзовый грифон", "ebony-fly": "Эбеновая муха", "golden-lions": "Золотые львы",
+    "ivory-goats": "Козлы из слоновой кости", "marble-elephant": "Мраморный слон", "obsidian-steed": "Обсидиановый скакун",
+    "onyx-dog": "Ониксовый пёс", "serpentine-owl": "Серпентиновая сова", "silver-raven": "Серебряный ворон",
+    # Horn of Valhalla
+    "horn-of-valhalla-silver": "Рог Валгаллы (Серебряный)", "horn-of-valhalla-brass": "Рог Валгаллы (Латунный)",
+    "horn-of-valhalla-bronze": "Рог Валгаллы (Бронзовый)", "horn-of-valhalla-iron": "Рог Валгаллы (Железный)",
+    # Ioun Stone
+    "ioun-stone-absorption": "Боевой камень Иуна (Поглощение)", "ioun-stone-agility": "Боевой камень Иуна (Проворство)",
+    "ioun-stone-awareness": "Боевой камень Иуна (Осведомлённость)", "ioun-stone-fortitude": "Боевой камень Иуна (Стойкость)",
+    "ioun-stone-greater-absorption": "Боевой камень Иуна (Великое поглощение)",
+    "ioun-stone-insight": "Боевой камень Иуна (Проницательность)", "ioun-stone-intellect": "Боевой камень Иуна (Интеллект)",
+    "ioun-stone-leadership": "Боевой камень Иуна (Лидерство)", "ioun-stone-mastery": "Боевой камень Иуна (Мастерство)",
+    "ioun-stone-protection": "Боевой камень Иуна (Защита)", "ioun-stone-regeneration": "Боевой камень Иуна (Регенерация)",
+    "ioun-stone-reserve": "Боевой камень Иуна (Резерв)", "ioun-stone-strength": "Боевой камень Иуна (Сила)",
+    "ioun-stone-sustenance": "Боевой камень Иуна (Пропитание)",
+    # Potion of Giant Strength
+    "potion-of-giant-strength-hill": "Зелье силы великана (холмового)",
+    "potion-of-giant-strength-frost-or-stone": "Зелье силы великана (ледяного или каменного)",
+    "potion-of-giant-strength-fire": "Зелье силы великана (огненного)",
+    "potion-of-giant-strength-cloud": "Зелье силы великана (облачного)",
+    "potion-of-giant-strength-storm": "Зелье силы великана (штормового)",
+    # Potions of Healing
     "potion-of-healing": "Зелье лечения", "potion-of-healing-greater": "Зелье лечения (усиленное)",
     "potion-of-healing-superior": "Зелье лечения (превосходное)", "potion-of-healing-supreme": "Зелье лечения (высшее)",
-    "weapon-1": "Оружие +1", "armor-3": "Доспех +3", "shield-2": "Щит +2", "ammunition-1": "Боеприпасы +1",
+    # Shield, +1, +2, or +3
+    "shield-1": "Щит +1", "shield-2": "Щит +2", "shield-3": "Щит +3",
+    # Wand of the War Mage, +1, +2, or +3
+    "wand-of-the-war-mage-1": "Волшебная палочка боевого мага +1",
+    "wand-of-the-war-mage-2": "Волшебная палочка боевого мага +2",
     "wand-of-the-war-mage-3": "Волшебная палочка боевого мага +3",
-    "belt-of-giant-strength-hill": "Пояс силы великана (холмовой)", "belt-of-giant-strength-storm": "Пояс силы великана (штормовой)",
-    "potion-of-giant-strength-frost-or-stone": "Зелье силы великана (ледяного или каменного)",
-    "horn-of-valhalla-silver": "Рог Валгаллы (Серебряный)", "horn-of-valhalla-iron": "Рог Валгаллы (Железный)",
-    "ioun-stone-absorption": "Боевой камень Иуна (Поглощение)", "ioun-stone-sustenance": "Боевой камень Иуна (Пропитание)",
-    "feather-token-anchor": "Перо-талисман (Якорь)", "feather-token-whip": "Перо-талисман (Кнут)",
-    "bronze-griffon": "Бронзовый грифон", "ivory-goats": "Козлы из слоновой кости", "silver-raven": "Серебряный ворон",
+    # Weapon, +1, +2, or +3
+    "weapon-1": "Оружие +1", "weapon-2": "Оружие +2", "weapon-3": "Оружие +3",
 }
 eq("RU: имена под слагами EN", {s: ru[s]["name"] for s in RU_NAMES}, RU_NAMES)
+eq("RU: эталон имён покрывает все предметы семейств", sorted(RU_NAMES), sorted(i for v in FAMILIES.values() for i, _, _ in v))
 eq("RU: name_en, семейство и редкость — как у EN",
    [s for g in en_groups.values() for s in g["items"]
     if (ru[s]["name_en"], ru[s]["group"], ru[s]["rarity"]) != (en[s]["name"], en[s]["group"], en[s]["rarity"])], [])
+eq("RU-семейства: name_en и редкости — как у EN",
+   {s: (g["name_en"], g["rarities"]) for s, g in ru_groups.items()}, {s: (n, r) for s, (n, _, r) in GROUP_FACTS.items()})
+eq("RU-семейства: имя и тип переведены",
+   (ru_groups["potions-of-healing"]["name"], ru_groups["potions-of-healing"]["type"], ru_groups["ioun-stone"]["name"]),
+   ("Зелья лечения", "Зелье", "Боевой камень Иуна"))
 eq("RU-семейства: те же слаги и предметы", {s: g["items"] for s, g in ru_groups.items()}, {s: g["items"] for s, g in en_groups.items()})
 eq("всего магических предметов: 308 в каждом языке", (len(en), len(ru)), (308, 308))
 
@@ -159,6 +219,16 @@ def broken(lang, old_text, new_text):
 
 eq("строка таблицы зелий пропала — сборка падает",
    broken("en", "| Potion of Healing (supreme)  | 10d4 + 20   | Very Rare |\n", ""), ["Potions of Healing: 3 varieties, declared 4"])
+eq("в строке таблицы не хватает ячейки — сборка падает",
+   broken("en", "| Potion of Healing (greater)  | 4d4 + 4     | Uncommon  |", "| Potion of Healing (greater)  | Uncommon  |"),
+   ["Potions of Healing: row 'Potion of Healing (greater)' has 2 cells, the header has 3"])
+# Сборка перестановку абзацев одной редкости не видит (сверяет только редкость): её ловит эталон RU_NAMES.
+swapped = build(ru_text=text("ru").replace("**_Бронзовый грифон (редкий)._**", "**_§._**")
+                .replace("**_Эбеновая муха (редкий)._**", "**_Бронзовый грифон (редкий)._**")
+                .replace("**_§._**", "**_Эбеновая муха (редкий)._**"))[0][("srd52", "ru", "magic-items")]
+eq("RU: абзацы одной редкости переставлены — имена под слагами расходятся с эталоном",
+   {i["slug"]: i["name"] for i in swapped if i["slug"] in ("bronze-griffon", "ebony-fly")},
+   {"bronze-griffon": "Эбеновая муха", "ebony-fly": "Бронзовый грифон"})
 eq("незнакомая редкость в таблице — сборка падает",
    broken("en", "| Potion of Healing (greater)  | 4d4 + 4     | Uncommon  |", "| Potion of Healing (greater)  | 4d4 + 4     | Unusual   |"),
    ["Potions of Healing: unknown rarity 'Unusual'"])
