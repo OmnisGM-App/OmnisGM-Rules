@@ -94,30 +94,24 @@ const CLASS_SLUG: Record<string, string> = {
   Бард: 'bard', Жрец: 'cleric', Друид: 'druid', Паладин: 'paladin', Следопыт: 'ranger',
   Чародей: 'sorcerer', Колдун: 'warlock', Волшебник: 'wizard',
 };
-// Подкласс → родительский класс (slug + имя + якорь секции подкласса на странице класса).
-// Ссылка ведёт прямо на секцию подкласса (#anchor), формат подписи — «Класс: Подкласс».
-type SubInfo = { slug: string; cls_ru: string; cls_en: string; a_ru: string; a_en: string };
-const CL = {
-  cleric:   { cls_ru: 'Жрец',    cls_en: 'Cleric',   a_ru: 'подкласс-жреца-домен-жизни',           a_en: 'cleric-subclass-life-domain' },
-  paladin:  { cls_ru: 'Паладин', cls_en: 'Paladin',  a_ru: 'подкласс-паладина-клятва-преданности',  a_en: 'paladin-subclass-oath-of-devotion' },
-  warlock:  { cls_ru: 'Колдун',  cls_en: 'Warlock',  a_ru: 'подкласс-колдуна-покровитель-исчадие',  a_en: 'warlock-subclass-fiend-patron' },
-  sorcerer: { cls_ru: 'Чародей', cls_en: 'Sorcerer', a_ru: 'подкласс-чародея-драконье-чародейство', a_en: 'sorcerer-subclass-draconic-sorcery' },
-} as const;
-const SUBCLASS_INFO: Record<string, SubInfo> = {
-  'Life Domain':          { slug: 'cleric',   ...CL.cleric },
-  'Домен жизни':          { slug: 'cleric',   ...CL.cleric },
-  'Oath of Devotion':     { slug: 'paladin',  ...CL.paladin },
-  'Клятва преданности':   { slug: 'paladin',  ...CL.paladin },
-  Fiend:                  { slug: 'warlock',  ...CL.warlock },
-  Исчадие:                { slug: 'warlock',  ...CL.warlock },
-  Draconic:               { slug: 'sorcerer', ...CL.sorcerer },
-  'Драконье чародейство': { slug: 'sorcerer', ...CL.sorcerer },
+// Подпись подкласса из `spells.subclasses` («Круг Земли (Засушливая земля)») → запись ресурса
+// `subclasses`: её класс и имя класса берутся из данных. Якорь секции на странице класса — слаг
+// заголовка «Подкласс друида: Круг Земли», которого в данных нет; без якоря ссылка ведёт на класс.
+const SUBCLASS_ANCHOR: Record<string, { ru: string; en: string }> = {
+  'life-domain':        { ru: 'подкласс-жреца-домен-жизни',            en: 'cleric-subclass-life-domain' },
+  'oath-of-devotion':   { ru: 'подкласс-паладина-клятва-преданности',   en: 'paladin-subclass-oath-of-devotion' },
+  'fiend-patron':       { ru: 'подкласс-колдуна-покровитель-исчадие',   en: 'warlock-subclass-fiend-patron' },
+  'draconic-sorcery':   { ru: 'подкласс-чародея-драконье-чародейство',  en: 'sorcerer-subclass-draconic-sorcery' },
+  'circle-of-the-land': { ru: 'подкласс-друида-круг-земли',            en: 'druid-subclass-circle-of-the-land' },
 };
-const subClass = (s: string) => SUBCLASS_INFO[s];
-const subClsName = (s: string) => (lang === 'ru' ? SUBCLASS_INFO[s]?.cls_ru : SUBCLASS_INFO[s]?.cls_en) ?? '';
+const subclassEntities = loadEntities(ver, lang, 'subclasses') as unknown as Array<{ slug: string; name: string; class: string }>;
+const classNames = new Map(loadEntities(ver, lang, 'classes').map((c) => [c.slug, c.name]));
+const subClass = (s: string) => subclassEntities.find((x) => s === x.name || s.startsWith(`${x.name} (`));
+const subClsName = (s: string) => classNames.get(subClass(s)?.class ?? '') ?? '';
 const subUrl = (s: string) => {
-  const info = SUBCLASS_INFO[s];
-  return `${classUrl(info.slug)}#${lang === 'ru' ? info.a_ru : info.a_en}`;
+  const sub = subClass(s)!;
+  const anchor = SUBCLASS_ANCHOR[sub.slug]?.[lang === 'ru' ? 'ru' : 'en'];
+  return classUrl(sub.class) + (anchor ? `#${anchor}` : '');
 };
 const classUrl = (slug: string) => `/${lang}/dnd/${verSlug}/classes/${slug}/`;
 const classList = (Array.isArray(entity.classes) ? entity.classes : []) as string[];
