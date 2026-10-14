@@ -19,6 +19,8 @@ const DND_RESOURCES = [
   { key: 'animals', urlParent: 'animals', mode: 'exact', container: 'strong', versions: ['srd-5.2'] },
   // Предметы — тоже курсив (SRD размечает ссылки на предметы как «*Название*», как заклинания).
   { key: 'magic-items', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2', 'srd-5.1'] },
+  // Семейства магических предметов (#412): курсив «Potions of Healing» ведёт на страницу семейства.
+  { key: 'magic-item-groups', urlParent: 'magic-items', mode: 'exact', container: 'em', versions: ['srd-5.2'] },
   // Черты не размечены и омонимичны словам (Defense/Archery) → режим 'feats': точные ячейки
   // таблиц классов, а в прозе — только много-словные имена.
   { key: 'feats', urlParent: 'feats', mode: 'feats', versions: ['srd-5.2', 'srd-5.1'] },
@@ -75,16 +77,21 @@ const EXACT_ALIASES = {
     },
     'magic-items': {
       'bag-of-holding': ['Сумкой вместимости', 'Сумку вместимости'], 'bead-of-force': ['Бусины силы'],
-      'belt-of-giant-strength': ['Поясом силы великана'], 'gauntlets-of-ogre-power': ['Перчатками силы огра'],
+      'gauntlets-of-ogre-power': ['Перчатками силы огра'],
       'portable-hole': ['Переносной дырой', 'Переносной дыры'],
       'dragon-orb': ['Сфера драконов'], 'gloves-of-missile-snaring': ['Перчатку похищения снарядов'],
       'handy-haversack': ['Практичным рюкзаком'],
-      'horn-of-valhalla': ['Рога Валгаллы'], 'oil-of-etherealness': ['Масла эфирности'],
+      'oil-of-etherealness': ['Масла эфирности'],
       'oil-of-slipperiness': ['Маслом скольжения'],
-      'potions-of-healing': ['Зелье лечения'], 'ring-of-djinni-summoning': ['Кольца призыва джинна'],
+      'ring-of-djinni-summoning': ['Кольца призыва джинна'],
       'spell-scroll': ['Свитке заклинания', 'Свитки заклинаний', 'Свитков заклинаний'],
       'sphere-of-annihilation': ['Сферу уничтожения', 'Сферы уничтожения'],
       'sun-blade': ['Солнечным клинком'], 'universal-solvent': ['Универсального растворителя'],
+    },
+    // Семейства (#412): склонённое имя семейства ведёт на его страницу. «Зелье лечения» теперь
+    // само имя предмета семейства и в псевдонимах не нуждается.
+    'magic-item-groups': {
+      'belt-of-giant-strength': ['Поясом силы великана'], 'horn-of-valhalla': ['Рога Валгаллы'],
     },
   },
   'dnd/en': {
@@ -129,9 +136,11 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
   const cells = new Map();
   const grid = new Map();
   // Имена magic-items/monsters — зарезервированы: их не линкуем как cells (редкие кросс-ресурс
-  // коллизии: «Свиток заклинания» = equipment+magic-item, «Страж-щит» = magic-item+monster).
-  // magic-items/monsters идут в RESOURCES раньше оружия → к моменту cells набор полон.
-  const reserved = new Set();
+  // коллизии: «Страж-щит» = magic-item+monster). magic-items/monsters идут в RESOURCES раньше
+  // оружия → к моменту cells набор полон. Исключение — одноимённая запись снаряжения («Зелье
+  // лечения», #412): ячейки линкуются только в перечнях с колонкой цены, там это снаряжение.
+  /** @type {Map<string, string>} */
+  const reserved = new Map();
   for (const { key, urlParent, mode, container, versions, chapters } of
     (/** @type {Record<string, any[]>} */ (RESOURCES_BY_GAME)[game] || [])) {
     if (versions && !versions.includes(version)) continue;
@@ -162,7 +171,9 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
         if (e.name.trim().split(/\s+/).length >= 2) textEntries.push(entry);
       } else if (mode === 'cells') {
         const k = e.name.toLowerCase();
-        if (!reserved.has(k) && !cells.has(k)) cells.set(k, entry);
+        const taken = reserved.get(k);
+        const free = !taken || (taken === 'magic-items' && key === 'equipment');
+        if (free && !cells.has(k)) cells.set(k, entry);
       } else if (mode === 'grid') {
         const k = e.name.toLowerCase();
         if (!grid.has(k)) grid.set(k, { ...entry, chapters });
@@ -170,7 +181,7 @@ function loadMap(/** @type {string} */ game, /** @type {string} */ version, /** 
         textEntries.push(entry);
         for (const alias of aliases[e.slug] || []) textEntries.push({ ...entry, name: alias });
       }
-      if (key === 'magic-items' || key === 'monsters') reserved.add(e.name.toLowerCase());
+      if (key === 'magic-items' || key === 'monsters') reserved.set(e.name.toLowerCase(), key);
     }
   }
   let text = null;

@@ -59,9 +59,9 @@ export function pageTitle(opts: TitleOpts): string {
   const kindLower = kind.trim().toLowerCase();
   const type = kindLower === name.trim().toLowerCase() ? '' : kindLower;
 
-  const compose = (form: 'long' | 'short' | 'none', brand: boolean, short: boolean) => {
+  const compose = (form: 'long' | 'short' | 'none', brand: boolean, short: boolean, withType = true) => {
     const sys = systemLabel(game, version, short);
-    const middle = type
+    const middle = type && withType
       ? lang === 'ru'
         ? `${type} ${sys}`
         : `${sys} ${type}`
@@ -77,6 +77,9 @@ export function pageTitle(opts: TitleOpts): string {
     compose('short', false, false),
     compose('none', false, false),
     compose('none', false, true),
+    // Последняя ступень — без типа: имя разновидности со скобками («Зелье силы великана (ледяного
+    // или каменного)», #412) съедает бюджет само, а система в title нужнее слова «магический предмет».
+    compose('none', false, true, false),
   ];
   return ladder.find((v) => v.length <= LIMIT) ?? ladder[ladder.length - 1];
 }

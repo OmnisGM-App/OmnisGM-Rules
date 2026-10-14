@@ -1,4 +1,5 @@
 ---
+import { entityPath } from '../../../../../lib/equipment-path.mjs';
 import ReaderShell from '../../../../../components/ReaderShell.astro';
 import { loadEntities, VERSION_SLUG, VERSION_LABEL } from '../../../../../lib/entities';
 import { RARITIES, raritySlug, rarityRank, rarityHubLabel, itemRarities, itemRarityLabel, type ItemLite as Item } from '../../../../../lib/magic-item-hubs';
@@ -75,7 +76,7 @@ const description = hubDescription({
           const rs = own.length === 1 ? raritySlug(own[0]) : undefined;
           return (
             <tr>
-              <td><a href={`${base}/${it.slug}/`}>{it.name}</a></td>
+              <td><a href={`${base}/${entityPath('magic-items', it)}/`}>{it.name}</a></td>
               <td>{it.type ?? '—'}</td>
               <td data-sort={rarityRank(own[0])}>{rs ? <a href={`${base}/rarity/${rs}/`}>{itemRarityLabel(it, lang)}</a> : itemRarityLabel(it, lang)}</td>
               <td data-sort={it.attunement?.required ? 1 : 0}>{it.attunement?.required ? t('да', 'yes') : '—'}</td>

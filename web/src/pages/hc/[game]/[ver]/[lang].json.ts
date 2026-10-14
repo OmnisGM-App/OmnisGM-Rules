@@ -203,6 +203,7 @@ const RESOURCES: { key: string; urlParent: string; body: (e: Record<string, unkn
   // Животные — тот же стат-блок, что и монстры → та же карточка (тип/мировоззрение + КД·хиты·ПО).
   { key: 'animals', urlParent: 'animals', body: (e, lang) => monsterHtml(e, lang) },
   { key: 'magic-items', urlParent: 'magic-items', body: (e, lang) => itemHtml(e, lang) },
+  { key: 'magic-item-groups', urlParent: 'magic-items', body: (e, lang) => itemHtml(e, lang) },
   { key: 'weapons', urlParent: 'weapons', body: (e, lang) => weaponHtml(e, lang) },
   { key: 'armor', urlParent: 'armor', body: (e, lang) => armorHtml(e, lang) },
   { key: 'equipment', urlParent: 'equipment', body: (e, lang) => equipHtml(e, lang) },
