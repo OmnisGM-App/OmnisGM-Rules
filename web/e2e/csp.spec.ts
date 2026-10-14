@@ -13,31 +13,37 @@ const csp = (() => {
   return h as { key: string; value: string };
 })();
 
-/**
- * Снять перехват до конца теста (#249): SW дотягивает ассеты в фоне, и колбэк route падает вне
- * теста («route.fetch: Test ended»). Хук, а не строка в конце: упавший `expect` обрывает тело.
- */
-test.afterEach(async ({ context }) => {
-  await context.unrouteAll({ behavior: 'ignoreErrors' });
-});
+// SW дотягивает прекэш в фоне через перехват и переживает тест (#249, #402).
+test.use({ serviceWorkers: 'block' });
 
-const arm = async (context: BrowserContext) => {
+const arm = async (context: BrowserContext, baseURL: string) => {
   await context.addInitScript(() => {
     (window as any).__csp = [];
     document.addEventListener('securitypolicyviolation', (e) =>
       (window as any).__csp.push(`${e.effectiveDirective} ← ${e.blockedURI}`),
     );
   });
+  const own = new URL(baseURL).origin;
+  const foreign: string[] = [];
+  // Чужой хост в сеть не пускаем (#402): CSP-событие приходит без запроса.
   await context.route('**/*', async (route) => {
-    const res = await route.fetch();
+    const url = route.request().url();
+    if (new URL(url).origin !== own) {
+      foreign.push(url);
+      return route.abort();
+    }
+    // Pagefind дотягивает фрагменты и после конца теста: отказ `route.fetch` тогда не ошибка теста (#249).
+    const res = await route.fetch().catch(() => null);
+    if (!res) return route.abort().catch(() => {});
     const headers = { ...res.headers() };
     if ((headers['content-type'] ?? '').includes('text/html')) headers[csp.key.toLowerCase()] = csp.value;
-    await route.fulfill({ response: res, headers });
+    await route.fulfill({ response: res, headers }).catch(() => {});
   });
+  return foreign;
 };
 
-test('политика не ломает главу, сущность и поиск', async ({ context }) => {
-  await arm(context);
+test('политика не ломает главу, сущность и поиск', async ({ context, baseURL }) => {
+  const foreign = await arm(context, baseURL!);
   const page = await context.newPage();
 
   await page.goto('/ru/dnd/srd-5.2/monsters-a-z/aboleth/');
@@ -48,10 +54,11 @@ test('политика не ломает главу, сущность и пои�
   await expect(page.locator('mark').first()).toBeVisible({ timeout: 10_000 });
 
   expect(await page.evaluate(() => (window as any).__csp)).toEqual([]);
+  expect(foreign).toEqual([]);
 });
 
-test('политика запрещает чужие источники (иначе гейт выше ничего не значит)', async ({ context }) => {
-  await arm(context);
+test('политика запрещает чужие источники (иначе гейт выше ничего не значит)', async ({ context, baseURL }) => {
+  const foreign = await arm(context, baseURL!);
   const page = await context.newPage();
   await page.goto('/ru/');
   await page.evaluate(() => {
@@ -64,4 +71,5 @@ test('политика запрещает чужие источники (ина�
   expect(await page.evaluate(() => (window as any).__csp)).toContain(
     'script-src-elem ← https://cdn.example.com/evil.js',
   );
+  expect(foreign).toEqual([]);
 });
