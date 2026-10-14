@@ -223,9 +223,9 @@ async function linkedConditions(request: APIRequestContext, path: string): Promi
   return linkedConditionsIn(await response.text());
 }
 
-test('EN/RU: набор слинкованных состояний совпадает по всем главам (кроме allowlist)', async ({ request }) => {
+async function parityChapters(request: APIRequestContext): Promise<string[]> {
   const sitemap = await (await request.get('/sitemap-0.xml')).text();
-  const chapters = [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)]
+  return [...sitemap.matchAll(/<loc>([^<]+)<\/loc>/g)]
     .map((m) => new URL(m[1]).pathname)
     .filter(
       (p) =>
@@ -240,34 +240,46 @@ test('EN/RU: набор слинкованных состояний совпад
         !/\/equipment\/.+\/$/.test(p) &&
         !/\/feats\/[^/]+\/$/.test(p),
     );
-  expect(chapters.length).toBeGreaterThan(10);
+}
 
-  const usedExceptions = new Set<string>();
-  const failures: string[] = [];
-  // Порог ловит вырождение парсера: пустые множества везде выглядели бы как «расхождений нет».
-  let pagesWithLinks = 0;
-  for (const en of chapters) {
-    const ru = en.replace('/en/', '/ru/');
-    const [enSet, ruSet] = await Promise.all([
-      linkedConditions(request, en),
-      linkedConditions(request, ru),
-    ]);
-    if (enSet.size) pagesWithLinks++;
-    if (ruSet.size) pagesWithLinks++;
-    const diff = [...new Set([...enSet, ...ruSet])].filter((s) => enSet.has(s) !== ruSet.has(s));
-    const allow = new Set(EXCEPTIONS[en] || []);
-    for (const s of diff) {
-      if (allow.has(s)) usedExceptions.add(`${en}:${s}`);
-      else failures.push(`${en}: '${s}' (EN=${enSet.has(s)} RU=${ruSet.has(s)}) — вне allowlist`);
+// Части идут на разных воркерах: обход всех глав одним тестом не укладывается в таймаут под полной нагрузкой (#428).
+const PARITY_SHARDS = 4;
+
+for (let shard = 0; shard < PARITY_SHARDS; shard++) {
+  test(`EN/RU: набор слинкованных состояний совпадает по главам, часть ${shard + 1}/${PARITY_SHARDS} (кроме allowlist)`, async ({ request }) => {
+    const chapters = await parityChapters(request);
+    expect(chapters.length).toBeGreaterThan(10);
+    expect(Object.keys(EXCEPTIONS).filter((u) => !chapters.includes(u)), 'allowlist ссылается на главу вне обхода').toEqual([]);
+    const mine = chapters.filter((_, i) => i % PARITY_SHARDS === shard);
+
+    const usedExceptions = new Set<string>();
+    const failures: string[] = [];
+    // Порог ловит вырождение парсера: пустые множества везде выглядели бы как «расхождений нет».
+    let pagesWithLinks = 0;
+    for (const en of mine) {
+      const ru = en.replace('/en/', '/ru/');
+      const [enSet, ruSet] = await Promise.all([
+        linkedConditions(request, en),
+        linkedConditions(request, ru),
+      ]);
+      if (enSet.size) pagesWithLinks++;
+      if (ruSet.size) pagesWithLinks++;
+      const diff = [...new Set([...enSet, ...ruSet])].filter((s) => enSet.has(s) !== ruSet.has(s));
+      const allow = new Set(EXCEPTIONS[en] || []);
+      for (const s of diff) {
+        if (allow.has(s)) usedExceptions.add(`${en}:${s}`);
+        else failures.push(`${en}: '${s}' (EN=${enSet.has(s)} RU=${ruSet.has(s)}) — вне allowlist`);
+      }
     }
-  }
-  // Порог — с запасом вниз от замера: не ломается от правок контента, но ловит обнуление.
-  expect(pagesWithLinks, 'ссылки на состояния не найдены нигде — парсер вырожден').toBeGreaterThan(30);
+    expect(pagesWithLinks, 'ссылки на состояния не найдены во всей части — парсер вырожден').toBeGreaterThan(0);
 
-  expect(failures, `новые EN/RU-расхождения:\n${failures.join('\n')}`).toEqual([]);
+    expect(failures, `новые EN/RU-расхождения:\n${failures.join('\n')}`).toEqual([]);
 
-  // Протухшие исключения: каждая запись allowlist должна реально срабатывать (иначе — убрать).
-  const declared = Object.entries(EXCEPTIONS).flatMap(([u, arr]) => arr.map((s) => `${u}:${s}`));
-  const stale = declared.filter((k) => !usedExceptions.has(k));
-  expect(stale, `протухшие записи allowlist (расхождение исчезло — уберите):\n${stale.join('\n')}`).toEqual([]);
-});
+    // Протухшие исключения своей части: запись allowlist без расхождения — убрать.
+    const declared = Object.entries(EXCEPTIONS)
+      .filter(([u]) => mine.includes(u))
+      .flatMap(([u, arr]) => arr.map((s) => `${u}:${s}`));
+    const stale = declared.filter((k) => !usedExceptions.has(k));
+    expect(stale, `протухшие записи allowlist (расхождение исчезло — уберите):\n${stale.join('\n')}`).toEqual([]);
+  });
+}
