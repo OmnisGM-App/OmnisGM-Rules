@@ -60,7 +60,8 @@ export default defineConfig({
     },
   ],
   webServer: {
-    command: `npm run build && npm run preview -- --port ${PORT}`,
+    // `--ignore-lock`: под агентом Astro иначе уводит preview в фон, и Playwright теряет процесс (#432).
+    command: `npm run build && npm run preview -- --port ${PORT} --ignore-lock`,
     url: BASE,
     reuseExistingServer: !process.env.CI,
     timeout: 120_000,
