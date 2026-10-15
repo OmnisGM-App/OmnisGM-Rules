@@ -16,6 +16,7 @@ sys.path.insert(0, str(SCRIPTS))
 import config  # noqa: E402
 from generate_api import build_magic_item_groups  # noqa: E402
 from parsers import parse_magic_items  # noqa: E402
+from parsers.magic_item import TABLE_REFS  # noqa: E402
 
 failures = []
 
@@ -139,6 +140,10 @@ eq("в описаниях предметов семейств нет табли�
 eq("в описаниях предметов семейств нет ссылки на таблицу семейства (#434)",
    [s for lang_items, groups in ((en, en_groups), (ru, ru_groups)) for g in groups.values() for s in g["items"]
     if re.search(r"\btable\b|таблиц", lang_items[s]["description_md"], re.IGNORECASE)], [])
+# Вырезка не оставляет мусора: фрагмент без своей запятой или пробела даст «зелья,.» или « .».
+eq("после вырезки ссылки на таблицу нет висячей пунктуации и двойных пробелов",
+   [s for lang_items, groups in ((en, en_groups), (ru, ru_groups)) for slug in TABLE_REFS for s in groups[slug]["items"]
+    if re.search(r"\s[.,)]|,[.)]|\(\s*\)|\S  \S", lang_items[s]["description_md"])], [])
 eq("страница семейства — текст SRD как есть, с фразой и таблицей",
    [(", as shown in the table below" in en_groups["potions-of-healing"]["description_md"],
      "| 10d4 + 20" in en_groups["potions-of-healing"]["description_md"]),
