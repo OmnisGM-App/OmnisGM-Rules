@@ -4,6 +4,7 @@
 
 Запуск: python3 .github/scripts/test_magic_item_families.py
 """
+import re
 import subprocess
 import sys
 import tempfile
@@ -135,6 +136,16 @@ eq("козлы из слоновой кости — один предмет с �
 eq("в описаниях предметов семейств нет таблиц",
    [s for lang_items, groups in ((en, en_groups), (ru, ru_groups)) for g in groups.values() for s in g["items"]
     if "|" in lang_items[s]["description_md"] and s != "ebony-fly"], [])
+eq("в описаниях предметов семейств нет ссылки на таблицу семейства (#434)",
+   [s for lang_items, groups in ((en, en_groups), (ru, ru_groups)) for g in groups.values() for s in g["items"]
+    if re.search(r"\btable\b|таблиц", lang_items[s]["description_md"], re.IGNORECASE)], [])
+eq("страница семейства — текст SRD как есть, с фразой и таблицей",
+   [(", as shown in the table below" in en_groups["potions-of-healing"]["description_md"],
+     "| 10d4 + 20" in en_groups["potions-of-healing"]["description_md"]),
+    "по следующей таблице" in ru_groups["horn-of-valhalla"]["description_md"]],
+   [(True, True), True])
+eq("пояс: скобка про таблицу ушла, остальное предложение на месте",
+   en["belt-of-giant-strength-fire"]["description_md"].split(". ")[1], "The type of giant determines the score")
 
 # RU: слаг и name_en — от EN по позиции, сборка сверяет только редкость. Эталон всех 62 имён ловит
 # перестановку абзацев одной редкости.
@@ -239,6 +250,12 @@ eq("редкость бонуса пропала из строки типа — 
    "Shield, +1, +2, or +3: no rarity for +3")
 eq("металл рога без редкости — сборка падает",
    broken("en", "| 76–90 | Bronze    |", "| 76–90 | Copper    |")[0][:44], "Horn of Valhalla: no rarity for 'Copper' in ")
+eq("фраза о таблице поменялась в SRD — сборка падает, а не оставляет ссылку",
+   broken("en", "as shown in the table below", "as shown in the table that follows"),
+   ["Potions of Healing: no table reference ', as shown in the table below' to cut from the varieties"])
+eq("RU: фраза рога о таблице поменялась — сборка падает",
+   [e[:36] for e in broken("ru", "определяет его случайно по следующей таблице", "определяет его броском")],
+   ["Рог Валгаллы: no table reference 'Ма"])
 eq("RU: абзац жетона пропал — сборка падает",
    broken("ru", "**_Кнут (редкий)._**", "Кнут."), ["Перо-талисман: 5 varieties, declared 6"])
 eq("RU: редкость строки не как у EN — расхождение",
