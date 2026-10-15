@@ -114,6 +114,20 @@ MAGIC_FAMILIES = {
     "weapon-1-2-or-3": ("bonus", 3),
 }
 BARE_NAMES = {"figurine-of-wondrous-power"}
+# Ссылки на таблицу семейства (#434): таблица остаётся на странице семейства, а из текста разновидности
+# её строки вырезаны — фраза о ней уходит тоже. Тип у разновидности уже выбран, поэтому «Мастер выбирает
+# тип … по таблице» уходит целиком. Фрагмент не нашёлся — текст SRD поменялся, сборка падает.
+TABLE_REFS = {
+    "belt-of-giant-strength": {"en": [" (see the table below)"], "ru": [" (см. таблицу ниже)"]},
+    "potion-of-giant-strength": {"en": [" (see the table below)"], "ru": [" (см. таблицу ниже)"]},
+    "potions-of-healing": {"en": [", as shown in the table below"], "ru": [", как показано в таблице ниже"]},
+    "horn-of-valhalla": {
+        "en": [" The GM chooses the horn's type or determines it randomly by rolling on the following table."],
+        "ru": [" Мастер выбирает тип рога или определяет его случайно по следующей таблице."]},
+    "feather-token": {
+        "en": [" The GM chooses the kind of token or determines it randomly by rolling on the Feather Tokens table."],
+        "ru": [" Мастер выбирает вид талисмана или определяет его случайно, бросая по таблице «Перья-талисманы»."]},
+}
 _RARITY_WORDS = {**RARITIES_EN, **RARITIES_RU}
 _RARITY_ALT = "|".join(sorted((re.escape(w) for w in _RARITY_WORDS), key=len, reverse=True))
 _VARIETY_LEAD = re.compile(rf"^\*\*_(.+?) \(({_RARITY_ALT})\)\._\*\*\s*(.*)$", re.IGNORECASE)
@@ -136,6 +150,14 @@ def _rarity_by_mark(type_line: str, where: str) -> dict[str, str]:
     return out
 
 
+def _without_table_refs(text: str, slug: str, lang: str, where: str) -> str:
+    for fragment in TABLE_REFS.get(slug, {}).get(lang, []):
+        if fragment not in text:
+            raise ValueError(f"{where}: no table reference {fragment.strip()!r} to cut from the varieties")
+        text = text.replace(fragment, "")
+    return text
+
+
 def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
     """Разновидности семейства как записи `magic-items`; слаг и `name_en` — только у EN."""
     kind, expected = MAGIC_FAMILIES[parent["slug"]]
@@ -144,7 +166,7 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
     rows: list[dict] = []  # name, rarity, text
     if kind in ("rows", "horn"):
         header, table = last_table(body)
-        prose = without_tables(body)
+        prose = _without_table_refs(without_tables(body), parent["slug"], lang, where)
         by_mark = _rarity_by_mark(type_line, where) if kind == "horn" else {}
         for cells in table:
             if len(cells) != len(header):
@@ -171,7 +193,7 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
                 rows[-1]["text"].append(line)
             else:
                 intro.append(line)
-        head = "\n".join(intro).strip()
+        head = _without_table_refs("\n".join(intro).strip(), parent["slug"], lang, where)
         for row in rows:
             row["text"] = "\n\n".join(t for t in (head, "\n".join(row["text"]).strip()) if t)
     else:  # bonus
