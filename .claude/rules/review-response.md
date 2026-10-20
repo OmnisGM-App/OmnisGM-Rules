@@ -2,8 +2,10 @@
 
 Copy of the template from OmnisGM-App/claude-plugins/templates/review-response.md — edit there,
 roll out as copies. Complements `authoring-pitfalls.md` (error classes in the PR itself); here —
-behaviour AFTER the review has arrived. Every push to a PR starts a full auto-review round
-(6–8 agents), so the price of an extra push is a whole round, not "a minute".
+behaviour AFTER the review has arrived. The first round starts by itself once per PR (`opened` /
+`ready_for_review`); no repo runs the review on `synchronize` (dropped in v2.34, 2026-09-22), so a push starts nothing
+and every further round is requested by the owner via workflow_dispatch. Each round is a full auto-review round
+(6–8 agents), so the price of an extra fix-and-request cycle is a whole round, not "a minute".
 
 Origin: Table#574 (11 rounds in a day) and Table#576 (9 rounds) — the original defects ran out
 by round three or four, after that review was picking apart fix prose and promises in comments.
@@ -13,8 +15,8 @@ by round three or four, after that review was picking apart fix prose and promis
 1. **Decision list first, code second.** For every finding — one of three: «чиню» (fixing), «не чиню:
    причина в одну строку» (not fixing: one-line reason), «отдельной ишьёй #N» (separate issue #N). The list goes to the PR thread as ONE comment before
    the edits. «Не чиню» is legitimate for remarks, and for medium ones too if the argument is substantive.
-2. **One commit per round, one push.** All edits of the round go into one commit. A push
-   "also fixed a comment" is another full round.
+2. **One commit per round, one push.** All edits of the round go into one commit. Another
+   fix-and-request cycle for "also fixed a comment" is another full round.
 3. **Fix code, not prose.** The response to a finding is a code or test edit, or an argument in the thread.
    Do not add an explanatory comment to the code: every promise phrase ("a test guards this",
    "the only place", "guarantees", "cannot happen") is a candidate finding
