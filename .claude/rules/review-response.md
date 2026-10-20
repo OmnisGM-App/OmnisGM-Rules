@@ -2,8 +2,9 @@
 
 Copy of the template from OmnisGM-App/claude-plugins/templates/review-response.md — edit there,
 roll out as copies. Complements `authoring-pitfalls.md` (error classes in the PR itself); here —
-behaviour AFTER the review has arrived. Every push to a PR starts a full auto-review round
-(6–8 agents), so the price of an extra push is a whole round, not "a minute".
+behaviour AFTER the review has arrived. No repo runs the review on `synchronize` (dropped in v2.34, 2026-09-22): a push
+starts nothing, every round is requested by the owner via workflow_dispatch, and each requested round is a full
+auto-review round (6–8 agents), so the price of an extra fix-and-request cycle is a whole round, not "a minute".
 
 Origin: Table#574 (11 rounds in a day) and Table#576 (9 rounds) — the original defects ran out
 by round three or four, after that review was picking apart fix prose and promises in comments.
