@@ -120,6 +120,25 @@ test('разделы очереди картинок: у каждой колле
   expect(missing, `нет маршрутов: ${missing.join(', ')}`).toEqual([]);
 });
 
+test('разделы очереди картинок: страница сущности с image показывает картинку и og:image', async ({ page }) => {
+  // Картинку генератор кладёт, API отдаёт, а шаблон страницы мог её не вывести — так было у видов,
+  // рас, предысторий и черт до #407. Проверяем каждый раздел со своей страницей, по первой сущности с image.
+  const sources = pendingSources().filter((s) => !API_ONLY.has(s.collection) && !GROUP_PAGES.has(s.collection));
+  const seen = new Set<string>();
+  for (const s of sources) {
+    const route = routeFile(s);
+    if (seen.has(`${route}|${s.version}`)) continue;
+    seen.add(`${route}|${s.version}`);
+    const entity = api(s.json).find((e: { image?: string }) => e.image);
+    if (!entity) continue;
+    const url = pageUrl(s, entity);
+    const res = await page.goto(url);
+    expect(res?.status(), url).toBe(200);
+    await expect(page.locator('.rd-doc .ent-portrait'), url).toHaveAttribute('src', new URL(entity.image).pathname);
+    await expect(page.locator('head meta[property="og:image"]'), url).toHaveAttribute('content', entity.image);
+  }
+});
+
 test('JSON API: image есть у существ с файлом и отсутствует у остальных', () => {
   const monsters = api('dnd/srd52/ru/monsters/all.json');
   const aboleth = monsters.find((m: { slug: string }) => m.slug === 'aboleth');
