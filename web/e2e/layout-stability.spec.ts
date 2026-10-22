@@ -79,6 +79,7 @@ const WITH_IMAGE = [
   { url: '/ru/dnd/srd-5.2/monsters-a-z/aboleth/', what: 'существо' },
   { url: '/en/dnd/srd-5.2/spells/fireball/', what: 'заклинание с иконкой' },
   { url: '/ru/daggerheart/srd-1.0/adversaries/acid-burrower/', what: 'противник Daggerheart' },
+  { url: '/ru/dnd/srd-5.2/species/elf/', what: 'вид с портретом' },
 ];
 
 for (const { url, what } of WITH_IMAGE) {

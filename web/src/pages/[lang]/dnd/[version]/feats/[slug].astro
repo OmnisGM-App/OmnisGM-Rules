@@ -8,6 +8,8 @@ import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import EntityHead from '../../../../../components/EntityHead.astro';
+import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
 
 // Programmatic-страницы черт (issue #20, Дорожка A) в общем шелле ридера.
 // URL: /{lang}/dnd/{version}/feats/{slug}/. EN и RU делят канонический (англ.) слаг → hreflang.
@@ -88,6 +90,8 @@ const sameCat = (siblings as Sib[])
 const upLink = { href: `${base}/`, ru: 'Черты', en: 'Feats' };
 const kind = t('Черта', 'Feat');
 const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
+// Картинка (#407): она же og:image страницы.
+const icon = entityImage('dnd', 'feats', entity.slug);
 ---
 
 <ReaderShell
@@ -99,15 +103,20 @@ const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: v
   searchTitle={entity.name}
   description={description}
   headings={[]}
+  image={icon ?? undefined}
+  imageWidth={icon ? ENTITY_IMAGE_SIZE : undefined}
+  imageHeight={icon ? ENTITY_IMAGE_SIZE : undefined}
   upLink={upLink}
 >
-  <h1>
-    {entity.name}
-    <span class="ent-head-sub">
-      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
-      {catLabel && <span class="item-meta-line">{catLabel}</span>}
-    </span>
-  </h1>
+  <EntityHead image={icon} alt={entity.name} size={ENTITY_IMAGE_SIZE}>
+    <h1>
+      {entity.name}
+      <span class="ent-head-sub">
+        {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+        {catLabel && <span class="item-meta-line">{catLabel}</span>}
+      </span>
+    </h1>
+  </EntityHead>
 
   <dl class="item-stat">
     {catLabel && (

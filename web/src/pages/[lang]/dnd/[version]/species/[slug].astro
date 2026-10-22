@@ -8,6 +8,8 @@ import { highlightKeywords } from '../../../../../lib/keyword-highlight.mjs';
 import { glossRules } from '../../../../../lib/rules-gloss.mjs';
 import { loadEntities, excerpt, VERSION_SLUG } from '../../../../../lib/entities';
 import { pageTitle } from '../../../../../lib/page-title';
+import EntityHead from '../../../../../components/EntityHead.astro';
+import { entityImage, ENTITY_IMAGE_SIZE } from '../../../../../lib/entity-image.mjs';
 
 // Programmatic-страницы видов (SRD 5.2, глава «Происхождение персонажа»). URL:
 // /{lang}/dnd/{version}/species/{slug}/. Виды — 5.2-аналог рас 5.1 (в 5.1 отдельный ресурс races).
@@ -49,6 +51,8 @@ const upLink = { href: `/${lang}/dnd/${verSlug}/character-origins/all/`, ru: 'В
 
 const kind = t('Вид', 'Species');
 const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: ver });
+// Картинка (#407): папка видов общая с расами 5.1 — слаги совпадают; она же og:image страницы.
+const icon = entityImage('dnd', 'species', entity.slug);
 ---
 
 <ReaderShell
@@ -60,12 +64,17 @@ const title = pageTitle({ name: entity.name, kind, lang, game: 'dnd', version: v
   searchTitle={entity.name}
   description={description}
   headings={[]}
+  image={icon ?? undefined}
+  imageWidth={icon ? ENTITY_IMAGE_SIZE : undefined}
+  imageHeight={icon ? ENTITY_IMAGE_SIZE : undefined}
   upLink={upLink}
 >
-  <h1>
-    {entity.name}
-    {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
-  </h1>
+  <EntityHead image={icon} alt={entity.name} size={ENTITY_IMAGE_SIZE}>
+    <h1>
+      {entity.name}
+      {lang === 'ru' && entity.name_en && <span class="ent-en">{entity.name_en}</span>}
+    </h1>
+  </EntityHead>
 
   <Fragment set:html={bodyHtml} />
 

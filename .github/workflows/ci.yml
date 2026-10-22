@@ -313,6 +313,12 @@ jobs:
         working-directory: web
         run: node scripts/verify_dist_cta.mjs
 
+      # Картинки сущностей (#407): страница с image в API показывает портрет и og:image 512×512.
+      # До #407 четыре шаблона картинку не выводили, а CI молчал. e2e в PR CI не ходит.
+      - name: Картинки сущностей по dist
+        working-directory: web
+        run: node scripts/verify_dist_entity_images.mjs
+
       # Количественный гейт по ВСЕМУ dist (issue #185): дубли description и длинные <title>.
       # Бюджетный, а не нулевой — разделы чиним волнами; скрипт валит CI и на ухудшении, и на
       # неопущенном бюджете после улучшения (иначе гейт перестаёт ловить регрессии).
