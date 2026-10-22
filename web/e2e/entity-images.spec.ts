@@ -1,8 +1,7 @@
-import { entityPath } from '../src/lib/equipment-path.mjs';
+import { API_ONLY, GROUP_PAGES, NESTED, VERSION_SEGMENT, imagePages, imageSources, pageUrl, type ImageSource } from '../scripts/entity-image-pages.mjs';
 import { test, expect } from '@playwright/test';
 import fs from 'node:fs';
 import { execFileSync } from 'node:child_process';
-import { KINDS, ORDER } from '../../scripts/gen-images.mjs';
 import { VERSION_SLUG } from '../src/lib/entities';
 
 // Картинки сущностей (#201 — портреты существ, #202 — иконки заклинаний и магпредметов).
@@ -61,54 +60,15 @@ test('авторство картинок — отдельной строкой 
 // поэтому проверяем ТОТ ЖЕ артефакт, что генерит prebuild из generate_api.py.
 const api = (p: string) => JSON.parse(fs.readFileSync(`src/data/api/${p}`, 'utf-8'));
 
-// Разделы — очередь генератора (`KINDS` в scripts/gen-images.mjs), а не свой список.
-type PendingSource = { json: string; game: string; version: string; segment: string; collection: string };
+// Разделы — очередь генератора (`KINDS` в scripts/gen-images.mjs), а не свой список; карта разделов и
+// адресов — общая с dist-гейтом `scripts/verify_dist_entity_images.mjs` (#407).
+type PendingSource = ImageSource;
 
-// Коллекция API и сегмент её маршрута совпадают не всегда, а общей карты для этого нет.
-const PAGE_SEGMENT: Record<string, string> = {
-  monsters: 'monsters-a-z',
-  actions: 'rules-glossary/action',
-  'rules-terms': 'rules-glossary/term',
-  'areas-of-effect': 'rules-glossary/area-of-effect',
-  conditions: 'rules-glossary/conditions',
-};
-// Варианты классовых умений (#379) показываются на странице своей группы, у варианта — якорь.
-const GROUP_PAGES = new Set(['class-options']);
-// Мастерство и свойства оружия своих страниц не имеют: картинка нужна только полю `image` API.
-const API_ONLY = new Set(['masteries', 'weapon-properties']);
-
-// Снаряжение (#412): предмет группы живёт под ней, поэтому маршрут — с остатком пути.
-const NESTED = new Set(['equipment', 'magic-items']);
-
-const pageUrl = (s: PendingSource, entity: { slug: string; feature?: { key: string }; group?: string | null }) => (GROUP_PAGES.has(s.collection)
-  ? `/ru/${s.game}/${s.version}/${s.segment}/${entity.feature!.key}/#${entity.slug}`
-  : `/ru/${s.game}/${s.version}/${s.segment}/${entityPath(s.collection, entity)}/`);
 const routeFile = (s: PendingSource) =>
   `src/pages/[lang]/${s.game}/[version]/${s.segment}/${GROUP_PAGES.has(s.collection) ? '[group]' : NESTED.has(s.collection) ? '[...slug]' : '[slug]'}.astro`;
 
 /** Коллекции очереди, от вида, который генератор закрывает первым, к последнему. */
-function pendingSources(): PendingSource[] {
-  const out: PendingSource[] = [];
-  for (const kind of ORDER) {
-    for (const [game, collections] of Object.entries(KINDS[kind].api ?? {})) {
-      const gameDir = `src/data/api/${game}`;
-      if (!fs.existsSync(gameDir)) continue;
-      for (const ver of fs.readdirSync(gameDir).sort()) {
-        // Сегмент версии — из той же карты, что у `[slug].astro`; без записи страницы нет.
-        const version = VERSION_SLUG[ver];
-        if (!version) continue;
-        for (const collection of collections) {
-          const versions = KINDS[kind].versions?.[collection];
-          if (versions && !versions.includes(ver)) continue;
-          const json = `${game}/${ver}/ru/${collection}/all.json`;
-          if (!fs.existsSync(`src/data/api/${json}`)) continue;
-          out.push({ json, game, version, segment: PAGE_SEGMENT[collection] ?? collection, collection });
-        }
-      }
-    }
-  }
-  return out;
-}
+const pendingSources = (): PendingSource[] => imageSources('src/data/api');
 
 
 test('разделы очереди картинок: у каждой коллекции есть страница сущности', () => {
@@ -122,21 +82,24 @@ test('разделы очереди картинок: у каждой колле
 
 test('разделы очереди картинок: страница сущности с image показывает картинку и og:image', async ({ page }) => {
   // Картинку генератор кладёт, API отдаёт, а шаблон страницы мог её не вывести — так было у видов,
-  // рас, предысторий и черт до #407. Проверяем каждый раздел со своей страницей, по первой сущности с image.
-  const sources = pendingSources().filter((s) => !API_ONLY.has(s.collection) && !GROUP_PAGES.has(s.collection));
-  const seen = new Set<string>();
-  for (const s of sources) {
-    const route = routeFile(s);
-    if (seen.has(`${route}|${s.version}`)) continue;
-    seen.add(`${route}|${s.version}`);
-    const entity = api(s.json).find((e: { image?: string }) => e.image);
-    if (!entity) continue;
-    const url = pageUrl(s, entity);
+  // рас, предысторий и черт до #407. В CI то же держит dist-гейт verify_dist_entity_images.mjs.
+  const { pages, missing } = imagePages('src/data/api');
+  expect(missing, 'разделы без единой сущности с image').toEqual([]);
+  expect(pages.length).toBeGreaterThan(0);
+  for (const { url, image } of pages) {
     const res = await page.goto(url);
     expect(res?.status(), url).toBe(200);
-    await expect(page.locator('.rd-doc .ent-portrait'), url).toHaveAttribute('src', new URL(entity.image).pathname);
-    await expect(page.locator('head meta[property="og:image"]'), url).toHaveAttribute('content', entity.image);
+    await expect(page.locator('.rd-doc .ent-portrait'), url).toHaveAttribute('src', new URL(image).pathname);
+    const meta = (sel: string) => page.locator(`head meta[${sel}]`);
+    await expect(meta('property="og:image"'), url).toHaveAttribute('content', image);
+    await expect(meta('property="og:image:width"'), url).toHaveAttribute('content', '512');
+    await expect(meta('property="og:image:height"'), url).toHaveAttribute('content', '512');
+    await expect(meta('name="twitter:card"'), url).toHaveAttribute('content', 'summary');
   }
+});
+
+test('сегменты версий в общей карте картинок совпадают с VERSION_SLUG', () => {
+  expect(VERSION_SEGMENT).toEqual(VERSION_SLUG);
 });
 
 test('JSON API: image есть у существ с файлом и отсутствует у остальных', () => {
