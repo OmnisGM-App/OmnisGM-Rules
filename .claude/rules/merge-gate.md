@@ -16,7 +16,8 @@ as copies. The ruleset of the default branch requires the `Merge gate` check
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
 dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master`, the form of #1219 and
-earlier, is gated like a feature PR since 2026-10-23, and whether a `release/*`
+earlier, needs `gate/review-passed` since 2026-10-23, and claude-review.yml skips a PR whose base is not the
+default branch — such a PR gets its round only by `workflow_dispatch`; whether a `release/*`
 head is an empty commit whose parent is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
@@ -33,15 +34,15 @@ it — a hand-applied one is reported and ignored.
    same: it waits for a human.
 2. **Never set `gate/review-passed`** — the review workflow owns it. To ask for another round, remove
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
-   **When to remove it yourself** (owner's decision 2026-10-23, News#163): the label was earned by the head
+   **When to remove it yourself** (owner's decision 2026-10-23, OmnisGM-App/OmnisGM-News#163): the label was earned by the head
    the clean round read; a push that changes behaviour after it would merge unreviewed. Remove the label
    BEFORE that push and say why in the round comment when at least one holds:
    - product code changes behaviour — a new branch, condition, data shape, query, API call or effect, in
      any file, including files the clean round never saw;
    - a medium finding was fixed by a different approach than the one named in the thread, not by the
      reviewer's own line;
-   - gate, review, CI or deploy logic changed (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`,
-     `ci.yml`, `deploy.yml`, `firestore.rules`) in anything but a comment;
+   - gate, review, CI, deploy or security logic changed (workflows, the gate script, access rules) in anything
+     but a comment;
    - a base merge had conflicts resolved by hand;
    - the diff since the labelled head is over ~50 lines of non-test, non-doc code (a guideline, not a gate).
    Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,

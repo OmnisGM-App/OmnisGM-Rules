@@ -126,23 +126,28 @@ class CheckRunLifecycle(unittest.TestCase):
             outf.seek(0)
             self.assertIn("closed=true", outf.read())
         (cid, status, conclusion, title, summary), = gh.closed
-        self.assertEqual((status, conclusion), ("completed", "neutral"))  # the run sits in dev's suite: inert there
+        self.assertEqual((status, conclusion), ("completed", "cancelled"))  # dev's suite: not a pass, not its verdict
         self.assertIn("head of `dev`", summary)
         self.assertIn("own commit", summary)
         self.assertIn("re-apply the gate labels", summary)
 
-    def test_a_shared_head_whose_close_fails_leaves_no_closed_marker(self):
+    def test_a_shared_head_close_that_fails_is_not_retried_as_failure(self):
         gh = Recorder(pull(["gate/matrix-passed"], head="release/2026-10-23", base="master", sha="f0ba9722"))
         gh.suite = "dev"
-        gh.close_check = lambda *a: (_ for _ in ()).throw(OSError("cannot close"))
+        calls = []
+
+        def close(*a):
+            calls.append(a)
+            raise OSError("5xx")
+        gh.close_check = close
         with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
                 tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
                 mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
                 mock.patch("sys.stdout", new_callable=io.StringIO):
-            with self.assertRaises(OSError):
-                mg.main()
+            self.assertEqual(mg.main(), 1)  # the job still blocks; the error is not re-raised into the handler
             outf.seek(0)
             self.assertNotIn("closed=true", outf.read())
+        self.assertEqual([c[2] for c in calls], ["cancelled"])  # no second close as `failure` in dev's suite
 
     def test_an_error_after_the_open_closes_the_check_as_failure_marks_closed_and_re_raises(self):
         gh = Recorder(pull(), boom=OSError("api down"))

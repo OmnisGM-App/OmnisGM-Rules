@@ -66,7 +66,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number || inputs.pr }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       EVENT: ${{ github.event.action || 'dispatch' }}
       EVENT_LABEL: ${{ github.event.label.name }}
       EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
