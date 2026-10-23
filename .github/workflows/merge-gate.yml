@@ -8,8 +8,10 @@ name: Merge gate
 # workflow turns PR labels into a required status — the job `Merge gate` below (the name the ruleset
 # requires). merge_gate.py exits 0 when every label holds on the head and 1 otherwise; the job's own
 # status is the verdict: green = labels ok, red = "waiting: …" (a review round, a label, a lagging label
-# event) or a contradiction / an error. A `labeled`/`unlabeled` event re-runs the job, so a waiting PR
-# goes green on its own once the label lands. CI is not read here — it is its own required check.
+# event) or a contradiction / an error. A label event re-runs the job, so a waiting PR goes green once the
+# label lands (a lagging events list is the one case for "Re-run jobs" by hand). A waiting PR is a red run
+# that mails a failure on every push — owner's decision 2026-10-24, replacing the 2026-10-23 "a waiting PR
+# sends no mail" that the API check run bought. CI is not read here — it is its own required check.
 # v3 (2026-10-24): nothing is written through the check-runs API any more. An API check run lands in the
 # OLDEST check suite of the app on that SHA, and a later run of the same workflow (the `labeled` one)
 # supersedes that suite in the merge box together with the verdict inside it — "Merge gate — Expected,
@@ -35,22 +37,18 @@ name: Merge gate
 # Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
 # merge_gate.py or claude-review.yml can rewrite its own gate — such PRs merge only on the owner's
 # explicit command after reading that diff (merge-gate.md).
-# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-dispatches
-# this workflow after labelling (`workflow_dispatch` with the PR number).
+# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-runs the latest
+# `pull_request` run of this workflow on the head after labelling (`gh run rerun`): attempt 2 replaces the
+# red job in the same check suite. No `workflow_dispatch`: such a run is attached to no PR and never
+# reaches its merge box (Table#1251 — the rollup kept two red pull_request jobs next to a green dispatch).
 # No cancel-in-progress: the evaluation is idempotent and a superseded run must not skip its removals.
 
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: 'PR number to re-evaluate'
-        required: true
-        type: string
 
 concurrency:
-  group: merge-gate-${{ github.event.pull_request.number || inputs.pr }}
+  group: merge-gate-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
@@ -65,8 +63,8 @@ jobs:
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      PR: ${{ github.event.pull_request.number || inputs.pr }}
-      EVENT: ${{ github.event.action || 'dispatch' }}
+      PR: ${{ github.event.pull_request.number }}
+      EVENT: ${{ github.event.action }}
       EVENT_LABEL: ${{ github.event.label.name }}
       EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       # Regex over changed paths that counts as a screenshot baseline (Playwright default dir).

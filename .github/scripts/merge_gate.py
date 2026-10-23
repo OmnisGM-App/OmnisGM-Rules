@@ -11,9 +11,12 @@ the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE and LABEL_
 The verdict is the status of the job itself (`Merge gate`, the context the ruleset requires): green when every
 label holds on the head, red otherwise — a message that starts with "waiting:" names what is still awaited (a review
 round, a label, a lagging label event), the others are contradictions to fix by hand (two matrix labels, a label by
-the wrong actor, a label without a recorded head) or an error of the run. A `labeled`/`unlabeled` event re-runs the
-job, so a waiting PR turns green by itself once the label lands. No check run is written through the API (v3,
-2026-10-24): GitHub puts an API check run into the OLDEST check suite of the app on that SHA, and when the same
+the wrong actor, a label without a recorded head) or an error of the run. A label event re-runs the job (a hand's
+label through `labeled`/`unlabeled`; the review workflow's label — set with GITHUB_TOKEN, which fires no event —
+through `gh run rerun` of the latest `pull_request` gate run, claude-review.yml v2.50); a lagging events list is
+the one case that needs "Re-run jobs" on the gate run by hand. A waiting PR is a red run that mails a failure on
+every push: the owner's decision of 2026-10-24 (after Table#1241), replacing the 2026-10-23 "a waiting PR sends no
+mail" that the API check run bought. No check run is written through the API (v3, 2026-10-24): GitHub puts an API check run into the OLDEST check suite of the app on that SHA, and when the same
 workflow re-runs on a label the newer run supersedes that suite in the merge box together with the verdict in it
 (Table#1241: "Merge gate — Expected, waiting" with a green record in the API); a shared head (Table#1227) hid it the
 same way. The job's own status lives in its own run and is never hidden.
@@ -188,7 +191,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         if actor == WORKFLOW_ACTOR:
             review_ok = True
         elif actor is None:
-            fail.append(f"{WAIT}`{LABEL_REVIEW}` is set but its `labeled` event is not on record yet — re-run the gate.")
+            fail.append(f"{WAIT}`{LABEL_REVIEW}` is set but its `labeled` event is not on record yet — press \"Re-run jobs\" on this gate run (Checks tab).")
         else:
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")

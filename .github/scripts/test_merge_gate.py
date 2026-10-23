@@ -100,7 +100,8 @@ class JobVerdict(unittest.TestCase):
             verdict(gh, mg.main)
 
     def test_nothing_is_written_through_the_check_runs_api(self):
-        src = open(mg.__file__).read()
+        with open(mg.__file__) as f:
+            src = f.read()
         self.assertNotIn("check-runs", src)
         self.assertFalse(hasattr(mg.GitHub, "open_check"))
 
@@ -117,9 +118,15 @@ class WorkflowContract(unittest.TestCase):
                 break
         else:
             self.fail("merge-gate.yml not found next to the script or in ../workflows")
-        names = [l.split("#")[0].strip() for l in text.splitlines() if l.split("#")[0].strip().startswith("name: ")]
-        self.assertIn("name: Merge gate", names)  # the ruleset's required context (authoring-workflows 12b)
-        self.assertNotIn("name: Merge gate run", names)
+        jobs = text.split("\njobs:\n", 1)[1]  # the job's own `name:` (4 spaces), not the workflow's on line 1
+        self.assertEqual([l.split("#")[0].rstrip() for l in jobs.splitlines() if l.startswith("    name: ")],
+                         ["    name: Merge gate"])  # the ruleset's required context (authoring-workflows 12b)
+        on = text.split("\non:\n", 1)[1].split("\n\n", 1)[0]
+        types = [l.split("#")[0].strip() for l in on.splitlines() if l.strip().startswith("types:")]
+        self.assertEqual(len(types), 1)
+        for t in ("labeled", "unlabeled", "synchronize"):  # a label event re-runs the job: that is how waiting turns green
+            self.assertIn(t, types[0])
+        self.assertNotIn("workflow_dispatch", on)  # a dispatch run is attached to no PR: never a verdict (Table#1251)
         self.assertNotIn("--fail", text)
         self.assertNotIn("checks: write", text)
         self.assertEqual(text.count("run: python3 .github/scripts/merge_gate.py"), 1)
