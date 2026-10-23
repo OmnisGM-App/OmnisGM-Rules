@@ -1,0 +1,88 @@
+name: Merge gate
+
+# A COPY of the shared template: source of truth — OmnisGM-App/claude-plugins
+# templates/workflows/merge-gate.yml (+ merge_gate.py → .github/scripts/merge_gate.py); edit there,
+# roll out as copies. Per-repo knobs are the `env:` block of the job — nothing else should differ.
+#
+# What it is (owner's decision 2026-10-20): the branch ruleset cannot require labels, so this
+# workflow turns PR labels into a required status — a check run named `Merge gate` on the PR head,
+# posted by merge_gate.py: in_progress while CI / a review round / a label is still awaited, failure only
+# on a contradiction, success when every label holds. The job itself is green either way (owner,
+# 2026-10-23: a waiting PR is not a failed run, and failed runs spam the mailbox). Four `gate/*` labels, who sets them and
+# the merge method are described in `.claude/rules/merge-gate.md` (same template family).
+#   gate/snapshots-approved — required when the PR changes screenshot baselines;
+#                             set by a HUMAN (the owner) only, never by an agent.
+#   gate/matrix-passed      — the full Playwright matrix is green on the current head;
+#   gate/matrix-not-needed  — the diff does not touch UI (say so in the PR body);
+#                             exactly one of the two matrix labels is required.
+#   gate/review-passed      — set by claude-review.yml when a round ends with 0 ❗.
+# Head-bound labels are bound to a HEAD SHA: the run of the `labeled` event records the head from its
+# payload in a state comment on the PR (`<!-- merge-gate-state … -->`), and every later run compares
+# it with the live head — `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` when
+# the PR's own baselines differ between the two heads (a base merge with foreign baselines re-binds
+# it). No clocks, no committer dates (3 review rounds). Fail-closed: a label whose `labeled` run was
+# superseded in the queue has no recorded head and is reported until removed and re-applied.
+# `gate/review-passed` counts only when applied by github-actions[bot] (the review workflow) and survives
+# a push on purpose: it is the receipt of a 0 ❗ round, and a round costs ~$6 (review-response.md).
+# Exemptions: dependabot PRs are not reviewed (the matrix label comes from dependabot.yml); release
+# PRs (`dev` or `release/*` → `master`, Table only — a repo without a release branch never matches)
+# are promotions of an already-gated branch (matrix label only).
+# Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
+# merge_gate.py or claude-review.yml can rewrite its own gate — such PRs merge only on the owner's
+# explicit command after reading that diff (merge-gate.md).
+# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-dispatches
+# this workflow after labelling (`workflow_dispatch` with the PR number).
+# No cancel-in-progress: the evaluation is idempotent and a superseded run must not skip its removals.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
+  workflow_dispatch:
+    inputs:
+      pr:
+        description: 'PR number to re-evaluate'
+        required: true
+        type: string
+
+concurrency:
+  group: merge-gate-${{ github.event.pull_request.number || inputs.pr }}
+  cancel-in-progress: false
+
+jobs:
+  gate:
+    name: Merge gate run   # the required check is the `Merge gate` check run the script posts, not this job
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write      # the state comment
+      checks: write      # the `Merge gate` check run
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || inputs.pr }}
+      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+      EVENT: ${{ github.event.action || 'dispatch' }}
+      EVENT_LABEL: ${{ github.event.label.name }}
+      EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      # Regex over changed paths that counts as a screenshot baseline (Playwright default dir).
+      SNAPSHOT_RE: '(^|/)[^/]+-snapshots/'
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - name: Ensure gh CLI in PATH
+        shell: bash
+        run: |
+          # self-hosted containers do not ship gh (run 39410099942: `gh: command not found`).
+          command -v gh >/dev/null && exit 0
+          v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+          tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
+      - name: Evaluate labels against the diff
+        run: python3 .github/scripts/merge_gate.py

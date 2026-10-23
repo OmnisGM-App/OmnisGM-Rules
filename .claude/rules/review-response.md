@@ -2,10 +2,11 @@
 
 Copy of the template from OmnisGM-App/claude-plugins/templates/review-response.md — edit there,
 roll out as copies. Complements `authoring-pitfalls.md` (error classes in the PR itself); here —
-behaviour AFTER the review has arrived. The first round starts by itself once per PR (`opened` /
-`ready_for_review`); no repo runs the review on `synchronize` (dropped in v2.34, 2026-09-22), so a push starts nothing
-and every further round is requested by the owner via workflow_dispatch. Each round is a full auto-review round
-(6–8 agents), so the price of an extra fix-and-request cycle is a whole round, not "a minute".
+behaviour AFTER the review has arrived. A round starts by itself after a green CI on every push while the
+PR has no `gate/review-passed` label (claude-review.yml v2.48, 2026-10-20); a round that ends with 0 ❗ sets
+the label and later pushes start nothing until someone removes it (see `merge-gate.md`). workflow_dispatch
+stays for replays and `force`. Each round is a full auto-review round (6–8 agents), so the price of every
+push before the label is a whole round, not "a minute": batch the fixes, push once.
 
 Origin: Table#574 (11 rounds in a day) and Table#576 (9 rounds) — the original defects ran out
 by round three or four, after that review was picking apart fix prose and promises in comments.
@@ -15,8 +16,11 @@ by round three or four, after that review was picking apart fix prose and promis
 1. **Decision list first, code second.** For every finding — one of three: «чиню» (fixing), «не чиню:
    причина в одну строку» (not fixing: one-line reason), «отдельной ишьёй #N» (separate issue #N). The list goes to the PR thread as ONE comment before
    the edits. «Не чиню» is legitimate for remarks, and for medium ones too if the argument is substantive.
-2. **One commit per round, one push.** All edits of the round go into one commit. Another
-   fix-and-request cycle for "also fixed a comment" is another full round.
+2. **One commit per round, one push.** All edits of the round go into one commit. A second push
+   for "also fixed a comment" is another full round (every push without `gate/review-passed` is reviewed).
+2a. **Re-walk the scenario ledger before the push** (`authoring-pitfalls.md` rule 22) and fix the twin of
+   every fix (rule 21): a round that repairs only the named place and breaks a previous round's scenario is
+   the most expensive round of all (Table#1179: four rounds with ❗).
 3. **Fix code, not prose.** The response to a finding is a code or test edit, or an argument in the thread.
    Do not add an explanatory comment to the code: every promise phrase ("a test guards this",
    "the only place", "guarantees", "cannot happen") is a candidate finding
@@ -41,6 +45,11 @@ by round three or four, after that review was picking apart fix prose and promis
 
 - A thread is resolved with proof: commit hash + one line "what changed", or
   «не чиню: причина» (not fixing: reason), or «➡️ #N». «Поправил» (fixed) without a hash is not a closure.
+- **Only after the fix is pushed** (owner, 2026-10-23). The reply that says what changed and how, and the
+  resolve click, come after the commit with the fix exists on the PR branch and the hash in the reply is
+  that commit's. Never "will fix in the next commit" + resolve, never a reply written from the planned diff:
+  the reader of a resolved thread must be able to open the hash and see the change. The decision list
+  (step 1) stays before the edits; thread replies are the receipt, not the promise.
 - A thread without a reply is not resolved. A thread with a reviewer's question is closed by answering the question.
 - Open threads after the fix commit — only those where the decision is the owner's; in the round
   comment they are listed by name.
