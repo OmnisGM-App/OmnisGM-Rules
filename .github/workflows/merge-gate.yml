@@ -89,7 +89,10 @@ jobs:
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
       - name: Evaluate labels against the diff
+        id: gate
         run: python3 .github/scripts/merge_gate.py
+      # Only when the script never closed its check run (queued → cancelled, timed out, bootstrap died): a
+      # script that failed after opening closes the run itself with the real error and sets `closed=true`.
       - name: Close the check run as failed if the run died before the script
-        if: failure() || cancelled()
+        if: (failure() || cancelled()) && steps.gate.outputs.closed != 'true'
         run: python3 .github/scripts/merge_gate.py --fail

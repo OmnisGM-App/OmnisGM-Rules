@@ -1,5 +1,10 @@
-"""Table tests for merge_gate.evaluate — run: python3 -m unittest templates/workflows/test_merge_gate.py"""
+"""Tests for merge_gate: evaluate (table), the check-run lifecycle of run()/main(), --fail.
+Run: python3 .github/scripts/test_merge_gate.py (in a repo copy) / python3 templates/workflows/test_merge_gate.py."""
+import io
+import os
+import tempfile
 import unittest
+from unittest import mock
 
 import merge_gate as mg
 
@@ -27,6 +32,81 @@ class Fake:
     def compare_files(self, base, head):
         self.compared.append((base, head))
         return self.compare
+
+
+class Recorder(Fake):
+    """The GitHub surface run()/main() touch, recording every write; `boom` makes state() raise."""
+    def __init__(self, pull, events=(), state=None, boom=None):
+        super().__init__()
+        self._pull, self._events, self._state, self.boom = pull, list(events), dict(state or {}), boom
+        self.closed, self.removed, self.written = [], [], []
+
+    def pull(self): return self._pull
+    def open_check(self, head): return 7
+    def state(self):
+        if self.boom: raise self.boom
+        return (None, self._state)
+    def files(self): return ["src/a.ts"]
+    def events(self): return self._events
+    def events_again(self): return self._events
+    def write_state(self, comment_id, state): self.written.append(state)
+    def remove_label(self, name): self.removed.append(name)
+    def close_check(self, *a): self.closed.append(a)
+
+
+def lifecycle(gh, call):
+    """Runs `call` with GITHUB_OUTPUT on a temp file and the summary on stdout captured; returns the output file text."""
+    with tempfile.NamedTemporaryFile("w+", suffix=".out") as out, \
+            mock.patch.dict(os.environ, {"GITHUB_OUTPUT": out.name, "GITHUB_STEP_SUMMARY": "", "REPO": "o/r", "PR": "1"}), \
+            mock.patch("sys.stdout", new_callable=io.StringIO):
+        call()
+        out.seek(0)
+        return out.read()
+
+
+class CheckRunLifecycle(unittest.TestCase):
+    """What the `Merge gate` check run ends as — the behaviour the ruleset reads (review of Rules#443 / News#165)."""
+
+    def test_waiting_leaves_the_check_in_progress_and_marks_closed(self):
+        gh = Recorder(pull())  # no labels at all: matrix pair and review label still awaited
+        out = lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
+        (cid, status, conclusion, title, _), = gh.closed
+        self.assertEqual((cid, status, conclusion), (7, "in_progress", None))
+        self.assertTrue(title.startswith("waiting: "))
+        self.assertIn("closed=true", out)
+
+    def test_a_contradiction_closes_the_check_as_failure(self):
+        gh = Recorder(pull(["gate/matrix-passed", "gate/matrix-not-needed", "gate/review-passed"]), events=REVIEW_OK,
+                      state={"gate/matrix-passed": "head1"})
+        lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
+        (cid, status, conclusion, title, _), = gh.closed
+        self.assertEqual((cid, status, conclusion), (7, "completed", "failure"))
+        self.assertTrue(title.startswith("blocked: "))
+
+    def test_every_label_holding_closes_the_check_as_success(self):
+        gh = Recorder(pull(["gate/matrix-passed", "gate/review-passed"]), events=REVIEW_OK, state={"gate/matrix-passed": "head1"})
+        lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
+        self.assertEqual(gh.closed, [(7, "completed", "success", "labels ok", "every required label holds on this head")])
+
+    def test_a_removal_is_written_before_the_verdict(self):
+        gh = Recorder(pull(["gate/matrix-passed"]), state={"gate/matrix-passed": "head0"})  # bound to another head
+        lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
+        self.assertEqual(gh.removed, ["gate/matrix-passed"])
+        self.assertEqual(gh.closed[0][1:3], ("in_progress", None))  # the rest is still awaited, not a contradiction
+
+    def test_an_error_after_the_open_closes_the_check_as_failure_marks_closed_and_re_raises(self):
+        gh = Recorder(pull(), boom=OSError("api down"))
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
+                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
+                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            with self.assertRaises(OSError):
+                mg.main()
+            outf.seek(0)
+            self.assertIn("closed=true", outf.read())
+        (cid, status, conclusion, title, summary), = gh.closed
+        self.assertEqual((cid, status, conclusion, title), (7, "completed", "failure", "gate run failed"))
+        self.assertIn("api down", summary)
 
 
 class Gate(unittest.TestCase):

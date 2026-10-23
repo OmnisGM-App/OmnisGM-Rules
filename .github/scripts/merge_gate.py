@@ -3,7 +3,8 @@
 
 A COPY of OmnisGM-App/claude-plugins templates/workflows/merge_gate.py lives in every repo at
 .github/scripts/merge_gate.py next to merge-gate.yml; edit the template, roll out as copies.
-Tests: templates/workflows/test_merge_gate.py (run by the plugin repo CI).
+Tests: .github/scripts/test_merge_gate.py next to it in every repo, wired into that repo's CI
+(`python3 .github/scripts/test_merge_gate.py`); the template copy is templates/workflows/test_merge_gate.py.
 
 Environment: REPO, PR, EVENT (the pull_request action), EVENT_LABEL and EVENT_HEAD_SHA (the label and
 the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE, LABEL_* and DEFAULT_BRANCH.
@@ -15,7 +16,9 @@ holds. The job ends green except on an error — a waiting PR is not a failed ru
 The ruleset requires BOTH contexts, `Merge gate` and the job `Merge gate run`: a queued, cancelled or failed
 job is not green, so a run that never reached its first write cannot leave a stale verdict standing (review of
 Table#1222, round 2). `--fail` is the workflow's last resort on `failure() || cancelled()`: a fresh `failure`
-check run on the live head, posted with urllib (gh may be missing when the bootstrap died).
+check run on the live head, posted with urllib (gh may be missing when the bootstrap died). It is skipped when
+this script closed its own check (step output `closed=true`, written by `mark_closed`), so a real error keeps
+its real reason on top instead of the generic "died before the script" one (review of Rules#443).
 
 Head-bound labels are bound to a HEAD SHA, not to a time (review of Table#1179, 3 rounds: committer
 dates are the author's clock, event lists lag, queued runs get superseded). The run of the `labeled`
@@ -251,6 +254,12 @@ def report_dead_run(repo: str, pr: str, token: str, reason: str, post=None) -> d
     return payload
 
 
+def mark_closed() -> None:
+    """Tell the workflow the check run is closed (verdict or error), so the `--fail` step stays out."""
+    with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as out:
+        out.write("closed=true\n")
+
+
 def main() -> int:
     repo, pr = os.environ["REPO"], os.environ["PR"]
     if "--fail" in sys.argv[1:]:
@@ -267,6 +276,7 @@ def main() -> int:
     except BaseException as e:  # noqa: BLE001 — the verdict must never stay stale: close the run as failed, then re-raise
         try:
             gh.close_check(check_id, "completed", "failure", "gate run failed", f"the gate run died before a verdict: {e}"[:60000])
+            mark_closed()
         except Exception as e2:  # noqa: BLE001
             print(f"::warning::could not close the check run after the error: {e2}")
         raise
@@ -304,6 +314,7 @@ def run(gh: GitHub, pull: dict, check_id: int) -> int:
         gh.close_check(check_id, "completed", "success", "labels ok", "every required label holds on this head")
         print("## Merge gate: ok", file=out)
         print("labels ok")
+    mark_closed()
     return 0
 
 
