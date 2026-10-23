@@ -293,12 +293,13 @@ def main() -> int:
                    f"(an empty one on top is enough), push again and re-apply the gate labels on the new head")
             # This run sits in the OTHER branch's suite: `failure` would read as that branch's verdict,
             # `neutral` would pass its required check. `cancelled` is neither; the block is this exit 1.
-            # Closed outside the handler below: a second close as `failure` would paint that branch red.
+            # Closed outside the handler below, and the marker is written even when the close fails: a second
+            # close as `failure` — from the handler or from the workflow's `--fail` step — would paint that branch red.
             try:
                 gh.close_check(check_id, "completed", "cancelled", "not this branch's run: head shared with another branch", why)
-                mark_closed()
             except Exception as e:  # noqa: BLE001
                 print(f"::warning::could not close the shared-head check run: {e}")
+            mark_closed()
             print(f"::error::{why}")
             return 1
         return run(gh, pull, check_id)

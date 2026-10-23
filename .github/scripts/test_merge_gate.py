@@ -146,7 +146,7 @@ class CheckRunLifecycle(unittest.TestCase):
                 mock.patch("sys.stdout", new_callable=io.StringIO):
             self.assertEqual(mg.main(), 1)  # the job still blocks; the error is not re-raised into the handler
             outf.seek(0)
-            self.assertNotIn("closed=true", outf.read())
+            self.assertIn("closed=true", outf.read())  # so the workflow's `--fail` step does not post `failure` either
         self.assertEqual([c[2] for c in calls], ["cancelled"])  # no second close as `failure` in dev's suite
 
     def test_an_error_after_the_open_closes_the_check_as_failure_marks_closed_and_re_raises(self):
