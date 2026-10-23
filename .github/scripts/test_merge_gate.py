@@ -98,7 +98,6 @@ class CheckRunLifecycle(unittest.TestCase):
 
     def test_a_suite_without_a_branch_does_not_block(self):
         gh = Recorder(pull(["gate/matrix-passed", "gate/review-passed"]), events=REVIEW_OK, state={"gate/matrix-passed": "head1"})
-        gh.suite = ""  # suite_branch() -> None in production when the API has no suite for the run
         with mock.patch.object(gh, "suite_branch", lambda check_id: None), mock.patch.object(mg, "GitHub", lambda repo, pr: gh):
             lifecycle(gh, mg.main)
         self.assertEqual(gh.closed[0][1:3], ("completed", "success"))
@@ -127,9 +126,23 @@ class CheckRunLifecycle(unittest.TestCase):
             outf.seek(0)
             self.assertIn("closed=true", outf.read())
         (cid, status, conclusion, title, summary), = gh.closed
-        self.assertEqual((status, conclusion), ("completed", "failure"))
+        self.assertEqual((status, conclusion), ("completed", "neutral"))  # the run sits in dev's suite: inert there
         self.assertIn("head of `dev`", summary)
         self.assertIn("own commit", summary)
+        self.assertIn("re-apply the gate labels", summary)
+
+    def test_a_shared_head_whose_close_fails_leaves_no_closed_marker(self):
+        gh = Recorder(pull(["gate/matrix-passed"], head="release/2026-10-23", base="master", sha="f0ba9722"))
+        gh.suite = "dev"
+        gh.close_check = lambda *a: (_ for _ in ()).throw(OSError("cannot close"))
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
+                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
+                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            with self.assertRaises(OSError):
+                mg.main()
+            outf.seek(0)
+            self.assertNotIn("closed=true", outf.read())
 
     def test_an_error_after_the_open_closes_the_check_as_failure_marks_closed_and_re_raises(self):
         gh = Recorder(pull(), boom=OSError("api down"))
@@ -153,13 +166,19 @@ class WorkflowContract(unittest.TestCase):
         here = os.path.dirname(os.path.abspath(__file__))
         for candidate in (os.path.join(here, "merge-gate.yml"), os.path.join(here, "..", "workflows", "merge-gate.yml")):
             if os.path.exists(candidate):
-                text = open(candidate).read()
+                with open(candidate) as f:
+                    text = f.read()
                 break
         else:
-            self.skipTest("merge-gate.yml not found next to the script")
-        self.assertIn("id: gate", text)
-        self.assertIn("steps.gate.outputs.closed != 'true'", text)
-        self.assertIn("merge_gate.py --fail", text)
+            self.fail("merge-gate.yml not found next to the script or in ../workflows")
+        steps = text.split("\n      - ")
+        gate = [s for s in steps if "run: python3 .github/scripts/merge_gate.py\n" in s]
+        fail = [s for s in steps if "merge_gate.py --fail" in s]
+        self.assertEqual((len(gate), len(fail)), (1, 1))
+        self.assertIn("id: gate", gate[0])
+        if_line = [l for l in fail[0].splitlines() if l.strip().startswith("if:")]
+        self.assertEqual(len(if_line), 1)
+        self.assertIn("steps.gate.outputs.closed != 'true'", if_line[0].split("#")[0])  # the condition, not a comment
 
 
 class Gate(unittest.TestCase):

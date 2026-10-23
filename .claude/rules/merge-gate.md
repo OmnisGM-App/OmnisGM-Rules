@@ -45,7 +45,8 @@ it — a hand-applied one is reported and ignored.
    event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label
    applied by the wrong actor, a label without a recorded head) or an error of the gate run itself; **green**
    = every required label holds on this head. CI is not part of the gate — it is its own required check.
-   The workflow run is green unless it errors, so a waiting PR sends no failure mail. The ruleset requires
+   The workflow run is green unless it errors or the head SHA is shared with another branch (a release cut on
+   the bare `dev` commit: the verdict would land in `dev`'s suite), so a waiting PR sends no failure mail. The ruleset requires
    both `Merge gate` (the check run) and `Merge gate run` (the job): a queued or cancelled run is not green.
 
 ## Failed and flaky tests (owner's decision 2026-10-22)

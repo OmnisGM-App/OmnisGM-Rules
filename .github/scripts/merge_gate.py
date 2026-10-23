@@ -12,7 +12,8 @@ The verdict is a check run named `Merge gate` on the PR head (the ruleset requir
 it as `in_progress` first and closes that same run at the end: `in_progress` stays while something is awaited
 (a review round, a label, a lagging label event), `failure` on a contradiction (two matrix labels, a label by
 the wrong actor, a label without a recorded head) or on any error of the run itself, `success` when everything
-holds. The job ends green except on an error — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
+holds. The job ends green except on an error or on a head shared with another branch (below) — a waiting PR is
+not a failed run and sends no mail (owner, 2026-10-23).
 The ruleset requires BOTH contexts, `Merge gate` and the job `Merge gate run`: a queued, cancelled or failed
 job is not green, so a run that never reached its first write cannot leave a stale verdict standing (review of
 Table#1222, round 2). `--fail` is the workflow's last resort on `failure() || cancelled()`: a fresh `failure`
@@ -286,8 +287,10 @@ def main() -> int:
         if branch and branch != pull["head"]["ref"]:
             why = (f"the head {pull['head']['sha'][:8]} is also the head of `{branch}`, so the verdict lands in that "
                    f"branch's check suite and this PR never sees it — give the branch its own commit "
-                   f"(an empty one on top is enough) and push again")
-            gh.close_check(check_id, "completed", "failure", "blocked: head shared with another branch", why)
+                   f"(an empty one on top is enough), push again and re-apply the gate labels on the new head")
+            # This run sits in the OTHER branch's suite: a failure there would read as that branch's own
+            # verdict. Neutral keeps it inert; the block comes from the job's exit code.
+            gh.close_check(check_id, "completed", "neutral", "not this branch's run: head shared with another branch", why)
             mark_closed()
             print(f"::error::{why}")
             return 1

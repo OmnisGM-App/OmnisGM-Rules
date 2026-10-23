@@ -9,7 +9,7 @@ name: Merge gate
 # opened by merge_gate.py as in_progress before anything else and closed by the same run: in_progress
 # while a review round, a label or a lagging label event is still awaited, failure on a contradiction or
 # on an error of the run, success when every label holds. CI is not read here — it is its own required
-# check. The job is green unless the run errors (owner, 2026-10-23: a waiting PR is not a failed run, and
+# check. The job is green unless the run errors or the head is shared with another branch (owner, 2026-10-23: a waiting PR is not a failed run, and
 # failed runs spam the mailbox). The ruleset requires BOTH `Merge gate` (the check run) and `Merge gate run`
 # (this job): a run that is queued, cancelled or dead before its first write is not green, so a stale
 # verdict on the head cannot pass on its own (review of Table#1222, round 2). Four `gate/*` labels, who sets them and
