@@ -829,6 +829,13 @@ jobs:
           fi
           # v2.50: re-run the gate's own pull_request run on this head (a dispatch run is attached to no PR —
           # Table#1251). The run may still be in progress (the labeled/unlabeled event of a moment ago): wait for it.
+          # Only on the live head: a re-run replays the run's original payload (EVENT_HEAD_SHA of the reviewed
+          # head), and a `labeled` run of an older head would re-bind a label the live head earned (Rules#447).
+          live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) || live=
+          if [ -n "$live" ] && [ "$live" != "$HEADSHA" ]; then
+            echo "::notice::live head is $live, this round read $HEADSHA — no gate re-run: the live head's own run sees the labels"
+            exit 0
+          fi
           run_id=
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
             line=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --commit "$HEADSHA" --limit 1 --json databaseId,status --jq '.[0] | "\(.databaseId) \(.status)"') || line=
