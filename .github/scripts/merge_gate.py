@@ -12,6 +12,10 @@ it as `in_progress` first and closes that same run at the end: `in_progress` sta
 (a review round, a label, a lagging label event), `failure` on a contradiction (two matrix labels, a label by
 the wrong actor, a label without a recorded head) or on any error of the run itself, `success` when everything
 holds. The job ends green except on an error — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
+The ruleset requires BOTH contexts, `Merge gate` and the job `Merge gate run`: a queued, cancelled or failed
+job is not green, so a run that never reached its first write cannot leave a stale verdict standing (review of
+Table#1222, round 2). `--fail` is the workflow's last resort on `failure() || cancelled()`: a fresh `failure`
+check run on the live head, posted with urllib (gh may be missing when the bootstrap died).
 
 Head-bound labels are bound to a HEAD SHA, not to a time (review of Table#1179, 3 rounds: committer
 dates are the author's clock, event lists lag, queued runs get superseded). The run of the `labeled`
@@ -227,8 +231,34 @@ def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
     return waiting, errors
 
 
+def report_dead_run(repo: str, pr: str, token: str, reason: str, post=None) -> dict:
+    """`--fail`: a new `completed/failure` check run on the PR's live head. `post(path, payload)` is the REST
+    call (urllib by default) — replaced in tests."""
+    import urllib.request
+
+    def rest(path: str, payload: dict | None = None) -> dict:
+        req = urllib.request.Request(f"https://api.github.com/repos/{repo}/{path}", method="POST" if payload else "GET",
+                                     data=json.dumps(payload).encode() if payload else None,
+                                     headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+                                              "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    post = post or rest
+    head = post(f"pulls/{pr}")["head"]["sha"]
+    payload = {"name": CHECK_NAME, "head_sha": head, "status": "completed", "conclusion": "failure",
+               "output": {"title": "gate run failed", "summary": reason[:60000]}}
+    post("check-runs", payload)
+    return payload
+
+
 def main() -> int:
     repo, pr = os.environ["REPO"], os.environ["PR"]
+    if "--fail" in sys.argv[1:]:
+        p = report_dead_run(repo, pr, os.environ["GH_TOKEN"],
+                            "the gate run died before the script reported a verdict (cancelled, timed out or failed on "
+                            "bootstrap) — see the workflow log; re-run the gate")
+        print(f"::notice::{CHECK_NAME} closed as failure on {p['head_sha'][:8]}")
+        return 0
     gh = GitHub(repo, pr)
     pull = gh.pull()
     check_id = gh.open_check(pull["head"]["sha"])

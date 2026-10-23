@@ -6,6 +6,8 @@ updates:
     schedule:
       interval: weekly
     open-pull-requests-limit: 10
+    # The merge gate needs exactly one matrix label; dependency bumps do not touch UI.
+    labels: [dependencies, javascript, gate/matrix-not-needed]
     groups:
       minor-and-patch:
         update-types: [minor, patch]
@@ -25,3 +27,4 @@ updates:
       - '/.github/actions/*'
     schedule:
       interval: weekly
+    labels: [dependencies, github_actions, gate/matrix-not-needed]

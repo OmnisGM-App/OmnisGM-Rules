@@ -10,7 +10,9 @@ name: Merge gate
 # while a review round, a label or a lagging label event is still awaited, failure on a contradiction or
 # on an error of the run, success when every label holds. CI is not read here — it is its own required
 # check. The job is green unless the run errors (owner, 2026-10-23: a waiting PR is not a failed run, and
-# failed runs spam the mailbox). Four `gate/*` labels, who sets them and
+# failed runs spam the mailbox). The ruleset requires BOTH `Merge gate` (the check run) and `Merge gate run`
+# (this job): a run that is queued, cancelled or dead before its first write is not green, so a stale
+# verdict on the head cannot pass on its own (review of Table#1222, round 2). Four `gate/*` labels, who sets them and
 # the merge method are described in `.claude/rules/merge-gate.md` (same template family).
 #   gate/snapshots-approved — required when the PR changes screenshot baselines;
 #                             set by a HUMAN (the owner) only, never by an agent.
@@ -52,7 +54,7 @@ concurrency:
 
 jobs:
   gate:
-    name: Merge gate run   # the required check is the `Merge gate` check run the script posts, not this job
+    name: Merge gate run   # required together with the `Merge gate` check run the script posts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
@@ -79,34 +81,15 @@ jobs:
         run: |
           # self-hosted containers do not ship gh (run 39410099942: `gh: command not found`).
           command -v gh >/dev/null && exit 0
-          v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          v=$(curl -fsSL --max-time 60 -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
           [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
           case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
-          curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+          curl -fsSL --max-time 120 "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
           tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
       - name: Evaluate labels against the diff
         run: python3 .github/scripts/merge_gate.py
       - name: Close the check run as failed if the run died before the script
-        if: failure()
-        env:
-          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
-        run: |
-          python3 - <<'PY'
-          import json, os, urllib.request
-          repo, pr, tok = os.environ["REPO"], os.environ["PR"], os.environ["GH_TOKEN"]
-          def api(path, data=None, method="GET"):
-              req = urllib.request.Request(f"https://api.github.com/repos/{repo}/{path}", data=json.dumps(data).encode() if data else None, method=method,
-                                           headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
-              with urllib.request.urlopen(req, timeout=30) as r:
-                  return json.load(r)
-          head = os.environ.get("HEAD_SHA") or api(f"pulls/{pr}")["head"]["sha"]
-          runs = [c for c in api(f"commits/{head}/check-runs?check_name=Merge%20gate")["check_runs"] if c["status"] != "completed"]
-          body = {"status": "completed", "conclusion": "failure", "output": {"title": "gate run failed", "summary": "the run died before the script reported a verdict — see the workflow log"}}
-          if runs:
-              api(f"check-runs/{runs[0]['id']}", body, "PATCH")
-          else:
-              api("check-runs", {"name": "Merge gate", "head_sha": head, **body}, "POST")
-          print("check run closed as failure on", head[:8])
-          PY
+        if: failure() || cancelled()
+        run: python3 .github/scripts/merge_gate.py --fail
