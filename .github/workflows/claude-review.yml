@@ -6,8 +6,14 @@ name: Claude auto-review
 # cross-repo startup_failure) — so the repos keep copies; with the Team plan the copy can be
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
-# Auto-review of every PR commit (#443 process, skill omnisgm-review from the omnisgm plugin).
-# A new push to the PR does NOT start a review (v2.42: one auto run per PR); merge/close cancels the running one.
+# Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.48 (2026-10-20, owner's decision — merge gate): a round runs AFTER CI, on every push, while the PR
+# has no `gate/review-passed` label; a round that ends with 0 ❗ sets that label (and re-dispatches
+# merge-gate.yml, because GITHUB_TOKEN label events fire nothing), a round with ❗ removes it.
+# Trigger = `workflow_run` of the CI workflow (name `CI`, success, event pull_request) + `ready_for_review`
+# (CI does not re-run on undraft; the step checks the CI_CHECK run on the head) — so a review never
+# starts on a head CI has not accepted, and a new push cancels the running round (concurrency).
+# Labels and who sets them: `.claude/rules/merge-gate.md`. merge/close cancels the running round.
 # Runs on the owner's personal subscription: CLAUDE_CODE_OAUTH_TOKEN from `claude setup-token`.
 # v2.27 (stage 1 of the token-saving plan, 2026-09-16): REPO_DIR — `${{ github.workspace }}`
 # (the literal `$GITHUB_WORKSPACE` was not expanded: 6 denials in a row in run 35097394123);
@@ -88,8 +94,15 @@ on:
   # via the button. WITHOUT edited (2026-09-12): editing the description ran the skip job and the grey "Skipped"
   # overwrote the green check. closed — a trick: a run in the same concurrency group cancels the running
   # review on PR merge/close and itself ends as skipped.
+  # v2.48: opened/synchronize are NOT listened to directly — CI's completion is the trigger (workflow_run
+  # below), so a round never runs ahead of a red CI and never twice for one head. ready_for_review stays:
+  # undrafting does not re-run CI. unlabeled — removing `gate/review-passed` asks for a round (Resolve
+  # checks the label name and a green CI on the head). closed — the cancellation trick above.
   pull_request:
-    types: [opened, ready_for_review, closed]
+    types: [ready_for_review, unlabeled, closed]
+  workflow_run:
+    workflows: [CI]
+    types: [completed]
   workflow_dispatch:
     inputs:
       pr:
@@ -106,30 +119,138 @@ on:
         type: boolean
         default: false
 
+env:
+  # The CI job name whose success a round waits for (ruleset's required check; per-repo value).
+  CI_CHECK: 'Check & Build'
+
 concurrency:
-  # One group per PR: closed (or the button) cancels the current review.
-  group: claude-review-${{ github.event.pull_request.number || inputs.pr }}
+  # One group per PR: closed (or the button) cancels the current review; v2.48 — a new push
+  # (its CI completion) cancels the round running on the previous head.
+  # unlabeled of any OTHER label must not enter the group (it would cancel a running round and end
+  # skipped): such runs get a group of their own.
+  group: claude-review-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}${{ github.event.action == 'unlabeled' && github.event.label.name != 'gate/review-passed' && format('-noop-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
+  resolve:
+    # Review only PRs into the default branch (dev/master/main — each repo has its own): a stacked PR
+    # waits for a push after the base retarget. Drafts and dependabot — skip. closed is not reviewed
+    # (it only cancels the group). v2.48: the event-level filter is here; draft / dependabot / base /
+    # `gate/review-passed` / CI state are checked by the Resolve step against the live PR (workflow_run
+    # carries no PR payload beyond the number). No agent in this job: it holds `checks: write` for the
+    # check run on the PR head (review of Table#1179: rights the gate trusts stay away from the agent).
+    if: >-
+      github.event_name == 'workflow_dispatch' || (
+      github.event_name == 'workflow_run' &&
+      github.event.workflow_run.event == 'pull_request' &&
+      github.event.workflow_run.conclusion == 'success' &&
+      github.event.workflow_run.pull_requests[0].number ) || (
+      github.event_name == 'pull_request' && github.event.action == 'ready_for_review' ) || (
+      github.event_name == 'pull_request' && github.event.action == 'unlabeled' &&
+      github.event.label.name == 'gate/review-passed' )
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    outputs:
+      go: ${{ steps.resolve.outputs.go }}
+      sha: ${{ steps.resolve.outputs.sha }}
+      check_id: ${{ steps.check.outputs.id }}
+    permissions:
+      contents: read
+      pull-requests: read
+      checks: write
+    steps:
+      - name: Ensure gh CLI in PATH
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          # self-hosted containers ship neither gh nor jq in PATH (run 39410099942: `gh: command not found`).
+          # Every download is `curl -f` as its own command and verified by running the binary.
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no builds for $(uname -m)"; exit 1;; esac
+          if ! command -v gh >/dev/null; then
+            v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+            [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+            curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+            tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+            "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
+          fi
+
+      - name: Resolve PR (skip rules against the live PR)
+        id: resolve
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
+          REPO: ${{ github.repository }}
+          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
+          DISPATCH: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+        run: |
+          set -euo pipefail
+          # REST, not `gh pr view`: the latter reports dependabot as `app/dependabot` (review of Table#1179).
+          read -r draft author base sha state labelled < <(gh api "repos/$REPO/pulls/$PR" \
+            --jq '"\(.draft) \(.user.login) \(.base.ref) \(.head.sha) \(.state) \([.labels[].name] | index("gate/review-passed") != null)"')
+          skip=""
+          if [ -z "$DISPATCH" ]; then
+            [ "$draft" = "false" ] || skip="draft"
+            [ "$author" != "dependabot[bot]" ] || skip="dependabot"
+            [ "$base" = "$DEFAULT_BRANCH" ] || skip="base is not the default branch (stacked PR)"
+            [ "$state" = "open" ] || skip="PR is not open"
+            [ "$labelled" = "false" ] || skip="gate/review-passed is set — remove the label to request a round"
+            # ready_for_review / unlabeled: CI did not re-run — require a green CI_CHECK on the head
+            # (server-side filter by name: one page, no --paginate/--slurp).
+            if [ -z "$skip" ]; then
+              c=$(gh api -X GET "repos/$REPO/commits/$sha/check-runs" -f check_name="$CI_CHECK" \
+                    --jq '[.check_runs[]] | sort_by(.started_at) | last | .conclusion // "none"')
+              [ "$c" = "success" ] || skip="CI check '$CI_CHECK' on the head is '$c', not success"
+            fi
+          fi
+          echo "sha=$sha" >> "$GITHUB_OUTPUT"; echo "open=$([ "$state" = open ] && echo 1 || true)" >> "$GITHUB_OUTPUT"
+          if [ -n "$skip" ]; then echo "::notice::review skipped: $skip"; echo "go=" >> "$GITHUB_OUTPUT"; else echo "go=1" >> "$GITHUB_OUTPUT"; fi
+
+      # v2.48: workflow_run / workflow_dispatch runs are attached to the default branch, not to the PR —
+      # the PR's checks list would not show the review. So the round reports itself as a check run on
+      # the PR head: opened here, closed with the verdict in "Close check run" (owner's request, Table#1179).
+      - name: Open check run
+        id: check
+        if: steps.resolve.outputs.go == '1' && steps.resolve.outputs.open == '1'
+        shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          SHA: ${{ steps.resolve.outputs.sha }}
+          RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
+        run: |
+          id=$(gh api -X POST "repos/$REPO/check-runs" -f name="Claude auto-review" -f head_sha="$SHA" -f status=in_progress \
+                 -f details_url="$RUN_URL" -f external_id="$GITHUB_RUN_ID" --jq .id) || { echo "::warning::check run not created"; exit 0; }
+          echo "id=$id" >> "$GITHUB_OUTPUT"; echo "check run $id opened on $SHA"
+
+
   review:
     # Review only PRs into the default branch (dev/master/main — each repo has its own): a stacked PR
     # waits for a push after the base retarget. Drafts and dependabot — skip. closed is not reviewed
     # (it only cancels the group).
-    if: >-
-      github.event_name == 'workflow_dispatch' || (
-      github.event.action != 'closed' &&
-      github.event.pull_request.draft == false &&
-      github.event.pull_request.user.login != 'dependabot[bot]' &&
-      github.event.pull_request.base.ref == github.event.repository.default_branch )
+    # v2.48: the event filter and the live-PR checks live in the `resolve` job; this job runs only on go=1.
+    needs: resolve
+    if: needs.resolve.outputs.go == '1'
     timeout-minutes: 90
-    runs-on: ubuntu-latest
+    outputs:
+      replay: ${{ steps.prep.outputs.replay }}
+      published: ${{ steps.publish.outcome }}
+      medium: ${{ steps.verdict.outputs.medium }}
+      remark: ${{ steps.verdict.outputs.remark }}
+      headref: ${{ steps.prep.outputs.headref }}
+      headsha: ${{ steps.prep.outputs.headsha }}
+      major: ${{ steps.verdict.outputs.major }}
+      iter_mode: ${{ steps.verdict.outputs.iter_mode }}
+      prev_major: ${{ steps.verdict.outputs.prev_major }}
+    runs-on: ubuntu-latest   # GitHub-hosted stopped on billing for private repos (2026-10-20)
     permissions:
       contents: read
       pull-requests: write
       issues: write
       id-token: write
-      actions: read
+      actions: read    # v2.48: no checks/actions write here — the agent runs in this job; those rights live in `resolve` / `finish`
       packages: read   # installing private @omnisgm-app/* from GitHub Packages (npm ci)
     env:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # v2.32: for npm ci in agent sandboxes
@@ -148,14 +269,29 @@ jobs:
         with:
           node-version: 22
 
-      - name: Ensure gh CLI in PATH
+      - name: Ensure gh CLI and jq in PATH
         shell: bash
+        env:
+          GH_TOKEN: ${{ github.token }}
         run: |
-          command -v gh >/dev/null && { gh --version | head -1; exit 0; }
-          v=$(curl -s https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
-          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
-          curl -sL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" | tar -xz -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+          # self-hosted containers ship neither gh nor jq in PATH (run 39410099942: `gh: command not found`).
+          # Every download is `curl -f` as its own command and verified by running the binary.
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no builds for $(uname -m)"; exit 1;; esac
+          if ! command -v gh >/dev/null; then
+            v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+            [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+            curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+            tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+            echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+            "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
+          fi
+          if ! command -v jq >/dev/null; then
+            mkdir -p "$RUNNER_TEMP/jq-bin"
+            curl -fsSL "https://github.com/jqlang/jq/releases/latest/download/jq-linux-${a}" -o "$RUNNER_TEMP/jq-bin/jq"
+            chmod +x "$RUNNER_TEMP/jq-bin/jq"
+            echo "$RUNNER_TEMP/jq-bin" >> "$GITHUB_PATH"
+            "$RUNNER_TEMP/jq-bin/jq" --version
+          fi
 
       # v2.33: marketplace clone ALWAYS and BEFORE Prepare — its scripts (slice_diff, digest_context)
       # are needed by the Prepare step, and the action installs the plugin later. plugin_ref (v2.31) picks the branch;
@@ -178,24 +314,35 @@ jobs:
         shell: bash
         env:
           GH_TOKEN: ${{ github.token }}
-          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
           REPO: ${{ github.repository }}
           BASE: ${{ github.base_ref }}
           HEADREF: ${{ github.head_ref }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          WORKFLOW_RUN: ${{ github.event_name == 'workflow_run' && '1' || '' }}
+          RESOLVED_SHA: ${{ needs.resolve.outputs.sha }}
           PLUGIN_REF: ${{ inputs.plugin_ref }}
-          FORCE: ${{ inputs.force == true && '1' || '' }}
+          # v2.48: unlabeled (a round requested on the same head) forces the full pipeline — otherwise
+          # iter_state sees no new commits, picks base-merge and the round re-checks nothing.
+          FORCE: ${{ (inputs.force == true || github.event.action == 'unlabeled') && '1' || '' }}
         run: |
           REPLAY=""
-          if [ -n "$DISPATCH" ]; then
+          # v2.48: a workflow_run event checks out the default branch and carries no head_ref/base_ref —
+          # the working copy is rebuilt the same way as a replay (merge commit of base + PR head), REPLAY stays empty.
+          if [ -n "$DISPATCH" ] || [ -n "$WORKFLOW_RUN" ]; then
             # v2.38: replay = the button on a NON-open PR; on an open one it is a regular round.
-            [ "$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)" = "OPEN" ] || REPLAY=1
+            [ -n "$WORKFLOW_RUN" ] || [ "$(gh pr view "$PR" --repo "$REPO" --json state --jq .state)" = "OPEN" ] || REPLAY=1
             # Replay: working copy = default branch; we recreate what the PR event gives —
             # a merge commit with the PR head as the second parent, base = the merge parent (merged PR)
             # or the live base branch. Branch names go into remote-refs so that `origin/<base>` and
             # `origin/<headref>` from ci-pipeline.md work as usual.
             read -r headref baseref merged headsha < <(gh pr view "$PR" --repo "$REPO" --json headRefName,baseRefName,mergeCommit,headRefOid --jq '"\(.headRefName) \(.baseRefName) \(.mergeCommit.oid // "-") \(.headRefOid)"')
-            git fetch -q origin "refs/pull/$PR/head:refs/remotes/origin/$headref"
+            # v2.48: the round reviews the head the `resolve` job accepted (green CI, check run opened) — not
+            # whatever the PR points at by the time a runner frees up; a push in between gets its own round.
+            if [ -n "$RESOLVED_SHA" ] && [ "$RESOLVED_SHA" != "$headsha" ]; then
+              echo "::notice::live head is $headsha, reviewing the resolved head $RESOLVED_SHA"; headsha=$RESOLVED_SHA
+            fi
+            git fetch -q origin "$headsha" && git update-ref "refs/remotes/origin/$headref" "$headsha"
             if [ "$merged" != "-" ]; then basesha=$(git rev-parse "$merged^"); else basesha=$(git rev-parse "origin/$baseref"); fi
             git update-ref refs/remotes/origin/replay-base "$basesha"
             git -c user.email=ci@omnisgm -c user.name=replay checkout -q "$basesha"
@@ -204,6 +351,8 @@ jobs:
             echo "replay of PR #$PR: head $headsha, base $basesha ($baseref), merged=$merged"
           fi
           echo "base=$BASE" >> "$GITHUB_OUTPUT"; echo "headref=$HEADREF" >> "$GITHUB_OUTPUT"; echo "replay=$REPLAY" >> "$GITHUB_OUTPUT"
+          # v2.48: the PR head this round reviews (second parent of the merge commit) — gate-label compares it with the live head.
+          echo "headsha=$(git rev-parse HEAD^2 2>/dev/null || git rev-parse HEAD)" >> "$GITHUB_OUTPUT"
           # v2.33: the run directory is unique — branch + UTC stamp. Two PRs of one repo run
           # in parallel (concurrency group per PR); on a persistent self-hosted runner a
           # shared /tmp/review would overwrite the neighbour's context and reports. Old runs are cleaned by
@@ -347,18 +496,19 @@ jobs:
             references/agents/ — the agent reads them ITSELF, you do not read or embed them.
             The review is posted to the PR in Russian. Write in Russian.
 
-            RUN: PR=#${{ github.event.pull_request.number || inputs.pr }}
+            RUN: PR=#${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
             REPO=${{ github.repository }} BASE=${{ steps.prep.outputs.base }}
             HEADREF=${{ steps.prep.outputs.headref }}
             REPO_DIR=${{ github.workspace }} OUT=${{ steps.prep.outputs.out }}
 
       - name: Publish review
+        id: publish
         if: always()
         env:
           RUN_OUT: ${{ steps.prep.outputs.out }}
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number || inputs.pr }}
+          PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
           REPLAY: ${{ steps.prep.outputs.replay }}
         shell: bash
         run: |
@@ -458,6 +608,30 @@ jobs:
           print("review published")
           PY
 
+      # v2.48: the verdict numbers for the `gate-label` job below (a separate job: it needs `actions: write`
+      # and must not share it with the agent's job — review of Table#1179). A base-merge round carries the
+      # previous verdict with counts 0 without checking code (ci-pipeline.md), so its mode is passed too.
+      - name: Verdict outputs
+        id: verdict
+        if: always()
+        env:
+          RUN_OUT: ${{ steps.prep.outputs.out }}
+        shell: bash
+        run: |
+          vf="$RUN_OUT/90-verdict.json"
+          major=""; mode=""
+          medium=""; remark=""
+          if [ -f "$vf" ] && jq -e '.counts.major | type == "number"' "$vf" >/dev/null; then
+            major=$(jq -r .counts.major "$vf"); medium=$(jq -r '.counts.medium // 0' "$vf"); remark=$(jq -r '.counts.remark // 0' "$vf")
+          fi
+          echo "medium=$medium" >> "$GITHUB_OUTPUT"; echo "remark=$remark" >> "$GITHUB_OUTPUT"
+          iter=$(grep -m1 '^ITER: mode=' "$RUN_OUT/INDEX.md" 2>/dev/null || true)
+          mode=$(sed -n 's/^ITER: mode=\([^ ]*\).*/\1/p' <<<"$iter")
+          # base-merge carries the previous verdict: its ❗ count comes from prev_counts=M/m/r.
+          prev_major=$(sed -n 's/.*prev_counts=\([0-9]*\)\/.*/\1/p' <<<"$iter")
+          echo "major=$major" >> "$GITHUB_OUTPUT"; echo "iter_mode=$mode" >> "$GITHUB_OUTPUT"; echo "prev_major=$prev_major" >> "$GITHUB_OUTPUT"
+          echo "major='$major' iter_mode='$mode' prev_major='$prev_major'"
+
       - name: Post journal observation
         if: always()
         # The journal is non-critical: a GitHub failure on this step must not paint the job red (run 37520167275 —
@@ -551,3 +725,104 @@ jobs:
         run: |
           [ -n "$RUN_OUT" ] && rm -rf "$RUN_OUT"
           rm -rf /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
+
+  # v2.48: the review gate label — 0 ❗ sets `gate/review-passed`, ❗ removes it; a replay or a
+  # base-merge round (nothing re-checked) never touches it. Own job: `actions: write` for re-dispatching
+  # merge-gate.yml (GITHUB_TOKEN label changes fire no `labeled` event) stays away from the agent's job.
+  # v2.48: the closing job — no agent, no checkout. Closes the check run on the PR head and sets or
+  # removes `gate/review-passed` (0 ❗ sets, ❗ removes; a replay or a base-merge round without a carried
+  # verdict never touches it), then re-dispatches merge-gate.yml (GITHUB_TOKEN label changes fire no
+  # `labeled` event). `actions: write` / `checks: write` stay away from the agent's job.
+  finish:
+    name: Review gate label
+    needs: [resolve, review]
+    if: always() && needs.resolve.outputs.go == '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    permissions:
+      pull-requests: write
+      issues: write
+      actions: write
+      checks: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
+      HEADREF: ${{ needs.review.outputs.headref }}
+      HEADSHA: ${{ needs.review.outputs.headsha }}
+      MAJOR: ${{ needs.review.outputs.major }}
+      MEDIUM: ${{ needs.review.outputs.medium }}
+      REMARK: ${{ needs.review.outputs.remark }}
+      ITER_MODE: ${{ needs.review.outputs.iter_mode }}
+      PREV_MAJOR: ${{ needs.review.outputs.prev_major }}
+      REPLAY: ${{ needs.review.outputs.replay }}
+      PUBLISHED: ${{ needs.review.outputs.published }}
+      REVIEW_RESULT: ${{ needs.review.result }}
+      CHECK_ID: ${{ needs.resolve.outputs.check_id }}
+    steps:
+      - name: Ensure gh CLI in PATH
+        shell: bash
+        run: |
+          command -v gh >/dev/null && exit 0
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
+          v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+          curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+          tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+      - name: Close check run
+        if: env.CHECK_ID != ''
+        shell: bash
+        run: |
+          if [ "$REVIEW_RESULT" != "success" ] || [ "$PUBLISHED" != "success" ] || [ -z "$MAJOR" ]; then
+            conclusion=failure; title="review did not finish (job: $REVIEW_RESULT, publish: ${PUBLISHED:-none})"; summary="See the run log."
+          elif [ "$ITER_MODE" = "base-merge" ]; then
+            title="base merge only — carried verdict: ${PREV_MAJOR:-?} ❗"; conclusion=$([ "${PREV_MAJOR:-1}" = 0 ] && echo success || echo failure)
+            summary="Head \`${HEADSHA:0:7}\`, mode base-merge. The review itself is on the PR: https://github.com/$REPO/pull/$PR"
+          else
+            title="$MAJOR ❗ / $MEDIUM medium / $REMARK remarks"; conclusion=$([ "$MAJOR" = 0 ] && echo success || echo failure)
+            summary="Head \`${HEADSHA:0:7}\`, mode ${ITER_MODE:-pipeline}. The review itself is on the PR: https://github.com/$REPO/pull/$PR"
+          fi
+          [ -n "$REPLAY" ] && title="replay — $title"
+          gh api -X PATCH "repos/$REPO/check-runs/$CHECK_ID" -f status=completed -f conclusion="$conclusion" \
+            -f "output[title]=$title" -f "output[summary]=$summary" --jq .id >/dev/null && echo "check run closed: $conclusion — $title" \
+            || echo "::warning::check run $CHECK_ID not closed"
+      - name: Set or remove gate/review-passed
+        if: env.REVIEW_RESULT == 'success' && env.REPLAY == '' && env.MAJOR != ''
+        shell: bash
+        run: |
+          set -euo pipefail
+          if [ "$ITER_MODE" = "base-merge" ]; then
+            # nothing re-checked: the carried verdict decides (prev_counts of the ITER line)
+            [ -n "$PREV_MAJOR" ] || { echo "::warning::base-merge round without prev_counts — label untouched"; exit 0; }
+            echo "base-merge round — using the carried verdict: $PREV_MAJOR ❗"; MAJOR=$PREV_MAJOR
+          fi
+          if [ "$MAJOR" = "0" ]; then
+            live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+            if [ "$live" != "$HEADSHA" ]; then echo "::notice::reviewed $HEADSHA, live head is $live — label not set, the next round decides"; exit 0; fi
+            gh label create gate/review-passed --repo "$REPO" --color 0E8A16 --description "claude-review: last round ended with 0 ❗ (set by the workflow)" --force >/dev/null
+            # The gate verifies the label's actor from the events list, which lags: count OUR labeled events
+            # over the whole list (--jq runs per page with --paginate) before and after, and wait for the increase.
+            # per-page counts summed in bash: the container has no bc/awk guarantee (run 39438210805: `bc: command not found`)
+            # A gh failure must be visible (a process substitution hides its exit code), but must not stop the
+            # step before the label is applied: warn and skip the wait instead.
+            count() { local out s=0 n; out=$(gh api "repos/$REPO/issues/$PR/events" --paginate --jq '[.[] | select(.event == "labeled" and .label.name == "gate/review-passed" and .actor.login == "github-actions[bot]")] | length') || return 1; while read -r n; do s=$((s + n)); done <<<"$out"; echo "$s"; }
+            before=$(count) || { echo "::warning::events list unreadable — label set without waiting for its event"; before=; }
+            gh pr edit "$PR" --repo "$REPO" --add-label gate/review-passed
+            echo "gate/review-passed set (0 ❗ on $HEADSHA)"
+            if [ -n "$before" ]; then
+              seen=
+              for i in 1 2 3 4 5 6 7 8 9 10; do
+                after=$(count) || after=
+                if [ -n "$after" ] && [ "$after" -gt "$before" ]; then seen=1; break; fi
+                sleep 3
+              done
+              [ -n "$seen" ] || echo "::warning::our labeled event did not show up within 30 s — the gate may need a re-run"
+            fi
+          else
+            if gh pr edit "$PR" --repo "$REPO" --remove-label gate/review-passed; then echo "gate/review-passed removed ($MAJOR ❗)"; else echo "$MAJOR ❗ — label was not set"; fi
+          fi
+          # Branches cut before merge-gate.yml existed have no file to dispatch — say so, do not hide it.
+          if ! gh workflow run merge-gate.yml --repo "$REPO" --ref "$HEADREF" -f pr="$PR"; then
+            echo "::warning::merge-gate.yml not dispatched on $HEADREF — toggle a label or push to re-evaluate the gate"
+          fi
