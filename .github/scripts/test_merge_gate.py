@@ -91,10 +91,13 @@ class JobVerdict(unittest.TestCase):
         self.assertEqual(gh.written, [{}])  # the stale binding is dropped from the state comment
         self.assertEqual(code, 1)
 
-    def test_main_runs_the_live_pull_and_an_api_error_propagates(self):
+    def test_main_returns_the_verdict_of_the_live_pull_and_an_api_error_propagates(self):
         gh = Recorder(pull(["gate/matrix-passed", "gate/review-passed"]), events=REVIEW_OK, state={"gate/matrix-passed": "head1"})
         with mock.patch.object(mg, "GitHub", lambda repo, pr: gh):
             self.assertEqual(verdict(gh, mg.main)[0], 0)
+        gh = Recorder(pull())  # waiting: `main` must carry run()'s 1 to the process exit code (the job's status)
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh):
+            self.assertEqual(verdict(gh, mg.main)[0], 1)
         gh = Recorder(pull(), boom=OSError("api down"))
         with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), self.assertRaises(OSError):
             verdict(gh, mg.main)

@@ -829,25 +829,25 @@ jobs:
           fi
           # v2.50: re-run the gate's own pull_request run on this head (a dispatch run is attached to no PR —
           # Table#1251). The run may still be in progress (the labeled/unlabeled event of a moment ago): wait for it.
-          # Only on the live head: a re-run replays the run's original payload (EVENT_HEAD_SHA of the reviewed
-          # head), and a `labeled` run of an older head would re-bind a label the live head earned (Rules#447).
+          # Always the LIVE head's run: a re-run replays the run's original payload (EVENT_HEAD_SHA), so a
+          # `labeled` run of an older head would re-bind a label the live head earned (Rules#447 round 2), while
+          # the live head's run of a moment ago may have read a label this round just removed and still be green
+          # (Rules#447 round 4) — it is re-run and goes red.
           live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) || live=
-          if [ -n "$live" ] && [ "$live" != "$HEADSHA" ]; then
-            echo "::notice::live head is $live, this round read $HEADSHA — no gate re-run: the live head's own run sees the labels"
-            exit 0
-          fi
+          target=${live:-$HEADSHA}
+          [ "$target" = "$HEADSHA" ] || echo "::notice::live head is $target, this round read $HEADSHA — re-running the live head's gate run"
           run_id=
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            line=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --commit "$HEADSHA" --limit 1 --json databaseId,status --jq '.[0] // empty | "\(.databaseId) \(.status)"') || line=
+            line=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --commit "$target" --limit 1 --json databaseId,status --jq '.[0] // empty | "\(.databaseId) \(.status)"') || line=
             [ -n "$line" ] || break  # `// empty`: an empty list is an empty line, not "null null" (News#171)
             run_id=${line%% *}; st=${line##* }
             [ "$st" = "completed" ] && break
             sleep 5
           done
           if [ -z "$run_id" ]; then
-            echo "::warning::no pull_request run of merge-gate.yml on $HEADSHA — toggle a label or push to re-evaluate the gate"
+            echo "::warning::no pull_request run of merge-gate.yml on $target — toggle a label or push to re-evaluate the gate"
           elif gh run rerun "$run_id" --repo "$REPO"; then
-            echo "merge gate run $run_id re-run on $HEADSHA"
+            echo "merge gate run $run_id re-run on $target"
           else
             echo "::warning::could not re-run merge gate run $run_id — toggle a label or push to re-evaluate the gate"
           fi
