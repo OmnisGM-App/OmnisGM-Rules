@@ -8,20 +8,15 @@ Tests: .github/scripts/test_merge_gate.py next to it in every repo, wired into t
 
 Environment: REPO, PR, EVENT (the pull_request action), EVENT_LABEL and EVENT_HEAD_SHA (the label and
 the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE and LABEL_*.
-The verdict is a check run named `Merge gate` on the PR head (the ruleset requires that name). The run opens
-it as `in_progress` first and closes that same run at the end: `in_progress` stays while something is awaited
-(a review round, a label, a lagging label event), `failure` on a contradiction (two matrix labels, a label by
-the wrong actor, a label without a recorded head) or on any error of the run itself, `success` when everything
-holds. A head shared with another branch (a release cut on the bare `dev` commit) is the fourth outcome: the run
-sits in that other branch's suite, so it is closed as `cancelled` — not a pass for that branch's PR, not a verdict
-on its code either — and the job exits 1 with the advice. The job ends green except on an error or on that shared
-head — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
-The ruleset requires BOTH contexts, `Merge gate` and the job `Merge gate run`: a queued, cancelled or failed
-job is not green, so a run that never reached its first write cannot leave a stale verdict standing (review of
-Table#1222, round 2). `--fail` is the workflow's last resort on `failure() || cancelled()`: a fresh `failure`
-check run on the live head, posted with urllib (gh may be missing when the bootstrap died). It is skipped when
-this script closed its own check (step output `closed=true`, written by `mark_closed`), so a real error keeps
-its real reason on top instead of the generic "died before the script" one (review of Rules#443).
+The verdict is the status of the job itself (`Merge gate`, the context the ruleset requires): green when every
+label holds on the head, red otherwise — a message that starts with "waiting:" names what is still awaited (a review
+round, a label, a lagging label event), the others are contradictions to fix by hand (two matrix labels, a label by
+the wrong actor, a label without a recorded head) or an error of the run. A `labeled`/`unlabeled` event re-runs the
+job, so a waiting PR turns green by itself once the label lands. No check run is written through the API (v3,
+2026-10-24): GitHub puts an API check run into the OLDEST check suite of the app on that SHA, and when the same
+workflow re-runs on a label the newer run supersedes that suite in the merge box together with the verdict in it
+(Table#1241: "Merge gate — Expected, waiting" with a green record in the API); a shared head (Table#1227) hid it the
+same way. The job's own status lives in its own run and is never hidden.
 
 Head-bound labels are bound to a HEAD SHA, not to a time (review of Table#1179, 3 rounds: committer
 dates are the author's clock, event lists lag, queued runs get superseded). The run of the `labeled`
@@ -48,8 +43,7 @@ LABEL_REVIEW = os.environ.get("LABEL_REVIEW", "gate/review-passed")
 SNAPSHOT_RE = re.compile(os.environ.get("SNAPSHOT_RE", r"(^|/)[^/]+-snapshots/"))
 BOT_LOGINS = {"dependabot[bot]", "app/dependabot"}  # REST gives the first, `gh pr view` the second
 WORKFLOW_ACTOR = "github-actions[bot]"  # labels applied with GITHUB_TOKEN carry this actor
-CHECK_NAME = os.environ.get("CHECK_NAME", "Merge gate")
-WAIT = "⏳ "  # prefix of a "still awaited" message — reported as in_progress, not as a failure
+WAIT = "⏳ "  # prefix of a "still awaited" message — reported as "waiting:", not as a contradiction
 STATE_MARK = "<!-- merge-gate-state "
 STATE_END = " -->"
 
@@ -72,7 +66,7 @@ def gh_json(*args: str):
 
 
 class GitHub:
-    """The reads and the two writes the gate needs; replaced by a fake in tests."""
+    """The reads and the two writes (label removal, state comment) the gate needs; replaced by a fake in tests."""
 
     def __init__(self, repo: str, pr: str):
         self.repo, self.pr = repo, pr
@@ -128,30 +122,6 @@ class GitHub:
 
     def remove_label(self, name: str) -> None:
         subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--remove-label", name], check=True)
-
-    def open_check(self, head: str) -> int:
-        """A fresh `in_progress` check run on the head — the first write of the run, so the ruleset never sees
-        a stale verdict while this run is working or after it dies (review of Table#1222)."""
-        r = gh_json(f"repos/{self.repo}/check-runs", "-X", "POST", "-f", f"name={CHECK_NAME}", "-f", f"head_sha={head}",
-                    "-f", "status=in_progress", "-f", "output[title]=evaluating", "-f", "output[summary]=the gate run is working")
-        return int(r["id"])
-
-    def suite_branch(self, check_id: int) -> str | None:
-        """The branch of the check suite the run landed in. The API puts a check run into the app's existing
-        suite for that SHA, and the PR merge box reads only suites of its own head branch: a release branch cut
-        on the very commit of `dev` writes its verdict into `dev`'s suite and the PR shows "Expected — waiting"
-        forever (Table#1227)."""
-        suite = gh_json(f"repos/{self.repo}/check-runs/{check_id}").get("check_suite") or {}
-        if not suite.get("id"):
-            return None
-        return gh_json(f"repos/{self.repo}/check-suites/{suite['id']}").get("head_branch")
-
-    def close_check(self, check_id: int, status: str, conclusion: str | None, title: str, summary: str) -> None:
-        args = [f"repos/{self.repo}/check-runs/{check_id}", "-X", "PATCH", "-f", f"status={status}",
-                "-f", f"output[title]={title[:200]}", "-f", f"output[summary]={summary[:60000]}"]
-        if conclusion:
-            args += ["-f", f"conclusion={conclusion}"]
-        gh_json(*args)
 
 
 def parse_state(body: str) -> dict:
@@ -242,77 +212,19 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
 
 
 def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
-    """(still awaited, contradictions): the first group keeps the check run in_progress, the second fails it."""
+    """(still awaited, contradictions): both make the job red; the first group is reported as "waiting"."""
     waiting = [f[len(WAIT):] for f in fail if f.startswith(WAIT)]
     errors = [f for f in fail if not f.startswith(WAIT)]
     return waiting, errors
 
 
-def report_dead_run(repo: str, pr: str, token: str, reason: str, post=None) -> dict:
-    """`--fail`: a new `completed/failure` check run on the PR's live head. `post(path, payload)` is the REST
-    call (urllib by default) — replaced in tests."""
-    import urllib.request
-
-    def rest(path: str, payload: dict | None = None) -> dict:
-        req = urllib.request.Request(f"https://api.github.com/repos/{repo}/{path}", method="POST" if payload else "GET",
-                                     data=json.dumps(payload).encode() if payload else None,
-                                     headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
-                                              "Content-Type": "application/json"})
-        with urllib.request.urlopen(req, timeout=30) as r:
-            return json.load(r)
-    post = post or rest
-    head = post(f"pulls/{pr}")["head"]["sha"]
-    payload = {"name": CHECK_NAME, "head_sha": head, "status": "completed", "conclusion": "failure",
-               "output": {"title": "gate run failed", "summary": reason[:60000]}}
-    post("check-runs", payload)
-    return payload
-
-
-def mark_closed() -> None:
-    """Tell the workflow the check run is closed (verdict or error), so the `--fail` step stays out."""
-    with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as out:
-        out.write("closed=true\n")
-
-
 def main() -> int:
-    repo, pr = os.environ["REPO"], os.environ["PR"]
-    if "--fail" in sys.argv[1:]:
-        p = report_dead_run(repo, pr, os.environ["GH_TOKEN"],
-                            "the gate run died before the script reported a verdict (cancelled, timed out or failed on "
-                            "bootstrap) — see the workflow log; re-run the gate")
-        print(f"::notice::{CHECK_NAME} closed as failure on {p['head_sha'][:8]}")
-        return 0
-    gh = GitHub(repo, pr)
-    pull = gh.pull()
-    check_id = gh.open_check(pull["head"]["sha"])
-    try:
-        branch = gh.suite_branch(check_id)
-        if branch and branch != pull["head"]["ref"]:
-            why = (f"the head {pull['head']['sha'][:8]} is also the head of `{branch}`, so the verdict lands in that "
-                   f"branch's check suite and this PR never sees it — give the branch its own commit "
-                   f"(an empty one on top is enough), push again and re-apply the gate labels on the new head")
-            # This run sits in the OTHER branch's suite: `failure` would read as that branch's verdict,
-            # `neutral` would pass its required check. `cancelled` is neither; the block is this exit 1.
-            # Closed outside the handler below, and the marker is written even when the close fails: a second
-            # close as `failure` — from the handler or from the workflow's `--fail` step — would paint that branch red.
-            try:
-                gh.close_check(check_id, "completed", "cancelled", "not this branch's run: head shared with another branch", why)
-            except Exception as e:  # noqa: BLE001
-                print(f"::warning::could not close the shared-head check run: {e}")
-            mark_closed()
-            print(f"::error::{why}")
-            return 1
-        return run(gh, pull, check_id)
-    except BaseException as e:  # noqa: BLE001 — the verdict must never stay stale: close the run as failed, then re-raise
-        try:
-            gh.close_check(check_id, "completed", "failure", "gate run failed", f"the gate run died before a verdict: {e}"[:60000])
-            mark_closed()
-        except Exception as e2:  # noqa: BLE001
-            print(f"::warning::could not close the check run after the error: {e2}")
-        raise
+    gh = GitHub(os.environ["REPO"], os.environ["PR"])
+    return run(gh, gh.pull())
 
 
-def run(gh: GitHub, pull: dict, check_id: int) -> int:
+def run(gh: GitHub, pull: dict) -> int:
+    """0 when every label holds on the live head, 1 otherwise; an API error propagates (the job is red with it)."""
     env = os.environ.get
     comment_id, state = gh.state()
     remove, fail, new_state = evaluate(gh, pull, gh.files(), gh.events(), state,
@@ -326,25 +238,18 @@ def run(gh: GitHub, pull: dict, check_id: int) -> int:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     out = open(summary, "a") if summary else sys.stdout
     waiting, errors = split_outcome(fail)
+    for f in errors:
+        print(f"::error::{f}")
+    for f in waiting:
+        print(f"::error::waiting: {f}")
     if errors:
-        for f in errors:
-            print(f"::error::{f}")
-        for f in waiting:
-            print(f"::notice::{f}")
-        text = "\n".join(f"- {f}" for f in errors + waiting)
-        gh.close_check(check_id, "completed", "failure", "blocked: " + errors[0], text)
-        print("## Merge gate: blocked\n" + text, file=out)
-    elif waiting:
-        for f in waiting:
-            print(f"::notice::{f}")
-        text = "\n".join(f"- {f}" for f in waiting)
-        gh.close_check(check_id, "in_progress", None, "waiting: " + waiting[0], text)
-        print("## Merge gate: waiting\n" + text, file=out)
-    else:
-        gh.close_check(check_id, "completed", "success", "labels ok", "every required label holds on this head")
-        print("## Merge gate: ok", file=out)
-        print("labels ok")
-    mark_closed()
+        print("## Merge gate: blocked\n" + "\n".join(f"- {f}" for f in errors + waiting), file=out)
+        return 1
+    if waiting:
+        print("## Merge gate: waiting\n" + "\n".join(f"- {f}" for f in waiting), file=out)
+        return 1
+    print("## Merge gate: ok", file=out)
+    print("labels ok")
     return 0
 
 

@@ -1,8 +1,7 @@
-"""Tests for merge_gate: evaluate (table), the check-run lifecycle of run()/main(), --fail.
+"""Tests for merge_gate: evaluate (table), the job verdict of run()/main(), the workflow contract.
 Run: python3 .github/scripts/test_merge_gate.py (in a repo copy) / python3 templates/workflows/test_merge_gate.py."""
 import io
 import os
-import tempfile
 import unittest
 from unittest import mock
 
@@ -39,12 +38,9 @@ class Recorder(Fake):
     def __init__(self, pull, events=(), state=None, boom=None):
         super().__init__()
         self._pull, self._events, self._state, self.boom = pull, list(events), dict(state or {}), boom
-        self.suite = None
-        self.closed, self.removed, self.written = [], [], []
+        self.removed, self.written = [], []
 
     def pull(self): return self._pull
-    def open_check(self, head): return 7
-    def suite_branch(self, check_id): return self.suite or self._pull["head"]["ref"]
     def state(self):
         if self.boom: raise self.boom
         return (None, self._state)
@@ -53,121 +49,66 @@ class Recorder(Fake):
     def events_again(self): return self._events
     def write_state(self, comment_id, state): self.written.append(state)
     def remove_label(self, name): self.removed.append(name)
-    def close_check(self, *a): self.closed.append(a)
 
 
-def lifecycle(gh, call):
-    """Runs `call` with GITHUB_OUTPUT on a temp file and the summary on stdout captured; returns the output file text."""
-    with tempfile.NamedTemporaryFile("w+", suffix=".out") as out, \
-            mock.patch.dict(os.environ, {"GITHUB_OUTPUT": out.name, "GITHUB_STEP_SUMMARY": "", "REPO": "o/r", "PR": "1"}), \
-            mock.patch("sys.stdout", new_callable=io.StringIO):
-        call()
-        out.seek(0)
-        return out.read()
+def verdict(gh, call):
+    """Runs `call` with the summary on stdout captured; returns (exit code, captured stdout)."""
+    with mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": "", "REPO": "o/r", "PR": "1"}), \
+            mock.patch("sys.stdout", new_callable=io.StringIO) as out:
+        code = call()
+    return code, out.getvalue()
 
 
-class CheckRunLifecycle(unittest.TestCase):
-    """What the `Merge gate` check run ends as — the behaviour the ruleset reads (review of Rules#443 / News#165)."""
+class JobVerdict(unittest.TestCase):
+    """The exit code is the job status the ruleset reads: 0 = labels ok, 1 = waiting or blocked (v3, Table#1241)."""
 
-    def test_waiting_leaves_the_check_in_progress_and_marks_closed(self):
+    def test_waiting_is_red_and_says_what_is_awaited(self):
         gh = Recorder(pull())  # no labels at all: matrix pair and review label still awaited
-        out = lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
-        (cid, status, conclusion, title, _), = gh.closed
-        self.assertEqual((cid, status, conclusion), (7, "in_progress", None))
-        self.assertTrue(title.startswith("waiting: "))
-        self.assertIn("closed=true", out)
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(code, 1)
+        self.assertIn("::error::waiting: ", out)
+        self.assertIn("## Merge gate: waiting", out)
+        self.assertNotIn("## Merge gate: blocked", out)
 
-    def test_a_contradiction_closes_the_check_as_failure(self):
+    def test_a_contradiction_is_red_as_blocked(self):
         gh = Recorder(pull(["gate/matrix-passed", "gate/matrix-not-needed", "gate/review-passed"]), events=REVIEW_OK,
                       state={"gate/matrix-passed": "head1"})
-        lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
-        (cid, status, conclusion, title, _), = gh.closed
-        self.assertEqual((cid, status, conclusion), (7, "completed", "failure"))
-        self.assertTrue(title.startswith("blocked: "))
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(code, 1)
+        self.assertIn("## Merge gate: blocked", out)
+        self.assertIn("found 2", out)
 
-    def test_every_label_holding_closes_the_check_as_success(self):
+    def test_every_label_holding_is_green(self):
         gh = Recorder(pull(["gate/matrix-passed", "gate/review-passed"]), events=REVIEW_OK, state={"gate/matrix-passed": "head1"})
-        lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
-        self.assertEqual(gh.closed, [(7, "completed", "success", "labels ok", "every required label holds on this head")])
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(code, 0)
+        self.assertIn("labels ok", out)
 
-    def test_a_label_bound_to_another_head_is_removed_and_the_rest_is_still_awaited(self):
+    def test_a_label_bound_to_another_head_is_removed_and_the_job_stays_red(self):
         gh = Recorder(pull(["gate/matrix-passed"]), state={"gate/matrix-passed": "head0"})  # bound to another head
-        lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
+        code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
         self.assertEqual(gh.removed, ["gate/matrix-passed"])
-        self.assertEqual(gh.closed[0][1:3], ("in_progress", None))
+        self.assertEqual(gh.written, [{}])  # the stale binding is dropped from the state comment
+        self.assertEqual(code, 1)
 
-    def test_a_suite_without_a_branch_does_not_block(self):
+    def test_main_runs_the_live_pull_and_an_api_error_propagates(self):
         gh = Recorder(pull(["gate/matrix-passed", "gate/review-passed"]), events=REVIEW_OK, state={"gate/matrix-passed": "head1"})
-        with mock.patch.object(gh, "suite_branch", lambda check_id: None), mock.patch.object(mg, "GitHub", lambda repo, pr: gh):
-            lifecycle(gh, mg.main)
-        self.assertEqual(gh.closed[0][1:3], ("completed", "success"))
-
-    def test_a_close_that_fails_on_the_error_path_leaves_no_closed_marker(self):
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh):
+            self.assertEqual(verdict(gh, mg.main)[0], 0)
         gh = Recorder(pull(), boom=OSError("api down"))
-        gh.close_check = lambda *a: (_ for _ in ()).throw(OSError("cannot close"))
-        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
-                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
-                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
-                mock.patch("sys.stdout", new_callable=io.StringIO):
-            with self.assertRaises(OSError):
-                mg.main()
-            outf.seek(0)
-            self.assertNotIn("closed=true", outf.read())
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), self.assertRaises(OSError):
+            verdict(gh, mg.main)
 
-    def test_a_head_shared_with_another_branch_fails_the_job_with_the_cut_advice(self):
-        gh = Recorder(pull(["gate/matrix-passed"], head="release/2026-10-23", base="master", sha="f0ba9722"),
-                      state={"gate/matrix-passed": "f0ba9722"})
-        gh.suite = "dev"  # the suite the API put the check run into
-        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
-                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
-                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
-                mock.patch("sys.stdout", new_callable=io.StringIO):
-            self.assertEqual(mg.main(), 1)
-            outf.seek(0)
-            self.assertIn("closed=true", outf.read())
-        (cid, status, conclusion, title, summary), = gh.closed
-        self.assertEqual((status, conclusion), ("completed", "cancelled"))  # dev's suite: not a pass, not its verdict
-        self.assertIn("head of `dev`", summary)
-        self.assertIn("own commit", summary)
-        self.assertIn("re-apply the gate labels", summary)
-
-    def test_a_shared_head_close_that_fails_is_not_retried_as_failure(self):
-        gh = Recorder(pull(["gate/matrix-passed"], head="release/2026-10-23", base="master", sha="f0ba9722"))
-        gh.suite = "dev"
-        calls = []
-
-        def close(*a):
-            calls.append(a)
-            raise OSError("5xx")
-        gh.close_check = close
-        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
-                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
-                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
-                mock.patch("sys.stdout", new_callable=io.StringIO):
-            self.assertEqual(mg.main(), 1)  # the job still blocks; the error is not re-raised into the handler
-            outf.seek(0)
-            self.assertIn("closed=true", outf.read())  # so the workflow's `--fail` step does not post `failure` either
-        self.assertEqual([c[2] for c in calls], ["cancelled"])  # no second close as `failure` in dev's suite
-
-    def test_an_error_after_the_open_closes_the_check_as_failure_marks_closed_and_re_raises(self):
-        gh = Recorder(pull(), boom=OSError("api down"))
-        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
-                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
-                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
-                mock.patch("sys.stdout", new_callable=io.StringIO):
-            with self.assertRaises(OSError):
-                mg.main()
-            outf.seek(0)
-            self.assertIn("closed=true", outf.read())
-        (cid, status, conclusion, title, summary), = gh.closed
-        self.assertEqual((cid, status, conclusion, title), (7, "completed", "failure", "gate run failed"))
-        self.assertIn("api down", summary)
+    def test_nothing_is_written_through_the_check_runs_api(self):
+        src = open(mg.__file__).read()
+        self.assertNotIn("check-runs", src)
+        self.assertFalse(hasattr(mg.GitHub, "open_check"))
 
 
 class WorkflowContract(unittest.TestCase):
-    """merge-gate.yml next to this file: the `--fail` step must read the marker the script writes."""
+    """merge-gate.yml next to this file: the job IS the required context — nothing else reports a verdict."""
 
-    def test_the_fail_step_is_guarded_by_the_closed_marker(self):
+    def test_the_job_is_named_merge_gate_and_only_runs_the_script(self):
         here = os.path.dirname(os.path.abspath(__file__))
         for candidate in (os.path.join(here, "merge-gate.yml"), os.path.join(here, "..", "workflows", "merge-gate.yml")):
             if os.path.exists(candidate):
@@ -176,15 +117,12 @@ class WorkflowContract(unittest.TestCase):
                 break
         else:
             self.fail("merge-gate.yml not found next to the script or in ../workflows")
-        steps = text.split("\n      - ")
-        gate = [s for s in steps if "run: python3 .github/scripts/merge_gate.py\n" in s]
-        fail = [s for s in steps if "merge_gate.py --fail" in s]
-        self.assertEqual((len(gate), len(fail)), (1, 1))
-        self.assertIn("id: gate", [l.split("#")[0].strip() for l in gate[0].splitlines()])
-        if_line = [l for l in fail[0].splitlines() if l.strip().startswith("if:")]
-        self.assertEqual(len(if_line), 1)
-        self.assertEqual(" ".join(if_line[0].split("#")[0].split()),
-                         "if: (failure() || cancelled()) && steps.gate.outputs.closed != 'true'")
+        names = [l.split("#")[0].strip() for l in text.splitlines() if l.split("#")[0].strip().startswith("name: ")]
+        self.assertIn("name: Merge gate", names)  # the ruleset's required context (authoring-workflows 12b)
+        self.assertNotIn("name: Merge gate run", names)
+        self.assertNotIn("--fail", text)
+        self.assertNotIn("checks: write", text)
+        self.assertEqual(text.count("run: python3 .github/scripts/merge_gate.py"), 1)
 
 
 class Gate(unittest.TestCase):
@@ -248,13 +186,6 @@ class Gate(unittest.TestCase):
         self.assertEqual(len(fail), 1)
         self.assertNotIn("gate/snapshots-approved", st)
 
-    def test_suite_branch_reads_the_check_run_then_its_suite(self):
-        with mock.patch.object(mg, "gh_json", side_effect=[{"check_suite": {"id": 5}}, {"head_branch": "dev"}]) as api:
-            self.assertEqual(mg.GitHub("o/r", "1").suite_branch(7), "dev")
-        self.assertEqual([c.args[0] for c in api.call_args_list], ["repos/o/r/check-runs/7", "repos/o/r/check-suites/5"])
-        with mock.patch.object(mg, "gh_json", side_effect=[{"check_suite": None}]):
-            self.assertIsNone(mg.GitHub("o/r", "1").suite_branch(7))
-
     def test_compare_status_behind_or_diverged_is_unknown(self):
         # force-push back to an ancestor: three-dot compare lists no files although the tree differs
         import unittest.mock as um
@@ -305,7 +236,7 @@ class Gate(unittest.TestCase):
         _, fail, _ = mg.evaluate(Fake(), pull(["gate/review-passed", "gate/matrix-not-needed"]), ["src/a.ts"], [], {})
         self.assertEqual(len(fail), 1)
         self.assertIn("not on record yet", fail[0])
-        self.assertEqual(mg.split_outcome(fail)[1], [])  # an event lag is awaited, not a contradiction
+        self.assertEqual(mg.split_outcome(fail)[1], [])  # an event lag is "waiting", not a contradiction
         # a later hand-applied event beats an older bot one; the newest event decides
         ev = [labeled("gate/review-passed", at="2026-10-20T09:00:00Z"), labeled("gate/review-passed", actor="Nemo", at="2026-10-20T11:00:00Z")]
         _, fail, _ = mg.evaluate(Fake(), pull(["gate/review-passed", "gate/matrix-not-needed"]), ["src/a.ts"], ev, {})
@@ -333,16 +264,6 @@ class Gate(unittest.TestCase):
         _, fail, _ = mg.evaluate(Fake(), pull(), ["src/a.ts"], [], {})
         self.assertEqual(mg.split_outcome(fail)[1], [])
         self.assertFalse(any(f.startswith(mg.WAIT) for f in mg.split_outcome(fail)[0]))
-
-    def test_fail_mode_posts_a_fresh_failure_on_the_live_head(self):
-        calls = []
-
-        def post(path, payload=None):
-            calls.append((path, payload))
-            return {"head": {"sha": "live9"}} if path == "pulls/7" else {"id": 1}
-        p = mg.report_dead_run("o/r", "7", "t", "died", post=post)
-        self.assertEqual([c[0] for c in calls], ["pulls/7", "check-runs"])
-        self.assertEqual((p["head_sha"], p["status"], p["conclusion"], p["name"]), ("live9", "completed", "failure", mg.CHECK_NAME))
 
     def test_state_round_trips_through_the_comment_body(self):
         st = {"gate/matrix-passed": "abc", "gate/snapshots-approved": "def"}
