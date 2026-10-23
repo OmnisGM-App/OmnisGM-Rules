@@ -27,7 +27,7 @@ it — a hand-applied one is reported and ignored.
 
 1. **Never set `gate/snapshots-approved`.** The token cannot tell the agent from the owner, so the
    rule is procedural: new or changed baselines are reviewed by a human eye, and the agent's job ends
-   at "baselines regenerated, here is what changed" in the PR body. The gate's red message says the
+   at "baselines regenerated, here is what changed" in the PR body. The gate's message says the
    same: it waits for a human.
 2. **Never set `gate/review-passed`** — the review workflow owns it. To ask for another round, remove
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
@@ -35,10 +35,11 @@ it — a hand-applied one is reported and ignored.
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
    no UI file is in the diff and the PR body says so.
 4. The gate is a status check, not a reviewer: a green gate still needs the owner's merge command.
-   Its colours: **yellow (in progress)** = something is still awaited — CI, a review round, a label; **red** =
-   a contradiction to fix by hand (two matrix labels, a label applied by the wrong actor, a label without a
-   recorded head); **green** = every required label holds on this head. The workflow run itself is green in
-   all three cases, so a waiting PR sends no failure mail.
+   Its colours: **yellow (in progress)** = something is still awaited — a review round, a label, a label
+   event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label
+   applied by the wrong actor, a label without a recorded head) or an error of the gate run itself; **green**
+   = every required label holds on this head. CI is not part of the gate — it is its own required check.
+   The workflow run is green unless it errors, so a waiting PR sends no failure mail.
 
 ## Failed and flaky tests (owner's decision 2026-10-22)
 

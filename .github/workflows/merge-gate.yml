@@ -6,9 +6,11 @@ name: Merge gate
 #
 # What it is (owner's decision 2026-10-20): the branch ruleset cannot require labels, so this
 # workflow turns PR labels into a required status — a check run named `Merge gate` on the PR head,
-# posted by merge_gate.py: in_progress while CI / a review round / a label is still awaited, failure only
-# on a contradiction, success when every label holds. The job itself is green either way (owner,
-# 2026-10-23: a waiting PR is not a failed run, and failed runs spam the mailbox). Four `gate/*` labels, who sets them and
+# opened by merge_gate.py as in_progress before anything else and closed by the same run: in_progress
+# while a review round, a label or a lagging label event is still awaited, failure on a contradiction or
+# on an error of the run, success when every label holds. CI is not read here — it is its own required
+# check. The job is green unless the run errors (owner, 2026-10-23: a waiting PR is not a failed run, and
+# failed runs spam the mailbox). Four `gate/*` labels, who sets them and
 # the merge method are described in `.claude/rules/merge-gate.md` (same template family).
 #   gate/snapshots-approved — required when the PR changes screenshot baselines;
 #                             set by a HUMAN (the owner) only, never by an agent.
@@ -86,3 +88,25 @@ jobs:
           "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
       - name: Evaluate labels against the diff
         run: python3 .github/scripts/merge_gate.py
+      - name: Close the check run as failed if the run died before the script
+        if: failure()
+        env:
+          HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+        run: |
+          python3 - <<'PY'
+          import json, os, urllib.request
+          repo, pr, tok = os.environ["REPO"], os.environ["PR"], os.environ["GH_TOKEN"]
+          def api(path, data=None, method="GET"):
+              req = urllib.request.Request(f"https://api.github.com/repos/{repo}/{path}", data=json.dumps(data).encode() if data else None, method=method,
+                                           headers={"Authorization": f"Bearer {tok}", "Accept": "application/vnd.github+json", "Content-Type": "application/json"})
+              with urllib.request.urlopen(req, timeout=30) as r:
+                  return json.load(r)
+          head = os.environ.get("HEAD_SHA") or api(f"pulls/{pr}")["head"]["sha"]
+          runs = [c for c in api(f"commits/{head}/check-runs?check_name=Merge%20gate")["check_runs"] if c["status"] != "completed"]
+          body = {"status": "completed", "conclusion": "failure", "output": {"title": "gate run failed", "summary": "the run died before the script reported a verdict — see the workflow log"}}
+          if runs:
+              api(f"check-runs/{runs[0]['id']}", body, "PATCH")
+          else:
+              api("check-runs", {"name": "Merge gate", "head_sha": head, **body}, "POST")
+          print("check run closed as failure on", head[:8])
+          PY

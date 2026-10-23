@@ -7,10 +7,11 @@ Tests: templates/workflows/test_merge_gate.py (run by the plugin repo CI).
 
 Environment: REPO, PR, EVENT (the pull_request action), EVENT_LABEL and EVENT_HEAD_SHA (the label and
 the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE, LABEL_* and DEFAULT_BRANCH.
-The verdict is a check run named `Merge gate` on the PR head (the ruleset requires that name): `in_progress`
-while something is still awaited (CI, a review round, a label), `failure` only on a contradiction (two matrix
-labels, a label by the wrong actor, a label without a recorded head), `success` when everything holds.
-The job itself ends green either way — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
+The verdict is a check run named `Merge gate` on the PR head (the ruleset requires that name). The run opens
+it as `in_progress` first and closes that same run at the end: `in_progress` stays while something is awaited
+(a review round, a label, a lagging label event), `failure` on a contradiction (two matrix labels, a label by
+the wrong actor, a label without a recorded head) or on any error of the run itself, `success` when everything
+holds. The job ends green except on an error — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
 
 Head-bound labels are bound to a HEAD SHA, not to a time (review of Table#1179, 3 rounds: committer
 dates are the author's clock, event lists lag, queued runs get superseded). The run of the `labeled`
@@ -118,9 +119,16 @@ class GitHub:
     def remove_label(self, name: str) -> None:
         subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--remove-label", name], check=True)
 
-    def check_run(self, head: str, status: str, conclusion: str | None, title: str, summary: str) -> None:
-        args = [f"repos/{self.repo}/check-runs", "-X", "POST", "-f", f"name={CHECK_NAME}", "-f", f"head_sha={head}",
-                "-f", f"status={status}", "-f", f"output[title]={title[:200]}", "-f", f"output[summary]={summary[:60000]}"]
+    def open_check(self, head: str) -> int:
+        """A fresh `in_progress` check run on the head — the first write of the run, so the ruleset never sees
+        a stale verdict while this run is working or after it dies (review of Table#1222)."""
+        r = gh_json(f"repos/{self.repo}/check-runs", "-X", "POST", "-f", f"name={CHECK_NAME}", "-f", f"head_sha={head}",
+                    "-f", "status=in_progress", "-f", "output[title]=evaluating", "-f", "output[summary]=the gate run is working")
+        return int(r["id"])
+
+    def close_check(self, check_id: int, status: str, conclusion: str | None, title: str, summary: str) -> None:
+        args = [f"repos/{self.repo}/check-runs/{check_id}", "-X", "PATCH", "-f", f"status={status}",
+                "-f", f"output[title]={title[:200]}", "-f", f"output[summary]={summary[:60000]}"]
         if conclusion:
             args += ["-f", f"conclusion={conclusion}"]
         gh_json(*args)
@@ -190,7 +198,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         if actor == WORKFLOW_ACTOR:
             review_ok = True
         elif actor is None:
-            fail.append(f"`{LABEL_REVIEW}` is set but its `labeled` event is not on record yet — re-run the gate.")
+            fail.append(f"{WAIT}`{LABEL_REVIEW}` is set but its `labeled` event is not on record yet — re-run the gate.")
         else:
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")
@@ -222,8 +230,20 @@ def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
 def main() -> int:
     repo, pr = os.environ["REPO"], os.environ["PR"]
     gh = GitHub(repo, pr)
-    env = os.environ.get
     pull = gh.pull()
+    check_id = gh.open_check(pull["head"]["sha"])
+    try:
+        return run(gh, pull, check_id)
+    except BaseException as e:  # noqa: BLE001 — the verdict must never stay stale: close the run as failed, then re-raise
+        try:
+            gh.close_check(check_id, "completed", "failure", "gate run failed", f"the gate run died before a verdict: {e}"[:60000])
+        except Exception as e2:  # noqa: BLE001
+            print(f"::warning::could not close the check run after the error: {e2}")
+        raise
+
+
+def run(gh: GitHub, pull: dict, check_id: int) -> int:
+    env = os.environ.get
     comment_id, state = gh.state()
     remove, fail, new_state = evaluate(gh, pull, gh.files(), gh.events(), state, env("DEFAULT_BRANCH") or "dev",
                                        event=env("EVENT", ""), event_label=env("EVENT_LABEL", ""),
@@ -236,23 +256,22 @@ def main() -> int:
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     out = open(summary, "a") if summary else sys.stdout
     waiting, errors = split_outcome(fail)
-    head = pull["head"]["sha"]
     if errors:
         for f in errors:
             print(f"::error::{f}")
         for f in waiting:
             print(f"::notice::{f}")
         text = "\n".join(f"- {f}" for f in errors + waiting)
-        gh.check_run(head, "completed", "failure", "blocked: " + errors[0], text)
+        gh.close_check(check_id, "completed", "failure", "blocked: " + errors[0], text)
         print("## Merge gate: blocked\n" + text, file=out)
     elif waiting:
         for f in waiting:
             print(f"::notice::{f}")
         text = "\n".join(f"- {f}" for f in waiting)
-        gh.check_run(head, "in_progress", None, "waiting: " + waiting[0], text)
+        gh.close_check(check_id, "in_progress", None, "waiting: " + waiting[0], text)
         print("## Merge gate: waiting\n" + text, file=out)
     else:
-        gh.check_run(head, "completed", "success", "labels ok", "every required label holds on this head")
+        gh.close_check(check_id, "completed", "success", "labels ok", "every required label holds on this head")
         print("## Merge gate: ok", file=out)
         print("labels ok")
     return 0
