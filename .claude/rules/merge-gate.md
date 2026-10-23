@@ -15,8 +15,8 @@ as copies. The ruleset of the default branch requires the `Merge gate` check
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
-dependabot or the PR is a release (`release/*` → `master`; the code also accepts `dev` → `master`, the
-form of #1219 and earlier — the release skill no longer opens PRs that way, and whether a `release/*`
+dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master`, the form of #1219 and
+earlier, is gated like a feature PR since 2026-10-23, and whether a `release/*`
 head is an empty commit whose parent is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the

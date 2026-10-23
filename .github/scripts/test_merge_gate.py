@@ -175,10 +175,11 @@ class WorkflowContract(unittest.TestCase):
         gate = [s for s in steps if "run: python3 .github/scripts/merge_gate.py\n" in s]
         fail = [s for s in steps if "merge_gate.py --fail" in s]
         self.assertEqual((len(gate), len(fail)), (1, 1))
-        self.assertIn("id: gate", gate[0])
+        self.assertIn("id: gate", [l.split("#")[0].strip() for l in gate[0].splitlines()])
         if_line = [l for l in fail[0].splitlines() if l.strip().startswith("if:")]
         self.assertEqual(len(if_line), 1)
-        self.assertIn("steps.gate.outputs.closed != 'true'", if_line[0].split("#")[0])  # the condition, not a comment
+        self.assertEqual(" ".join(if_line[0].split("#")[0].split()),
+                         "if: (failure() || cancelled()) && steps.gate.outputs.closed != 'true'")
 
 
 class Gate(unittest.TestCase):
@@ -310,13 +311,13 @@ class Gate(unittest.TestCase):
             _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], author=login), ["package.json"], [], {})
             self.assertEqual(fail, [], login)
 
-    def test_release_pr_from_dev_needs_only_the_matrix_label(self):
+    def test_release_pr_needs_only_the_matrix_label(self):
         files = [SNAP, "src/a.ts"]
-        for head in ("dev", "release/2026-10-20-1"):
+        _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head="release/2026-10-20-1", base="master"), files, [], {})
+        self.assertEqual(fail, [])
+        for head in ("dev", "feat/x"):  # dev -> master is a feature PR since 2026-10-23: release/* only
             _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head=head, base="master"), files, [], {})
-            self.assertEqual(fail, [], head)
-        _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head="feat/x", base="master"), files, [], {})
-        self.assertEqual(len(fail), 2)
+            self.assertEqual(len(fail), 2, head)
 
     def test_outcome_splits_waiting_from_contradictions(self):
         _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-passed", "gate/matrix-not-needed"]), [SNAP], [], {"gate/matrix-passed": "head1"})

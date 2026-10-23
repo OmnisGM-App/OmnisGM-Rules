@@ -221,7 +221,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")
 
-    release = base_ref == "master" and (head_ref == default_branch or head_ref.startswith("release/"))
+    release = base_ref == "master" and head_ref.startswith("release/")  # dev -> master is not a release since 2026-10-23
     bot = author in BOT_LOGINS
     nsnap = len(pr_snaps)
     if nsnap and not release and LABEL_SNAP not in labels:
