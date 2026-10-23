@@ -48,6 +48,11 @@ it — a hand-applied one is reported and ignored.
    Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,
    a rename with no logic change, a clean base merge, or a one-line fix exactly as the reviewer wrote it.
    In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
+2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
+   and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
+   an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,
+   #1163). Re-shooting the baselines the PR itself touches is part of the change, not of the matrix:
+   `authoring-e2e.md` rule 6.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
    no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
@@ -55,7 +60,8 @@ it — a hand-applied one is reported and ignored.
    last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
    on and nothing matrix-relevant landed after it; (b) a release cut as an empty commit on top of a `dev`
    head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
-4. The gate is a status check, not a reviewer: a green gate still needs the owner's merge command.
+4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
+   merges (the agent itself for a PR without baseline changes; the owner's command for everything else).
    Its colours: **yellow (in progress)** = something is still awaited — a review round, a label, a label
    event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label
    applied by the wrong actor, a label without a recorded head) or an error of the gate run itself; **green**
@@ -80,11 +86,27 @@ it — a hand-applied one is reported and ignored.
 
 ## How to merge
 
+- **Who merges (owner's decision 2026-10-21).** A PR that changes no `*-snapshots/` file is merged by the
+  agent itself once it is ready: CI and `Merge gate` green on the final head, `gate/review-passed` set by
+  the workflow, an honest matrix label (the full matrix on this head, or `gate/matrix-not-needed` with the
+  one-line reason in the body), every review thread answered and resolved, no round in flight. A PR with
+  changed baselines waits for the owner's merge command: a human looks at the frames. A release into `master`
+  — only on the owner's command. In `claude-plugins` the agent merges its own PRs under the same readiness
+  criteria (owner, 2026-10-19).
+- **One command = one PR.** When a merge does need the owner's word, it covers the PR it was said about:
+  not a stack whose order the reviewer suggested, not "the next one" after "merge and take the next task"
+  (that permits starting the task, not merging its PR), not an "if it goes green — merge" from an earlier
+  exchange. Other ready PRs stay open and are reported as ready. Unsure what a command covers — ask.
 - **Squash, never `--admin`.** `gh pr merge N --squash --delete-branch`, or `--auto --squash` so the
-  PR merges itself when the required checks (CI + `Merge gate`) go green. `--auto` is armed only on
-  the owner's merge command and only once every review thread is answered and resolved and no round
-  is running (`review-response.md`, merge readiness): the checks do not know about threads. An admin
-  merge bypasses the gate and is reserved for the owner's own hand in an emergency.
+  PR merges itself when the required checks (CI + `Merge gate`) go green. `--auto` is armed only once
+  every review thread is answered and resolved and no round is running (`review-response.md`, merge
+  readiness): the checks do not know about threads. An admin merge bypasses the gate and is reserved
+  for the owner's own hand in an emergency.
+- **A stacked PR (base is another PR's branch, not `dev`/`master`) is opened as a draft** and marked ready
+  only after the lower PR is merged and this one is retargeted (owner, 2026-10-14). Merge order of a stack:
+  `gh pr edit <upper> --base dev` FIRST, then `gh pr merge <lower> --delete-branch` — deleting the base
+  branch closes the upper PR instead of retargeting it (News#162→#163, 2026-10-23). If it did close:
+  push the old SHA back to the base branch name, `gh pr reopen`, `gh pr edit --base`, delete the branch again.
 - **`master` is the only branch merged without squash** (Table: the release PR `release/YYYY-MM-DD` →
   `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
   is kept); everything else — squash.
