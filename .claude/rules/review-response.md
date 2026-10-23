@@ -4,7 +4,8 @@ Copy of the template from OmnisGM-App/claude-plugins/templates/review-response.m
 roll out as copies. Complements `authoring-pitfalls.md` (error classes in the PR itself); here —
 behaviour AFTER the review has arrived. A round starts by itself after a green CI on every push while the
 PR has no `gate/review-passed` label (claude-review.yml v2.48, 2026-10-20); a round that ends with 0 ❗ sets
-the label and later pushes start nothing until someone removes it (see `merge-gate.md`). workflow_dispatch
+the label and later pushes start nothing until someone removes it (`merge-gate.md` rule 2 says when the
+author removes it before a push: behaviour changes after a clean round are reviewed again). workflow_dispatch
 stays for replays and `force`. Each round is a full auto-review round (6–8 agents), so the price of every
 push before the label is a whole round, not "a minute": batch the fixes, push once.
 
