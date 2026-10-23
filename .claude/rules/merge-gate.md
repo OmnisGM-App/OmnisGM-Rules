@@ -17,7 +17,7 @@ as copies. The ruleset of the default branch requires the `Merge gate` check
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
 dependabot or the PR is a release (`release/*` → `master`; the code also accepts `dev` → `master`, the
 form of #1219 and earlier — the release skill no longer opens PRs that way, and whether a `release/*`
-head is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
+head is an empty commit whose parent is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
 head they were applied on (the gate keeps a state comment on the PR): `gate/matrix-passed` applied on
@@ -35,7 +35,11 @@ it — a hand-applied one is reported and ignored.
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
-   no UI file is in the diff and the PR body says so.
+   no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
+   2026-10-23), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
+   last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
+   on and nothing matrix-relevant landed after it; (b) a release cut as an empty commit on top of a `dev`
+   head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
 4. The gate is a status check, not a reviewer: a green gate still needs the owner's merge command.
    Its colours: **yellow (in progress)** = something is still awaited — a review round, a label, a label
    event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label

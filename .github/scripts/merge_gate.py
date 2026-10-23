@@ -133,6 +133,16 @@ class GitHub:
                     "-f", "status=in_progress", "-f", "output[title]=evaluating", "-f", "output[summary]=the gate run is working")
         return int(r["id"])
 
+    def suite_branch(self, check_id: int) -> str | None:
+        """The branch of the check suite the run landed in. The API puts a check run into the app's existing
+        suite for that SHA, and the PR merge box reads only suites of its own head branch: a release branch cut
+        on the very commit of `dev` writes its verdict into `dev`'s suite and the PR shows "Expected — waiting"
+        forever (Table#1227)."""
+        suite = gh_json(f"repos/{self.repo}/check-runs/{check_id}").get("check_suite") or {}
+        if not suite.get("id"):
+            return None
+        return gh_json(f"repos/{self.repo}/check-suites/{suite['id']}").get("head_branch")
+
     def close_check(self, check_id: int, status: str, conclusion: str | None, title: str, summary: str) -> None:
         args = [f"repos/{self.repo}/check-runs/{check_id}", "-X", "PATCH", "-f", f"status={status}",
                 "-f", f"output[title]={title[:200]}", "-f", f"output[summary]={summary[:60000]}"]
@@ -272,6 +282,15 @@ def main() -> int:
     pull = gh.pull()
     check_id = gh.open_check(pull["head"]["sha"])
     try:
+        branch = gh.suite_branch(check_id)
+        if branch and branch != pull["head"]["ref"]:
+            why = (f"the head {pull['head']['sha'][:8]} is also the head of `{branch}`, so the verdict lands in that "
+                   f"branch's check suite and this PR never sees it — give the branch its own commit "
+                   f"(an empty one on top is enough) and push again")
+            gh.close_check(check_id, "completed", "failure", "blocked: head shared with another branch", why)
+            mark_closed()
+            print(f"::error::{why}")
+            return 1
         return run(gh, pull, check_id)
     except BaseException as e:  # noqa: BLE001 — the verdict must never stay stale: close the run as failed, then re-raise
         try:
