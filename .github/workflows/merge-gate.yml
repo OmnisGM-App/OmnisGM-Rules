@@ -5,7 +5,14 @@ name: Merge gate
 # roll out as copies. Per-repo knobs are the `env:` block of the job — nothing else should differ.
 #
 # What it is (owner's decision 2026-10-20): the branch ruleset cannot require labels, so this
-# check turns PR labels into a required status. Four `gate/*` labels, who sets them and
+# workflow turns PR labels into a required status — a check run named `Merge gate` on the PR head,
+# opened by merge_gate.py as in_progress before anything else and closed by the same run: in_progress
+# while a review round, a label or a lagging label event is still awaited, failure on a contradiction or
+# on an error of the run, success when every label holds. CI is not read here — it is its own required
+# check. The job is green unless the run errors (owner, 2026-10-23: a waiting PR is not a failed run, and
+# failed runs spam the mailbox). The ruleset requires BOTH `Merge gate` (the check run) and `Merge gate run`
+# (this job): a run that is queued, cancelled or dead before its first write is not green, so a stale
+# verdict on the head cannot pass on its own (review of Table#1222, round 2). Four `gate/*` labels, who sets them and
 # the merge method are described in `.claude/rules/merge-gate.md` (same template family).
 #   gate/snapshots-approved — required when the PR changes screenshot baselines;
 #                             set by a HUMAN (the owner) only, never by an agent.
@@ -47,12 +54,13 @@ concurrency:
 
 jobs:
   gate:
-    name: Merge gate
+    name: Merge gate run   # required together with the `Merge gate` check run the script posts
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: write
       issues: write      # the state comment
+      checks: write      # the `Merge gate` check run
       contents: read
     env:
       GH_TOKEN: ${{ github.token }}
@@ -73,12 +81,18 @@ jobs:
         run: |
           # self-hosted containers do not ship gh (run 39410099942: `gh: command not found`).
           command -v gh >/dev/null && exit 0
-          v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          v=$(curl -fsSL --max-time 60 -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
           [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
           case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
-          curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+          curl -fsSL --max-time 120 "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
           tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
       - name: Evaluate labels against the diff
+        id: gate
         run: python3 .github/scripts/merge_gate.py
+      # Only when the script never closed its check run (queued → cancelled, timed out, bootstrap died): a
+      # script that failed after opening closes the run itself with the real error and sets `closed=true`.
+      - name: Close the check run as failed if the run died before the script
+        if: (failure() || cancelled()) && steps.gate.outputs.closed != 'true'
+        run: python3 .github/scripts/merge_gate.py --fail

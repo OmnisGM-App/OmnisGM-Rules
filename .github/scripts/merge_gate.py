@@ -3,11 +3,22 @@
 
 A COPY of OmnisGM-App/claude-plugins templates/workflows/merge_gate.py lives in every repo at
 .github/scripts/merge_gate.py next to merge-gate.yml; edit the template, roll out as copies.
-Tests: templates/workflows/test_merge_gate.py (run by the plugin repo CI).
+Tests: .github/scripts/test_merge_gate.py next to it in every repo, wired into that repo's CI
+(`python3 .github/scripts/test_merge_gate.py`); the template copy is templates/workflows/test_merge_gate.py.
 
 Environment: REPO, PR, EVENT (the pull_request action), EVENT_LABEL and EVENT_HEAD_SHA (the label and
 the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE, LABEL_* and DEFAULT_BRANCH.
-Exit 1 with `::error::` lines when the PR may not merge.
+The verdict is a check run named `Merge gate` on the PR head (the ruleset requires that name). The run opens
+it as `in_progress` first and closes that same run at the end: `in_progress` stays while something is awaited
+(a review round, a label, a lagging label event), `failure` on a contradiction (two matrix labels, a label by
+the wrong actor, a label without a recorded head) or on any error of the run itself, `success` when everything
+holds. The job ends green except on an error — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
+The ruleset requires BOTH contexts, `Merge gate` and the job `Merge gate run`: a queued, cancelled or failed
+job is not green, so a run that never reached its first write cannot leave a stale verdict standing (review of
+Table#1222, round 2). `--fail` is the workflow's last resort on `failure() || cancelled()`: a fresh `failure`
+check run on the live head, posted with urllib (gh may be missing when the bootstrap died). It is skipped when
+this script closed its own check (step output `closed=true`, written by `mark_closed`), so a real error keeps
+its real reason on top instead of the generic "died before the script" one (review of Rules#443).
 
 Head-bound labels are bound to a HEAD SHA, not to a time (review of Table#1179, 3 rounds: committer
 dates are the author's clock, event lists lag, queued runs get superseded). The run of the `labeled`
@@ -34,6 +45,8 @@ LABEL_REVIEW = os.environ.get("LABEL_REVIEW", "gate/review-passed")
 SNAPSHOT_RE = re.compile(os.environ.get("SNAPSHOT_RE", r"(^|/)[^/]+-snapshots/"))
 BOT_LOGINS = {"dependabot[bot]", "app/dependabot"}  # REST gives the first, `gh pr view` the second
 WORKFLOW_ACTOR = "github-actions[bot]"  # labels applied with GITHUB_TOKEN carry this actor
+CHECK_NAME = os.environ.get("CHECK_NAME", "Merge gate")
+WAIT = "⏳ "  # prefix of a "still awaited" message — reported as in_progress, not as a failure
 STATE_MARK = "<!-- merge-gate-state "
 STATE_END = " -->"
 
@@ -113,6 +126,20 @@ class GitHub:
     def remove_label(self, name: str) -> None:
         subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--remove-label", name], check=True)
 
+    def open_check(self, head: str) -> int:
+        """A fresh `in_progress` check run on the head — the first write of the run, so the ruleset never sees
+        a stale verdict while this run is working or after it dies (review of Table#1222)."""
+        r = gh_json(f"repos/{self.repo}/check-runs", "-X", "POST", "-f", f"name={CHECK_NAME}", "-f", f"head_sha={head}",
+                    "-f", "status=in_progress", "-f", "output[title]=evaluating", "-f", "output[summary]=the gate run is working")
+        return int(r["id"])
+
+    def close_check(self, check_id: int, status: str, conclusion: str | None, title: str, summary: str) -> None:
+        args = [f"repos/{self.repo}/check-runs/{check_id}", "-X", "PATCH", "-f", f"status={status}",
+                "-f", f"output[title]={title[:200]}", "-f", f"output[summary]={summary[:60000]}"]
+        if conclusion:
+            args += ["-f", f"conclusion={conclusion}"]
+        gh_json(*args)
+
 
 def parse_state(body: str) -> dict:
     try:
@@ -178,7 +205,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         if actor == WORKFLOW_ACTOR:
             review_ok = True
         elif actor is None:
-            fail.append(f"`{LABEL_REVIEW}` is set but its `labeled` event is not on record yet — re-run the gate.")
+            fail.append(f"{WAIT}`{LABEL_REVIEW}` is set but its `labeled` event is not on record yet — re-run the gate.")
         else:
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")
@@ -187,23 +214,76 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
     bot = author in BOT_LOGINS
     nsnap = len(pr_snaps)
     if nsnap and not release and LABEL_SNAP not in labels:
-        fail.append(f"{nsnap} screenshot baseline(s) changed in this PR — waiting for `{LABEL_SNAP}`. "
+        fail.append(f"{WAIT}{nsnap} screenshot baseline(s) changed in this PR — waiting for `{LABEL_SNAP}`. "
                     "Only a human (the owner) sets it after looking at the new images; an agent never does.")
     n_matrix = (LABEL_MATRIX_OK in labels) + (LABEL_MATRIX_NA in labels)
     if n_matrix != 1:
-        fail.append(f"exactly one of `{LABEL_MATRIX_OK}` (full Playwright matrix green on head {head[:7]}) or "
-                    f"`{LABEL_MATRIX_NA}` (diff does not touch UI — say so in the PR body) is required; found {n_matrix}.")
+        fail.append(f"{WAIT if n_matrix == 0 else ''}exactly one of `{LABEL_MATRIX_OK}` (full Playwright matrix green on "
+                    f"head {head[:7]}) or `{LABEL_MATRIX_NA}` (diff does not touch UI — say so in the PR body) is required; "
+                    f"found {n_matrix}.")
     if not bot and not release and not review_ok and not any(LABEL_REVIEW in f for f in fail):
-        fail.append(f"waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
+        fail.append(f"{WAIT}waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
                     "it runs after CI on every push while the label is absent (removing the label starts a round too).")
     return remove, fail, state
 
 
+def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
+    """(still awaited, contradictions): the first group keeps the check run in_progress, the second fails it."""
+    waiting = [f[len(WAIT):] for f in fail if f.startswith(WAIT)]
+    errors = [f for f in fail if not f.startswith(WAIT)]
+    return waiting, errors
+
+
+def report_dead_run(repo: str, pr: str, token: str, reason: str, post=None) -> dict:
+    """`--fail`: a new `completed/failure` check run on the PR's live head. `post(path, payload)` is the REST
+    call (urllib by default) — replaced in tests."""
+    import urllib.request
+
+    def rest(path: str, payload: dict | None = None) -> dict:
+        req = urllib.request.Request(f"https://api.github.com/repos/{repo}/{path}", method="POST" if payload else "GET",
+                                     data=json.dumps(payload).encode() if payload else None,
+                                     headers={"Authorization": f"Bearer {token}", "Accept": "application/vnd.github+json",
+                                              "Content-Type": "application/json"})
+        with urllib.request.urlopen(req, timeout=30) as r:
+            return json.load(r)
+    post = post or rest
+    head = post(f"pulls/{pr}")["head"]["sha"]
+    payload = {"name": CHECK_NAME, "head_sha": head, "status": "completed", "conclusion": "failure",
+               "output": {"title": "gate run failed", "summary": reason[:60000]}}
+    post("check-runs", payload)
+    return payload
+
+
+def mark_closed() -> None:
+    """Tell the workflow the check run is closed (verdict or error), so the `--fail` step stays out."""
+    with open(os.environ.get("GITHUB_OUTPUT", "/dev/null"), "a") as out:
+        out.write("closed=true\n")
+
+
 def main() -> int:
     repo, pr = os.environ["REPO"], os.environ["PR"]
+    if "--fail" in sys.argv[1:]:
+        p = report_dead_run(repo, pr, os.environ["GH_TOKEN"],
+                            "the gate run died before the script reported a verdict (cancelled, timed out or failed on "
+                            "bootstrap) — see the workflow log; re-run the gate")
+        print(f"::notice::{CHECK_NAME} closed as failure on {p['head_sha'][:8]}")
+        return 0
     gh = GitHub(repo, pr)
-    env = os.environ.get
     pull = gh.pull()
+    check_id = gh.open_check(pull["head"]["sha"])
+    try:
+        return run(gh, pull, check_id)
+    except BaseException as e:  # noqa: BLE001 — the verdict must never stay stale: close the run as failed, then re-raise
+        try:
+            gh.close_check(check_id, "completed", "failure", "gate run failed", f"the gate run died before a verdict: {e}"[:60000])
+            mark_closed()
+        except Exception as e2:  # noqa: BLE001
+            print(f"::warning::could not close the check run after the error: {e2}")
+        raise
+
+
+def run(gh: GitHub, pull: dict, check_id: int) -> int:
+    env = os.environ.get
     comment_id, state = gh.state()
     remove, fail, new_state = evaluate(gh, pull, gh.files(), gh.events(), state, env("DEFAULT_BRANCH") or "dev",
                                        event=env("EVENT", ""), event_label=env("EVENT_LABEL", ""),
@@ -215,13 +295,26 @@ def main() -> int:
         gh.write_state(comment_id, new_state)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     out = open(summary, "a") if summary else sys.stdout
-    if fail:
-        for f in fail:
+    waiting, errors = split_outcome(fail)
+    if errors:
+        for f in errors:
             print(f"::error::{f}")
-        print("## Merge gate: blocked\n" + "\n".join(f"- {f}" for f in fail), file=out)
-        return 1
-    print("## Merge gate: ok", file=out)
-    print("labels ok")
+        for f in waiting:
+            print(f"::notice::{f}")
+        text = "\n".join(f"- {f}" for f in errors + waiting)
+        gh.close_check(check_id, "completed", "failure", "blocked: " + errors[0], text)
+        print("## Merge gate: blocked\n" + text, file=out)
+    elif waiting:
+        for f in waiting:
+            print(f"::notice::{f}")
+        text = "\n".join(f"- {f}" for f in waiting)
+        gh.close_check(check_id, "in_progress", None, "waiting: " + waiting[0], text)
+        print("## Merge gate: waiting\n" + text, file=out)
+    else:
+        gh.close_check(check_id, "completed", "success", "labels ok", "every required label holds on this head")
+        print("## Merge gate: ok", file=out)
+        print("labels ok")
+    mark_closed()
     return 0
 
 

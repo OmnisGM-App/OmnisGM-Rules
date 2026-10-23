@@ -45,6 +45,11 @@ by round three or four, after that review was picking apart fix prose and promis
 
 - A thread is resolved with proof: commit hash + one line "what changed", or
   «не чиню: причина» (not fixing: reason), or «➡️ #N». «Поправил» (fixed) without a hash is not a closure.
+- **Only after the fix is pushed** (owner, 2026-10-23). The reply that says what changed and how, and the
+  resolve click, come after the commit with the fix exists on the PR branch and the hash in the reply is
+  that commit's. Never "will fix in the next commit" + resolve, never a reply written from the planned diff:
+  the reader of a resolved thread must be able to open the hash and see the change. The decision list
+  (step 1) stays before the edits; thread replies are the receipt, not the promise.
 - A thread without a reply is not resolved. A thread with a reviewer's question is closed by answering the question.
 - Open threads after the fix commit — only those where the decision is the owner's; in the round
   comment they are listed by name.

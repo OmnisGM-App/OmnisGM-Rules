@@ -15,7 +15,9 @@ as copies. The ruleset of the default branch requires the `Merge gate` check
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
-dependabot or the PR is a release (`dev` or `release/*` → `master`); `gate/snapshots-approved` when
+dependabot or the PR is a release (`release/*` → `master`; the code also accepts `dev` → `master`, the
+form of #1219 and earlier — the release skill no longer opens PRs that way, and whether a `release/*`
+head is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
 head they were applied on (the gate keeps a state comment on the PR): `gate/matrix-passed` applied on
@@ -27,7 +29,7 @@ it — a hand-applied one is reported and ignored.
 
 1. **Never set `gate/snapshots-approved`.** The token cannot tell the agent from the owner, so the
    rule is procedural: new or changed baselines are reviewed by a human eye, and the agent's job ends
-   at "baselines regenerated, here is what changed" in the PR body. The gate's red message says the
+   at "baselines regenerated, here is what changed" in the PR body. The gate's message says the
    same: it waits for a human.
 2. **Never set `gate/review-passed`** — the review workflow owns it. To ask for another round, remove
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
@@ -35,6 +37,12 @@ it — a hand-applied one is reported and ignored.
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
    no UI file is in the diff and the PR body says so.
 4. The gate is a status check, not a reviewer: a green gate still needs the owner's merge command.
+   Its colours: **yellow (in progress)** = something is still awaited — a review round, a label, a label
+   event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label
+   applied by the wrong actor, a label without a recorded head) or an error of the gate run itself; **green**
+   = every required label holds on this head. CI is not part of the gate — it is its own required check.
+   The workflow run is green unless it errors, so a waiting PR sends no failure mail. The ruleset requires
+   both `Merge gate` (the check run) and `Merge gate run` (the job): a queued or cancelled run is not green.
 
 ## Failed and flaky tests (owner's decision 2026-10-22)
 
@@ -57,8 +65,9 @@ it — a hand-applied one is reported and ignored.
   the owner's merge command and only once every review thread is answered and resolved and no round
   is running (`review-response.md`, merge readiness): the checks do not know about threads. An admin
   merge bypasses the gate and is reserved for the owner's own hand in an emergency.
-- **`master` is the only branch merged without squash** (Table: the release PR `dev` → `master`, see
-  CLAUDE.md "Release flow", is `--merge` so the history of `dev` is kept); everything else — squash.
+- **`master` is the only branch merged without squash** (Table: the release PR `release/YYYY-MM-DD` →
+  `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
+  is kept); everything else — squash.
   A repo without a release branch (Rules, News) squashes every PR.
 - **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its
   own version of the check, so the gate cannot vouch for it: the owner reads that diff and merges by
