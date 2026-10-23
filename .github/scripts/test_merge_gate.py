@@ -39,10 +39,12 @@ class Recorder(Fake):
     def __init__(self, pull, events=(), state=None, boom=None):
         super().__init__()
         self._pull, self._events, self._state, self.boom = pull, list(events), dict(state or {}), boom
+        self.suite = None
         self.closed, self.removed, self.written = [], [], []
 
     def pull(self): return self._pull
     def open_check(self, head): return 7
+    def suite_branch(self, check_id): return self.suite or self._pull["head"]["ref"]
     def state(self):
         if self.boom: raise self.boom
         return (None, self._state)
@@ -88,11 +90,64 @@ class CheckRunLifecycle(unittest.TestCase):
         lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
         self.assertEqual(gh.closed, [(7, "completed", "success", "labels ok", "every required label holds on this head")])
 
-    def test_a_removal_is_written_before_the_verdict(self):
+    def test_a_label_bound_to_another_head_is_removed_and_the_rest_is_still_awaited(self):
         gh = Recorder(pull(["gate/matrix-passed"]), state={"gate/matrix-passed": "head0"})  # bound to another head
         lifecycle(gh, lambda: mg.run(gh, gh.pull(), 7))
         self.assertEqual(gh.removed, ["gate/matrix-passed"])
-        self.assertEqual(gh.closed[0][1:3], ("in_progress", None))  # the rest is still awaited, not a contradiction
+        self.assertEqual(gh.closed[0][1:3], ("in_progress", None))
+
+    def test_a_suite_without_a_branch_does_not_block(self):
+        gh = Recorder(pull(["gate/matrix-passed", "gate/review-passed"]), events=REVIEW_OK, state={"gate/matrix-passed": "head1"})
+        with mock.patch.object(gh, "suite_branch", lambda check_id: None), mock.patch.object(mg, "GitHub", lambda repo, pr: gh):
+            lifecycle(gh, mg.main)
+        self.assertEqual(gh.closed[0][1:3], ("completed", "success"))
+
+    def test_a_close_that_fails_on_the_error_path_leaves_no_closed_marker(self):
+        gh = Recorder(pull(), boom=OSError("api down"))
+        gh.close_check = lambda *a: (_ for _ in ()).throw(OSError("cannot close"))
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
+                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
+                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            with self.assertRaises(OSError):
+                mg.main()
+            outf.seek(0)
+            self.assertNotIn("closed=true", outf.read())
+
+    def test_a_head_shared_with_another_branch_fails_the_job_with_the_cut_advice(self):
+        gh = Recorder(pull(["gate/matrix-passed"], head="release/2026-10-23", base="master", sha="f0ba9722"),
+                      state={"gate/matrix-passed": "f0ba9722"})
+        gh.suite = "dev"  # the suite the API put the check run into
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
+                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
+                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(mg.main(), 1)
+            outf.seek(0)
+            self.assertIn("closed=true", outf.read())
+        (cid, status, conclusion, title, summary), = gh.closed
+        self.assertEqual((status, conclusion), ("completed", "cancelled"))  # dev's suite: not a pass, not its verdict
+        self.assertIn("head of `dev`", summary)
+        self.assertIn("own commit", summary)
+        self.assertIn("re-apply the gate labels", summary)
+
+    def test_a_shared_head_close_that_fails_is_not_retried_as_failure(self):
+        gh = Recorder(pull(["gate/matrix-passed"], head="release/2026-10-23", base="master", sha="f0ba9722"))
+        gh.suite = "dev"
+        calls = []
+
+        def close(*a):
+            calls.append(a)
+            raise OSError("5xx")
+        gh.close_check = close
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), \
+                tempfile.NamedTemporaryFile("w+", suffix=".out") as outf, \
+                mock.patch.dict(os.environ, {"GITHUB_OUTPUT": outf.name, "REPO": "o/r", "PR": "1"}), \
+                mock.patch("sys.stdout", new_callable=io.StringIO):
+            self.assertEqual(mg.main(), 1)  # the job still blocks; the error is not re-raised into the handler
+            outf.seek(0)
+            self.assertIn("closed=true", outf.read())  # so the workflow's `--fail` step does not post `failure` either
+        self.assertEqual([c[2] for c in calls], ["cancelled"])  # no second close as `failure` in dev's suite
 
     def test_an_error_after_the_open_closes_the_check_as_failure_marks_closed_and_re_raises(self):
         gh = Recorder(pull(), boom=OSError("api down"))
@@ -107,6 +162,29 @@ class CheckRunLifecycle(unittest.TestCase):
         (cid, status, conclusion, title, summary), = gh.closed
         self.assertEqual((cid, status, conclusion, title), (7, "completed", "failure", "gate run failed"))
         self.assertIn("api down", summary)
+
+
+class WorkflowContract(unittest.TestCase):
+    """merge-gate.yml next to this file: the `--fail` step must read the marker the script writes."""
+
+    def test_the_fail_step_is_guarded_by_the_closed_marker(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        for candidate in (os.path.join(here, "merge-gate.yml"), os.path.join(here, "..", "workflows", "merge-gate.yml")):
+            if os.path.exists(candidate):
+                with open(candidate) as f:
+                    text = f.read()
+                break
+        else:
+            self.fail("merge-gate.yml not found next to the script or in ../workflows")
+        steps = text.split("\n      - ")
+        gate = [s for s in steps if "run: python3 .github/scripts/merge_gate.py\n" in s]
+        fail = [s for s in steps if "merge_gate.py --fail" in s]
+        self.assertEqual((len(gate), len(fail)), (1, 1))
+        self.assertIn("id: gate", [l.split("#")[0].strip() for l in gate[0].splitlines()])
+        if_line = [l for l in fail[0].splitlines() if l.strip().startswith("if:")]
+        self.assertEqual(len(if_line), 1)
+        self.assertEqual(" ".join(if_line[0].split("#")[0].split()),
+                         "if: (failure() || cancelled()) && steps.gate.outputs.closed != 'true'")
 
 
 class Gate(unittest.TestCase):
@@ -170,6 +248,13 @@ class Gate(unittest.TestCase):
         self.assertEqual(len(fail), 1)
         self.assertNotIn("gate/snapshots-approved", st)
 
+    def test_suite_branch_reads_the_check_run_then_its_suite(self):
+        with mock.patch.object(mg, "gh_json", side_effect=[{"check_suite": {"id": 5}}, {"head_branch": "dev"}]) as api:
+            self.assertEqual(mg.GitHub("o/r", "1").suite_branch(7), "dev")
+        self.assertEqual([c.args[0] for c in api.call_args_list], ["repos/o/r/check-runs/7", "repos/o/r/check-suites/5"])
+        with mock.patch.object(mg, "gh_json", side_effect=[{"check_suite": None}]):
+            self.assertIsNone(mg.GitHub("o/r", "1").suite_branch(7))
+
     def test_compare_status_behind_or_diverged_is_unknown(self):
         # force-push back to an ancestor: three-dot compare lists no files although the tree differs
         import unittest.mock as um
@@ -231,13 +316,13 @@ class Gate(unittest.TestCase):
             _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], author=login), ["package.json"], [], {})
             self.assertEqual(fail, [], login)
 
-    def test_release_pr_from_dev_needs_only_the_matrix_label(self):
+    def test_release_pr_needs_only_the_matrix_label(self):
         files = [SNAP, "src/a.ts"]
-        for head in ("dev", "release/2026-10-20-1"):
+        _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head="release/2026-10-20-1", base="master"), files, [], {})
+        self.assertEqual(fail, [])
+        for head in ("dev", "feat/x"):  # dev -> master is a feature PR since 2026-10-23: release/* only
             _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head=head, base="master"), files, [], {})
-            self.assertEqual(fail, [], head)
-        _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head="feat/x", base="master"), files, [], {})
-        self.assertEqual(len(fail), 2)
+            self.assertEqual(len(fail), 2, head)
 
     def test_outcome_splits_waiting_from_contradictions(self):
         _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-passed", "gate/matrix-not-needed"]), [SNAP], [], {"gate/matrix-passed": "head1"})

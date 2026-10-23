@@ -15,9 +15,10 @@ as copies. The ruleset of the default branch requires the `Merge gate` check
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
-dependabot or the PR is a release (`release/*` → `master`; the code also accepts `dev` → `master`, the
-form of #1219 and earlier — the release skill no longer opens PRs that way, and whether a `release/*`
-head is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
+dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master`, the form of #1219 and
+earlier, needs `gate/review-passed` since 2026-10-23, and claude-review.yml skips a PR whose base is not the
+default branch — such a PR gets its round only by `workflow_dispatch`; whether a `release/*`
+head is an empty commit whose parent is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
 head they were applied on (the gate keeps a state comment on the PR): `gate/matrix-passed` applied on
@@ -33,15 +34,40 @@ it — a hand-applied one is reported and ignored.
    same: it waits for a human.
 2. **Never set `gate/review-passed`** — the review workflow owns it. To ask for another round, remove
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
+   **When to remove it yourself** (owner's decision 2026-10-23, OmnisGM-App/OmnisGM-News#163): the label was earned by the head
+   the clean round read; a push that changes behaviour after it would merge unreviewed. Remove the label
+   BEFORE that push and say why in the round comment when at least one holds:
+   - product code changes behaviour — a new branch, condition, data shape, query, API call or effect, in
+     any file, including files the clean round never saw;
+   - a medium finding was fixed by a different approach than the one named in the thread, not by the
+     reviewer's own line;
+   - gate, review, CI, deploy or security logic changed (workflows, the gate script, access rules) in anything
+     but a comment;
+   - a base merge had conflicts resolved by hand;
+   - the diff since the labelled head is over ~50 lines of non-test, non-doc code (a guideline, not a gate).
+   Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,
+   a rename with no logic change, a clean base merge, or a one-line fix exactly as the reviewer wrote it.
+   In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
+2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
+   and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
+   an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,
+   #1163). Re-shooting the baselines the PR itself touches is part of the change, not of the matrix:
+   `authoring-e2e.md` rule 6.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
-   no UI file is in the diff and the PR body says so.
-4. The gate is a status check, not a reviewer: a green gate still needs the owner's merge command.
+   no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
+   2026-10-23), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
+   last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
+   on and nothing matrix-relevant landed after it; (b) a release cut as an empty commit on top of a `dev`
+   head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
+4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
+   merges (the agent itself for a PR without baseline changes; the owner's command for everything else).
    Its colours: **yellow (in progress)** = something is still awaited — a review round, a label, a label
    event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label
    applied by the wrong actor, a label without a recorded head) or an error of the gate run itself; **green**
    = every required label holds on this head. CI is not part of the gate — it is its own required check.
-   The workflow run is green unless it errors, so a waiting PR sends no failure mail. The ruleset requires
+   The workflow run is green unless it errors or the head SHA is shared with another branch (a release cut on
+   the bare `dev` commit: the verdict would land in `dev`'s suite), so a waiting PR sends no failure mail. The ruleset requires
    both `Merge gate` (the check run) and `Merge gate run` (the job): a queued or cancelled run is not green.
 
 ## Failed and flaky tests (owner's decision 2026-10-22)
@@ -60,11 +86,27 @@ it — a hand-applied one is reported and ignored.
 
 ## How to merge
 
+- **Who merges (owner's decision 2026-10-21).** A PR that changes no `*-snapshots/` file is merged by the
+  agent itself once it is ready: CI and `Merge gate` green on the final head, `gate/review-passed` set by
+  the workflow, an honest matrix label (the full matrix on this head, or `gate/matrix-not-needed` with the
+  one-line reason in the body), every review thread answered and resolved, no round in flight. A PR with
+  changed baselines waits for the owner's merge command: a human looks at the frames. A release into `master`
+  — only on the owner's command. In `claude-plugins` the agent merges its own PRs under the same readiness
+  criteria (owner, 2026-10-19).
+- **One command = one PR.** When a merge does need the owner's word, it covers the PR it was said about:
+  not a stack whose order the reviewer suggested, not "the next one" after "merge and take the next task"
+  (that permits starting the task, not merging its PR), not an "if it goes green — merge" from an earlier
+  exchange. Other ready PRs stay open and are reported as ready. Unsure what a command covers — ask.
 - **Squash, never `--admin`.** `gh pr merge N --squash --delete-branch`, or `--auto --squash` so the
-  PR merges itself when the required checks (CI + `Merge gate`) go green. `--auto` is armed only on
-  the owner's merge command and only once every review thread is answered and resolved and no round
-  is running (`review-response.md`, merge readiness): the checks do not know about threads. An admin
-  merge bypasses the gate and is reserved for the owner's own hand in an emergency.
+  PR merges itself when the required checks (CI + `Merge gate`) go green. `--auto` is armed only once
+  every review thread is answered and resolved and no round is running (`review-response.md`, merge
+  readiness): the checks do not know about threads. An admin merge bypasses the gate and is reserved
+  for the owner's own hand in an emergency.
+- **A stacked PR (base is another PR's branch, not `dev`/`master`) is opened as a draft** and marked ready
+  only after the lower PR is merged and this one is retargeted (owner, 2026-10-14). Merge order of a stack:
+  `gh pr edit <upper> --base dev` FIRST, then `gh pr merge <lower> --delete-branch` — deleting the base
+  branch closes the upper PR instead of retargeting it (News#162→#163, 2026-10-23). If it did close:
+  push the old SHA back to the base branch name, `gh pr reopen`, `gh pr edit --base`, delete the branch again.
 - **`master` is the only branch merged without squash** (Table: the release PR `release/YYYY-MM-DD` →
   `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
   is kept); everything else — squash.

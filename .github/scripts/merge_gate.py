@@ -7,12 +7,15 @@ Tests: .github/scripts/test_merge_gate.py next to it in every repo, wired into t
 (`python3 .github/scripts/test_merge_gate.py`); the template copy is templates/workflows/test_merge_gate.py.
 
 Environment: REPO, PR, EVENT (the pull_request action), EVENT_LABEL and EVENT_HEAD_SHA (the label and
-the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE, LABEL_* and DEFAULT_BRANCH.
+the head from a labeled/unlabeled payload), plus optional SNAPSHOT_RE and LABEL_*.
 The verdict is a check run named `Merge gate` on the PR head (the ruleset requires that name). The run opens
 it as `in_progress` first and closes that same run at the end: `in_progress` stays while something is awaited
 (a review round, a label, a lagging label event), `failure` on a contradiction (two matrix labels, a label by
 the wrong actor, a label without a recorded head) or on any error of the run itself, `success` when everything
-holds. The job ends green except on an error — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
+holds. A head shared with another branch (a release cut on the bare `dev` commit) is the fourth outcome: the run
+sits in that other branch's suite, so it is closed as `cancelled` — not a pass for that branch's PR, not a verdict
+on its code either — and the job exits 1 with the advice. The job ends green except on an error or on that shared
+head — a waiting PR is not a failed run and sends no mail (owner, 2026-10-23).
 The ruleset requires BOTH contexts, `Merge gate` and the job `Merge gate run`: a queued, cancelled or failed
 job is not green, so a run that never reached its first write cannot leave a stale verdict standing (review of
 Table#1222, round 2). `--fail` is the workflow's last resort on `failure() || cancelled()`: a fresh `failure`
@@ -133,6 +136,16 @@ class GitHub:
                     "-f", "status=in_progress", "-f", "output[title]=evaluating", "-f", "output[summary]=the gate run is working")
         return int(r["id"])
 
+    def suite_branch(self, check_id: int) -> str | None:
+        """The branch of the check suite the run landed in. The API puts a check run into the app's existing
+        suite for that SHA, and the PR merge box reads only suites of its own head branch: a release branch cut
+        on the very commit of `dev` writes its verdict into `dev`'s suite and the PR shows "Expected — waiting"
+        forever (Table#1227)."""
+        suite = gh_json(f"repos/{self.repo}/check-runs/{check_id}").get("check_suite") or {}
+        if not suite.get("id"):
+            return None
+        return gh_json(f"repos/{self.repo}/check-suites/{suite['id']}").get("head_branch")
+
     def close_check(self, check_id: int, status: str, conclusion: str | None, title: str, summary: str) -> None:
         args = [f"repos/{self.repo}/check-runs/{check_id}", "-X", "PATCH", "-f", f"status={status}",
                 "-f", f"output[title]={title[:200]}", "-f", f"output[summary]={summary[:60000]}"]
@@ -160,7 +173,7 @@ def last_labeled_actor(events: list[dict], name: str) -> str | None:
 
 
 def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state: dict,
-             default_branch: str = "dev", event: str = "", event_label: str = "",
+             event: str = "", event_label: str = "",
              event_head: str = "") -> tuple[list[str], list[str], dict]:
     """Returns (labels to remove, failure messages, new state)."""
     labels = {l["name"] for l in pull.get("labels", [])}
@@ -210,7 +223,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")
 
-    release = base_ref == "master" and (head_ref == default_branch or head_ref.startswith("release/"))
+    release = base_ref == "master" and head_ref.startswith("release/")  # dev -> master is not a release since 2026-10-23
     bot = author in BOT_LOGINS
     nsnap = len(pr_snaps)
     if nsnap and not release and LABEL_SNAP not in labels:
@@ -223,7 +236,8 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
                     f"found {n_matrix}.")
     if not bot and not release and not review_ok and not any(LABEL_REVIEW in f for f in fail):
         fail.append(f"{WAIT}waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
-                    "it runs after CI on every push while the label is absent (removing the label starts a round too).")
+                    "it runs after CI on every push while the label is absent (removing the label starts a round too); "
+                    "a PR whose base is not the default branch gets a round only by workflow_dispatch.")
     return remove, fail, state
 
 
@@ -272,6 +286,22 @@ def main() -> int:
     pull = gh.pull()
     check_id = gh.open_check(pull["head"]["sha"])
     try:
+        branch = gh.suite_branch(check_id)
+        if branch and branch != pull["head"]["ref"]:
+            why = (f"the head {pull['head']['sha'][:8]} is also the head of `{branch}`, so the verdict lands in that "
+                   f"branch's check suite and this PR never sees it — give the branch its own commit "
+                   f"(an empty one on top is enough), push again and re-apply the gate labels on the new head")
+            # This run sits in the OTHER branch's suite: `failure` would read as that branch's verdict,
+            # `neutral` would pass its required check. `cancelled` is neither; the block is this exit 1.
+            # Closed outside the handler below, and the marker is written even when the close fails: a second
+            # close as `failure` — from the handler or from the workflow's `--fail` step — would paint that branch red.
+            try:
+                gh.close_check(check_id, "completed", "cancelled", "not this branch's run: head shared with another branch", why)
+            except Exception as e:  # noqa: BLE001
+                print(f"::warning::could not close the shared-head check run: {e}")
+            mark_closed()
+            print(f"::error::{why}")
+            return 1
         return run(gh, pull, check_id)
     except BaseException as e:  # noqa: BLE001 — the verdict must never stay stale: close the run as failed, then re-raise
         try:
@@ -285,7 +315,7 @@ def main() -> int:
 def run(gh: GitHub, pull: dict, check_id: int) -> int:
     env = os.environ.get
     comment_id, state = gh.state()
-    remove, fail, new_state = evaluate(gh, pull, gh.files(), gh.events(), state, env("DEFAULT_BRANCH") or "dev",
+    remove, fail, new_state = evaluate(gh, pull, gh.files(), gh.events(), state,
                                        event=env("EVENT", ""), event_label=env("EVENT_LABEL", ""),
                                        event_head=env("EVENT_HEAD_SHA", ""))
     for name in remove:

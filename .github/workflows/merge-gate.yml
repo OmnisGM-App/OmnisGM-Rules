@@ -9,7 +9,7 @@ name: Merge gate
 # opened by merge_gate.py as in_progress before anything else and closed by the same run: in_progress
 # while a review round, a label or a lagging label event is still awaited, failure on a contradiction or
 # on an error of the run, success when every label holds. CI is not read here — it is its own required
-# check. The job is green unless the run errors (owner, 2026-10-23: a waiting PR is not a failed run, and
+# check. The job is green unless the run errors or the head is shared with another branch (owner, 2026-10-23: a waiting PR is not a failed run, and
 # failed runs spam the mailbox). The ruleset requires BOTH `Merge gate` (the check run) and `Merge gate run`
 # (this job): a run that is queued, cancelled or dead before its first write is not green, so a stale
 # verdict on the head cannot pass on its own (review of Table#1222, round 2). Four `gate/*` labels, who sets them and
@@ -29,7 +29,7 @@ name: Merge gate
 # `gate/review-passed` counts only when applied by github-actions[bot] (the review workflow) and survives
 # a push on purpose: it is the receipt of a 0 ❗ round, and a round costs ~$6 (review-response.md).
 # Exemptions: dependabot PRs are not reviewed (the matrix label comes from dependabot.yml); release
-# PRs (`dev` or `release/*` → `master`, Table only — a repo without a release branch never matches)
+# PRs (`release/*` → `master`, Table only — a repo without a release branch never matches)
 # are promotions of an already-gated branch (matrix label only).
 # Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
 # merge_gate.py or claude-review.yml can rewrite its own gate — such PRs merge only on the owner's
@@ -66,7 +66,6 @@ jobs:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
       PR: ${{ github.event.pull_request.number || inputs.pr }}
-      DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
       EVENT: ${{ github.event.action || 'dispatch' }}
       EVENT_LABEL: ${{ github.event.label.name }}
       EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}

@@ -4,7 +4,8 @@ Copy of the template from OmnisGM-App/claude-plugins/templates/review-response.m
 roll out as copies. Complements `authoring-pitfalls.md` (error classes in the PR itself); here —
 behaviour AFTER the review has arrived. A round starts by itself after a green CI on every push while the
 PR has no `gate/review-passed` label (claude-review.yml v2.48, 2026-10-20); a round that ends with 0 ❗ sets
-the label and later pushes start nothing until someone removes it (see `merge-gate.md`). workflow_dispatch
+the label and later pushes start nothing until someone removes it (`merge-gate.md` rule 2 says when the
+author removes it before a push: behaviour changes after a clean round are reviewed again). workflow_dispatch
 stays for replays and `force`. Each round is a full auto-review round (6–8 agents), so the price of every
 push before the label is a whole round, not "a minute": batch the fixes, push once.
 
@@ -16,8 +17,12 @@ by round three or four, after that review was picking apart fix prose and promis
 1. **Decision list first, code second.** For every finding — one of three: «чиню» (fixing), «не чиню:
    причина в одну строку» (not fixing: one-line reason), «отдельной ишьёй #N» (separate issue #N). The list goes to the PR thread as ONE comment before
    the edits. «Не чиню» is legitimate for remarks, and for medium ones too if the argument is substantive.
-2. **One commit per round, one push.** All edits of the round go into one commit. A second push
+2. **One commit per round, one push — without asking.** All edits of the round go into one commit. A second push
    for "also fixed a comment" is another full round (every push without `gate/review-passed` is reviewed).
+   Fix-round commits, the push, the PR body update and the thread replies need no confirmation (owner,
+   2026-09-15: «пуш сразу как пофиксил, не жди одобрения»); a repo's "ask before committing" rule covers new
+   work (the first commit of a feature, a new PR), not fix rounds. Confirmation stays for a merge that is the
+   owner's (`merge-gate.md`, "How to merge"), a push to `master`, a deploy and any external post.
 2a. **Re-walk the scenario ledger before the push** (`authoring-pitfalls.md` rule 22) and fix the twin of
    every fix (rule 21): a round that repairs only the named place and breaks a previous round's scenario is
    the most expensive round of all (Table#1179: four rounds with ❗).
@@ -56,7 +61,8 @@ by round three or four, after that review was picking apart fix prose and promis
 
 ## Merge readiness
 
-A PR is ready to merge when all three hold, and only then the owner's explicit command merges it:
+A PR is ready to merge when all three hold; who merges it then is `merge-gate.md`, "How to merge" (the agent
+itself for a PR without baseline changes, the owner's command otherwise):
 
 1. **CI is green** — the required check of the ruleset has passed on the final head (plus the full
    e2e matrix where the repo's gate demands it).
