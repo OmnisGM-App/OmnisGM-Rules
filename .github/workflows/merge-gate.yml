@@ -19,9 +19,14 @@ name: Merge gate
 # the PR's own baselines differ between the two heads (a base merge with foreign baselines re-binds
 # it). No clocks, no committer dates (3 review rounds). Fail-closed: a label whose `labeled` run was
 # superseded in the queue has no recorded head and is reported until removed and re-applied.
-# `gate/review-passed` counts only when applied by github-actions[bot] (the review workflow). `gate/review-passed` survives a push on purpose (a round costs ~$6; see claude-review.yml).
+# `gate/review-passed` counts only when applied by github-actions[bot] (the review workflow) and survives
+# a push on purpose: it is the receipt of a 0 ❗ round, and a round costs ~$6 (review-response.md).
 # Exemptions: dependabot PRs are not reviewed (the matrix label comes from dependabot.yml); release
-# PRs (`dev` or `release/*` → `master`) are promotions of an already-gated branch (matrix label only).
+# PRs (`dev` or `release/*` → `master`, Table only — a repo without a release branch never matches)
+# are promotions of an already-gated branch (matrix label only).
+# Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
+# merge_gate.py or claude-review.yml can rewrite its own gate — such PRs merge only on the owner's
+# explicit command after reading that diff (merge-gate.md).
 # Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-dispatches
 # this workflow after labelling (`workflow_dispatch` with the PR number).
 # No cancel-in-progress: the evaluation is idempotent and a superseded run must not skip its removals.
