@@ -838,8 +838,8 @@ jobs:
           fi
           run_id=
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
-            line=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --commit "$HEADSHA" --limit 1 --json databaseId,status --jq '.[0] | "\(.databaseId) \(.status)"') || line=
-            [ -n "$line" ] && [ "$line" != " " ] || break
+            line=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --commit "$HEADSHA" --limit 1 --json databaseId,status --jq '.[0] // empty | "\(.databaseId) \(.status)"') || line=
+            [ -n "$line" ] || break  # `// empty`: an empty list is an empty line, not "null null" (News#171)
             run_id=${line%% *}; st=${line##* }
             [ "$st" = "completed" ] && break
             sleep 5

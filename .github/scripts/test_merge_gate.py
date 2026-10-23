@@ -124,8 +124,8 @@ class WorkflowContract(unittest.TestCase):
         on = text.split("\non:\n", 1)[1].split("\n\n", 1)[0]
         types = [l.split("#")[0].strip() for l in on.splitlines() if l.strip().startswith("types:")]
         self.assertEqual(len(types), 1)
-        for t in ("labeled", "unlabeled", "synchronize"):  # a label event re-runs the job: that is how waiting turns green
-            self.assertIn(t, types[0])
+        items = {x.strip() for x in types[0].split("[", 1)[1].split("]", 1)[0].split(",")}
+        self.assertLessEqual({"labeled", "unlabeled", "synchronize"}, items)  # a label event re-runs the job; "labeled" is not a substring test (News#171)
         self.assertNotIn("workflow_dispatch", on)  # a dispatch run is attached to no PR: never a verdict (Table#1251)
         self.assertNotIn("--fail", text)
         self.assertNotIn("checks: write", text)
