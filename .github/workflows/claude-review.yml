@@ -833,8 +833,9 @@ jobs:
           # `labeled` run of an older head would re-bind a label the live head earned (Rules#447 round 2), while
           # the live head's run of a moment ago may have read a label this round just removed and still be green
           # (Rules#447 round 4) — it is re-run and goes red.
-          live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) || live=
-          target=${live:-$HEADSHA}
+          # A failed read must not fall back to $HEADSHA (that would be the stale-head replay again) — say so and stop.
+          live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) || { echo "::warning::live head unreadable — no gate re-run; toggle a label or push to re-evaluate the gate"; exit 0; }
+          target=$live
           [ "$target" = "$HEADSHA" ] || echo "::notice::live head is $target, this round read $HEADSHA — re-running the live head's gate run"
           run_id=
           for i in 1 2 3 4 5 6 7 8 9 10 11 12; do
