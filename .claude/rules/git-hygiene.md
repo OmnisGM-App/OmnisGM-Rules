@@ -26,7 +26,7 @@ not harmless here.
    under `.claude/worktrees/`; `-A` commits them as gitlinks (News#163, 2026-10-23). Add files by name from
    your diff and read `git status --short` before every commit. A gitlink that slipped in is removed with
    `git rm --cached` in a new commit, not an amend. Keep `.claude/worktrees/` in `.gitignore`.
-6. **A sandbox under `/tmp` loses files overnight.** macOS purges long-untouched files from `/tmp`, tracked
+6. **A sandbox under `/tmp/` loses files overnight.** macOS purges long-untouched files from `/tmp/`, tracked
    ones included (hundreds of files and part of `node_modules` in one night). Before EVERY unit or e2e run in a
    long-lived sandbox: `git ls-files -d | wc -l` must be 0. If it is not and the commits are pushed:
    `git checkout -- .` (allowed only here, in the sandbox, where nothing uncommitted lives) → `npm ci` →
