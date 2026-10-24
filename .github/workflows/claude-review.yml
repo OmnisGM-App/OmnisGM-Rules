@@ -859,26 +859,31 @@ jobs:
           fi
           not_rerun=
           deadline=$((SECONDS + 420))
+          # Every wait is cut to what is left of the deadline (never `timeout 0`: coreutils reads it as "no limit"),
+          # so one iteration cannot outlive the deadline and the warning after the loop always prints (News#173).
           for run_id in $ids; do
-            if [ "$SECONDS" -ge "$deadline" ]; then not_rerun="$not_rerun $run_id"; continue; fi
-            # Still in progress (the labeled/unlabeled event of a moment ago): a rerun of a running run is refused and
-            # the verdict read BEFORE this round's label change would stand (Table#1251) — block until it ends.
             line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
+            [ -n "$att0" ] || { not_rerun="$not_rerun $run_id"; continue; }
+            # Still in progress (the labeled/unlabeled event of a moment ago): a rerun of a running run is refused and
+            # the verdict read BEFORE this round's label change would stand (Table#1251) — block until it ends.
             if [ "$st" != "completed" ]; then
+              left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || { not_rerun="$not_rerun $run_id"; continue; }
               echo "gate run $run_id still in progress — waiting for it to finish before the re-run"
-              timeout 150 gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
+              timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
             fi
+            [ "$SECONDS" -lt "$deadline" ] || { not_rerun="$not_rerun $run_id"; continue; }
             if ! gh run rerun "$run_id" --repo "$REPO"; then not_rerun="$not_rerun $run_id"; continue; fi
             echo "merge gate run $run_id re-run on $target — waiting for the attempt before the next re-run"
-            att=$att0
-            for j in 1 2 3 4 5 6 7 8 9 10 11 12; do
+            att=$att0; poll_end=$((SECONDS + 60))
+            while [ "$SECONDS" -lt "$deadline" ] && [ "$SECONDS" -lt "$poll_end" ]; do
               att=$(gh run view "$run_id" --repo "$REPO" --json attempt --jq .attempt) || att=$att0
               [ "$att" != "$att0" ] && break
               sleep 5
             done
-            if [ "$att" = "$att0" ] || ! timeout 150 gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1; then
-              echo "::notice::gate run $run_id — attempt not confirmed finished within the wait"
+            left=$((deadline - SECONDS))
+            if [ "$att" = "$att0" ] || [ "$left" -le 0 ] || ! timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1; then
+              echo "::notice::gate run $run_id — attempt not confirmed finished within the deadline"
               not_rerun="$not_rerun $run_id"
             fi
           done
