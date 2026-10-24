@@ -62,7 +62,7 @@ by round three or four, after that review was picking apart fix prose and promis
 ## Merge readiness
 
 A PR is ready to merge when all three hold; who merges it then is `merge-gate.md`, "How to merge" (the agent
-itself for a PR without baseline changes, the owner's command otherwise):
+itself; a PR with changed baselines needs the owner's `gate/snapshots-approved` first):
 
 1. **CI is green** — the required check of the ruleset has passed on the final head (plus the full
    e2e matrix where the repo's gate demands it).
