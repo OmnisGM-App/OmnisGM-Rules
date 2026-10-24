@@ -37,9 +37,9 @@ name: Merge gate
 # Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
 # merge_gate.py or claude-review.yml can rewrite its own gate — the gate does not vouch for such a PR; it
 # is merged by the agent under the ordinary readiness criteria (merge-gate.md, "How to merge").
-# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-runs the latest
-# `pull_request` run of this workflow on the head after labelling (`gh run rerun`): attempt 2 replaces the
-# red job in the same check suite. No `workflow_dispatch`: such a run is attached to no PR and never
+# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-runs every
+# `pull_request` run of this workflow on the head after labelling (`gh run rerun`, one at a time): attempt 2
+# replaces the red job in each check suite. No `workflow_dispatch`: such a run is attached to no PR and never
 # reaches its merge box (Table#1251 — the rollup kept two red pull_request jobs next to a green dispatch).
 # No cancel-in-progress: the evaluation is idempotent and a superseded run must not skip its removals.
 

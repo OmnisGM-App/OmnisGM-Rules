@@ -13,7 +13,7 @@ label holds on the head, red otherwise — a message that starts with "waiting:"
 round, a label, a lagging label event), the others are contradictions to fix by hand (two matrix labels, a label by
 the wrong actor, a label without a recorded head) or an error of the run. A label event re-runs the job (a hand's
 label through `labeled`/`unlabeled`; the review workflow's label — set with GITHUB_TOKEN, which fires no event —
-through `gh run rerun` of the latest `pull_request` gate run, claude-review.yml v2.50); a lagging events list is
+through `gh run rerun` of every `pull_request` gate run on the head, claude-review.yml v2.51); a lagging events list is
 the one case that needs "Re-run jobs" on the gate run by hand. A waiting PR is a red run that mails a failure on
 every push: the owner's decision of 2026-10-24 (after Table#1241), replacing the 2026-10-23 "a waiting PR sends no
 mail" that the API check run bought. No check run is written through the API (v3, 2026-10-24): GitHub puts an API check run into the OLDEST check suite of the app on that SHA, and when the same
