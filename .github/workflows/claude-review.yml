@@ -863,8 +863,8 @@ jobs:
           deadline=$((SECONDS + 420))
           # Every wait is cut to what is left of the deadline (never `timeout 0`: coreutils reads it as "no limit"),
           # so one call cannot outlive the deadline and the warning after the loop always prints (News#173).
-          rerun_one() {  # $1 = run id; 0 when its new attempt holds the gate's concurrency group (left `pending`)
-            local run_id=$1 line st concl att0 att left poll_end wait_end held
+          rerun_one() {  # $1 = run id, $2 = 'last' for the last id; 0 when its new attempt holds the gate's group
+            local run_id=$1 is_last=${2:-} line st concl att0 att left poll_end wait_end held rc
             line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
             [ -n "$att0" ] || return 1
@@ -889,6 +889,9 @@ jobs:
               sleep 5
             done
             [ "$att" != "$att0" ] || return 1
+            # The last id of the loop: no rerun of this loop can queue behind it, so its `pending` cancels nothing —
+            # do not hold this runner waiting for it (Table#1257 round 4).
+            [ -z "$is_last" ] || return 0
             # The attempt only has to take the concurrency group. Measured on Rules#451 (2026-10-24): a rerun held by
             # the group reads `pending`; once the group is free it reads `queued` (waiting for a runner), then
             # `in_progress`. A rerun queued now cancels only a `pending` attempt (`cancel-in-progress: false`), so
@@ -903,23 +906,39 @@ jobs:
               case "$st" in queued|in_progress|completed) return 0 ;; esac  # `pending` = held by the group — keep waiting
               sleep 5
             done
+            [ "$st" = pending ] && return 2  # alive, queued behind the newest attempt — runs by itself
             return 1
           }
           not_rerun=
-          newest=${ids%%$'\n'*}
+          newest=${ids%%$'\n'*}; last=${ids##*$'\n'}
           if [ -n "$newest" ]; then
-            if rerun_one "$newest"; then
-              # The older runs stop at the first whose start is not confirmed: a rerun queued behind a pending
-              # attempt would cancel it (Rules#451 round 2) — the rest go into the warning untouched.
-              stop=
-              for run_id in $ids; do
-                [ "$run_id" = "$newest" ] && continue
-                if [ -n "$stop" ]; then not_rerun="$not_rerun $run_id"; continue; fi
-                rerun_one "$run_id" || { not_rerun="$not_rerun $run_id"; stop=1; }
-              done
-            else
-              echo "::notice::gate run $newest (the newest on $target) — attempt not confirmed started within the deadline; the older runs are left alone so no rerun cancels its pending attempt"
-              not_rerun=" $(printf '%s ' $ids)"
-            fi
+            nl=; [ "$newest" = "$last" ] && nl=last
+            rerun_one "$newest" "$nl" && rc=0 || rc=$?   # `set -e`: never a bare call whose status is read after
+            case $rc in
+              0)
+                # The older runs stop at the first whose start is not confirmed: a rerun queued behind a pending
+                # attempt would cancel it (Rules#451 round 2) — the rest are listed in a notice, untouched.
+                stop=; skipped=
+                for run_id in $ids; do
+                  [ "$run_id" = "$newest" ] && continue
+                  if [ -n "$stop" ]; then skipped="$skipped $run_id"; continue; fi
+                  is_last=; [ "$run_id" = "$last" ] && is_last=last
+                  rerun_one "$run_id" "$is_last" && rc=0 || rc=$?
+                  case $rc in
+                    0) ;;
+                    2) echo "::notice::gate run $run_id — its attempt is pending behind the newest attempt and runs by itself"; stop=1 ;;
+                    *) not_rerun="$not_rerun $run_id"; stop=1 ;;
+                  esac
+                done
+                [ -z "$skipped" ] || echo "::notice::gate run(s) not re-run after the stop above:$skipped — the newest run on $target carries the verdict the merge box reads"
+                ;;
+              2)
+                echo "::notice::gate run $newest (the newest on $target) — its attempt is pending in the gate's group and runs by itself; the older runs are left alone so no rerun cancels it"
+                ;;
+              *)
+                echo "::notice::gate run $newest (the newest on $target) — attempt not confirmed started within the deadline; the older runs are left alone so no rerun cancels its pending attempt"
+                not_rerun=" $(printf '%s ' $ids)"
+                ;;
+            esac
           fi
           [ -z "$not_rerun" ] || echo "::warning::merge gate run(s) not re-run or not confirmed:$not_rerun — toggle a label or push to re-evaluate the gate"
