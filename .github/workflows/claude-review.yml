@@ -7,9 +7,11 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
-# v2.51 (2026-10-24, Rules#449): EVERY `pull_request` run of merge-gate.yml on the live head is re-run, not one —
-# an `opened`+`labeled` pair at PR creation leaves two runs on the same head, and the merge box reads the newest;
-# re-running only the other one left the PR BLOCKED with a green attempt 2 beside a red run.
+# v2.51 (2026-10-24, Rules#449/#450): EVERY `pull_request` run of merge-gate.yml of this branch on the live head is
+# re-run, not one — an `opened`+`labeled` pair at PR creation leaves two runs on the same head, and the merge box
+# reads the newest; re-running only the other one left the PR BLOCKED with a green attempt 2 beside a red run.
+# Each re-run is awaited (the gate's concurrency group cancels a second queued run); `--branch` keeps a shared-SHA
+# run of another PR out of the list.
 # v2.50 (2026-10-24, merge gate v3 — Table#1251): after labelling, the latest `pull_request` run of merge-gate.yml
 # on the head is re-run (`gh run rerun`) instead of a `workflow_dispatch`: a dispatch run is attached to no PR and
 # its green job never reaches the merge box, while attempt 2 replaces the red job in the same check suite.
@@ -746,7 +748,7 @@ jobs:
     needs: [resolve, review]
     if: always() && needs.resolve.outputs.go == '1'
     runs-on: ubuntu-latest
-    timeout-minutes: 5
+    timeout-minutes: 10  # v2.51: bounded waits for each gate re-run (up to 10 × 150 s worst case is cut by the warning below)
     permissions:
       pull-requests: write
       issues: write
@@ -840,24 +842,32 @@ jobs:
           live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) || { echo "::warning::live head unreadable — no gate re-run; toggle a label or push to re-evaluate the gate"; exit 0; }
           target=$live
           [ "$target" = "$HEADSHA" ] || echo "::notice::live head is $target, this round read $HEADSHA — re-running the live head's gate run"
-          # v2.51: ALL pull_request runs on the head, not the first listed one — an `opened`+`labeled` pair at PR
-          # creation (or a labeled/unlabeled toggle during a push) leaves two runs on the same head; the merge box
-          # reads the newest, so re-running only the other one leaves the PR BLOCKED (Rules#449).
-          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --commit "$target" --limit 20 --json databaseId --jq '.[].databaseId') || ids=
+          # v2.51: ALL pull_request runs of THIS PR's branch on the head, not the first listed one — an `opened`+`labeled`
+          # pair at PR creation (or a labeled/unlabeled toggle during a push) leaves two runs on the same head; the
+          # merge box reads the newest, so re-running only the other one leaves the PR BLOCKED (Rules#449).
+          # `--branch`: `--commit` alone matches a run of another PR that shared this SHA (Table#1227), and replaying its
+          # `labeled` payload would rebind that PR's labels to the old head. Each re-run is awaited before the next:
+          # the gate's concurrency group (one running, one queued, a new queued run cancels the queued one) would
+          # otherwise leave a cancelled attempt in the middle suite (Rules#450 round 1). Waits are bounded; the ids
+          # not re-run are listed in one warning instead of vanishing with the job timeout.
+          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '.[].databaseId') || ids=
           if [ -z "$ids" ]; then
-            echo "::warning::no pull_request run of merge-gate.yml on $target — toggle a label or push to re-evaluate the gate"
+            echo "::warning::no pull_request run of merge-gate.yml on $target ($HEADREF) — toggle a label or push to re-evaluate the gate"
           fi
+          not_rerun=
           for run_id in $ids; do
             # Still in progress (the labeled/unlabeled event of a moment ago): a rerun of a running run is refused and
             # the verdict read BEFORE this round's label change would stand (Table#1251) — block until it ends.
             st=$(gh run view "$run_id" --repo "$REPO" --json status --jq .status) || st=
             if [ "$st" != "completed" ]; then
               echo "gate run $run_id still in progress — waiting for it to finish before the re-run"
-              gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
+              timeout 150 gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
             fi
             if gh run rerun "$run_id" --repo "$REPO"; then
-              echo "merge gate run $run_id re-run on $target"
+              echo "merge gate run $run_id re-run on $target — waiting for the attempt before the next re-run"
+              timeout 150 gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || echo "::notice::gate run $run_id attempt still running after 150 s — moving on"
             else
-              echo "::warning::could not re-run merge gate run $run_id — toggle a label or push to re-evaluate the gate"
+              not_rerun="$not_rerun $run_id"
             fi
           done
+          [ -z "$not_rerun" ] || echo "::warning::could not re-run merge gate run(s):$not_rerun — toggle a label or push to re-evaluate the gate"
