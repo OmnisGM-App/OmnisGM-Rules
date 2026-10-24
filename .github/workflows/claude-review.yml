@@ -853,7 +853,7 @@ jobs:
           # Newest first (largest id: a same-second tie is listed smallest first — Rules#450 round 3): the newest run is
           # what the merge box reads, so it is re-run and awaited before anything
           # else; the older runs follow under what is left of the deadline, and only when the newest attempt is
-          # confirmed finished — a rerun queued while it is still pending would cancel it (Rules#450 round 2).
+          # confirmed started — a rerun queued while it is still pending would cancel it (Rules#450 round 2).
           # After `gh run rerun` the run is still read as `completed` for a moment (gh run watch would return at
           # once) — wait for the attempt number to grow before watching it.
           ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '[.[].databaseId] | sort | reverse | .[]') || ids=
@@ -863,8 +863,8 @@ jobs:
           deadline=$((SECONDS + 420))
           # Every wait is cut to what is left of the deadline (never `timeout 0`: coreutils reads it as "no limit"),
           # so one call cannot outlive the deadline and the warning after the loop always prints (News#173).
-          rerun_one() {  # $1 = run id; 0 when its new attempt is confirmed finished
-            local run_id=$1 line st att0 att left poll_end
+          rerun_one() {  # $1 = run id; 0 when its new attempt is confirmed started (left `queued`)
+            local run_id=$1 line st att0 att left poll_end wait_end
             line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
             [ -n "$att0" ] || return 1
@@ -885,8 +885,17 @@ jobs:
               sleep 5
             done
             [ "$att" != "$att0" ] || return 1
+            # The attempt only has to LEAVE `queued`: the next queued rerun cancels a pending attempt, never a running
+            # one (`cancel-in-progress: false`). Waiting for `completed` would hold this self-hosted runner while
+            # the attempt may be waiting for that very runner (News#173 round 4).
             left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || return 1
-            timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1
+            wait_end=$((SECONDS + (left < 150 ? left : 150)))
+            while [ "$SECONDS" -lt "$wait_end" ]; do
+              st=$(gh run view "$run_id" --repo "$REPO" --json status --jq .status) || st=queued
+              [ "$st" != "queued" ] && return 0
+              sleep 5
+            done
+            return 1
           }
           not_rerun=
           newest=${ids%%$'\n'*}
@@ -897,7 +906,7 @@ jobs:
                 rerun_one "$run_id" || not_rerun="$not_rerun $run_id"
               done
             else
-              echo "::notice::gate run $newest (the newest on $target) — attempt not confirmed finished within the deadline; the older runs are left alone so no rerun cancels its pending attempt"
+              echo "::notice::gate run $newest (the newest on $target) — attempt not confirmed started within the deadline; the older runs are left alone so no rerun cancels its pending attempt"
               not_rerun=" $(printf '%s ' $ids)"
             fi
           fi
