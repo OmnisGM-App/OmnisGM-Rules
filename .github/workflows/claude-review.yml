@@ -845,6 +845,12 @@ jobs:
             [ "$st" = "completed" ] && break
             sleep 5
           done
+          # Still in progress after the wait: a rerun of a running run is refused and the verdict read BEFORE this
+          # round's label change would stand (Table#1251) — block until it ends, then re-run it.
+          if [ -n "$run_id" ] && [ "${st:-}" != "completed" ]; then
+            echo "gate run $run_id still in progress — waiting for it to finish before the re-run"
+            gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
+          fi
           if [ -z "$run_id" ]; then
             echo "::warning::no pull_request run of merge-gate.yml on $target — toggle a label or push to re-evaluate the gate"
           elif gh run rerun "$run_id" --repo "$REPO"; then
