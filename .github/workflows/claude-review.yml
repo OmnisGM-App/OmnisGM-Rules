@@ -848,43 +848,56 @@ jobs:
           # `--branch`: `--commit` alone matches a run of another PR that shared this SHA (Table#1227), and replaying its
           # `labeled` payload would rebind that PR's labels to the old head. Each re-run is awaited before the next:
           # the gate's concurrency group (one running, one queued, a new queued run cancels the queued one) would
-          # otherwise leave a cancelled attempt in the middle suite (Rules#450 round 1). The loop has one deadline;
+          # otherwise leave a cancelled attempt in a suite (Rules#450 round 1). One deadline for the whole loop;
           # the ids not re-run or not confirmed are listed in one warning.
-          # Oldest first: the newest run is what the merge box reads, so it is queued last and no later re-run of
-          # this loop can cancel its pending attempt. After `gh run rerun` the run is still read as `completed` for a
-          # moment (gh run watch would return at once) — wait for the attempt number to grow before watching it.
-          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '[.[].databaseId] | reverse | .[]') || ids=
+          # Newest first: the newest run is what the merge box reads, so it is re-run and awaited before anything
+          # else; the older runs follow under what is left of the deadline, and only when the newest attempt is
+          # confirmed finished — a rerun queued while it is still pending would cancel it (Rules#450 round 2).
+          # After `gh run rerun` the run is still read as `completed` for a moment (gh run watch would return at
+          # once) — wait for the attempt number to grow before watching it.
+          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '.[].databaseId') || ids=
           if [ -z "$ids" ]; then
             echo "::warning::no pull_request run of merge-gate.yml on $target ($HEADREF) — toggle a label or push to re-evaluate the gate"
           fi
-          not_rerun=
           deadline=$((SECONDS + 420))
           # Every wait is cut to what is left of the deadline (never `timeout 0`: coreutils reads it as "no limit"),
-          # so one iteration cannot outlive the deadline and the warning after the loop always prints (News#173).
-          for run_id in $ids; do
+          # so one call cannot outlive the deadline and the warning after the loop always prints (News#173).
+          rerun_one() {  # $1 = run id; 0 when its new attempt is confirmed finished
+            local run_id=$1 line st att0 att left poll_end
             line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
-            [ -n "$att0" ] || { not_rerun="$not_rerun $run_id"; continue; }
+            [ -n "$att0" ] || return 1
             # Still in progress (the labeled/unlabeled event of a moment ago): a rerun of a running run is refused and
             # the verdict read BEFORE this round's label change would stand (Table#1251) — block until it ends.
             if [ "$st" != "completed" ]; then
-              left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || { not_rerun="$not_rerun $run_id"; continue; }
+              left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || return 1
               echo "gate run $run_id still in progress — waiting for it to finish before the re-run"
               timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
             fi
-            [ "$SECONDS" -lt "$deadline" ] || { not_rerun="$not_rerun $run_id"; continue; }
-            if ! gh run rerun "$run_id" --repo "$REPO"; then not_rerun="$not_rerun $run_id"; continue; fi
-            echo "merge gate run $run_id re-run on $target — waiting for the attempt before the next re-run"
+            [ "$SECONDS" -lt "$deadline" ] || return 1
+            gh run rerun "$run_id" --repo "$REPO" || return 1
+            echo "merge gate run $run_id re-run on $target — waiting for the attempt"
             att=$att0; poll_end=$((SECONDS + 60))
             while [ "$SECONDS" -lt "$deadline" ] && [ "$SECONDS" -lt "$poll_end" ]; do
               att=$(gh run view "$run_id" --repo "$REPO" --json attempt --jq .attempt) || att=$att0
               [ "$att" != "$att0" ] && break
               sleep 5
             done
-            left=$((deadline - SECONDS))
-            if [ "$att" = "$att0" ] || [ "$left" -le 0 ] || ! timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1; then
-              echo "::notice::gate run $run_id — attempt not confirmed finished within the deadline"
-              not_rerun="$not_rerun $run_id"
+            [ "$att" != "$att0" ] || return 1
+            left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || return 1
+            timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1
+          }
+          not_rerun=
+          newest=${ids%%$'\n'*}
+          if [ -n "$newest" ]; then
+            if rerun_one "$newest"; then
+              for run_id in $ids; do
+                [ "$run_id" = "$newest" ] && continue
+                rerun_one "$run_id" || not_rerun="$not_rerun $run_id"
+              done
+            else
+              echo "::notice::gate run $newest (the newest on $target) — attempt not confirmed finished within the deadline; the older runs are left alone so no rerun cancels its pending attempt"
+              not_rerun=" $(printf '%s ' $ids)"
             fi
-          done
+          fi
           [ -z "$not_rerun" ] || echo "::warning::merge gate run(s) not re-run or not confirmed:$not_rerun — toggle a label or push to re-evaluate the gate"
