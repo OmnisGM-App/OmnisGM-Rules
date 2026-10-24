@@ -864,7 +864,7 @@ jobs:
           # Every wait is cut to what is left of the deadline (never `timeout 0`: coreutils reads it as "no limit"),
           # so one call cannot outlive the deadline and the warning after the loop always prints (News#173).
           rerun_one() {  # $1 = run id; 0 when its new attempt holds the gate's concurrency group (left `pending`)
-            local run_id=$1 line st att0 att left poll_end wait_end
+            local run_id=$1 line st concl att0 att left poll_end wait_end held
             line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
             [ -n "$att0" ] || return 1
@@ -876,6 +876,10 @@ jobs:
               timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
             fi
             [ "$SECONDS" -lt "$deadline" ] || return 1
+            # A rerun queued behind a `pending` run of this branch — own or outside (a label toggle, a push) —
+            # cancels it; a `queued` run already holds the group and a rerun behind it only waits (Rules#451 round 3).
+            held=$(gh run list --repo "$REPO" --workflow merge-gate.yml --branch "$HEADREF" --limit 10 --json status --jq '[.[] | select(.status == "pending" or .status == "waiting" or .status == "requested")] | length') || held=1
+            [ "$held" = "0" ] || { echo "a gate run of $HEADREF is pending — not re-running $run_id behind it"; return 1; }
             gh run rerun "$run_id" --repo "$REPO" || return 1
             echo "merge gate run $run_id re-run on $target — waiting for the attempt"
             att=$att0; poll_end=$((SECONDS + 60))
@@ -893,7 +897,9 @@ jobs:
             left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || return 1
             wait_end=$((SECONDS + (left < 150 ? left : 150)))
             while [ "$SECONDS" -lt "$wait_end" ]; do
-              st=$(gh run view "$run_id" --repo "$REPO" --json status --jq .status) || st=pending
+              line=$(gh run view "$run_id" --repo "$REPO" --json status,conclusion --jq '"\(.status) \(.conclusion)"') || line="pending "
+              st=${line%% *}; concl=${line#* }
+              [ "$st" = completed ] && [ "$concl" = cancelled ] && return 1  # the attempt was cancelled in the group
               case "$st" in queued|in_progress|completed) return 0 ;; esac  # `pending` = held by the group — keep waiting
               sleep 5
             done
