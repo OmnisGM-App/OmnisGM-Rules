@@ -62,13 +62,18 @@ it — a hand-applied one is reported and ignored.
    head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
 4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
    merges (the agent itself for a PR without baseline changes; the owner's command for everything else).
-   Its colours: **yellow (in progress)** = something is still awaited — a review round, a label, a label
-   event the API has not listed yet; **red** = a contradiction to fix by hand (two matrix labels, a label
-   applied by the wrong actor, a label without a recorded head) or an error of the gate run itself; **green**
-   = every required label holds on this head. CI is not part of the gate — it is its own required check.
-   The workflow run is green unless it errors or the head SHA is shared with another branch (a release cut on
-   the bare `dev` commit: the verdict would land in `dev`'s suite), so a waiting PR sends no failure mail. The ruleset requires
-   both `Merge gate` (the check run) and `Merge gate run` (the job): a queued or cancelled run is not green.
+   Its colours: **green** = every required label holds on this head; **red** = either something is still
+   awaited (the job log says `waiting: …` — a review round, a label, a label event the API has not listed yet)
+   or a contradiction to fix by hand (two matrix labels, a label applied by the wrong actor, a label without a
+   recorded head) or an error of the gate run itself. A label event re-runs the job (the review workflow's
+   label re-runs it through `gh run rerun`), so a waiting PR goes green once the label lands; a lagging events
+   list is the one case for "Re-run jobs" on the gate run by hand. A waiting PR is a red run and mails a
+   failure on every push — the owner's decision of 2026-10-24, replacing the 2026-10-23 "no mail" that the API
+   check run bought. CI is not part of the gate — it is its own required check. The verdict is the status of
+   the job `Merge gate` itself (v3, 2026-10-24): an API check run lands in the oldest check suite of that SHA
+   and is hidden from the merge box as soon as the gate re-runs on a label (Table#1241) or the head is shared
+   with another branch (Table#1227); a `workflow_dispatch` run is attached to no PR and never counts (Table#1251).
+   The ruleset requires `Merge gate` (the job) next to the CI check.
 
 ## Failed and flaky tests (owner's decision 2026-10-22)
 

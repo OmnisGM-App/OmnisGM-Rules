@@ -5,15 +5,18 @@ name: Merge gate
 # roll out as copies. Per-repo knobs are the `env:` block of the job — nothing else should differ.
 #
 # What it is (owner's decision 2026-10-20): the branch ruleset cannot require labels, so this
-# workflow turns PR labels into a required status — a check run named `Merge gate` on the PR head,
-# opened by merge_gate.py as in_progress before anything else and closed by the same run: in_progress
-# while a review round, a label or a lagging label event is still awaited, failure on a contradiction or
-# on an error of the run, success when every label holds. CI is not read here — it is its own required
-# check. The job is green unless the run errors or the head is shared with another branch (owner, 2026-10-23: a waiting PR is not a failed run, and
-# failed runs spam the mailbox). The ruleset requires BOTH `Merge gate` (the check run) and `Merge gate run`
-# (this job): a run that is queued, cancelled or dead before its first write is not green, so a stale
-# verdict on the head cannot pass on its own (review of Table#1222, round 2). Four `gate/*` labels, who sets them and
-# the merge method are described in `.claude/rules/merge-gate.md` (same template family).
+# workflow turns PR labels into a required status — the job `Merge gate` below (the name the ruleset
+# requires). merge_gate.py exits 0 when every label holds on the head and 1 otherwise; the job's own
+# status is the verdict: green = labels ok, red = "waiting: …" (a review round, a label, a lagging label
+# event) or a contradiction / an error. A label event re-runs the job, so a waiting PR goes green once the
+# label lands (a lagging events list is the one case for "Re-run jobs" by hand). A waiting PR is a red run
+# that mails a failure on every push — owner's decision 2026-10-24, replacing the 2026-10-23 "a waiting PR
+# sends no mail" that the API check run bought. CI is not read here — it is its own required check.
+# v3 (2026-10-24): nothing is written through the check-runs API any more. An API check run lands in the
+# OLDEST check suite of the app on that SHA, and a later run of the same workflow (the `labeled` one)
+# supersedes that suite in the merge box together with the verdict inside it — "Merge gate — Expected,
+# waiting" on Table#1241 with a green record in the API; a shared head (Table#1227) hid it the same way.
+# Four `gate/*` labels, who sets them and the merge method: `.claude/rules/merge-gate.md` (same template family).
 #   gate/snapshots-approved — required when the PR changes screenshot baselines;
 #                             set by a HUMAN (the owner) only, never by an agent.
 #   gate/matrix-passed      — the full Playwright matrix is green on the current head;
@@ -34,39 +37,34 @@ name: Merge gate
 # Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
 # merge_gate.py or claude-review.yml can rewrite its own gate — such PRs merge only on the owner's
 # explicit command after reading that diff (merge-gate.md).
-# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-dispatches
-# this workflow after labelling (`workflow_dispatch` with the PR number).
+# Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-runs the latest
+# `pull_request` run of this workflow on the head after labelling (`gh run rerun`): attempt 2 replaces the
+# red job in the same check suite. No `workflow_dispatch`: such a run is attached to no PR and never
+# reaches its merge box (Table#1251 — the rollup kept two red pull_request jobs next to a green dispatch).
 # No cancel-in-progress: the evaluation is idempotent and a superseded run must not skip its removals.
 
 on:
   pull_request:
     types: [opened, reopened, ready_for_review, synchronize, labeled, unlabeled]
-  workflow_dispatch:
-    inputs:
-      pr:
-        description: 'PR number to re-evaluate'
-        required: true
-        type: string
 
 concurrency:
-  group: merge-gate-${{ github.event.pull_request.number || inputs.pr }}
+  group: merge-gate-${{ github.event.pull_request.number }}
   cancel-in-progress: false
 
 jobs:
   gate:
-    name: Merge gate run   # required together with the `Merge gate` check run the script posts
+    name: Merge gate   # the required context: this job's status is the verdict
     runs-on: ubuntu-latest
     timeout-minutes: 5
     permissions:
       pull-requests: write
       issues: write      # the state comment
-      checks: write      # the `Merge gate` check run
       contents: read
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}
-      PR: ${{ github.event.pull_request.number || inputs.pr }}
-      EVENT: ${{ github.event.action || 'dispatch' }}
+      PR: ${{ github.event.pull_request.number }}
+      EVENT: ${{ github.event.action }}
       EVENT_LABEL: ${{ github.event.label.name }}
       EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
       # Regex over changed paths that counts as a screenshot baseline (Playwright default dir).
@@ -88,10 +86,4 @@ jobs:
           echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
           "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
       - name: Evaluate labels against the diff
-        id: gate
         run: python3 .github/scripts/merge_gate.py
-      # Only when the script never closed its check run (queued → cancelled, timed out, bootstrap died): a
-      # script that failed after opening closes the run itself with the real error and sets `closed=true`.
-      - name: Close the check run as failed if the run died before the script
-        if: (failure() || cancelled()) && steps.gate.outputs.closed != 'true'
-        run: python3 .github/scripts/merge_gate.py --fail
