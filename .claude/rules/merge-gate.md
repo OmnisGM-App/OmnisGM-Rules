@@ -119,7 +119,8 @@ it — a hand-applied one is reported and ignored.
   is kept); everything else — squash.
   A repo without a release branch (Rules, News) squashes every PR.
 - **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its
-  own version of the check, so the gate cannot vouch for it: the owner reads that diff and merges by
-  explicit command only.
+  own version of the check, so the gate cannot vouch for it. It is merged under the ordinary readiness
+  criteria above (the agent itself) — the author reads its own diff with the knowledge that the gate's
+  verdict on it is self-reported.
 - A green check on an old head is not a green check: after a push wait for CI and the gate on the
   new head before merging.
