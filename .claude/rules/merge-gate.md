@@ -61,7 +61,7 @@ it — a hand-applied one is reported and ignored.
    on and nothing matrix-relevant landed after it; (b) a release cut as an empty commit on top of a `dev`
    head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
 4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
-   merges (the agent itself for a PR without baseline changes; the owner's command for everything else).
+   merges (the agent itself; the owner's hand is only `gate/snapshots-approved` on changed baselines).
    Its colours: **green** = every required label holds on this head; **red** = either something is still
    awaited (the job log says `waiting: …` — a review round, a label, a label event the API has not listed yet)
    or a contradiction to fix by hand (two matrix labels, a label applied by the wrong actor, a label without a
@@ -91,17 +91,19 @@ it — a hand-applied one is reported and ignored.
 
 ## How to merge
 
-- **Who merges (owner's decision 2026-10-21).** A PR that changes no `*-snapshots/` file is merged by the
-  agent itself once it is ready: CI and `Merge gate` green on the final head, `gate/review-passed` set by
-  the workflow, an honest matrix label (the full matrix on this head, or `gate/matrix-not-needed` with the
-  one-line reason in the body), every review thread answered and resolved, no round in flight. A PR with
-  changed baselines waits for the owner's merge command: a human looks at the frames. A release into `master`
-  — only on the owner's command. In `claude-plugins` the agent merges its own PRs under the same readiness
-  criteria (owner, 2026-10-19).
-- **One command = one PR.** When a merge does need the owner's word, it covers the PR it was said about:
-  not a stack whose order the reviewer suggested, not "the next one" after "merge and take the next task"
-  (that permits starting the task, not merging its PR), not an "if it goes green — merge" from an earlier
-  exchange. Other ready PRs stay open and are reported as ready. Unsure what a command covers — ask.
+- **Who merges (owner's decisions 2026-10-21 and 2026-10-24).** The agent merges its own PR itself once it
+  is ready: CI and `Merge gate` green on the final head, `gate/review-passed` set by the workflow, an honest
+  matrix label (the full matrix on this head, or `gate/matrix-not-needed` with the one-line reason in the
+  body), every review thread answered and resolved, no round in flight. That covers PRs that edit the gate,
+  the review workflow or the rules, and the release PR once the release skill's checklist holds (the release
+  itself still STARTS on the owner's word — that is scheduling, not approval). The owner's hand is exactly one
+  thing: `gate/snapshots-approved` on a PR with changed `*-snapshots/` baselines — a human looks at the frames
+  and confirms them in GitHub; with that label on the final head the agent merges that PR too. In
+  `claude-plugins` the same readiness criteria apply (owner, 2026-10-19).
+- **A merge command, when the owner does give one, covers one PR**: the PR it was said about — not a stack
+  whose order the reviewer suggested, not "the next one" after "merge and take the next task" (that permits
+  starting the task, not merging its PR), not an "if it goes green — merge" from an earlier exchange. A PR
+  that is not ready is reported as not ready, never merged on a command alone (`--admin` is never used).
 - **Squash, never `--admin`.** `gh pr merge N --squash --delete-branch`, or `--auto --squash` so the
   PR merges itself when the required checks (CI + `Merge gate`) go green. `--auto` is armed only once
   every review thread is answered and resolved and no round is running (`review-response.md`, merge

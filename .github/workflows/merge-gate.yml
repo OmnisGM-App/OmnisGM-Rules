@@ -35,8 +35,8 @@ name: Merge gate
 # PRs (`release/*` → `master`, Table only — a repo without a release branch never matches)
 # are promotions of an already-gated branch (matrix label only).
 # Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
-# merge_gate.py or claude-review.yml can rewrite its own gate — such PRs merge only on the owner's
-# explicit command after reading that diff (merge-gate.md).
+# merge_gate.py or claude-review.yml can rewrite its own gate — the review round reads that diff with care,
+# and the agent merges such a PR under the ordinary readiness criteria (merge-gate.md, "How to merge").
 # Labels added with GITHUB_TOKEN do not fire `labeled` events, so claude-review.yml re-runs the latest
 # `pull_request` run of this workflow on the head after labelling (`gh run rerun`): attempt 2 replaces the
 # red job in the same check suite. No `workflow_dispatch`: such a run is attached to no PR and never
