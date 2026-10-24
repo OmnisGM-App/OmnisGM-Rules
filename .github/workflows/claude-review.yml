@@ -832,7 +832,7 @@ jobs:
           else
             if gh pr edit "$PR" --repo "$REPO" --remove-label gate/review-passed; then echo "gate/review-passed removed ($MAJOR ❗)"; else echo "$MAJOR ❗ — label was not set"; fi
           fi
-          # v2.50: re-run the gate's own pull_request run on this head (a dispatch run is attached to no PR —
+          # v2.50/v2.51: re-run the gate's own pull_request runs on this head (a dispatch run is attached to no PR —
           # Table#1251). The run may still be in progress (the labeled/unlabeled event of a moment ago): wait for it.
           # Always the LIVE head's run: a re-run replays the run's original payload (EVENT_HEAD_SHA), so a
           # `labeled` run of an older head would re-bind a label the live head earned (Rules#447 round 2), while
