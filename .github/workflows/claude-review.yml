@@ -901,9 +901,13 @@ jobs:
           newest=${ids%%$'\n'*}
           if [ -n "$newest" ]; then
             if rerun_one "$newest"; then
+              # The older runs stop at the first whose start is not confirmed: a rerun queued behind a pending
+              # attempt would cancel it (Rules#451 round 2) — the rest go into the warning untouched.
+              stop=
               for run_id in $ids; do
                 [ "$run_id" = "$newest" ] && continue
-                rerun_one "$run_id" || not_rerun="$not_rerun $run_id"
+                if [ -n "$stop" ]; then not_rerun="$not_rerun $run_id"; continue; fi
+                rerun_one "$run_id" || { not_rerun="$not_rerun $run_id"; stop=1; }
               done
             else
               echo "::notice::gate run $newest (the newest on $target) — attempt not confirmed started within the deadline; the older runs are left alone so no rerun cancels its pending attempt"
