@@ -868,7 +868,7 @@ jobs:
           # so one call cannot outlive the deadline and the warning after the loop always prints (News#173).
           rerun_one() {  # $1 = run id, $2 = 'last' for the last id. 0: the new attempt exists and holds the gate's
             # group (for the last id: exists — nothing can queue behind it). 2: read as pending to the end. 1: anything else.
-            local run_id=$1 is_last=${2:-} line st concl att0 att left poll_end wait_end held read_pending
+            local run_id=$1 is_last=${2:-} line st concl att0 att left poll_end wait_end held read_pending=  # `=`: set -u, the wait may never run
             line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
             [ -n "$att0" ] || return 1
