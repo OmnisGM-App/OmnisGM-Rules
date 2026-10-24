@@ -21,8 +21,9 @@ by round three or four, after that review was picking apart fix prose and promis
    for "also fixed a comment" is another full round (every push without `gate/review-passed` is reviewed).
    Fix-round commits, the push, the PR body update and the thread replies need no confirmation (owner,
    2026-09-15: «пуш сразу как пофиксил, не жди одобрения»); a repo's "ask before committing" rule covers new
-   work (the first commit of a feature, a new PR), not fix rounds. Confirmation stays for a merge that is the
-   owner's (`merge-gate.md`, "How to merge"), a push to `master`, a deploy and any external post.
+   work (the first commit of a feature, a new PR), not fix rounds. Confirmation stays for the owner's
+   `gate/snapshots-approved` on a PR with changed baselines (`merge-gate.md`, "How to merge"), a push to
+   `master`, a deploy and any external post.
 2a. **Re-walk the scenario ledger before the push** (`authoring-pitfalls.md` rule 22) and fix the twin of
    every fix (rule 21): a round that repairs only the named place and breaks a previous round's scenario is
    the most expensive round of all (Table#1179: four rounds with ❗).
