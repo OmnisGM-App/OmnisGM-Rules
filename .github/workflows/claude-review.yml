@@ -850,12 +850,13 @@ jobs:
           # the gate's concurrency group (one running, one queued, a new queued run cancels the queued one) would
           # otherwise leave a cancelled attempt in a suite (Rules#450 round 1). One deadline for the whole loop;
           # the ids not re-run or not confirmed are listed in one warning.
-          # Newest first: the newest run is what the merge box reads, so it is re-run and awaited before anything
+          # Newest first (largest id: a same-second tie is listed smallest first — Rules#450 round 3): the newest run is
+          # what the merge box reads, so it is re-run and awaited before anything
           # else; the older runs follow under what is left of the deadline, and only when the newest attempt is
           # confirmed finished — a rerun queued while it is still pending would cancel it (Rules#450 round 2).
           # After `gh run rerun` the run is still read as `completed` for a moment (gh run watch would return at
           # once) — wait for the attempt number to grow before watching it.
-          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '.[].databaseId') || ids=
+          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '[.[].databaseId] | sort | reverse | .[]') || ids=
           if [ -z "$ids" ]; then
             echo "::warning::no pull_request run of merge-gate.yml on $target ($HEADREF) — toggle a label or push to re-evaluate the gate"
           fi
