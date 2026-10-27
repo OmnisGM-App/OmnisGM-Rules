@@ -60,12 +60,14 @@ it — a hand-applied one is reported and ignored.
    no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
    2026-10-23), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
    last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
-   on and nothing matrix-relevant landed after it; (b) a release cut as an empty commit on top of a `dev`
+   on and nothing matrix-relevant landed after it (when that PR used the FIXME carry-over below, the release
+   body names that PR's `<matrix head>`, not its final head); (b) a release cut as an empty commit on top of a `dev`
    head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
    A third carry-over, for flaky tests (proposed by the agent, accepted by the owner, 2026-10-27): the
    `// FIXME(#N)` lines of "Failed and flaky tests" are written after the run, so they land in a commit the
-   matrix never saw. When `git diff <matrix head> <live head>` consists only of comment lines inside
-   `tests/e2e/**` (no spec logic, no baseline, no product file), the matrix of `<matrix head>` counts for the
+   matrix never saw. When `git diff <matrix head> <live head>` consists only of comment lines inside the repo's
+   Playwright test directory (`tests/e2e/**` in Table, `web/e2e/**` in Rules, `e2e/**` in News — no spec logic,
+   no baseline, no product file), the matrix of `<matrix head>` counts for the
    live head; the PR body names both SHAs. Anything else in that diff means a new matrix.
 4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
    merges (the agent itself; the owner's hand is only `gate/snapshots-approved` on changed baselines).

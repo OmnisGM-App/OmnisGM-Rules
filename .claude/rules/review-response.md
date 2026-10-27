@@ -22,8 +22,10 @@ by round three or four, after that review was picking apart fix prose and promis
    Fix-round commits, the push, the PR body update and the thread replies need no confirmation (owner,
    2026-09-15: «пуш сразу как пофиксил, не жди одобрения»). New work does not ask either: the first commit of a
    feature, the branch and the PR are the agent's own (owner, 2026-10-27). Confirmation stays for the owner's
-   `gate/snapshots-approved` on a PR with changed baselines (`merge-gate.md`, "How to merge"), a push to
-   `master` (the release starts on the owner's word), a deploy by hand and any external post.
+   `gate/snapshots-approved` on a PR with changed baselines (`merge-gate.md`, "How to merge"), a push to the
+   default branch outside a PR (in a repo with a release branch the release starts on the owner's word), a
+   deploy run by hand where the repo's CLAUDE.md does not grant it, and any external post. Merging a ready PR
+   per `merge-gate.md`, with the deploy that merge triggers, is the agent's own.
 2a. **Re-walk the scenario ledger before the push** (`authoring-pitfalls.md` rule 22) and fix the twin of
    every fix (rule 21): a round that repairs only the named place and breaks a previous round's scenario is
    the most expensive round of all (Table#1179: four rounds with ❗).
@@ -40,7 +42,8 @@ by round three or four, after that review was picking apart fix prose and promis
    item 4), and review will catch it. Do not re-snapshot while there are no new commits.
 6. **Remarks do not spawn a round.** They are fixed in the same commit as ❗ and medium ones, or
    deferred with a word in the thread. A round with no ❗ and no medium findings = PR ready for the gate: push nothing
-   "just in case"; run the matrix (`merge-gate.md` rule 2b) and merge (`merge-gate.md`, "How to merge").
+   "just in case"; take the matrix label (`merge-gate.md` rules 2b and 3: the matrix where the diff needs one,
+   `gate/matrix-not-needed` otherwise) and merge (`merge-gate.md`, "How to merge").
 7. **Instrumental code** (gates, scripts, tests, CI) is fixed in the scope of ❗. The mutation
    bar for product code does not apply to gate tests; no "guards for the guards" are built.
    Anything disputable — a question to the owner in the thread, not a commit.
@@ -78,5 +81,6 @@ itself; a PR with changed baselines needs the owner's `gate/snapshots-approved` 
 ## Sign of a loop — stop
 
 Three consecutive rounds without ❗ while the number of remarks does not decrease, or two consecutive rounds where all
-findings are about comments and the PR body. In that case do not push: write to the owner «готов к
-гейту, остались ремарки: …» (ready for the gate, remaining remarks: …) and wait for a decision. Further rounds — only on their word.
+findings are about comments and the PR body. In that case do not push: list the remaining remarks by name in the
+round comment, then take the matrix label and merge as in step 6. The owner's word is needed only where a remark
+raises a decision that `owner-decisions.md` reserves for them; further rounds — only on their word.
