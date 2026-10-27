@@ -51,15 +51,24 @@ it — a hand-applied one is reported and ignored.
 2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
    and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
    an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,
-   #1163). Re-shooting the baselines the PR itself touches is part of the change, not of the matrix:
-   `authoring-e2e.md` rule 6.
+   #1163). A PR with changed `*-snapshots/` baselines waits for the owner's `gate/snapshots-approved` as well
+   before the matrix (proposed by the agent, accepted by the owner, 2026-10-27): a rejected frame is re-shot and
+   re-run, so a matrix taken before the owner's look is the same thrown-away machine time. Re-shooting the
+   baselines the PR itself touches is part of the change, not of the matrix: `authoring-e2e.md` rule 6.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
    no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
    2026-10-23), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
    last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
-   on and nothing matrix-relevant landed after it; (b) a release cut as an empty commit on top of a `dev`
+   on and nothing matrix-relevant landed after it (when that PR used the FIXME carry-over below, the release
+   body names that PR's `<matrix head>`, not its final head); (b) a release cut as an empty commit on top of a `dev`
    head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
+   A third carry-over, for flaky tests (proposed by the agent, accepted by the owner, 2026-10-27): the
+   `// FIXME(#N)` lines of "Failed and flaky tests" are written after the run, so they land in a commit the
+   matrix never saw. When `git diff <matrix head> <live head>` consists only of comment lines inside the repo's
+   Playwright test directory (`tests/e2e/**` in Table, `web/e2e/**` in Rules, `e2e/**` in News — no spec logic,
+   no baseline, no product file), the matrix of `<matrix head>` counts for the
+   live head; the PR body names both SHAs. Anything else in that diff means a new matrix.
 4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
    merges (the agent itself; the owner's hand is only `gate/snapshots-approved` on changed baselines).
    Its colours: **green** = every required label holds on this head; **red** = either something is still
