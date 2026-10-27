@@ -170,6 +170,7 @@ jobs:
       contents: read
       pull-requests: read
       checks: write
+      actions: read   # v2.52: the resolve step reads the triggering CI run's job list (Rules#456 round 2)
     steps:
       - name: Ensure gh CLI in PATH
         shell: bash
