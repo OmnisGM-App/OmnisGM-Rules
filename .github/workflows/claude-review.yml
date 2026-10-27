@@ -225,10 +225,13 @@ jobs:
                            --jq '[.jobs[] | select(.name == $ENV.CI_CHECK)] | last | .conclusion // "none"'); then err=1; c=none; fi
               else
                 # ready_for_review / unlabeled / a head that moved: the commit's check-runs list, with a backoff
+                # while the check is ABSENT only — a check that exists but is not completed ends the wait: its
+                # completion wakes a round by itself, and waiting here would race it (Table#1286 round 1).
                 for i in 1 2 3 4 5 6; do
-                  if c=$(gh api -X GET "repos/$REPO/commits/$sha/check-runs" -f check_name="$CI_CHECK" \
-                           --jq '[.check_runs[]] | sort_by(.started_at) | last | .conclusion // "none"'); then err=; else err=1; c=none; fi
-                  [ "$c" = "none" ] || break
+                  if line=$(gh api -X GET "repos/$REPO/commits/$sha/check-runs" -f check_name="$CI_CHECK" \
+                              --jq '[.check_runs[]] | sort_by(.started_at) | last | "\(.status // "none") \(.conclusion // "none")"'); then err=; else err=1; line="none none"; fi
+                  st=${line%% *}; c=${line##* }
+                  [ "$st" = "none" ] || { [ "$st" = "completed" ] || c=$st; break; }
                   [ "$i" = 6 ] || sleep 10
                 done
               fi
