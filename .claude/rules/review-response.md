@@ -20,10 +20,10 @@ by round three or four, after that review was picking apart fix prose and promis
 2. **One commit per round, one push — without asking.** All edits of the round go into one commit. A second push
    for "also fixed a comment" is another full round (every push without `gate/review-passed` is reviewed).
    Fix-round commits, the push, the PR body update and the thread replies need no confirmation (owner,
-   2026-09-15: «пуш сразу как пофиксил, не жди одобрения»); a repo's "ask before committing" rule covers new
-   work (the first commit of a feature, a new PR), not fix rounds. Confirmation stays for the owner's
+   2026-09-15: «пуш сразу как пофиксил, не жди одобрения»). New work does not ask either: the first commit of a
+   feature, the branch and the PR are the agent's own (owner, 2026-10-27). Confirmation stays for the owner's
    `gate/snapshots-approved` on a PR with changed baselines (`merge-gate.md`, "How to merge"), a push to
-   `master`, a deploy and any external post.
+   `master` (the release starts on the owner's word), a deploy by hand and any external post.
 2a. **Re-walk the scenario ledger before the push** (`authoring-pitfalls.md` rule 22) and fix the twin of
    every fix (rule 21): a round that repairs only the named place and breaks a previous round's scenario is
    the most expensive round of all (Table#1179: four rounds with ❗).
@@ -40,7 +40,7 @@ by round three or four, after that review was picking apart fix prose and promis
    item 4), and review will catch it. Do not re-snapshot while there are no new commits.
 6. **Remarks do not spawn a round.** They are fixed in the same commit as ❗ and medium ones, or
    deferred with a word in the thread. A round with no ❗ and no medium findings = PR ready for the gate: push nothing
-   "just in case", write to the owner.
+   "just in case"; run the matrix (`merge-gate.md` rule 2b) and merge (`merge-gate.md`, "How to merge").
 7. **Instrumental code** (gates, scripts, tests, CI) is fixed in the scope of ❗. The mutation
    bar for product code does not apply to gate tests; no "guards for the guards" are built.
    Anything disputable — a question to the owner in the thread, not a commit.

@@ -119,5 +119,7 @@ The hook is wired by a root-level **`npm install`** — in the root specifically
 `git commit --no-verify`.
 
 ### Owner's working style
-Incremental, reviews every step; deploy/push — on explicit request; **"audit ≠ fixes"** (on "check/make sure"
-report first, do not change code until told "do it"); prefers generalized data models.
+Incremental, reviews every step. Branches, commits and PRs are the agent's own, and the agent merges a ready PR
+itself (`.claude/rules/merge-gate.md`, "How to merge"), which is the production deploy of this repo; a deploy
+by hand (`workflow_dispatch`) — on explicit request. **"audit ≠ fixes"** (on "check/make sure" report first, do
+not change code until told "do it"); prefers generalized data models.
