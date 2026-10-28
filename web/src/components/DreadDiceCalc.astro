@@ -1,6 +1,6 @@
 ---
-// Калькулятор «Кубов угрозы»: формулы и переходы — `lib/dread-dice.mjs`, правила — текст страницы.
-// Скрипт уходит отдельным файлом в /_astro/ (script-src 'self') и подключается только здесь.
+// Калькулятор «Кубов угрозы»: формулы и переходы — `lib/dread-dice.ts`, правила — текст страницы.
+// Скрипт уходит отдельным файлом в /_astro/ (script-src 'self'), а не инлайном.
 export interface Props { lang: 'en' | 'ru' }
 const { lang } = Astro.props;
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);

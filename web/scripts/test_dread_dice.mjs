@@ -47,9 +47,10 @@ function bruteChance(/** @type {number} */ w, /** @type {number} */ b, /** @type
       if (i === j) continue;
       for (let x = 1; x <= 20; x++) {
         for (let y = 1; y <= 20; y++) {
-          const dice = [{ color: bag[i], value: x }, { color: bag[j], value: y }];
-          const k = dice[keptIndex(dice, mode)];
-          if (isEvent(k.color, k.value)) p += 1 / (n * (n - 1)) / 400;
+          const tie = x === y;
+          const firstKept = tie ? bag[i] === 'light' || bag[j] === 'dark' : (mode === 'advantage') === (x > y);
+          const [c, v] = firstKept ? [bag[i], x] : [bag[j], y];
+          if (isEvent(c, v)) p += 1 / (n * (n - 1)) / 400;
         }
       }
     }

@@ -63,6 +63,7 @@ if (!licenseProblems('en/dnd/x/index.html', page('<div class="rd-attrib">x</div>
 if (!licenseProblems('en/brp/x/index.html', page(`<div class="rd-attrib">${BRP.en}<a class="rd-attrib-logo" href="https://www.chaosium.com/orclicense/"`)).length) errors.push('самопроверка: логотип на ORC не замечен');
 if (!licenseProblems('en/brp/x/index.html', page('текст без атрибуции')).length) errors.push('самопроверка: страница без блока атрибуции не замечена');
 if (!licenseProblems('ru/dnd/homebrew/x/index.html', page(`<div class="rd-attrib">${HOMEBREW.ru} ${DND.ru}</div>`)).length) errors.push('самопроверка: хоумбрю с атрибуцией SRD не замечен');
+if (!licenseProblems('en/dnd/homebrew/x/index.html', page('<div class="rd-attrib">x</div>')).length) errors.push('самопроверка: хоумбрю без своей лицензии не замечен');
 if (licenseProblems('ru/dnd/homebrew/x/index.html', page(`<div class="rd-attrib">${HOMEBREW.ru}</div>`)).length) errors.push('самопроверка: хоумбрю со своей лицензией не засчитан');
 if (licenseProblems('en/daggerheart/x/index.html', page('<div class="rd-attrib">x</div>')).length) errors.push('самопроверка: Daggerheart засчитан');
 
@@ -114,4 +115,4 @@ if (errors.length) {
   console.error(`❌ Лицензии систем в dist: ${errors.length} ошибок\n  ${errors.slice(0, 20).join('\n  ')}`);
   process.exit(1);
 }
-console.log(`✅ Лицензии систем в dist: D&D ${dnd} стр., BRP ${brp} стр., Legal BRP §9, без CoC/RQ на хабе и главной, тексты OFL и LICENSE на месте; 6 самопроверок`);
+console.log(`✅ Лицензии систем в dist: D&D ${dnd} стр., BRP ${brp} стр., Legal BRP §9, без CoC/RQ на хабе и главной, тексты OFL и LICENSE на месте; 7 самопроверок`);
