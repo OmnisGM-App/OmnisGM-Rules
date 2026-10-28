@@ -37,17 +37,28 @@ it — a hand-applied one is reported and ignored.
    **When to remove it yourself** (owner's decision 2026-10-23, OmnisGM-App/OmnisGM-News#163): the label was earned by the head
    the clean round read; a push that changes behaviour after it would merge unreviewed. Remove the label
    BEFORE that push and say why in the round comment when at least one holds:
-   - product code changes behaviour — a new branch, condition, data shape, query, API call or effect, in
-     any file, including files the clean round never saw;
+   - product code changes behaviour beyond what a finding of the labelling round names — a new branch,
+     condition, data shape, query, API call or effect the thread did not ask for, in any file, including
+     files the clean round never saw;
    - a medium finding was fixed by a different approach than the one named in the thread, not by the
      reviewer's own line;
    - gate, review, CI, deploy or security logic changed (workflows, the gate script, access rules) in anything
      but a comment;
    - a base merge had conflicts resolved by hand;
-   - the diff since the labelled head is over ~50 lines of non-test, non-doc code (a guideline, not a gate).
+   - the diff since the labelled head is over ~50 lines of non-test, non-doc code beyond the recipes of the
+     labelling round's findings (a guideline, not a gate).
    Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,
-   a rename with no logic change, a clean base merge, or a one-line fix exactly as the reviewer wrote it.
+   a rename with no logic change, a clean base merge, or fixes of the labelling round's findings exactly
+   as their threads describe them.
    In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
+   **What is not a reason to remove it** (owner's decision 2026-10-28, Table#1315: six removals in one
+   night, every one for a medium finding of the round that had just set the label, and every one bought a
+   round with new mediums): a medium or a remark of the round that set the label, fixed in this PR as the
+   thread describes it — the reviewer's own recipe, in the files the finding names. Such fixes go into one
+   commit and are pushed with the label (`review-response.md` step 6). The label comes off when a fix goes
+   beyond its finding (a different approach, behaviour the thread did not ask for, more than ~50 lines
+   beyond the recipes), when a recipe touches gate, review, CI, deploy or security logic (that bullet holds
+   for recipe fixes too), for a ❗, or for new work the owner asked for in this PR.
 2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
    and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
    an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,

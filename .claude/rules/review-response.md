@@ -16,7 +16,13 @@ by round three or four, after that review was picking apart fix prose and promis
 
 1. **Decision list first, code second.** For every finding — one of three: «чиню» (fixing), «не чиню:
    причина в одну строку» (not fixing: one-line reason), «отдельной ишьёй #N» (separate issue #N). The list goes to the PR thread as ONE comment before
-   the edits. «Не чиню» is legitimate for remarks, and for medium ones too if the argument is substantive.
+   the edits. «Не чиню» is legitimate for remarks, for medium ones, and for a ❗ too when the argument is
+   substantive and stands in the thread (a grep, a run, the producer that does not exist) — owner's decision
+   2026-10-28. A ❗ left unfixed is confirmed by the next round, not by the author: that round reads the thread
+   and either drops the finding (0 ❗ sets the label) or repeats it, and a repeated ❗ is fixed or put to the
+   owner. The next round comes with the round's other fixes in the one commit, or by a replay
+   (`workflow_dispatch` of claude-review.yml with `force`: without it the run finds no new commits and
+   re-checks nothing) when there is nothing to push.
 2. **One commit per round, one push — without asking.** All edits of the round go into one commit. A second push
    for "also fixed a comment" is another full round (every push without `gate/review-passed` is reviewed).
    Fix-round commits, the push, the PR body update and the thread replies need no confirmation (owner,
@@ -41,7 +47,12 @@ by round three or four, after that review was picking apart fix prose and promis
    run → body. Any code push after the snapshot makes the block stale (`authoring-pitfalls`
    item 4), and review will catch it. Do not re-snapshot while there are no new commits.
 6. **Remarks do not spawn a round.** They are fixed in the same commit as ❗ and medium ones, or
-   deferred with a word in the thread. A round with no ❗ and no medium findings = PR ready for the gate: push nothing
+   deferred with a word in the thread. A round with no ❗ sets `gate/review-passed` and that is the PR ready
+   for the gate; the mediums and remarks that came with it are fixed in this PR, in one commit, each as its
+   thread describes it, and that commit is pushed with the label kept (`merge-gate.md` rule 2: the label
+   comes off only when a fix goes beyond what its finding names or touches gate, review, CI, deploy or
+   security logic). Removing the label for such a fix starts the next round and the next mediums
+   (Table#1315: six such rounds in one night). Push nothing
    "just in case"; take the matrix label (`merge-gate.md` rules 2b and 3: the matrix where the diff needs one,
    `gate/matrix-not-needed` otherwise) and merge (`merge-gate.md`, "How to merge").
 7. **Instrumental code** (gates, scripts, tests, CI) is fixed in the scope of ❗. The mutation
@@ -80,7 +91,9 @@ itself; a PR with changed baselines needs the owner's `gate/snapshots-approved` 
 
 ## Sign of a loop — stop
 
-Three consecutive rounds without ❗ while the number of remarks does not decrease, or two consecutive rounds where all
-findings are about comments and the PR body. In that case do not push: list the remaining remarks by name in the
+`gate/review-passed` removed by the author for a fix that stays within what its thread names is the loop
+itself; the round it started is let finish: with 0 ❗ the label returns and step 6 applies, a ❗ goes by
+step 1. Also: three consecutive rounds without ❗ while the number of remarks does not decrease, or two
+consecutive rounds where all findings are about comments and the PR body. In that case do not push: list the remaining remarks by name in the
 round comment, then take the matrix label and merge as in step 6. The owner's word is needed only where a remark
 raises a decision that `owner-decisions.md` reserves for them; further rounds — only on their word.
