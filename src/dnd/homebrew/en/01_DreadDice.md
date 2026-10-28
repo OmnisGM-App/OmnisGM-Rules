@@ -164,8 +164,8 @@ The second term in the two-dice mode is a pair of different colours: the dark di
 
 **How it behaves:**
 
-- "Roll", "With advantage", "With disadvantage" — draw and roll dice in the chosen modes and change the threshold by the rules above.
-- "Enter result" — for dice rolled at the table: set the kept die's colour and its final number, after rerolls and replacements. The threshold changes; the bag doesn't.
+- The bag, `T₀`, `Δ` and the current `T` are set with sliders: up to 20 light dice, up to 10 dark, `Δ` up to 5. "Roll", "Advantage", "Disadvantage" draw and roll dice in the chosen modes and change the threshold by the rules above.
+- "Apply result" (under "More") — for dice rolled at the table: set the kept die's colour and its final number, after rerolls and replacements. The threshold changes; the bag doesn't.
 - Changing `T₀` shifts the current `T` by the same difference; changing the composition refills the bag.
-- An exhaustible bag refills itself when there aren't enough dice for a check; the "Refill" button does it by hand.
+- An exhaustible bag refills itself when there aren't enough dice for a check; the "Refill the bag" button does it by hand.
 - One threat (one dangerous colour) is tracked.

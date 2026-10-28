@@ -17,34 +17,34 @@ test('калькулятор стоит в статье перед руково�
   await expect(page.locator('.rd-doc')).not.toContainText('dread-dice-calculator');
 });
 
-test('шансы следующей проверки по умолчанию: мешок 5+1, T=5', async ({ page }) => {
+test('по умолчанию: мешок 5+1 кружками, T=5, шансы следующей проверки', async ({ page }) => {
   await page.goto(URL_RU);
   await page.locator('details.dd > summary').click();
   await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('3,3 %');
   await expect(page.locator('[data-dd-chance="advantage"]')).toHaveText('0,7 %');
   await expect(page.locator('[data-dd-chance="disadvantage"]')).toHaveText('6,0 %');
-  await expect(page.locator('[data-dd-danger]')).toHaveText('Опасны результаты 1–4');
+  await expect(page.locator('[data-dd-danger]')).toHaveText('опасны 1–4');
+  await expect(page.locator('[data-dd-bag] .dd-die-dark')).toHaveCount(1);
+  await expect(page.locator('[data-dd-bag] .dd-die-light')).toHaveCount(5);
 });
 
 test('ручной ввод: тёмная 3 при T=5 — событие и сброс к T₀, тёмная 9 — рост', async ({ page }) => {
   await page.goto(URL_EN);
   await page.locator('details.dd > summary').click();
+  await page.locator('details.dd-more > summary').click();
   await page.locator('input[name="manualValue"]').fill('9');
   await page.locator('[data-dd-manual]').click();
   await expect(page.locator('input[name="threshold"]')).toHaveValue('6');
   await page.locator('input[name="manualValue"]').fill('3');
   await page.locator('[data-dd-manual]').click();
   await expect(page.locator('input[name="threshold"]')).toHaveValue('5');
-  await expect(page.locator('[data-dd-log] li').first()).toContainText('threat event, reset; T 6 → 5');
+  await expect(page.locator('[data-dd-log] li').first()).toContainText('threat event! · T 6 → 5');
 });
 
 test('пустой состав мешка — кнопки броска выключены, шанс 0', async ({ page }) => {
   await page.goto(URL_RU);
   await page.locator('details.dd > summary').click();
-  for (const name of ['light', 'dark']) {
-    await page.locator(`input[name="${name}"]`).fill('0');
-    await page.locator(`input[name="${name}"]`).dispatchEvent('change');
-  }
+  for (const name of ['light', 'dark']) await page.locator(`input[name="${name}"]`).fill('0');
   await expect(page.locator('[data-dd-roll="normal"]')).toBeDisabled();
   await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('0,0 %');
 });
@@ -65,4 +65,13 @@ test('футер хоумбрю — своя лицензия, без атриб
   await expect(page.locator('.rd-attrib')).toContainText('Хоумбрю OmnisGM, не материал SRD.');
   await expect(page.locator('.rd-attrib')).not.toContainText('System Reference Document');
   await expect(page.locator('[data-testid="trademark"]')).toBeVisible();
+});
+
+test('ползунок состава сразу пересчитывает шанс и мешок', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  await page.locator('input[name="dark"]').fill('3');
+  await expect(page.locator('[data-dd-out="dark"]')).toHaveText('3');
+  await expect(page.locator('[data-dd-bag] .dd-die-dark')).toHaveCount(3);
+  await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('7,5 %');
 });

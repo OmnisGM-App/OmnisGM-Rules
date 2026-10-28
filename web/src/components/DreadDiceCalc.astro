@@ -9,83 +9,93 @@ const I18N = {
   light: t('светлый', 'light'),
   dark: t('тёмный', 'dark'),
   normal: t('Бросок', 'Roll'),
-  advantage: t('С преимуществом', 'With advantage'),
-  disadvantage: t('С помехой', 'With disadvantage'),
-  manual: t('Внесено', 'Entered'),
-  kept: t('оставлен', 'kept'),
+  advantage: t('Преимущество', 'Advantage'),
+  disadvantage: t('Помеха', 'Disadvantage'),
+  manual: t('За столом', 'At the table'),
   outcome: {
-    light: t('светлый куб — угроза не меняется', 'light die — the threat stays'),
-    'safe-20': t('20 на тёмном — ни события, ни роста', 'a 20 on a dark die — neither an event nor growth'),
-    event: t('событие угрозы, сброс', 'threat event, reset'),
-    growth: t('без события, порог растёт', 'no event, the threshold grows'),
+    light: t('светлый — спокойно', 'light — all quiet'),
+    'safe-20': t('20 — ни события, ни роста', '20 — neither an event nor growth'),
+    event: t('событие угрозы!', 'threat event!'),
+    growth: t('напряжение растёт', 'tension grows'),
   },
   refilled: t('мешок пополнен', 'bag refilled'),
   pair: {
-    'both-dark': t('оба тёмные — парный эффект', 'both dark — pair effect'),
-    'both-light': t('оба светлые — парный эффект', 'both light — pair effect'),
+    'both-dark': t('оба тёмные', 'both dark'),
+    'both-light': t('оба светлые', 'both light'),
   },
-  bag: t('В мешке: {light} светл., {dark} тёмн.', 'In the bag: {light} light, {dark} dark'),
-  danger: t('Опасны результаты 1–{max}', 'Dangerous results: 1–{max}'),
-  noDanger: t('Опасных результатов нет', 'No dangerous results'),
+  danger: t('опасны 1–{max}', 'dangerous: 1–{max}'),
+  noDanger: t('опасных результатов нет', 'no dangerous results'),
 };
+
+const SLIDERS = [
+  { name: 'light', label: t('Светлые кубы', 'Light dice'), sym: 'W', max: 20, value: 5 },
+  { name: 'dark', label: t('Тёмные кубы', 'Dark dice'), sym: 'B', max: 10, value: 1 },
+  { name: 'base', label: t('Базовый порог', 'Base threshold'), sym: 'T₀', max: 20, value: 5 },
+  { name: 'step', label: t('Шаг роста', 'Step'), sym: 'Δ', max: 5, value: 1 },
+];
 ---
 <details class="dd" data-dd data-lang={lang} data-i18n={JSON.stringify(I18N)} data-pagefind-ignore>
   <summary class="dd-title">{t('Калькулятор «Кубов угрозы» — для мастера', 'Dread Dice calculator — for the GM')}</summary>
   <p class="dd-nojs" data-dd-nojs>{t('Калькулятору нужен JavaScript. Правила на странице читаются без него.', 'The calculator needs JavaScript. The rules on this page read fine without it.')}</p>
 
   <form class="dd-form" data-dd-form hidden>
-    <fieldset class="dd-grid">
-      <legend>{t('Мешок и порог', 'Bag and threshold')}</legend>
-      <label><span>{t('Светлые кубы', 'Light dice')} <code>W</code></span><input name="light" type="number" min="0" max="99" step="1" value="5" inputmode="numeric" /></label>
-      <label><span>{t('Тёмные кубы', 'Dark dice')} <code>B</code></span><input name="dark" type="number" min="0" max="99" step="1" value="1" inputmode="numeric" /></label>
-      <label><span>{t('Базовый порог', 'Base threshold')} <code>T₀</code></span><input name="base" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
-      <label><span>{t('Шаг роста', 'Step')} <code>Δ</code></span><input name="step" type="number" min="0" max="20" step="1" value="1" inputmode="numeric" /></label>
-      <label><span>{t('Текущий порог', 'Current threshold')} <code>T</code></span><input name="threshold" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
-    </fieldset>
+    <div class="dd-bag" data-dd-bag role="img" aria-label={t('Кубы в мешке', 'Dice in the bag')}></div>
 
-    <fieldset class="dd-opts">
-      <legend>{t('Режимы', 'Modes')}</legend>
-      <label><input name="resetWithStep" type="checkbox" /> {t('Сброс с шагом: T₀ + Δ', 'Reset with step: T₀ + Δ')}</label>
-      <label><input name="twoDice" type="checkbox" /> {t('Преимущество и помеха — двумя кубами', 'Advantage and disadvantage with two dice')}</label>
-      <label><input name="exhaust" type="checkbox" /> {t('Исчерпаемый мешок', 'Exhaustible bag')}</label>
-      <label><input name="pairEffects" type="checkbox" /> {t('Отмечать парные эффекты', 'Mark pair effects')}</label>
-    </fieldset>
+    <div class="dd-sliders">
+      {SLIDERS.map((s) => (
+        <label class="dd-slider">
+          <span class="dd-slider-top"><span>{s.label} <code>{s.sym}</code></span><output data-dd-out={s.name}>{s.value}</output></span>
+          <input name={s.name} type="range" min="0" max={s.max} step="1" value={s.value} />
+        </label>
+      ))}
+      <label class="dd-slider dd-slider-now">
+        <span class="dd-slider-top"><span>{t('Порог сейчас', 'Threshold now')} <code>T</code></span><output data-dd-out="threshold">5</output></span>
+        <input name="threshold" type="range" min="0" max="20" step="1" value="5" />
+        <span class="dd-hint" data-dd-danger></span>
+      </label>
+    </div>
 
-    <div class="dd-readout" aria-live="polite">
-      <p><span data-dd-bag></span> · <span data-dd-danger></span></p>
-      <table class="dd-chances">
-        <thead><tr><th scope="col">{t('Следующая проверка', 'Next check')}</th><th scope="col">{t('Шанс события', 'Chance of an event')}</th></tr></thead>
-        <tbody>
-          <tr><th scope="row">{t('Обычная', 'Ordinary')}</th><td data-dd-chance="normal"></td></tr>
-          <tr><th scope="row">{t('С преимуществом', 'With advantage')}</th><td data-dd-chance="advantage"></td></tr>
-          <tr><th scope="row">{t('С помехой', 'With disadvantage')}</th><td data-dd-chance="disadvantage"></td></tr>
-        </tbody>
-      </table>
+    <div class="dd-chance" aria-live="polite">
+      <span class="dd-chance-k">{t('Шанс события на следующей проверке', 'Chance of an event on the next check')}</span>
+      <span class="dd-chance-v" data-dd-chance="normal"></span>
+      <span class="dd-chance-sub">
+        {t('с преимуществом', 'with advantage')} <b data-dd-chance="advantage"></b> · {t('с помехой', 'with disadvantage')} <b data-dd-chance="disadvantage"></b>
+      </span>
     </div>
 
     <div class="dd-actions">
       <button type="button" class="dd-btn dd-primary" data-dd-roll="normal">{t('Бросок', 'Roll')}</button>
-      <button type="button" class="dd-btn" data-dd-roll="advantage">{t('С преимуществом', 'With advantage')}</button>
-      <button type="button" class="dd-btn" data-dd-roll="disadvantage">{t('С помехой', 'With disadvantage')}</button>
-      <button type="button" class="dd-btn" data-dd-refill>{t('Пополнить мешок', 'Refill')}</button>
-      <button type="button" class="dd-btn" data-dd-reset>{t('Сбросить', 'Reset')}</button>
+      <button type="button" class="dd-btn" data-dd-roll="advantage">{t('Преимущество', 'Advantage')}</button>
+      <button type="button" class="dd-btn" data-dd-roll="disadvantage">{t('Помеха', 'Disadvantage')}</button>
     </div>
 
-    <fieldset class="dd-manual">
-      <legend>{t('Результат за столом', 'Result rolled at the table')}</legend>
-      <label>{t('Цвет оставленного куба', 'Kept die colour')}
-        <select name="manualColor">
-          <option value="dark">{t('тёмный', 'dark')}</option>
-          <option value="light">{t('светлый', 'light')}</option>
-        </select>
-      </label>
-      <label>{t('Финальное число', 'Final number')}<input name="manualValue" type="number" min="1" max="20" step="1" value="10" inputmode="numeric" /></label>
-      <button type="button" class="dd-btn" data-dd-manual>{t('Внести результат', 'Enter result')}</button>
-    </fieldset>
-
-    <p class="dd-log-h">{t('Журнал', 'Log')}</p>
-    <p class="dd-empty" data-dd-empty>{t('Журнал пуст', 'The log is empty')}</p>
     <ol class="dd-log" data-dd-log hidden></ol>
+
+    <details class="dd-more">
+      <summary>{t('Дополнительно', 'More')}</summary>
+      <div class="dd-opts">
+        <label><input name="resetWithStep" type="checkbox" /> {t('Сброс с шагом: T₀ + Δ', 'Reset with step: T₀ + Δ')}</label>
+        <label><input name="twoDice" type="checkbox" /> {t('Преимущество и помеха — двумя кубами', 'Advantage and disadvantage with two dice')}</label>
+        <label><input name="exhaust" type="checkbox" /> {t('Исчерпаемый мешок', 'Exhaustible bag')}</label>
+        <label><input name="pairEffects" type="checkbox" /> {t('Отмечать парные эффекты', 'Mark pair effects')}</label>
+      </div>
+      <div class="dd-manual">
+        <span class="dd-manual-k">{t('Результат, брошенный за столом', 'Result rolled at the table')}</span>
+        <div class="dd-seg" role="radiogroup" aria-label={t('Цвет оставленного куба', 'Kept die colour')}>
+          <label><input type="radio" name="manualColor" value="dark" checked /> {t('тёмный', 'dark')}</label>
+          <label><input type="radio" name="manualColor" value="light" /> {t('светлый', 'light')}</label>
+        </div>
+        <label class="dd-slider">
+          <span class="dd-slider-top"><span>{t('Финальное число', 'Final number')}</span><output data-dd-out="manualValue">10</output></span>
+          <input name="manualValue" type="range" min="1" max="20" step="1" value="10" />
+        </label>
+        <button type="button" class="dd-btn" data-dd-manual>{t('Учесть результат', 'Apply result')}</button>
+      </div>
+      <div class="dd-actions">
+        <button type="button" class="dd-btn" data-dd-refill>{t('Пополнить мешок', 'Refill the bag')}</button>
+        <button type="button" class="dd-btn" data-dd-reset>{t('Начать заново', 'Start over')}</button>
+      </div>
+    </details>
   </form>
 </details>
 
@@ -103,46 +113,61 @@ const I18N = {
     const num = (name: string, min: number, max: number) => clampInt(Number(field(name).value), min, max);
     const flag = (name: string) => field(name).checked;
     const readConfig = () => ({
-      light: num('light', 0, 99), dark: num('dark', 0, 99), base: num('base', 0, 20), step: num('step', 0, 20),
+      light: num('light', 0, 20), dark: num('dark', 0, 10), base: num('base', 0, 20), step: num('step', 0, 5),
       resetWithStep: flag('resetWithStep'), twoDice: flag('twoDice'), exhaust: flag('exhaust'), pairEffects: flag('pairEffects'),
     });
-    const pct = (p: number) => `${(p * 100).toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
-    const fill = (s: string, vars: Record<string, number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k]));
+    const pct = (p: number) => `${(p * 100).toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}\u00a0%`;
+    const out = (name: string, v: number) => { root.querySelector(`[data-dd-out="${name}"]`)!.textContent = String(v); };
+    const dieDot = (color: 'light' | 'dark', drawn: boolean) => {
+      const d = document.createElement('span');
+      d.className = `dd-die dd-die-${color}${drawn ? ' dd-die-out' : ''}`;
+      return d;
+    };
 
     let state = initialState(readConfig());
 
     const render = () => {
       const c = state.config;
       field('threshold').value = String(state.threshold);
-      root.querySelector('[data-dd-bag]')!.textContent = fill(i18n.bag, { ...state.bag });
+      for (const name of ['light', 'dark', 'base', 'step', 'threshold', 'manualValue']) out(name, Number(field(name).value));
+      const bag = root.querySelector<HTMLElement>('[data-dd-bag]')!;
+      bag.replaceChildren(
+        ...Array.from({ length: c.light }, (_, i) => dieDot('light', i >= state.bag.light)),
+        ...Array.from({ length: c.dark }, (_, i) => dieDot('dark', i >= state.bag.dark)),
+      );
       const n = dangerFaces(state.threshold);
-      root.querySelector('[data-dd-danger]')!.textContent = n ? fill(i18n.danger, { max: n }) : i18n.noDanger;
-      for (const td of root.querySelectorAll<HTMLElement>('[data-dd-chance]')) {
-        const mode = td.dataset.ddChance as 'normal' | 'advantage' | 'disadvantage';
-        td.textContent = pct(eventChance(state.bag, state.threshold, mode, c.twoDice));
+      root.querySelector('[data-dd-danger]')!.textContent = n ? i18n.danger.replace('{max}', String(n)) : i18n.noDanger;
+      for (const el of root.querySelectorAll<HTMLElement>('[data-dd-chance]')) {
+        el.textContent = pct(eventChance(state.bag, state.threshold, el.dataset.ddChance as 'normal' | 'advantage' | 'disadvantage', c.twoDice));
       }
       const noDice = c.light + c.dark === 0;
       for (const b of root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]')) b.disabled = noDice;
       const log = root.querySelector<HTMLElement>('[data-dd-log]')!;
       log.hidden = !state.log.length;
-      root.querySelector<HTMLElement>('[data-dd-empty]')!.hidden = state.log.length > 0;
-      log.replaceChildren(...state.log.map((e) => {
+      log.replaceChildren(...state.log.slice(0, 8).map((e, idx) => {
         const li = document.createElement('li');
-        const dice = e.dice.map((d, i) => `${i18n[d.color]} ${d.value}${e.dice.length > 1 && i === e.kept ? ` (${i18n.kept})` : ''}`).join(', ');
-        const extra = [e.refilled && i18n.refilled, e.pair && i18n.pair[e.pair]].filter(Boolean).join('; ');
-        li.textContent = `${e.manual ? i18n.manual : i18n[e.mode]}: ${dice} → ${i18n.outcome[e.outcome]}; T ${e.before} → ${e.after}${extra ? `; ${extra}` : ''}`;
-        if (e.outcome === 'event') li.className = 'dd-event';
+        li.className = `dd-out-${e.outcome}${idx === 0 ? ' dd-latest' : ''}`;
+        const head = document.createElement('span');
+        head.className = 'dd-log-dice';
+        head.append(...e.dice.map((d, i) => {
+          const chip = document.createElement('span');
+          chip.className = `dd-chip dd-chip-${d.color}${e.dice.length > 1 && i !== e.kept ? ' dd-chip-off' : ''}`;
+          chip.textContent = String(d.value);
+          chip.title = i18n[d.color];
+          return chip;
+        }));
+        const extra = [e.refilled && i18n.refilled, e.pair && i18n.pair[e.pair]].filter(Boolean).join(', ');
+        const text = document.createElement('span');
+        text.textContent = `${e.manual ? i18n.manual : i18n[e.mode]}: ${i18n.outcome[e.outcome]} · T ${e.before} → ${e.after}${extra ? ` · ${extra}` : ''}`;
+        li.append(head, text);
         return li;
       }));
     };
 
-    form.addEventListener('change', (ev) => {
+    form.addEventListener('input', (ev) => {
       const target = ev.target as HTMLInputElement;
-      if (target.name === 'threshold') {
-        state = { ...state, threshold: num('threshold', 0, 20) };
-      } else if (!target.name.startsWith('manual')) {
-        state = reconfigure(state, readConfig());
-      }
+      if (target.name === 'threshold') state = { ...state, threshold: num('threshold', 0, 20) };
+      else if (!target.name.startsWith('manual')) state = reconfigure(state, readConfig());
       render();
     });
     form.addEventListener('submit', (ev) => ev.preventDefault());
@@ -153,7 +178,8 @@ const I18N = {
     root.querySelector('[data-dd-refill]')!.addEventListener('click', () => { state = refill(state); render(); });
     root.querySelector('[data-dd-reset]')!.addEventListener('click', () => { state = initialState(readConfig()); render(); });
     root.querySelector('[data-dd-manual]')!.addEventListener('click', () => {
-      state = recordResult(state, { color: field('manualColor').value === 'light' ? 'light' : 'dark', value: num('manualValue', 1, 20) });
+      const color = form.querySelector<HTMLInputElement>('input[name="manualColor"]:checked')?.value === 'light' ? 'light' : 'dark';
+      state = recordResult(state, { color, value: num('manualValue', 1, 20) });
       render();
     });
 
@@ -173,36 +199,62 @@ const I18N = {
   }
   .dd-title:hover { color: var(--og-accent); }
   .dd-title:focus-visible { outline: 2px solid var(--og-accent); outline-offset: -2px; border-radius: 12px; }
-  .dd[open] .dd-title { border-bottom: 1px solid var(--og-border); margin-bottom: 16px; }
+  .dd[open] > .dd-title { border-bottom: 1px solid var(--og-border); margin-bottom: 16px; }
   .dd-nojs { color: var(--og-text-muted); margin: 0; }
-  .dd fieldset { border: 0; margin: 0 0 16px; padding: 0; min-width: 0; }
-  .dd legend { font-weight: 600; color: var(--og-text-2); margin-bottom: 8px; padding: 0; }
-  .dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px 14px; }
-  .dd-grid code { font-size: 12px; }
-  .dd-grid label, .dd-manual label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--og-text-muted); }
-  .dd input[type='number'], .dd select {
-    font: inherit; font-size: 16px; color: var(--og-text); background: var(--og-bg); border: 1px solid var(--og-border-strong);
-    border-radius: 8px; padding: 8px 10px; min-height: 40px; width: 100%; box-sizing: border-box;
-  }
-  .dd input:focus-visible, .dd select:focus-visible, .dd-btn:focus-visible { outline: 2px solid var(--og-accent); outline-offset: 2px; }
-  .dd-opts { display: flex; flex-direction: column; gap: 6px; }
-  .dd-opts label { display: flex; align-items: center; gap: 8px; color: var(--og-text-2); }
-  .dd-opts input { accent-color: var(--og-accent); width: 18px; height: 18px; }
-  .dd-readout p { margin: 0 0 10px; color: var(--og-text-2); }
-  .dd .dd-chances { margin-bottom: 16px; }
-  .dd-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+
+  .dd-bag { display: flex; flex-wrap: wrap; gap: 6px; min-height: 18px; margin-bottom: 16px; }
+  .dd-bag :global(.dd-die) { width: 16px; height: 16px; border-radius: 50%; box-sizing: border-box; }
+  .dd-bag :global(.dd-die-light) { background: var(--og-text-2); }
+  .dd-bag :global(.dd-die-dark) { background: var(--og-bg); border: 2px solid var(--og-accent); box-shadow: inset 0 0 0 3px var(--og-bg), inset 0 0 0 6px var(--og-danger); }
+  .dd-bag :global(.dd-die-out) { opacity: 0.2; }
+
+  .dd-sliders { display: grid; grid-template-columns: repeat(auto-fit, minmax(220px, 1fr)); gap: 14px 24px; margin-bottom: 20px; }
+  .dd-slider { display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--og-text-2); }
+  .dd-slider-top { display: flex; justify-content: space-between; align-items: baseline; gap: 8px; }
+  .dd-slider code { font-size: 12px; }
+  .dd-slider output { font-family: var(--font-mono); font-size: 16px; color: var(--og-text); min-width: 2ch; text-align: right; }
+  .dd-slider input[type='range'] { width: 100%; height: 28px; margin: 0; accent-color: var(--og-accent); cursor: pointer; }
+  .dd-slider-now { grid-column: 1 / -1; padding-top: 12px; border-top: 1px dashed var(--og-border); }
+  .dd-hint { font-size: 13px; color: var(--og-text-muted); }
+
+  .dd-chance { display: flex; flex-direction: column; gap: 2px; margin-bottom: 16px; }
+  .dd-chance-k { font-size: 13px; color: var(--og-text-muted); }
+  .dd-chance-v { font-family: var(--font-display); font-size: 34px; font-weight: 600; line-height: 1.15; color: var(--og-text); }
+  .dd-chance-sub { font-size: 13.5px; color: var(--og-text-muted); }
+  .dd-chance-sub b { color: var(--og-text-2); font-weight: 600; }
+
+  .dd-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 16px; }
   .dd-btn {
     font: inherit; font-size: 14px; color: var(--og-text); background: var(--og-bg-3); border: 1px solid var(--og-border-strong);
-    border-radius: 8px; padding: 9px 14px; min-height: 40px; cursor: pointer;
+    border-radius: 8px; padding: 9px 16px; min-height: 44px; cursor: pointer;
   }
   .dd-btn:hover:not(:disabled) { border-color: var(--og-accent); }
   .dd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
   .dd-primary { background: var(--og-accent); border-color: var(--og-accent); color: var(--og-on-accent, #fff); }
-  .dd-manual { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
-  .dd-manual label { flex: 1 1 150px; }
-  .dd-log-h { margin: 8px 0; font-weight: 600; color: var(--og-text-2); }
-  .dd-log { margin: 0; padding-left: 20px; max-height: 280px; overflow-y: auto; font-size: 14px; color: var(--og-text-2); }
-  .dd-log li { margin: 2px 0; }
-  .dd-log .dd-event { color: var(--og-warm); }
-  .dd-empty { margin: 0; color: var(--og-text-muted); }
+  .dd input:focus-visible, .dd-btn:focus-visible, .dd-more summary:focus-visible { outline: 2px solid var(--og-accent); outline-offset: 2px; }
+
+  .dd-log { list-style: none; margin: 0 0 16px; padding: 0; display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: var(--og-text-muted); }
+  .dd-log :global(li) { display: flex; align-items: center; gap: 10px; margin: 0; padding-left: 0; font-size: 14px; line-height: 1.4; color: inherit; }
+  .dd-log :global(li)::before { content: none; }
+  .dd-log :global(li.dd-latest) { color: var(--og-text); font-size: 15px; }
+  .dd-log :global(li.dd-out-event) { color: var(--og-warm); }
+  .dd-log :global(.dd-log-dice) { display: inline-flex; gap: 4px; flex: none; }
+  .dd-log :global(.dd-chip) {
+    display: inline-grid; place-items: center; min-width: 28px; height: 24px; padding: 0 4px; box-sizing: border-box;
+    border-radius: 6px; font-family: var(--font-mono); font-size: 13px; font-weight: 600;
+  }
+  .dd-log :global(.dd-chip-light) { background: var(--og-text-2); color: var(--og-bg); }
+  .dd-log :global(.dd-chip-dark) { background: var(--og-bg); color: var(--og-text); border: 1px solid var(--og-accent); }
+  .dd-log :global(.dd-chip-off) { opacity: 0.35; }
+
+  .dd-more { border-top: 1px solid var(--og-border); padding-top: 12px; }
+  .dd-more summary { cursor: pointer; color: var(--og-text-2); min-height: 32px; }
+  .dd-opts { display: flex; flex-direction: column; gap: 8px; margin: 12px 0 16px; }
+  .dd-opts label { display: flex; align-items: center; gap: 8px; color: var(--og-text-2); }
+  .dd-opts input, .dd-seg input { accent-color: var(--og-accent); width: 18px; height: 18px; }
+  .dd-manual { display: flex; flex-direction: column; gap: 10px; margin-bottom: 16px; }
+  .dd-manual-k { font-weight: 600; color: var(--og-text-2); }
+  .dd-seg { display: flex; gap: 16px; }
+  .dd-seg label { display: flex; align-items: center; gap: 6px; color: var(--og-text-2); }
+  .dd-manual .dd-btn { align-self: flex-start; }
 </style>
