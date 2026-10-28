@@ -16,8 +16,13 @@ by round three or four, after that review was picking apart fix prose and promis
 
 1. **Decision list first, code second.** For every finding — one of three: «чиню» (fixing), «не чиню:
    причина в одну строку» (not fixing: one-line reason), «отдельной ишьёй #N» (separate issue #N). The list goes to the PR thread as ONE comment before
-   the edits. «Не чиню» is legitimate for remarks, and for medium ones too if the argument is substantive;
-   after a round that set `gate/review-passed` it is the default for a medium, not the exception (step 6).
+   the edits. «Не чиню» is legitimate for remarks, for medium ones, and for a ❗ too when the argument is
+   substantive and stands in the thread (a grep, a run, the producer that does not exist) — owner's decision
+   2026-10-28. A ❗ left unfixed is confirmed by the next round, not by the author: that round reads the thread
+   and either drops the finding (0 ❗ sets the label) or repeats it, and a repeated ❗ is fixed or put to the
+   owner. The next round comes with the round's other fixes in the one commit, or by a replay
+   (`workflow_dispatch` of claude-review.yml) when there is nothing to push. After a round that set
+   `gate/review-passed`, «не чиню» is the default for a medium, not the exception (step 6).
 2. **One commit per round, one push — without asking.** All edits of the round go into one commit. A second push
    for "also fixed a comment" is another full round (every push without `gate/review-passed` is reviewed).
    Fix-round commits, the push, the PR body update and the thread replies need no confirmation (owner,
