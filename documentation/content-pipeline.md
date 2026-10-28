@@ -151,5 +151,5 @@ npm run test:e2e # Playwright
 - Сайт: Astro (SSG) + PWA (`workbox-build`) + Pagefind; хостинг Firebase, эдж — Cloudflare
 - Релиз: один rolling-релиз с тегом `latest` (`.github/workflows/release.yml`). Триггерится
   `push` в `main` при изменении `src/**/*.md` и пересобирает/перезаписывает **только** документы
-  затронутой системы/версии (D&D 5.2/5.1/converting, Daggerheart, BRP); `workflow_dispatch` —
+  затронутой системы/версии (D&D 5.2/5.1/converting, хоумбрю OmnisGM для D&D, Daggerheart, BRP); `workflow_dispatch` —
   полная пересборка всех. Прежние пер-системные теги `{short}-srd-v*` выведены из употребления.

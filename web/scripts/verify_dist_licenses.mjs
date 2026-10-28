@@ -17,6 +17,11 @@ const BRP = {
   en: 'The rules text on these pages is Open Game Content, excluding Prohibited Content (Section 1(e)) and Chaosium’s trademarks; the site design, navigation, images and code are not.',
   ru: 'Текст правил на этих страницах, включая перевод, — Open Game Content, кроме Prohibited Content (раздел 1(e)) и товарных знаков Chaosium; оформление сайта, навигация, картинки и код — нет.',
 };
+// Хоумбрю OmnisGM — не SRD: у его страниц своя лицензия, а фраза о модификациях SRD была бы ложью.
+const HOMEBREW = {
+  en: 'OmnisGM homebrew, not SRD material. The rules text is licensed under',
+  ru: 'Хоумбрю OmnisGM, не материал SRD. Текст правил — лицензия',
+};
 const BRP_LOGO = '<a class="rd-attrib-logo" href="https://www.chaosium.com/brp-system-reference-document/"';
 const BRP_LEGAL = { en: 'Open Game Content on OmnisGM Rules (Section 9)', ru: 'Open Game Content на OmnisGM Rules (раздел 9)' };
 
@@ -38,6 +43,11 @@ export function licenseProblems(/** @type {string} */ rel, /** @type {string} */
   if (!html.includes('class="rd-attrib"')) return ['нет блока атрибуции'];
   const [, lang, sys] = /** @type {[string, 'en' | 'ru', 'dnd' | 'brp']} */ (/** @type {unknown} */ (m));
   const out = [];
+  if (sys === 'dnd' && /^(en|ru)\/dnd\/homebrew\//.test(rel)) {
+    if (!html.includes(HOMEBREW[lang])) out.push('нет строки лицензии хоумбрю');
+    if (html.includes(DND[lang])) out.push('хоумбрю с атрибуцией SRD');
+    return out;
+  }
   if (sys === 'dnd' && !html.includes(DND[lang])) out.push('нет фразы о модификациях SRD');
   if (sys === 'brp') {
     if (!html.includes(BRP[lang])) out.push('нет фразы об Open Game Content');
@@ -52,6 +62,9 @@ const page = (/** @type {string} */ body) => `<main class="rd-content og-scroll"
 if (!licenseProblems('en/dnd/x/index.html', page('<div class="rd-attrib">x</div>')).length) errors.push('самопроверка: D&D без фразы не замечена');
 if (!licenseProblems('en/brp/x/index.html', page(`<div class="rd-attrib">${BRP.en}<a class="rd-attrib-logo" href="https://www.chaosium.com/orclicense/"`)).length) errors.push('самопроверка: логотип на ORC не замечен');
 if (!licenseProblems('en/brp/x/index.html', page('текст без атрибуции')).length) errors.push('самопроверка: страница без блока атрибуции не замечена');
+if (!licenseProblems('ru/dnd/homebrew/x/index.html', page(`<div class="rd-attrib">${HOMEBREW.ru} ${DND.ru}</div>`)).length) errors.push('самопроверка: хоумбрю с атрибуцией SRD не замечен');
+if (!licenseProblems('en/dnd/homebrew/x/index.html', page('<div class="rd-attrib">x</div>')).length) errors.push('самопроверка: хоумбрю без своей лицензии не замечен');
+if (licenseProblems('ru/dnd/homebrew/x/index.html', page(`<div class="rd-attrib">${HOMEBREW.ru}</div>`)).length) errors.push('самопроверка: хоумбрю со своей лицензией не засчитан');
 if (licenseProblems('en/daggerheart/x/index.html', page('<div class="rd-attrib">x</div>')).length) errors.push('самопроверка: Daggerheart засчитан');
 
 let dnd = 0, brp = 0;
@@ -77,6 +90,10 @@ for (const lang of /** @type {const} */ (['en', 'ru'])) {
   const legal = join(DIST, lang, 'brp/srd-1.0/legal/index.html');
   if (!existsSync(legal) || !readFileSync(legal, 'utf8').includes(BRP_LEGAL[lang])) errors.push(`${lang}/brp/srd-1.0/legal: нет раздела §9`);
 }
+for (const lang of /** @type {const} */ (['en', 'ru'])) {
+  const main = mainOf(`${lang}/dnd/homebrew/dread-dice/index.html`);
+  if (main && !main.includes(HOMEBREW[lang])) errors.push(`${lang}/dnd/homebrew/dread-dice: нет строки лицензии хоумбрю`);
+}
 // Главные (две языковые и двуязычный корень) и хабы BRP — там, где мы сами описываем BRP.
 for (const rel of ['index.html', 'en/index.html', 'ru/index.html', 'en/brp/srd-1.0/index.html', 'ru/brp/srd-1.0/index.html']) {
   const main = mainOf(rel);
@@ -98,4 +115,4 @@ if (errors.length) {
   console.error(`❌ Лицензии систем в dist: ${errors.length} ошибок\n  ${errors.slice(0, 20).join('\n  ')}`);
   process.exit(1);
 }
-console.log(`✅ Лицензии систем в dist: D&D ${dnd} стр., BRP ${brp} стр., Legal BRP §9, без CoC/RQ на хабе и главной, тексты OFL и LICENSE на месте; 4 самопроверки`);
+console.log(`✅ Лицензии систем в dist: D&D ${dnd} стр., BRP ${brp} стр., Legal BRP §9, без CoC/RQ на хабе и главной, тексты OFL и LICENSE на месте; 7 самопроверок`);
