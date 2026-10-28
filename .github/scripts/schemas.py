@@ -321,12 +321,14 @@ MAGIC_ITEM_SCHEMA = {
         # Разновидность семейства (#412): group — слаг семейства («Potion of Healing (greater)» →
         # potions-of-healing), он же сегмент адреса страницы; само семейство в API не публикуется. Иначе null.
         "group": {"type": ["string", "null"]},
+        # Бонус разновидности семейства «+1, +2 или +3» (Table#962): число из имени, у остальных null.
+        "bonus": {"enum": [1, 2, 3, None]},
         # Иконка (#202) — абсолютный URL; только у сущностей с файлом.
         "image": {"type": "string", "format": "uri"},
     },
     "required": [
         "slug", "name", "name_en", "type", "subtype", "rarity", "rarities",
-        "attunement", "description_md", "spells", "group",
+        "attunement", "description_md", "spells", "group", "bonus",
     ],
     "additionalProperties": False,
 }
