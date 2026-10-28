@@ -11,6 +11,7 @@ import {
 } from '../lib/nav';
 import { pageDates } from '../lib/content-dates.mjs';
 import { compendiumHref } from '../lib/compendium-link.mjs';
+import { isHomebrewPath } from '../lib/slug';
 
 export interface Props {
   lang: Lang;
@@ -72,8 +73,7 @@ const ATTRIB: Record<string, { ru: string; en: string }> = {
 // из пути URL: контент SRD без атрибуции законным не становится оттого, что его нет в меню (#398).
 const pathSys = Astro.url.pathname.match(/^\/(?:en|ru)\/(dnd|daggerheart|brp)\//)?.[1];
 const attribSys = activeSys !== 'home' ? activeSys : pathSys;
-// Хоумбрю OmnisGM лежит в разделе D&D, но это не текст SRD: атрибуция SRD к нему ложна.
-const isHomebrew = /^\/(?:en|ru)\/dnd\/homebrew\//.test(Astro.url.pathname);
+const isHomebrew = isHomebrewPath(Astro.url.pathname);
 const HOMEBREW_ATTRIB = {
   en: 'OmnisGM homebrew, not SRD material. The rules text is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; the OmnisGM brand, illustrations and code are not covered by this licence.',
   ru: 'Хоумбрю OmnisGM, не материал SRD. Текст правил — лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; бренд OmnisGM, иллюстрации и код под неё не подпадают.',

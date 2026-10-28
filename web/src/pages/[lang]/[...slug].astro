@@ -1,7 +1,7 @@
 ---
 import { getCollection, render } from 'astro:content';
 import ReaderShell from '../../components/ReaderShell.astro';
-import { parseId, titleFromBody } from '../../lib/slug';
+import { parseId, titleFromBody, isHomebrewPath } from '../../lib/slug';
 import { nodeBySlug, findPath, label as navLabel } from '../../lib/nav';
 import { classDescription } from '../../lib/class-facts';
 import { pageDescription } from '../../lib/page-description.mjs';
@@ -43,7 +43,7 @@ const currentId = navNode?.id ?? curSlug;
 
 // Чистый заголовок страницы (и для <title>, и для Pagefind): подпись из nav — надёжнее h1/слага.
 // У хоумбрю подпись в nav несёт пометку «(хоумбрю)», а тип страницы и так стоит в <title>.
-const homebrewPage = ref.game === 'dnd' && ref.version === 'homebrew';
+const homebrewPage = isHomebrewPath(`/${ref.lang}/${ref.game}/${ref.version}/`);
 const searchTitle = homebrewPage
   ? (titleFromBody(entry.body) || ref.slug)
   : navNode ? navLabel(navNode, ref.lang) : (titleFromBody(entry.body) || ref.slug);

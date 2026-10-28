@@ -160,7 +160,7 @@ The calculator on the page of these rules at rules.omnisgm.com is a GM's tool, a
 | Two dice, advantage | `B(B−1)/(N(N−1)) × n²/400 + 2BW/(N(N−1)) × n(n−1)/2/400` |
 | Two dice, disadvantage | `B(B−1)/(N(N−1)) × (1 − (20 − n)²/400) + 2BW/(N(N−1)) × (20n − n(n+1)/2)/400` |
 
-The second term in the two-dice mode is a pair of different colours: the dark die is kept only if its result is strictly higher (advantage) or strictly lower (disadvantage) than the light one's; a tie goes to the light die. In an exhaustible bag, `W` and `B` are what's left, not the full composition.
+The second term in the two-dice mode is a pair of different colours: the dark die is kept only if its result is strictly higher (advantage) or strictly lower (disadvantage) than the light one's; a tie goes to the light die. In an exhaustible bag, `W` and `B` are what's left, not the full composition; if what's left isn't enough for the check, the bag is refilled and the full composition counts.
 
 **How it behaves:**
 

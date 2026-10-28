@@ -29,6 +29,11 @@ export function parseId(id: string): ContentRef {
   return { game, version, lang: lang as 'en' | 'ru', slug, order, id };
 }
 
+/** Хоумбрю OmnisGM: раздел D&D, но не текст SRD — своя лицензия и шаблон страницы. */
+export function isHomebrewPath(path: string): boolean {
+  return /^\/(?:en|ru)\/dnd\/homebrew\//.test(path);
+}
+
 export function pageUrl(ref: ContentRef): string {
   return `/${ref.lang}/${ref.game}/${ref.version}/${ref.slug}`;
 }

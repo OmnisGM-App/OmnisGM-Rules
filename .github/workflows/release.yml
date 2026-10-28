@@ -239,10 +239,10 @@ jobs:
         with:
           tag_name: latest
           make_latest: true
-          name: "OmnisGM SRD — RU + EN (D&D · Daggerheart · BRP)"
+          name: "OmnisGM Rules — RU + EN (D&D · Daggerheart · BRP · хоумбрю)"
           body: |
-            Единый выпуск System Reference Documents экосистемы OmnisGM — Markdown + PDF,
-            RU и EN. Обновляется автоматически при изменении контента; каждый документ
+            Единый выпуск документов OmnisGM Rules — System Reference Documents и хоумбрю
+            OmnisGM, Markdown + PDF, RU и EN. Обновляется автоматически при изменении контента; каждый документ
             перезаписывается по мере правок своей системы/версии.
 
             ## D&D — SRD 5.2.1

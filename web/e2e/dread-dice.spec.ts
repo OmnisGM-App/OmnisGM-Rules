@@ -14,7 +14,7 @@ test('калькулятор стоит в статье перед руково�
     return d.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING;
   });
   expect(order).toBeTruthy();
-  await expect(page.locator('.rd-doc')).not.toContainText('dread-dice-calculator');
+  expect(await page.content()).not.toContain('dread-dice-calculator');
 });
 
 test('по умолчанию: мешок 5+1 кружками, T=5, шансы следующей проверки', async ({ page }) => {

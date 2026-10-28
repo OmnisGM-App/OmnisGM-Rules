@@ -2,6 +2,7 @@
 // Калькулятор «Кубов угрозы»: формулы и переходы — `lib/dread-dice.ts`, правила — текст страницы.
 // Скрипт уходит отдельным файлом в /_astro/ (script-src 'self'), а не инлайном.
 export interface Props { lang: 'en' | 'ru' }
+import { MAX_THRESHOLD } from '../lib/dread-dice';
 const { lang } = Astro.props;
 const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
 
@@ -30,7 +31,7 @@ const I18N = {
 const SLIDERS = [
   { name: 'light', label: t('Светлые кубы', 'Light dice'), sym: 'W', max: 20, value: 5 },
   { name: 'dark', label: t('Тёмные кубы', 'Dark dice'), sym: 'B', max: 10, value: 1 },
-  { name: 'base', label: t('Базовый порог', 'Base threshold'), sym: 'T₀', max: 20, value: 5 },
+  { name: 'base', label: t('Базовый порог', 'Base threshold'), sym: 'T₀', max: MAX_THRESHOLD, value: 5 },
   { name: 'step', label: t('Шаг роста', 'Step'), sym: 'Δ', max: 5, value: 1 },
 ];
 ---
@@ -50,7 +51,7 @@ const SLIDERS = [
       ))}
       <label class="dd-slider dd-slider-now">
         <span class="dd-slider-top"><span>{t('Порог сейчас', 'Threshold now')} <code>T</code></span><output data-dd-out="threshold">5</output></span>
-        <input name="threshold" type="range" min="0" max="20" step="1" value="5" />
+        <input name="threshold" type="range" min="0" max={MAX_THRESHOLD} step="1" value="5" />
         <span class="dd-hint" data-dd-danger></span>
       </label>
     </div>
@@ -101,7 +102,7 @@ const SLIDERS = [
 
 <script>
   import {
-    clampInt, eventChance, initialState, rollCheck, recordResult, refill, reconfigure, dangerFaces,
+    clampInt, eventChance, initialState, rollCheck, recordResult, refill, reconfigure, dangerFaces, bagForCheck,
   } from '../lib/dread-dice';
 
   const root = document.querySelector<HTMLElement>('[data-dd]');
@@ -110,10 +111,10 @@ const SLIDERS = [
     const i18n = JSON.parse(root.dataset.i18n || '{}');
     const lang = root.dataset.lang === 'en' ? 'en' : 'ru';
     const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
-    const num = (name: string, min: number, max: number) => clampInt(Number(field(name).value), min, max);
+    const num = (name: string) => { const f = field(name); return clampInt(Number(f.value), Number(f.min), Number(f.max)); };
     const flag = (name: string) => field(name).checked;
     const readConfig = () => ({
-      light: num('light', 0, 20), dark: num('dark', 0, 10), base: num('base', 0, 20), step: num('step', 0, 5),
+      light: num('light'), dark: num('dark'), base: num('base'), step: num('step'),
       resetWithStep: flag('resetWithStep'), twoDice: flag('twoDice'), exhaust: flag('exhaust'), pairEffects: flag('pairEffects'),
     });
     const pct = (p: number) => `${(p * 100).toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 })}\u00a0%`;
@@ -138,7 +139,8 @@ const SLIDERS = [
       const n = dangerFaces(state.threshold);
       root.querySelector('[data-dd-danger]')!.textContent = n ? i18n.danger.replace('{max}', String(n)) : i18n.noDanger;
       for (const el of root.querySelectorAll<HTMLElement>('[data-dd-chance]')) {
-        el.textContent = pct(eventChance(state.bag, state.threshold, el.dataset.ddChance as 'normal' | 'advantage' | 'disadvantage', c.twoDice));
+        const mode = el.dataset.ddChance as 'normal' | 'advantage' | 'disadvantage';
+        el.textContent = pct(eventChance(bagForCheck(state, mode), state.threshold, mode, c.twoDice));
       }
       const noDice = c.light + c.dark === 0;
       for (const b of root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]')) b.disabled = noDice;
@@ -166,7 +168,7 @@ const SLIDERS = [
 
     form.addEventListener('input', (ev) => {
       const target = ev.target as HTMLInputElement;
-      if (target.name === 'threshold') state = { ...state, threshold: num('threshold', 0, 20) };
+      if (target.name === 'threshold') state = { ...state, threshold: num('threshold') };
       else if (!target.name.startsWith('manual')) state = reconfigure(state, readConfig());
       render();
     });
@@ -179,7 +181,7 @@ const SLIDERS = [
     root.querySelector('[data-dd-reset]')!.addEventListener('click', () => { state = initialState(readConfig()); render(); });
     root.querySelector('[data-dd-manual]')!.addEventListener('click', () => {
       const color = form.querySelector<HTMLInputElement>('input[name="manualColor"]:checked')?.value === 'light' ? 'light' : 'dark';
-      state = recordResult(state, { color, value: num('manualValue', 1, 20) });
+      state = recordResult(state, { color, value: num('manualValue') });
       render();
     });
 

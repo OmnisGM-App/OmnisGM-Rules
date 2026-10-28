@@ -1,7 +1,7 @@
 // Калькулятор «Кубов угрозы»: формулы шанса сверяются с полным перебором исходов, переходы порога —
 // с правилами и примером нарастания страницы src/dnd/homebrew/*/01_DreadDice.md.
 import {
-  dangerFaces, eventChance, keptIndex, resolveThreat, shiftThreshold, initialState, rollCheck,
+  clampInt, bagForCheck, dangerFaces, eventChance, keptIndex, resolveThreat, shiftThreshold, initialState, rollCheck,
   recordResult, refill, reconfigure, usesTwoDice,
 } from '../src/lib/dread-dice.ts';
 
@@ -58,6 +58,7 @@ function bruteChance(/** @type {number} */ w, /** @type {number} */ b, /** @type
   return p;
 }
 
+eq([clampInt(NaN, 0, 20), clampInt(7.6, 0, 20), clampInt(-1, 0, 20)], [0, 8, 0], 'clampInt: нечисло — к нижней границе, дробь округляется, края зажаты');
 eq([0, 1, 5, 20, 25, -3].map(dangerFaces), [0, 0, 4, 19, 19, 0], 'dangerFaces: T=0 и T=1 — ни одной, T=20 — 1…19, края зажаты');
 
 /** @type {RollMode[]} */
@@ -168,6 +169,26 @@ const CFG = { light: 1, dark: 1, base: 5, step: 1, resetWithStep: false, twoDice
   eq([s.threshold, s.bag], [10, { light: 1, dark: 1 }], 'смена T₀ сдвигает T, мешок не трогает');
   s = reconfigure(s, { ...s.config, dark: 3 });
   eq([s.bag, s.threshold], [{ light: 1, dark: 3 }, 10], 'смена состава наполняет мешок, порог не трогает');
+}
+
+{
+  const lightPair = rollCheck(initialState({ ...CFG, light: 2, dark: 0 }), 'advantage', seq([0.0, 0.5, 0.0, 0.9]));
+  eq(lightPair.log[0].pair, 'both-light', 'два светлых при преимуществе — отмечена пара «оба светлые»');
+}
+{
+  const ex = { ...CFG, light: 1, dark: 1, exhaust: true };
+  let s = rollCheck(initialState(ex), 'normal', seq([0.6, 0.5]));
+  s = rollCheck(s, 'normal', seq([0.1, 0.5]));
+  eq(s.bag, { light: 0, dark: 0 }, 'исчерпаемый мешок 1+1 после двух бросков пуст');
+  near(eventChance(bagForCheck({ ...s, threshold: 6 }, 'normal'), 6, 'normal', ex.twoDice), bruteChance(1, 1, 6, 'normal', true),
+    'пустой остаток: шанс по полному составу, который вытянет следующая проверка');
+  const one = rollCheck(initialState(ex), 'normal', seq([0.6, 0.5]));
+  eq(one.bag, { light: 1, dark: 0 }, 'остался один светлый');
+  near(eventChance(bagForCheck({ ...one, threshold: 6 }, 'advantage'), 6, 'advantage', ex.twoDice), bruteChance(1, 1, 6, 'advantage', true),
+    'один куб при двух кубах: шанс по полному составу');
+  near(eventChance(bagForCheck({ ...one, threshold: 6 }, 'normal'), 6, 'normal', ex.twoDice), 0, 'один светлый в остатке при обычной проверке — тянет его, шанс 0');
+  const back = reconfigure(one, { ...one.config, exhaust: false });
+  eq(back.bag, { light: 1, dark: 1 }, 'выключение исчерпаемого мешка наполняет мешок');
 }
 
 if (failed) {

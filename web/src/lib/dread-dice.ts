@@ -86,17 +86,19 @@ function draw(bag: Bag, rng: () => number): DieColor {
   return color;
 }
 
+/** Мешок, из которого тянет следующая проверка: остаток, а если его не хватает — полный состав. */
+export function bagForCheck(state: State, mode: RollMode): Bag {
+  const { config, bag } = state;
+  const need = usesTwoDice(config, mode, config.twoDice) ? 2 : 1;
+  return bag.light + bag.dark < need ? { light: config.light, dark: config.dark } : { ...bag };
+}
+
 /** Проверка с мешком; при составе из нуля кубов состояние не меняется. */
 export function rollCheck(state: State, mode: RollMode, rng: () => number): State {
   const { config } = state;
   if (config.light + config.dark <= 0) return state;
-  let bag = { ...state.bag };
-  let refilled = false;
-  const need = usesTwoDice(config, mode, config.twoDice) ? 2 : 1;
-  if (bag.light + bag.dark < need) {
-    bag = { light: config.light, dark: config.dark };
-    refilled = true;
-  }
+  const bag = bagForCheck(state, mode);
+  const refilled = bag.light + bag.dark !== state.bag.light + state.bag.dark;
   const pool = { ...bag };
   let dice: Die[];
   if (usesTwoDice(pool, mode, config.twoDice)) {
