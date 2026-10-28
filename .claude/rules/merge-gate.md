@@ -68,7 +68,9 @@ it — a hand-applied one is reported and ignored.
    matrix never saw. When `git diff <matrix head> <live head>` consists only of comment lines inside the repo's
    Playwright test directory (`tests/e2e/**` in Table, `web/e2e/**` in Rules, `e2e/**` in News — no spec logic,
    no baseline, no product file), the matrix of `<matrix head>` counts for the
-   live head; the PR body names both SHAs. Anything else in that diff means a new matrix.
+   live head; the PR body names both SHAs. Anything else in that diff means a new matrix. In Table the whole
+   step — preconditions, run, numbers, label, carry-over — is the skill `.claude/skills/matrix/`
+   (`matrix_run.sh <PR#> [--carry <matrix head>]`), not hand-run commands.
 4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
    merges (the agent itself; the owner's hand is only `gate/snapshots-approved` on changed baselines).
    Its colours: **green** = every required label holds on this head; **red** = either something is still
