@@ -1,0 +1,197 @@
+---
+// Калькулятор «Кубов угрозы»: формулы и переходы — `lib/dread-dice.mjs`, правила — текст страницы.
+// Скрипт уходит отдельным файлом в /_astro/ (script-src 'self') и подключается только здесь.
+export interface Props { lang: 'en' | 'ru' }
+const { lang } = Astro.props;
+const t = (ru: string, en: string) => (lang === 'en' ? en : ru);
+
+const I18N = {
+  light: t('светлый', 'light'),
+  dark: t('тёмный', 'dark'),
+  normal: t('Бросок', 'Roll'),
+  advantage: t('С преимуществом', 'With advantage'),
+  disadvantage: t('С помехой', 'With disadvantage'),
+  manual: t('Внесено', 'Entered'),
+  kept: t('оставлен', 'kept'),
+  outcome: {
+    light: t('светлый куб — угроза не меняется', 'light die — the threat stays'),
+    'safe-20': t('20 на тёмном — ни события, ни роста', 'a 20 on a dark die — neither an event nor growth'),
+    event: t('событие угрозы, сброс', 'threat event, reset'),
+    growth: t('без события, порог растёт', 'no event, the threshold grows'),
+  },
+  refilled: t('мешок пополнен', 'bag refilled'),
+  pair: {
+    'both-dark': t('оба тёмные — парный эффект', 'both dark — pair effect'),
+    'both-light': t('оба светлые — парный эффект', 'both light — pair effect'),
+  },
+  bag: t('В мешке: {light} светл., {dark} тёмн.', 'In the bag: {light} light, {dark} dark'),
+  danger: t('Опасны результаты 1–{max}', 'Dangerous results: 1–{max}'),
+  noDanger: t('Опасных результатов нет', 'No dangerous results'),
+  empty: t('Журнал пуст', 'The log is empty'),
+};
+---
+<section class="dd" data-dd data-lang={lang} data-i18n={JSON.stringify(I18N)} data-pagefind-ignore aria-labelledby="dd-title">
+  <h2 class="dd-title" id="dd-title">{t('Калькулятор «Кубов угрозы»', 'Dread Dice calculator')}</h2>
+  <p class="dd-nojs" data-dd-nojs>{t('Калькулятору нужен JavaScript. Правила выше читаются без него.', 'The calculator needs JavaScript. The rules above read fine without it.')}</p>
+
+  <form class="dd-form" data-dd-form hidden>
+    <fieldset class="dd-grid">
+      <legend>{t('Мешок и порог', 'Bag and threshold')}</legend>
+      <label>{t('Светлые кубы', 'Light dice')} <code>W</code><input name="light" type="number" min="0" max="99" step="1" value="5" inputmode="numeric" /></label>
+      <label>{t('Тёмные кубы', 'Dark dice')} <code>B</code><input name="dark" type="number" min="0" max="99" step="1" value="1" inputmode="numeric" /></label>
+      <label>{t('Базовый порог', 'Base threshold')} <code>T₀</code><input name="base" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
+      <label>{t('Шаг роста', 'Step')} <code>Δ</code><input name="step" type="number" min="0" max="20" step="1" value="1" inputmode="numeric" /></label>
+      <label>{t('Текущий порог', 'Current threshold')} <code>T</code><input name="threshold" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
+    </fieldset>
+
+    <fieldset class="dd-opts">
+      <legend>{t('Режимы', 'Modes')}</legend>
+      <label><input name="resetWithStep" type="checkbox" /> {t('Сброс с шагом: T₀ + Δ', 'Reset with step: T₀ + Δ')}</label>
+      <label><input name="twoDice" type="checkbox" /> {t('Преимущество и помеха — двумя кубами', 'Advantage and disadvantage with two dice')}</label>
+      <label><input name="exhaust" type="checkbox" /> {t('Исчерпаемый мешок', 'Exhaustible bag')}</label>
+      <label><input name="pairEffects" type="checkbox" /> {t('Отмечать парные эффекты', 'Mark pair effects')}</label>
+    </fieldset>
+
+    <div class="dd-readout" aria-live="polite">
+      <p><span data-dd-bag></span> · <span data-dd-danger></span></p>
+      <table class="dd-chances">
+        <thead><tr><th scope="col">{t('Следующая проверка', 'Next check')}</th><th scope="col">{t('Шанс события', 'Chance of an event')}</th></tr></thead>
+        <tbody>
+          <tr><th scope="row">{t('Обычная', 'Ordinary')}</th><td data-dd-chance="normal"></td></tr>
+          <tr><th scope="row">{t('С преимуществом', 'With advantage')}</th><td data-dd-chance="advantage"></td></tr>
+          <tr><th scope="row">{t('С помехой', 'With disadvantage')}</th><td data-dd-chance="disadvantage"></td></tr>
+        </tbody>
+      </table>
+    </div>
+
+    <div class="dd-actions">
+      <button type="button" class="dd-btn dd-primary" data-dd-roll="normal">{t('Бросок', 'Roll')}</button>
+      <button type="button" class="dd-btn" data-dd-roll="advantage">{t('С преимуществом', 'With advantage')}</button>
+      <button type="button" class="dd-btn" data-dd-roll="disadvantage">{t('С помехой', 'With disadvantage')}</button>
+      <button type="button" class="dd-btn" data-dd-refill>{t('Пополнить мешок', 'Refill')}</button>
+      <button type="button" class="dd-btn" data-dd-reset>{t('Сбросить', 'Reset')}</button>
+    </div>
+
+    <fieldset class="dd-manual">
+      <legend>{t('Результат за столом', 'Result rolled at the table')}</legend>
+      <label>{t('Цвет оставленного куба', 'Kept die colour')}
+        <select name="manualColor">
+          <option value="dark">{t('тёмный', 'dark')}</option>
+          <option value="light">{t('светлый', 'light')}</option>
+        </select>
+      </label>
+      <label>{t('Финальное число', 'Final number')}<input name="manualValue" type="number" min="1" max="20" step="1" value="10" inputmode="numeric" /></label>
+      <button type="button" class="dd-btn" data-dd-manual>{t('Внести результат', 'Enter result')}</button>
+    </fieldset>
+
+    <h3 class="dd-log-h">{t('Журнал', 'Log')}</h3>
+    <ol class="dd-log" data-dd-log></ol>
+  </form>
+</section>
+
+<script>
+  import {
+    clampInt, eventChance, initialState, rollCheck, recordResult, refill, reconfigure, dangerFaces,
+  } from '../lib/dread-dice.mjs';
+
+  const root = document.querySelector<HTMLElement>('[data-dd]');
+  const form = root?.querySelector<HTMLFormElement>('[data-dd-form]');
+  if (root && form) {
+    const i18n = JSON.parse(root.dataset.i18n || '{}');
+    const lang = root.dataset.lang === 'en' ? 'en' : 'ru';
+    const field = (name: string) => form.elements.namedItem(name) as HTMLInputElement;
+    const num = (name: string, min: number, max: number) => clampInt(Number(field(name).value), min, max);
+    const flag = (name: string) => field(name).checked;
+    const readConfig = () => ({
+      light: num('light', 0, 99), dark: num('dark', 0, 99), base: num('base', 0, 20), step: num('step', 0, 20),
+      resetWithStep: flag('resetWithStep'), twoDice: flag('twoDice'), exhaust: flag('exhaust'), pairEffects: flag('pairEffects'),
+    });
+    const pct = (p: number) => `${(p * 100).toLocaleString(lang, { minimumFractionDigits: 1, maximumFractionDigits: 1 })} %`;
+    const fill = (s: string, vars: Record<string, number>) => s.replace(/\{(\w+)\}/g, (_, k) => String(vars[k]));
+
+    let state = initialState(readConfig());
+
+    const render = () => {
+      const c = state.config;
+      field('threshold').value = String(state.threshold);
+      root.querySelector('[data-dd-bag]')!.textContent = fill(i18n.bag, state.bag);
+      const n = dangerFaces(state.threshold);
+      root.querySelector('[data-dd-danger]')!.textContent = n ? fill(i18n.danger, { max: n }) : i18n.noDanger;
+      for (const td of root.querySelectorAll<HTMLElement>('[data-dd-chance]')) {
+        const mode = td.dataset.ddChance as 'normal' | 'advantage' | 'disadvantage';
+        td.textContent = pct(eventChance(state.bag, state.threshold, mode, c.twoDice));
+      }
+      const noDice = c.light + c.dark === 0;
+      for (const b of root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]')) b.disabled = noDice;
+      const log = root.querySelector('[data-dd-log]')!;
+      log.replaceChildren(...(state.log.length ? state.log.map((e) => {
+        const li = document.createElement('li');
+        const dice = e.dice.map((d, i) => `${i18n[d.color]} ${d.value}${e.dice.length > 1 && i === e.kept ? ` (${i18n.kept})` : ''}`).join(', ');
+        const extra = [e.refilled && i18n.refilled, e.pair && i18n.pair[e.pair]].filter(Boolean).join('; ');
+        li.textContent = `${e.manual ? i18n.manual : i18n[e.mode]}: ${dice} → ${i18n.outcome[e.outcome]}; T ${e.before} → ${e.after}${extra ? `; ${extra}` : ''}`;
+        if (e.outcome === 'event') li.className = 'dd-event';
+        return li;
+      }) : [Object.assign(document.createElement('li'), { textContent: i18n.empty, className: 'dd-empty' })]));
+    };
+
+    form.addEventListener('change', (ev) => {
+      const target = ev.target as HTMLInputElement;
+      if (target.name === 'threshold') {
+        state = { ...state, threshold: num('threshold', 0, 20) };
+      } else if (!target.name.startsWith('manual')) {
+        state = reconfigure(state, readConfig());
+      }
+      render();
+    });
+    form.addEventListener('submit', (ev) => ev.preventDefault());
+    root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]').forEach((b) => b.addEventListener('click', () => {
+      state = rollCheck(state, b.dataset.ddRoll as 'normal' | 'advantage' | 'disadvantage', Math.random);
+      render();
+    }));
+    root.querySelector('[data-dd-refill]')!.addEventListener('click', () => { state = refill(state); render(); });
+    root.querySelector('[data-dd-reset]')!.addEventListener('click', () => { state = initialState(readConfig()); render(); });
+    root.querySelector('[data-dd-manual]')!.addEventListener('click', () => {
+      state = recordResult(state, { color: field('manualColor').value === 'light' ? 'light' : 'dark', value: num('manualValue', 1, 20) });
+      render();
+    });
+
+    root.querySelector('[data-dd-nojs]')!.remove();
+    form.hidden = false;
+    render();
+  }
+</script>
+
+<style>
+  .dd { margin: 32px 0 8px; padding: 20px; border: 1px solid var(--og-border); border-radius: 12px; background: var(--og-bg-2); }
+  .dd-title { margin-top: 0; }
+  .dd-nojs { color: var(--og-text-muted); margin: 0; }
+  .dd fieldset { border: 0; margin: 0 0 16px; padding: 0; min-width: 0; }
+  .dd legend { font-weight: 600; color: var(--og-text-2); margin-bottom: 8px; padding: 0; }
+  .dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 14px; }
+  .dd-grid label, .dd-manual label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--og-text-muted); }
+  .dd input[type='number'], .dd select {
+    font: inherit; font-size: 16px; color: var(--og-text); background: var(--og-bg); border: 1px solid var(--og-border-strong);
+    border-radius: 8px; padding: 8px 10px; min-height: 40px; width: 100%; box-sizing: border-box;
+  }
+  .dd input:focus-visible, .dd select:focus-visible, .dd-btn:focus-visible { outline: 2px solid var(--og-accent); outline-offset: 2px; }
+  .dd-opts { display: flex; flex-direction: column; gap: 6px; }
+  .dd-opts label { display: flex; align-items: center; gap: 8px; color: var(--og-text-2); }
+  .dd-opts input { accent-color: var(--og-accent); width: 18px; height: 18px; }
+  .dd-readout p { margin: 0 0 10px; color: var(--og-text-2); }
+  .dd .dd-chances { margin-bottom: 16px; }
+  .dd-actions { display: flex; flex-wrap: wrap; gap: 8px; margin-bottom: 18px; }
+  .dd-btn {
+    font: inherit; font-size: 14px; color: var(--og-text); background: var(--og-bg-3); border: 1px solid var(--og-border-strong);
+    border-radius: 8px; padding: 9px 14px; min-height: 40px; cursor: pointer;
+  }
+  .dd-btn:hover:not(:disabled) { border-color: var(--og-accent); }
+  .dd-btn:disabled { opacity: 0.5; cursor: not-allowed; }
+  .dd-primary { background: var(--og-accent); border-color: var(--og-accent); color: var(--og-on-accent, #fff); }
+  .dd-manual { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
+  .dd-manual label { flex: 1 1 150px; }
+  .dd-log-h { margin: 8px 0; }
+  .dd-log { margin: 0; padding-left: 20px; max-height: 280px; overflow-y: auto; font-size: 14px; color: var(--og-text-2); }
+  .dd-log li { margin: 2px 0; }
+  .dd-log .dd-event { color: var(--og-warm); }
+  .dd-log .dd-empty { list-style: none; margin-left: -20px; color: var(--og-text-muted); }
+</style>

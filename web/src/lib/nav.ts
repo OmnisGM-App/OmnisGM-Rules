@@ -113,6 +113,7 @@ export const NAV: NavNode[] = [
       ]),
     ]),
     page('d52-converting', 'Конвертация в SRD 5.2.1', 'Converting to SRD 5.2.1', '/dnd/converting-srd-5.2/converting-to-srd-5.2.1/'),
+    page('dnd-homebrew-dread-dice', 'Кубы угрозы (хоумбрю)', 'Dread Dice (homebrew)', '/dnd/homebrew/01_DreadDice/'),
   ]),
 
   group('daggerheart', 'Daggerheart', 'Daggerheart', [

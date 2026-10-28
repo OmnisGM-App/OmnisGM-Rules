@@ -1,0 +1,18 @@
+---
+// Широкая шапка страницы-документа: она же og:image страницы (1200×630).
+export interface Props {
+  image: string;   // путь от корня, наличие файла проверено вызывающим
+  alt: string;
+  width: number;
+  height: number;
+}
+const { image, alt, width, height } = Astro.props;
+---
+<img class="doc-hero" src={image} alt={alt} width={width} height={height} decoding="async" fetchpriority="high" />
+
+<style>
+  .doc-hero {
+    display: block; width: 100%; height: auto; margin: 0 0 22px;
+    border-radius: 12px; border: 1px solid var(--og-border); background: var(--og-bg-2);
+  }
+</style>

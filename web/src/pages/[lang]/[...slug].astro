@@ -7,6 +7,9 @@ import { classDescription } from '../../lib/class-facts';
 import { pageDescription } from '../../lib/page-description.mjs';
 import { pageTitle } from '../../lib/page-title';
 import { hostingRedirects, isRedirected } from '../../lib/hosting-redirects.mjs';
+import { entityImage } from '../../lib/entity-image.mjs';
+import DocHero from '../../components/DocHero.astro';
+import DreadDiceCalc from '../../components/DreadDiceCalc.astro';
 
 export async function getStaticPaths() {
   const all = await getCollection('srd');
@@ -39,7 +42,11 @@ const navNode = nodeBySlug(curSlug);
 const currentId = navNode?.id ?? curSlug;
 
 // Чистый заголовок страницы (и для <title>, и для Pagefind): подпись из nav — надёжнее h1/слага.
-const searchTitle = navNode ? navLabel(navNode, ref.lang) : (titleFromBody(entry.body) || ref.slug);
+// У хоумбрю подпись в nav несёт пометку «(хоумбрю)», а тип страницы и так стоит в <title>.
+const homebrewPage = ref.game === 'dnd' && ref.version === 'homebrew';
+const searchTitle = homebrewPage
+  ? (titleFromBody(entry.body) || ref.slug)
+  : navNode ? navLabel(navNode, ref.lang) : (titleFromBody(entry.body) || ref.slug);
 const trail = findPath(currentId) ?? [];
 const sysLabel = trail.length ? navLabel(trail[0], ref.lang) : ref.game.toUpperCase();
 const verLabel = trail.length > 1 ? navLabel(trail[1], ref.lang) : ref.version;
@@ -53,7 +60,11 @@ const isClass = ref.game === 'dnd' && ref.slug.startsWith('classes/');
 
 // Тип страницы для <title> (issue #185): лицензию не называем никак — это не правила.
 const isLegal = /(^|\/)legal(\/|$)/i.test(ref.slug);
-const mdKind = ref.game !== 'dnd' || isLegal ? '' : isClass ? t('класс', 'class') : t('правила', 'rules');
+const mdKind = ref.game !== 'dnd' || isLegal ? '' : homebrewPage ? t('хоумбрю', 'homebrew') : isClass ? t('класс', 'class') : t('правила', 'rules');
+const isDreadDice = homebrewPage && ref.slug === 'dread-dice';
+const hero = homebrewPage ? entityImage('dnd', 'homebrew', ref.slug) : null;
+const HERO_W = 1200;
+const HERO_H = 630;
 const title = pageTitle({
   name: searchTitle, kind: mdKind, lang: ref.lang, game: ref.game, version: ref.version,
 });
@@ -62,7 +73,14 @@ const title = pageTitle({
 // Правим в шаблоне, а не в контенте — правка импорта SRD не пережила бы переимпорт.
 const needsHeading = !headings.some((h) => h.depth === 1);
 
-const description =
+const HOMEBREW_DESCRIPTION: Record<string, { ru: string; en: string }> = {
+  'dread-dice': {
+    ru: 'Кубы угрозы — хоумбрю OmnisGM для D&D 5e (2014 и 2024): мешок светлых и тёмных d20, растущий порог угрозы и калькулятор шансов.',
+    en: 'Dread Dice — OmnisGM homebrew for D&D 5e (2014 and 2024): a bag of light and dark d20s, a rising threat threshold and an odds calculator.',
+  },
+};
+const homebrewDescription = homebrewPage ? HOMEBREW_DESCRIPTION[ref.slug] : undefined;
+const description = homebrewDescription ? t(homebrewDescription.ru, homebrewDescription.en) :
   (isClass
     ? classDescription({ name: searchTitle, body: entry.body, lang: ref.lang, version: ref.version, verLabel: docLabel })
     : null) ??
@@ -76,7 +94,12 @@ const description =
   description={description}
   headings={headings}
   sourceId={entry.id}
+  image={hero ?? undefined}
+  imageWidth={hero ? HERO_W : undefined}
+  imageHeight={hero ? HERO_H : undefined}
 >
+  {hero && <DocHero image={hero} alt={searchTitle} width={HERO_W} height={HERO_H} />}
   {needsHeading && <h1>{searchTitle}</h1>}
   <Content />
+  {isDreadDice && <DreadDiceCalc lang={ref.lang} />}
 </ReaderShell>

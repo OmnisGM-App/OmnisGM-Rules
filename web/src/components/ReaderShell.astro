@@ -72,7 +72,13 @@ const ATTRIB: Record<string, { ru: string; en: string }> = {
 // из пути URL: контент SRD без атрибуции законным не становится оттого, что его нет в меню (#398).
 const pathSys = Astro.url.pathname.match(/^\/(?:en|ru)\/(dnd|daggerheart|brp)\//)?.[1];
 const attribSys = activeSys !== 'home' ? activeSys : pathSys;
-const attribution = attribSys ? ATTRIB[attribSys] : undefined;
+// Хоумбрю OmnisGM лежит в разделе D&D, но это не текст SRD: атрибуция SRD к нему ложна.
+const isHomebrew = /^\/(?:en|ru)\/dnd\/homebrew\//.test(Astro.url.pathname);
+const HOMEBREW_ATTRIB = {
+  en: 'OmnisGM homebrew, not SRD material. The rules text is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; the OmnisGM brand, illustrations and code are not covered by this licence.',
+  ru: 'Хоумбрю OmnisGM, не материал SRD. Текст правил — лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; бренд OmnisGM, иллюстрации и код под неё не подпадают.',
+};
+const attribution = isHomebrew ? HOMEBREW_ATTRIB : attribSys ? ATTRIB[attribSys] : undefined;
 // Товарные знаки (Table#912): CC BY 4.0 покрывает текст SRD, но не знаки Dungeons & Dragons и D&D.
 // Строка — на каждой странице справочника, включая хабы: о D&D говорят и навигация, и описания.
 const TRADEMARK = {
@@ -338,11 +344,11 @@ const searchUi = {
                 </a>
               )}
               <span set:html={t(attribution.ru, attribution.en)} />{' '}
-              <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>
+              {!isHomebrew && <a href={legalHref}>{t('Правовая информация', 'Legal')}</a>}
               {/* Картинки сущностей (#201, #202) — наши, а не часть SRD: лицензия выше относится
                   к тексту правил, поэтому авторство картинок стоит отдельной строкой и только
                   там, где картинка есть. */}
-              {image && (
+              {image && !isHomebrew && (
                 <div class="rd-attrib-img">
                   {t('Изображения — © OmnisGM; не входят в SRD и не покрываются его лицензией.',
                      'Images © OmnisGM — not part of the SRD and not covered by its license.')}
@@ -522,6 +528,7 @@ const searchUi = {
     'dnd/srd-5.2': 'D&D 5.2.1',
     'dnd/srd-5.1': 'D&D 5.1',
     'dnd/converting-srd-5.2': 'D&D 5.1→5.2.1',
+    'dnd/homebrew': 'OmnisGM Homebrew',
     'daggerheart/srd-1.0': 'Daggerheart',
     'brp/srd-1.0': 'Basic Roleplaying',
   };
