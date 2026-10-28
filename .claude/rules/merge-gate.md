@@ -48,6 +48,12 @@ it — a hand-applied one is reported and ignored.
    Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,
    a rename with no logic change, a clean base merge, or a one-line fix exactly as the reviewer wrote it.
    In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
+   **What is not a reason to remove it** (owner's decision 2026-10-28, Table#1315: six removals in one
+   night, every one for a medium finding of the round that had just set the label, and every one bought a
+   round with new mediums): a medium or a remark that arrives in the round that set the label. Such a
+   finding is answered «не чиню: причина» or goes to an issue «➡️ #N» with the reviewer's recipe as its
+   checklist (`review-response.md` step 6); the one-line fix exactly as the reviewer wrote it is pushed
+   with the label. The label comes off for a ❗ fix, or for new work the owner asked for in this PR.
 2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
    and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
    an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,
