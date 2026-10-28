@@ -16,7 +16,7 @@ inputs:
   node-version:
     description: >-
       Версия Node; пустая строка — Node не нужен (джоба на одном Python). По умолчанию —
-      общая для репозитория (astro 7 требует >= 22.12).
+      общая для репозитория; нижнюю границу задаёт `engines` в web/package.json.
     required: false
     default: '22'
   python-version:
@@ -44,6 +44,8 @@ runs:
       uses: actions/setup-node@v7
       with:
         node-version: ${{ inputs.node-version }}
+        # Кэш раннера отстаёт от последнего 22.x, а astro поднимает минимум патчем (#455).
+        check-latest: true
         # Кэш — только тем, кто реально ставит зависимости. Ключ у `setup-node` один на
         # репозиторий (хэш `web/package-lock.json`, без имени джобы и версии Node), а
         # ПИШЕТ его тот, кто по этому ключу промахнулся: при точном попадании пост-шаг
