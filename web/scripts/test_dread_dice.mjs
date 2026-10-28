@@ -1,7 +1,7 @@
 // Калькулятор «Кубов угрозы»: формулы шанса сверяются с полным перебором исходов, переходы порога —
 // с правилами и примером нарастания страницы src/dnd/homebrew/*/01_DreadDice.md.
 import {
-  clampInt, bagForCheck, dangerFaces, eventChance, keptIndex, resolveThreat, shiftThreshold, initialState, rollCheck,
+  clampInt, nextCheckChance, dragConfig, dangerFaces, eventChance, keptIndex, resolveThreat, shiftThreshold, initialState, rollCheck,
   recordResult, refill, reconfigure, usesTwoDice,
 } from '../src/lib/dread-dice.ts';
 
@@ -180,15 +180,26 @@ const CFG = { light: 1, dark: 1, base: 5, step: 1, resetWithStep: false, twoDice
   let s = rollCheck(initialState(ex), 'normal', seq([0.6, 0.5]));
   s = rollCheck(s, 'normal', seq([0.1, 0.5]));
   eq(s.bag, { light: 0, dark: 0 }, 'исчерпаемый мешок 1+1 после двух бросков пуст');
-  near(eventChance(bagForCheck({ ...s, threshold: 6 }, 'normal'), 6, 'normal', ex.twoDice), bruteChance(1, 1, 6, 'normal', true),
+  near(nextCheckChance({ ...s, threshold: 6 }, 'normal'), bruteChance(1, 1, 6, 'normal', true),
     'пустой остаток: шанс по полному составу, который вытянет следующая проверка');
   const one = rollCheck(initialState(ex), 'normal', seq([0.6, 0.5]));
   eq(one.bag, { light: 1, dark: 0 }, 'остался один светлый');
-  near(eventChance(bagForCheck({ ...one, threshold: 6 }, 'advantage'), 6, 'advantage', ex.twoDice), bruteChance(1, 1, 6, 'advantage', true),
+  near(nextCheckChance({ ...one, threshold: 6 }, 'advantage'), bruteChance(1, 1, 6, 'advantage', true),
     'один куб при двух кубах: шанс по полному составу');
-  near(eventChance(bagForCheck({ ...one, threshold: 6 }, 'normal'), 6, 'normal', ex.twoDice), 0, 'один светлый в остатке при обычной проверке — тянет его, шанс 0');
+  near(nextCheckChance({ ...one, threshold: 6 }, 'normal'), 0, 'один светлый в остатке при обычной проверке — тянет его, шанс 0');
   const back = reconfigure(one, { ...one.config, exhaust: false });
   eq(back.bag, { light: 1, dark: 1 }, 'выключение исчерпаемого мешка наполняет мешок');
+}
+
+{
+  const start = { ...initialState({ ...CFG, base: 5 }), threshold: 8 };
+  /** @type {import('../src/lib/dread-dice.ts').State} */
+  let s = start;
+  /** @type {import('../src/lib/dread-dice.ts').State | null} */
+  let a = null;
+  for (const base of [6, 10, 15, 20, 15, 10]) ({ state: s, anchor: a } = dragConfig(s, a, { ...s.config, base }));
+  eq(s.threshold, 13, 'T₀ 5→20→10 одним жестом = 5→10 одним шагом: надбавка 3 сохраняется');
+  eq(dragConfig(s, null, { ...s.config, base: 11 }).state.threshold, 14, 'после сброса якоря новый жест считается от текущего T');
 }
 
 if (failed) {

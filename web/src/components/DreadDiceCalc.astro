@@ -102,7 +102,7 @@ const SLIDERS = [
 
 <script>
   import {
-    clampInt, eventChance, initialState, rollCheck, recordResult, refill, reconfigure, dangerFaces, bagForCheck,
+    clampInt, nextCheckChance, initialState, rollCheck, recordResult, refill, dragConfig, dangerFaces,
   } from '../lib/dread-dice';
 
   const root = document.querySelector<HTMLElement>('[data-dd]');
@@ -126,6 +126,7 @@ const SLIDERS = [
     };
 
     let state = initialState(readConfig());
+    let anchor: typeof state | null = null;
 
     const render = () => {
       const c = state.config;
@@ -140,7 +141,7 @@ const SLIDERS = [
       root.querySelector('[data-dd-danger]')!.textContent = n ? i18n.danger.replace('{max}', String(n)) : i18n.noDanger;
       for (const el of root.querySelectorAll<HTMLElement>('[data-dd-chance]')) {
         const mode = el.dataset.ddChance as 'normal' | 'advantage' | 'disadvantage';
-        el.textContent = pct(eventChance(bagForCheck(state, mode), state.threshold, mode, c.twoDice));
+        el.textContent = pct(nextCheckChance(state, mode));
       }
       const noDice = c.light + c.dark === 0;
       for (const b of root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]')) b.disabled = noDice;
@@ -169,9 +170,10 @@ const SLIDERS = [
     form.addEventListener('input', (ev) => {
       const target = ev.target as HTMLInputElement;
       if (target.name === 'threshold') state = { ...state, threshold: num('threshold') };
-      else if (!target.name.startsWith('manual')) state = reconfigure(state, readConfig());
+      else if (!target.name.startsWith('manual')) ({ state, anchor } = dragConfig(state, anchor, readConfig()));
       render();
     });
+    form.addEventListener('change', () => { anchor = null; });
     form.addEventListener('submit', (ev) => ev.preventDefault());
     root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]').forEach((b) => b.addEventListener('click', () => {
       state = rollCheck(state, b.dataset.ddRoll as 'normal' | 'advantage' | 'disadvantage', Math.random);

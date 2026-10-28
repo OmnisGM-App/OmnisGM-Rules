@@ -93,6 +93,11 @@ export function bagForCheck(state: State, mode: RollMode): Bag {
   return bag.light + bag.dark < need ? { light: config.light, dark: config.dark } : { ...bag };
 }
 
+/** Шанс события на следующей проверке: по мешку, из которого она вытянет. */
+export function nextCheckChance(state: State, mode: RollMode): number {
+  return eventChance(bagForCheck(state, mode), state.threshold, mode, state.config.twoDice);
+}
+
 /** Проверка с мешком; при составе из нуля кубов состояние не меняется. */
 export function rollCheck(state: State, mode: RollMode, rng: () => number): State {
   const { config } = state;
@@ -147,4 +152,13 @@ export function reconfigure(state: State, next: Config): State {
     bag: bagChanged ? { light: next.light, dark: next.dark } : state.bag,
     threshold: prev.base !== next.base ? shiftThreshold(state.threshold, prev.base, next.base) : state.threshold,
   };
+}
+
+/**
+ * Шаг перетаскивания ползунка: состояние считается от якоря — снимка в начале жеста, —
+ * иначе кламп порога на промежуточных значениях съедает надбавку. Якорь сбрасывают на `change`.
+ */
+export function dragConfig(state: State, anchor: State | null, next: Config): { state: State; anchor: State } {
+  const from = anchor ?? state;
+  return { state: reconfigure(from, next), anchor: from };
 }
