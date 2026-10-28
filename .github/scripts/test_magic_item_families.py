@@ -17,6 +17,7 @@ import config  # noqa: E402
 from generate_api import build_magic_item_groups  # noqa: E402
 from parsers import parse_magic_items  # noqa: E402
 from parsers.magic_item import MAGIC_FAMILIES, TABLE_REFS  # noqa: E402
+from schemas import MAGIC_ITEM_SCHEMA  # noqa: E402
 
 failures = []
 
@@ -124,6 +125,9 @@ eq("строка таблицы: общий текст и своя величи�
    (True, True, True))
 eq("рог: редкость по металлу из строки типа, духи и требование",
    en["horn-of-valhalla-bronze"]["description_md"].endswith("\n\n**Spirits:** 4\n\n**Requirement:** Training with all Medium armor"), True)
+eq("поля записи — обязательные поля схемы, `bonus` — числом или null",
+   ({tuple(sorted(set(e) - {"image"})) for e in en.values()}, MAGIC_ITEM_SCHEMA["properties"]["bonus"]),
+   ({tuple(sorted(MAGIC_ITEM_SCHEMA["required"]))}, {"enum": [1, 2, 3, None]}))
 eq("«+N»: бонус числом у разновидностей семейств «bonus», у остальных null (Table#962)",
    ({s: en[s]["bonus"] for s in ("weapon-1", "weapon-2", "weapon-3", "shield-3", "ammunition-2")},
     {e["bonus"] for s, e in en.items() if e["group"] not in {g for g, (kind, _) in MAGIC_FAMILIES.items() if kind == "bonus"}},
