@@ -1,0 +1,68 @@
+import { test, expect } from '@playwright/test';
+
+const URL_RU = '/ru/dnd/homebrew/dread-dice/';
+const URL_EN = '/en/dnd/homebrew/dread-dice/';
+
+test('калькулятор стоит в статье перед руководством мастера и свёрнут', async ({ page }) => {
+  await page.goto(URL_RU);
+  const calc = page.locator('details.dd');
+  await expect(calc).toHaveCount(1);
+  await expect(calc).not.toHaveAttribute('open', '');
+  const order = await page.evaluate(() => {
+    const d = document.querySelector('details.dd')!;
+    const h = document.getElementById('руководство-мастера')!;
+    return d.compareDocumentPosition(h) & Node.DOCUMENT_POSITION_FOLLOWING;
+  });
+  expect(order).toBeTruthy();
+  await expect(page.locator('.rd-doc')).not.toContainText('dread-dice-calculator');
+});
+
+test('шансы следующей проверки по умолчанию: мешок 5+1, T=5', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('3,3 %');
+  await expect(page.locator('[data-dd-chance="advantage"]')).toHaveText('0,7 %');
+  await expect(page.locator('[data-dd-chance="disadvantage"]')).toHaveText('6,0 %');
+  await expect(page.locator('[data-dd-danger]')).toHaveText('Опасны результаты 1–4');
+});
+
+test('ручной ввод: тёмная 3 при T=5 — событие и сброс к T₀, тёмная 9 — рост', async ({ page }) => {
+  await page.goto(URL_EN);
+  await page.locator('details.dd > summary').click();
+  await page.locator('input[name="manualValue"]').fill('9');
+  await page.locator('[data-dd-manual]').click();
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('6');
+  await page.locator('input[name="manualValue"]').fill('3');
+  await page.locator('[data-dd-manual]').click();
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('5');
+  await expect(page.locator('[data-dd-log] li').first()).toContainText('threat event, reset; T 6 → 5');
+});
+
+test('пустой состав мешка — кнопки броска выключены, шанс 0', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  for (const name of ['light', 'dark']) {
+    await page.locator(`input[name="${name}"]`).fill('0');
+    await page.locator(`input[name="${name}"]`).dispatchEvent('change');
+  }
+  await expect(page.locator('[data-dd-roll="normal"]')).toBeDisabled();
+  await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('0,0 %');
+});
+
+test.describe('без JavaScript', () => {
+  test.use({ javaScriptEnabled: false });
+  test('правила читаются, калькулятор называет причину', async ({ page }) => {
+    await page.goto(URL_RU);
+    await page.locator('details.dd > summary').click();
+    await expect(page.locator('[data-dd-nojs]')).toBeVisible();
+    await expect(page.locator('[data-dd-form]')).toBeHidden();
+    await expect(page.locator('#руководство-мастера')).toBeVisible();
+  });
+});
+
+test('футер хоумбрю — своя лицензия, без атрибуции SRD', async ({ page }) => {
+  await page.goto(URL_RU);
+  await expect(page.locator('.rd-attrib')).toContainText('Хоумбрю OmnisGM, не материал SRD.');
+  await expect(page.locator('.rd-attrib')).not.toContainText('System Reference Document');
+  await expect(page.locator('[data-testid="trademark"]')).toBeVisible();
+});

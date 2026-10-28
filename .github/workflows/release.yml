@@ -60,6 +60,8 @@ jobs:
               - 'src/dnd/srd-5.1/**/*.md'
             converting:
               - 'src/dnd/converting-srd-5.2/**/*.md'
+            homebrew:
+              - 'src/dnd/homebrew/**/*.md'
             dh:
               - 'src/daggerheart/srd-1.0/**/*.md'
             brp:
@@ -69,7 +71,7 @@ jobs:
       # translate/логи/глоссарий — тогда пропускаем установку LaTeX и сам релиз).
       - name: Any group selected?
         id: any
-        run: echo "build=${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' || steps.filter.outputs.dnd51 == 'true' || steps.filter.outputs.converting == 'true' || steps.filter.outputs.dh == 'true' || steps.filter.outputs.brp == 'true' }}" >> "$GITHUB_OUTPUT"
+        run: echo "build=${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dnd52 == 'true' || steps.filter.outputs.dnd51 == 'true' || steps.filter.outputs.converting == 'true' || steps.filter.outputs.homebrew == 'true' || steps.filter.outputs.dh == 'true' || steps.filter.outputs.brp == 'true' }}" >> "$GITHUB_OUTPUT"
 
       # ─── Сборка combined-MD (только затронутых групп; dispatch = все) ───
 
@@ -111,6 +113,19 @@ jobs:
         with:
           source-dir: src/dnd/converting-srd-5.2/en
           output-file: Converting-to-SRD-5.2.1-EN.md
+
+      - name: Build OmnisGM Homebrew for D&D RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.homebrew == 'true' }}
+        uses: ./.github/actions/build-markdown
+        with:
+          source-dir: src/dnd/homebrew/ru
+          output-file: OmnisGM-Homebrew-DnD-RU.md
+      - name: Build OmnisGM Homebrew for D&D EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.homebrew == 'true' }}
+        uses: ./.github/actions/build-markdown
+        with:
+          source-dir: src/dnd/homebrew/en
+          output-file: OmnisGM-Homebrew-DnD-EN.md
 
       - name: Build Daggerheart 1.0 RU
         if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dh == 'true' }}
@@ -179,6 +194,15 @@ jobs:
         uses: ./.github/actions/build-pdf
         with: { input-file: Converting-to-SRD-5.2.1-EN.md, output-file: Converting-to-SRD-5.2.1-EN.pdf, lang: en, toc-title: "Table of Contents" }
 
+      - name: PDF OmnisGM Homebrew for D&D RU
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.homebrew == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: OmnisGM-Homebrew-DnD-RU.md, output-file: OmnisGM-Homebrew-DnD-RU.pdf, lang: ru, toc-title: "Содержание" }
+      - name: PDF OmnisGM Homebrew for D&D EN
+        if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.homebrew == 'true' }}
+        uses: ./.github/actions/build-pdf
+        with: { input-file: OmnisGM-Homebrew-DnD-EN.md, output-file: OmnisGM-Homebrew-DnD-EN.pdf, lang: en, toc-title: "Table of Contents" }
+
       - name: PDF Daggerheart 1.0 RU
         if: ${{ github.event_name == 'workflow_dispatch' || steps.filter.outputs.dh == 'true' }}
         uses: ./.github/actions/build-pdf
@@ -227,6 +251,9 @@ jobs:
             `DND-SRD-5.1-RU.md` · `DND-SRD-5.1-RU.pdf` · `DND-SRD-5.1-EN.md` · `DND-SRD-5.1-EN.pdf`
             ## D&D — Переход на 5.2.1 / Converting to 5.2.1
             `Converting-to-SRD-5.2.1-RU.md` · `Converting-to-SRD-5.2.1-RU.pdf` · `Converting-to-SRD-5.2.1-EN.md` · `Converting-to-SRD-5.2.1-EN.pdf`
+            ## Хоумбрю OmnisGM для D&D / OmnisGM Homebrew for D&D
+            Не материал SRD; текст правил — CC BY 4.0. Not SRD material; the rules text is CC BY 4.0.
+            `OmnisGM-Homebrew-DnD-RU.md` · `OmnisGM-Homebrew-DnD-RU.pdf` · `OmnisGM-Homebrew-DnD-EN.md` · `OmnisGM-Homebrew-DnD-EN.pdf`
             ## Daggerheart — SRD 1.0
             `DH-SRD-1.0-RU.md` · `DH-SRD-1.0-RU.pdf` · `DH-SRD-1.0-EN.md` · `DH-SRD-1.0-EN.pdf`
             ## Basic Roleplaying — SRD 1.0
@@ -236,6 +263,8 @@ jobs:
             DND-SRD-*.pdf
             Converting-to-SRD-*.md
             Converting-to-SRD-*.pdf
+            OmnisGM-Homebrew-DnD-*.md
+            OmnisGM-Homebrew-DnD-*.pdf
             DH-SRD-*.md
             DH-SRD-*.pdf
             BRP-SRD-*.md

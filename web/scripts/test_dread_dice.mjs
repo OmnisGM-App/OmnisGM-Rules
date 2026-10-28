@@ -1,13 +1,13 @@
-// Калькулятор «Кубов угрозы»: формулы сверяются с полным перебором исходов, переходы порога —
-// с тест-кейсами из раздела «Калькулятор» страницы src/dnd/homebrew/*/01_DreadDice.md.
+// Калькулятор «Кубов угрозы»: формулы шанса сверяются с полным перебором исходов, переходы порога —
+// с правилами и примером нарастания страницы src/dnd/homebrew/*/01_DreadDice.md.
 import {
   dangerFaces, eventChance, keptIndex, resolveThreat, shiftThreshold, initialState, rollCheck,
   recordResult, refill, reconfigure, usesTwoDice,
-} from '../src/lib/dread-dice.mjs';
+} from '../src/lib/dread-dice.ts';
 
-/** @typedef {import('../src/lib/dread-dice.mjs').Config} Config */
-/** @typedef {import('../src/lib/dread-dice.mjs').RollMode} RollMode */
-/** @typedef {import('../src/lib/dread-dice.mjs').DieColor} DieColor */
+/** @typedef {import('../src/lib/dread-dice.ts').Config} Config */
+/** @typedef {import('../src/lib/dread-dice.ts').RollMode} RollMode */
+/** @typedef {import('../src/lib/dread-dice.ts').DieColor} DieColor */
 
 let failed = 0;
 const eq = (/** @type {unknown} */ actual, /** @type {unknown} */ expected, /** @type {string} */ what) => {
@@ -57,10 +57,8 @@ function bruteChance(/** @type {number} */ w, /** @type {number} */ b, /** @type
   return p;
 }
 
-// ── Опасные грани ────────────────────────────────────────────────────────────
 eq([0, 1, 5, 20, 25, -3].map(dangerFaces), [0, 0, 4, 19, 19, 0], 'dangerFaces: T=0 и T=1 — ни одной, T=20 — 1…19, края зажаты');
 
-// ── Формулы = перебор ────────────────────────────────────────────────────────
 /** @type {RollMode[]} */
 const MODES = ['normal', 'advantage', 'disadvantage'];
 for (const [w, b] of [[5, 1], [4, 2], [3, 3], [0, 2], [1, 1], [2, 0], [0, 1]]) {
@@ -81,30 +79,27 @@ near(eventChance({ light: 5, dark: 1 }, 6, 'disadvantage', true), 1 / 3 * 85 / 4
 eq(eventChance({ light: 0, dark: 0 }, 10, 'normal', false), 0, 'пустой мешок — шанс 0, не NaN');
 eq(usesTwoDice({ light: 0, dark: 1 }, 'advantage', true), false, 'один куб в мешке — режим двух кубов недоступен');
 
-// ── Какой куб остаётся ───────────────────────────────────────────────────────
 eq(keptIndex([{ color: 'dark', value: 7 }, { color: 'light', value: 7 }], 'advantage'), 1, 'ничья при преимуществе — светлый (тёмный первым)');
 eq(keptIndex([{ color: 'light', value: 7 }, { color: 'dark', value: 7 }], 'advantage'), 0, 'ничья при преимуществе — светлый (светлый первым)');
 eq(keptIndex([{ color: 'dark', value: 7 }, { color: 'light', value: 7 }], 'disadvantage'), 1, 'ничья при помехе — светлый');
 eq(keptIndex([{ color: 'dark', value: 9 }, { color: 'light', value: 7 }], 'advantage'), 0, 'преимущество — больший');
 eq(keptIndex([{ color: 'light', value: 9 }, { color: 'dark', value: 7 }], 'disadvantage'), 1, 'помеха — меньший');
 
-// ── Тест-кейсы правил ────────────────────────────────────────────────────────
 const P = { threshold: 5, base: 5, step: 1, resetWithStep: false };
-eq(resolveThreat({ color: 'dark', value: 4 }, P), { outcome: 'event', threshold: 5 }, 'кейс 1: T=5, тёмный 4 — событие, сброс к T₀');
-eq(resolveThreat({ color: 'dark', value: 5 }, P), { outcome: 'growth', threshold: 6 }, 'кейс 1: T=5, тёмный 5 — без события, T += Δ');
-eq(resolveThreat({ color: 'dark', value: 20 }, { ...P, threshold: 20 }), { outcome: 'safe-20', threshold: 20 }, 'кейс 2: тёмная 20 при T=20 — ни события, ни роста');
-eq(resolveThreat({ color: 'dark', value: 20 }, P), { outcome: 'safe-20', threshold: 5 }, 'кейс 2: тёмная 20 — без роста');
-eq(resolveThreat({ color: 'light', value: 1 }, P), { outcome: 'light', threshold: 5 }, 'кейс 3: светлая 1 — порог не меняется');
-eq(resolveThreat({ color: 'dark', value: 1 }, { threshold: 0, base: 0, step: 0, resetWithStep: false }), { outcome: 'growth', threshold: 0 }, 'кейс 4: T₀=0, Δ=0 — события нет');
-eq(resolveThreat({ color: 'dark', value: 1 }, { threshold: 0, base: 0, step: 2, resetWithStep: false }), { outcome: 'growth', threshold: 2 }, 'кейс 4: T₀=0, Δ>0 — рост после безопасного тёмного');
-eq(resolveThreat({ color: 'dark', value: 3 }, { threshold: 9, base: 8, step: 2, resetWithStep: false }), { outcome: 'event', threshold: 8 }, 'кейс 5: сброс к актуальному T₀');
+eq(resolveThreat({ color: 'dark', value: 4 }, P), { outcome: 'event', threshold: 5 }, 'T=5, тёмный 4 — событие, сброс к T₀');
+eq(resolveThreat({ color: 'dark', value: 5 }, P), { outcome: 'growth', threshold: 6 }, 'T=5, тёмный 5 — без события, T += Δ');
+eq(resolveThreat({ color: 'dark', value: 20 }, { ...P, threshold: 20 }), { outcome: 'safe-20', threshold: 20 }, 'тёмная 20 при T=20 — ни события, ни роста');
+eq(resolveThreat({ color: 'dark', value: 20 }, P), { outcome: 'safe-20', threshold: 5 }, 'тёмная 20 — без роста');
+eq(resolveThreat({ color: 'light', value: 1 }, P), { outcome: 'light', threshold: 5 }, 'светлая 1 — порог не меняется');
+eq(resolveThreat({ color: 'dark', value: 1 }, { threshold: 0, base: 0, step: 0, resetWithStep: false }), { outcome: 'growth', threshold: 0 }, 'T₀=0, Δ=0 — события нет');
+eq(resolveThreat({ color: 'dark', value: 1 }, { threshold: 0, base: 0, step: 2, resetWithStep: false }), { outcome: 'growth', threshold: 2 }, 'T₀=0, Δ>0 — рост после безопасного тёмного');
+eq(resolveThreat({ color: 'dark', value: 3 }, { threshold: 9, base: 8, step: 2, resetWithStep: false }), { outcome: 'event', threshold: 8 }, 'сброс к актуальному T₀');
 eq(resolveThreat({ color: 'dark', value: 3 }, { threshold: 9, base: 8, step: 2, resetWithStep: true }), { outcome: 'event', threshold: 10 }, 'сброс со смещением: T₀ + Δ');
 eq(resolveThreat({ color: 'dark', value: 3 }, { threshold: 20, base: 19, step: 3, resetWithStep: true }), { outcome: 'event', threshold: 20 }, 'сброс со смещением не выше 20');
 eq(resolveThreat({ color: 'dark', value: 19 }, { threshold: 19, base: 5, step: 3, resetWithStep: false }), { outcome: 'growth', threshold: 20 }, 'рост не выше 20');
 eq(shiftThreshold(7, 5, 8), 10, 'смена T₀ 5→8 сохраняет надбавку');
 eq(shiftThreshold(3, 5, 0), 0, 'смена T₀ не уводит порог ниже 0');
 
-// ── Пример из раздела «Пример нарастания» ────────────────────────────────────
 {
   let t = 5;
   const steps = [['dark', 12, 6], ['light', 2, 6], ['dark', 20, 6], ['dark', 5, 5]];
@@ -114,7 +109,6 @@ eq(shiftThreshold(3, 5, 0), 0, 'смена T₀ не уводит порог н�
   }
 }
 
-// ── Симуляция ────────────────────────────────────────────────────────────────
 /** Генератор из заданной последовательности чисел в [0, 1). */
 const seq = (/** @type {number[]} */ xs) => { let i = 0; return () => xs[i++ % xs.length]; };
 /** @type {Config} */

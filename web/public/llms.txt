@@ -34,6 +34,12 @@ Content notes for machine consumers:
 - [Converting 5.1 → 5.2.1](https://rules.omnisgm.com/en/dnd/converting-srd-5.2/converting-to-srd-5.2.1/)
 - [Legal & license](https://rules.omnisgm.com/en/dnd/srd-5.1/legal/)
 
+## D&D — OmnisGM homebrew
+
+Not SRD material; the rules text is CC BY 4.0.
+
+- [Dread Dice](https://rules.omnisgm.com/en/dnd/homebrew/dread-dice/): a bag of light and dark d20s and a rising threat threshold, with an odds calculator
+
 ## Daggerheart — SRD 1.0
 
 - [Introduction](https://rules.omnisgm.com/en/daggerheart/srd-1.0/introduction/) and [Core Mechanics](https://rules.omnisgm.com/en/daggerheart/srd-1.0/core-mechanics/)

@@ -27,21 +27,20 @@ const I18N = {
   bag: t('В мешке: {light} светл., {dark} тёмн.', 'In the bag: {light} light, {dark} dark'),
   danger: t('Опасны результаты 1–{max}', 'Dangerous results: 1–{max}'),
   noDanger: t('Опасных результатов нет', 'No dangerous results'),
-  empty: t('Журнал пуст', 'The log is empty'),
 };
 ---
-<section class="dd" data-dd data-lang={lang} data-i18n={JSON.stringify(I18N)} data-pagefind-ignore aria-labelledby="dd-title">
-  <h2 class="dd-title" id="dd-title">{t('Калькулятор «Кубов угрозы»', 'Dread Dice calculator')}</h2>
-  <p class="dd-nojs" data-dd-nojs>{t('Калькулятору нужен JavaScript. Правила выше читаются без него.', 'The calculator needs JavaScript. The rules above read fine without it.')}</p>
+<details class="dd" data-dd data-lang={lang} data-i18n={JSON.stringify(I18N)} data-pagefind-ignore>
+  <summary class="dd-title">{t('Калькулятор «Кубов угрозы» — для мастера', 'Dread Dice calculator — for the GM')}</summary>
+  <p class="dd-nojs" data-dd-nojs>{t('Калькулятору нужен JavaScript. Правила на странице читаются без него.', 'The calculator needs JavaScript. The rules on this page read fine without it.')}</p>
 
   <form class="dd-form" data-dd-form hidden>
     <fieldset class="dd-grid">
       <legend>{t('Мешок и порог', 'Bag and threshold')}</legend>
-      <label>{t('Светлые кубы', 'Light dice')} <code>W</code><input name="light" type="number" min="0" max="99" step="1" value="5" inputmode="numeric" /></label>
-      <label>{t('Тёмные кубы', 'Dark dice')} <code>B</code><input name="dark" type="number" min="0" max="99" step="1" value="1" inputmode="numeric" /></label>
-      <label>{t('Базовый порог', 'Base threshold')} <code>T₀</code><input name="base" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
-      <label>{t('Шаг роста', 'Step')} <code>Δ</code><input name="step" type="number" min="0" max="20" step="1" value="1" inputmode="numeric" /></label>
-      <label>{t('Текущий порог', 'Current threshold')} <code>T</code><input name="threshold" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
+      <label><span>{t('Светлые кубы', 'Light dice')} <code>W</code></span><input name="light" type="number" min="0" max="99" step="1" value="5" inputmode="numeric" /></label>
+      <label><span>{t('Тёмные кубы', 'Dark dice')} <code>B</code></span><input name="dark" type="number" min="0" max="99" step="1" value="1" inputmode="numeric" /></label>
+      <label><span>{t('Базовый порог', 'Base threshold')} <code>T₀</code></span><input name="base" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
+      <label><span>{t('Шаг роста', 'Step')} <code>Δ</code></span><input name="step" type="number" min="0" max="20" step="1" value="1" inputmode="numeric" /></label>
+      <label><span>{t('Текущий порог', 'Current threshold')} <code>T</code></span><input name="threshold" type="number" min="0" max="20" step="1" value="5" inputmode="numeric" /></label>
     </fieldset>
 
     <fieldset class="dd-opts">
@@ -84,15 +83,16 @@ const I18N = {
       <button type="button" class="dd-btn" data-dd-manual>{t('Внести результат', 'Enter result')}</button>
     </fieldset>
 
-    <h3 class="dd-log-h">{t('Журнал', 'Log')}</h3>
-    <ol class="dd-log" data-dd-log></ol>
+    <p class="dd-log-h">{t('Журнал', 'Log')}</p>
+    <p class="dd-empty" data-dd-empty>{t('Журнал пуст', 'The log is empty')}</p>
+    <ol class="dd-log" data-dd-log hidden></ol>
   </form>
-</section>
+</details>
 
 <script>
   import {
     clampInt, eventChance, initialState, rollCheck, recordResult, refill, reconfigure, dangerFaces,
-  } from '../lib/dread-dice.mjs';
+  } from '../lib/dread-dice';
 
   const root = document.querySelector<HTMLElement>('[data-dd]');
   const form = root?.querySelector<HTMLFormElement>('[data-dd-form]');
@@ -114,7 +114,7 @@ const I18N = {
     const render = () => {
       const c = state.config;
       field('threshold').value = String(state.threshold);
-      root.querySelector('[data-dd-bag]')!.textContent = fill(i18n.bag, state.bag);
+      root.querySelector('[data-dd-bag]')!.textContent = fill(i18n.bag, { ...state.bag });
       const n = dangerFaces(state.threshold);
       root.querySelector('[data-dd-danger]')!.textContent = n ? fill(i18n.danger, { max: n }) : i18n.noDanger;
       for (const td of root.querySelectorAll<HTMLElement>('[data-dd-chance]')) {
@@ -123,15 +123,17 @@ const I18N = {
       }
       const noDice = c.light + c.dark === 0;
       for (const b of root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]')) b.disabled = noDice;
-      const log = root.querySelector('[data-dd-log]')!;
-      log.replaceChildren(...(state.log.length ? state.log.map((e) => {
+      const log = root.querySelector<HTMLElement>('[data-dd-log]')!;
+      log.hidden = !state.log.length;
+      root.querySelector<HTMLElement>('[data-dd-empty]')!.hidden = state.log.length > 0;
+      log.replaceChildren(...state.log.map((e) => {
         const li = document.createElement('li');
         const dice = e.dice.map((d, i) => `${i18n[d.color]} ${d.value}${e.dice.length > 1 && i === e.kept ? ` (${i18n.kept})` : ''}`).join(', ');
         const extra = [e.refilled && i18n.refilled, e.pair && i18n.pair[e.pair]].filter(Boolean).join('; ');
         li.textContent = `${e.manual ? i18n.manual : i18n[e.mode]}: ${dice} → ${i18n.outcome[e.outcome]}; T ${e.before} → ${e.after}${extra ? `; ${extra}` : ''}`;
         if (e.outcome === 'event') li.className = 'dd-event';
         return li;
-      }) : [Object.assign(document.createElement('li'), { textContent: i18n.empty, className: 'dd-empty' })]));
+      }));
     };
 
     form.addEventListener('change', (ev) => {
@@ -162,12 +164,21 @@ const I18N = {
 </script>
 
 <style>
-  .dd { margin: 32px 0 8px; padding: 20px; border: 1px solid var(--og-border); border-radius: 12px; background: var(--og-bg-2); }
-  .dd-title { margin-top: 0; }
+  .dd { margin: 24px 0; border: 1px solid var(--og-border); border-radius: 12px; background: var(--og-bg-2); }
+  .dd[open] { padding-bottom: 20px; }
+  .dd > :not(summary) { margin-left: 20px; margin-right: 20px; }
+  .dd-title {
+    cursor: pointer; padding: 14px 20px; min-height: 44px; box-sizing: border-box;
+    font-family: var(--font-display); font-weight: 600; font-size: 17px; color: var(--og-text);
+  }
+  .dd-title:hover { color: var(--og-accent); }
+  .dd-title:focus-visible { outline: 2px solid var(--og-accent); outline-offset: -2px; border-radius: 12px; }
+  .dd[open] .dd-title { border-bottom: 1px solid var(--og-border); margin-bottom: 16px; }
   .dd-nojs { color: var(--og-text-muted); margin: 0; }
   .dd fieldset { border: 0; margin: 0 0 16px; padding: 0; min-width: 0; }
   .dd legend { font-weight: 600; color: var(--og-text-2); margin-bottom: 8px; padding: 0; }
-  .dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(150px, 1fr)); gap: 10px 14px; }
+  .dd-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(130px, 1fr)); gap: 10px 14px; }
+  .dd-grid code { font-size: 12px; }
   .dd-grid label, .dd-manual label { display: flex; flex-direction: column; gap: 4px; font-size: 13.5px; color: var(--og-text-muted); }
   .dd input[type='number'], .dd select {
     font: inherit; font-size: 16px; color: var(--og-text); background: var(--og-bg); border: 1px solid var(--og-border-strong);
@@ -189,9 +200,9 @@ const I18N = {
   .dd-primary { background: var(--og-accent); border-color: var(--og-accent); color: var(--og-on-accent, #fff); }
   .dd-manual { display: flex; flex-wrap: wrap; align-items: flex-end; gap: 10px 14px; }
   .dd-manual label { flex: 1 1 150px; }
-  .dd-log-h { margin: 8px 0; }
+  .dd-log-h { margin: 8px 0; font-weight: 600; color: var(--og-text-2); }
   .dd-log { margin: 0; padding-left: 20px; max-height: 280px; overflow-y: auto; font-size: 14px; color: var(--og-text-2); }
   .dd-log li { margin: 2px 0; }
   .dd-log .dd-event { color: var(--og-warm); }
-  .dd-log .dd-empty { list-style: none; margin-left: -20px; color: var(--og-text-muted); }
+  .dd-empty { margin: 0; color: var(--og-text-muted); }
 </style>

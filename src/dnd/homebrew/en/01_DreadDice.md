@@ -16,6 +16,8 @@ With **advantage** or **disadvantage**, draw **one** die, roll it twice and use 
 
 The bag isn't used for every check: the GM tells you when it's in play. The mechanic doesn't replace the usual rules.
 
+<!-- dread-dice-calculator -->
+
 ## Game Master's Guide
 
 ### What It's For
@@ -118,7 +120,7 @@ The GM can move the parameters either way:
 
 For the players there is **always one** bag. By default one colour of dangerous dice is enough: the GM decides which threat shows itself in a scene. The players don't need to know how many threats are in play.
 
-If you want a mechanical difference, put dice of several dangerous colours into **the same bag**: for example, black for the pursuer, red for the curse. Each colour has its own `T₀`, `T` and `Δ`; the colour drawn decides which counter changes. The calculator below tracks one threat; for several colours, use one calculator per threat or track the counters by hand.
+If you want a mechanical difference, put dice of several dangerous colours into **the same bag**: for example, black for the pursuer, red for the curse. Each colour has its own `T₀`, `T` and `Δ`; the colour drawn decides which counter changes. The calculator on the site tracks one threat; for several colours, use one calculator per threat or track the counters by hand.
 
 ### Exhaustible Bag (Optional Mode)
 
@@ -146,7 +148,7 @@ This gives the bag a memory: if the light dice are nearly gone, a dark one becom
 
 ## Calculator
 
-The calculator below is a GM's tool: it shows the chance of an event on the next check, rolls dice from a virtual bag, and tracks the current threshold and a log. The rules above read fine without it.
+The calculator on the page of these rules at rules.omnisgm.com is a GM's tool, a collapsed block before the Game Master's Guide. It shows the chance of an event on the next check, rolls dice from a virtual bag, and tracks the current threshold and a log. The rules above read fine without it.
 
 **What it computes.** Let `n = max(0, T − 1)` be the number of dangerous results (1…T−1), and `N = W + B` the dice in the bag right now.
 

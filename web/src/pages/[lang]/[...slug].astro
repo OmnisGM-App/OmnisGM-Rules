@@ -63,6 +63,12 @@ const isLegal = /(^|\/)legal(\/|$)/i.test(ref.slug);
 const mdKind = ref.game !== 'dnd' || isLegal ? '' : homebrewPage ? t('хоумбрю', 'homebrew') : isClass ? t('класс', 'class') : t('правила', 'rules');
 const isDreadDice = homebrewPage && ref.slug === 'dread-dice';
 const hero = homebrewPage ? entityImage('dnd', 'homebrew', ref.slug) : null;
+// Калькулятор встаёт в статью на место метки из markdown; без метки сборка падает, а не прячет его.
+const CALC_MARK = '<!-- dread-dice-calculator -->';
+const calcParts = isDreadDice ? (entry.rendered?.html ?? '').split(CALC_MARK) : [];
+if (isDreadDice && calcParts.length !== 2) {
+  throw new Error(`${entry.id}: метка ${CALC_MARK} должна стоять в тексте ровно один раз`);
+}
 const HERO_W = 1200;
 const HERO_H = 630;
 const title = pageTitle({
@@ -100,6 +106,11 @@ const description = homebrewDescription ? t(homebrewDescription.ru, homebrewDesc
 >
   {hero && <DocHero image={hero} alt={searchTitle} width={HERO_W} height={HERO_H} />}
   {needsHeading && <h1>{searchTitle}</h1>}
-  <Content />
-  {isDreadDice && <DreadDiceCalc lang={ref.lang} />}
+  {isDreadDice ? (
+    <>
+      <Fragment set:html={calcParts[0]} />
+      <DreadDiceCalc lang={ref.lang} />
+      <Fragment set:html={calcParts[1]} />
+    </>
+  ) : <Content />}
 </ReaderShell>
