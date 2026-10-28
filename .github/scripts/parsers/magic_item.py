@@ -202,7 +202,7 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
         for bonus in ("+1", "+2", "+3"):
             if bonus not in by_mark:
                 raise ValueError(f"{where}: no rarity for {bonus} in {type_line!r}")
-            rows.append({"name": f"{base} {bonus}", "rarity": by_mark[bonus],
+            rows.append({"name": f"{base} {bonus}", "rarity": by_mark[bonus], "bonus": int(bonus),
                          "text": f"{body}\n\n**{_BONUS_LABEL[lang]}:** {bonus}"})
     if len(rows) != expected:
         raise ValueError(f"{where}: {len(rows)} varieties, declared {expected}")
@@ -219,6 +219,7 @@ def _varieties(parent: dict, type_line: str, lang: str) -> list[dict]:
         "description_md": row["text"],
         "spells": _extract_spell_refs(row["text"]),
         "group": parent["slug"],
+        "bonus": row.get("bonus"),
     } for row in rows]
 
 
@@ -304,6 +305,7 @@ def parse_magic_items(text: str, heading_level: int, lang: str,
             "description_md": description_md,
             "spells": spell_refs,
             "group": None,
+            "bonus": None,
         }
         if families and slug in MAGIC_FAMILIES:
             # Семейство — группа (`_group`): в `magic-items` идут её разновидности (#412).
