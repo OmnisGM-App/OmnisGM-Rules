@@ -75,3 +75,32 @@ test('ползунок состава сразу пересчитывает ша
   await expect(page.locator('[data-dd-bag] .dd-die-dark')).toHaveCount(3);
   await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('7,5 %');
 });
+
+test('бросок между жестами ползунков не откатывается следующим ползунком', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  await page.locator('input[name="dark"]').fill('2');
+  await page.locator('[data-dd-roll="normal"]').click();
+  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
+  await page.locator('input[name="light"]').fill('4');
+  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
+});
+
+test('жест T₀ без change (вернулся к исходному) → бросок → другой ползунок: журнал и T на месте', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  await page.locator('input[name="light"]').fill('0');
+  const base = page.locator('input[name="base"]');
+  for (const v of ['6', '9', '6', '5']) {
+    await base.evaluate((el, value) => {
+      (el as HTMLInputElement).value = value;
+      el.dispatchEvent(new Event('input', { bubbles: true }));
+    }, v);
+  }
+  await page.locator('[data-dd-roll="normal"]').click();
+  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
+  const t = await page.locator('input[name="threshold"]').inputValue();
+  await page.locator('input[name="dark"]').fill('3');
+  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
+  await expect(page.locator('input[name="threshold"]')).toHaveValue(t);
+});

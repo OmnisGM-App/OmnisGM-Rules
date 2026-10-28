@@ -154,11 +154,16 @@ export function reconfigure(state: State, next: Config): State {
   };
 }
 
+/** Начало жеста ползунком: порог и `T₀` до него и состояние, которое выдал последний шаг. */
+export interface DragAnchor { threshold: number; base: number; after: State }
+
 /**
- * Шаг перетаскивания ползунка: состояние считается от якоря — снимка в начале жеста, —
- * иначе кламп порога на промежуточных значениях съедает надбавку. Якорь сбрасывают на `change`.
+ * Шаг перетаскивания ползунка: `T` считается от начала жеста, иначе кламп на промежуточных
+ * значениях съедает надбавку. Якорь устаревает, как только состояние ушло вперёд помимо жеста
+ * (бросок, пополнение, ручной ввод): браузер не всегда шлёт `change` в конце жеста.
  */
-export function dragConfig(state: State, anchor: State | null, next: Config): { state: State; anchor: State } {
-  const from = anchor ?? state;
-  return { state: reconfigure(from, next), anchor: from };
+export function dragConfig(state: State, anchor: DragAnchor | null, next: Config): { state: State; anchor: DragAnchor } {
+  const from = anchor && anchor.after === state ? anchor : { threshold: state.threshold, base: state.config.base };
+  const after = { ...reconfigure(state, next), threshold: shiftThreshold(from.threshold, from.base, next.base) };
+  return { state: after, anchor: { threshold: from.threshold, base: from.base, after } };
 }

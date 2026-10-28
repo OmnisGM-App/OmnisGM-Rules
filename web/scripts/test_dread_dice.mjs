@@ -195,11 +195,22 @@ const CFG = { light: 1, dark: 1, base: 5, step: 1, resetWithStep: false, twoDice
   const start = { ...initialState({ ...CFG, base: 5 }), threshold: 8 };
   /** @type {import('../src/lib/dread-dice.ts').State} */
   let s = start;
-  /** @type {import('../src/lib/dread-dice.ts').State | null} */
+  /** @type {import('../src/lib/dread-dice.ts').DragAnchor | null} */
   let a = null;
   for (const base of [6, 10, 15, 20, 15, 10]) ({ state: s, anchor: a } = dragConfig(s, a, { ...s.config, base }));
   eq(s.threshold, 13, 'T₀ 5→20→10 одним жестом = 5→10 одним шагом: надбавка 3 сохраняется');
   eq(dragConfig(s, null, { ...s.config, base: 11 }).state.threshold, 14, 'после сброса якоря новый жест считается от текущего T');
+}
+{
+  /** @type {import('../src/lib/dread-dice.ts').State} */
+  let s = initialState({ ...CFG, light: 0, dark: 1 });
+  /** @type {import('../src/lib/dread-dice.ts').DragAnchor | null} */
+  let a = null;
+  for (const base of [6, 9, 6, 5]) ({ state: s, anchor: a } = dragConfig(s, a, { ...s.config, base }));
+  s = rollCheck(s, 'normal', seq([0.0, 0.5]));
+  eq([s.log.length, s.threshold], [1, 6], 'жест без change вернулся к T₀ = 5, затем бросок: тёмная 11, T 5 → 6');
+  ({ state: s, anchor: a } = dragConfig(s, a, { ...s.config, dark: 3 }));
+  eq([s.log.length, s.threshold, s.bag], [1, 6, { light: 0, dark: 3 }], 'жест без change → бросок → следующий жест сохраняет бросок и порог');
 }
 
 if (failed) {

@@ -104,6 +104,7 @@ const SLIDERS = [
   import {
     clampInt, nextCheckChance, initialState, rollCheck, recordResult, refill, dragConfig, dangerFaces,
   } from '../lib/dread-dice';
+  import type { DragAnchor } from '../lib/dread-dice';
 
   const root = document.querySelector<HTMLElement>('[data-dd]');
   const form = root?.querySelector<HTMLFormElement>('[data-dd-form]');
@@ -126,7 +127,7 @@ const SLIDERS = [
     };
 
     let state = initialState(readConfig());
-    let anchor: typeof state | null = null;
+    let anchor: DragAnchor | null = null;
 
     const render = () => {
       const c = state.config;
