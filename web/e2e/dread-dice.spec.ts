@@ -76,31 +76,51 @@ test('ползунок состава сразу пересчитывает ша
   await expect(page.locator('[data-dd-chance="normal"]')).toHaveText('7,5 %');
 });
 
-test('бросок между жестами ползунков не откатывается следующим ползунком', async ({ page }) => {
+/** Значение ползунка одним `input`, без `change` — как промежуточный шаг перетаскивания. */
+async function dragStep(page: import('@playwright/test').Page, name: string, value: string) {
+  await page.locator(`input[name="${name}"]`).evaluate((el, v) => {
+    (el as HTMLInputElement).value = v;
+    el.dispatchEvent(new Event('input', { bubbles: true }));
+  }, value);
+}
+
+test('один жест T₀ без change через край: надбавка сохраняется (T=8, T₀ 5→20→10 → T=13)', async ({ page }) => {
   await page.goto(URL_RU);
   await page.locator('details.dd > summary').click();
-  await page.locator('input[name="dark"]').fill('2');
-  await page.locator('[data-dd-roll="normal"]').click();
-  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
-  await page.locator('input[name="light"]').fill('4');
-  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
+  await page.locator('input[name="threshold"]').fill('8');
+  for (const v of ['6', '10', '15', '20', '15', '10']) await dragStep(page, 'base', v);
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('13');
 });
 
-test('жест T₀ без change (вернулся к исходному) → бросок → другой ползунок: журнал и T на месте', async ({ page }) => {
+test('change между жестами сбрасывает якорь (T=18, T₀ 5→20, затем 20→5 → T=5)', async ({ page }) => {
   await page.goto(URL_RU);
   await page.locator('details.dd > summary').click();
-  await page.locator('input[name="light"]').fill('0');
-  const base = page.locator('input[name="base"]');
-  for (const v of ['6', '9', '6', '5']) {
-    await base.evaluate((el, value) => {
-      (el as HTMLInputElement).value = value;
-      el.dispatchEvent(new Event('input', { bubbles: true }));
-    }, v);
-  }
-  await page.locator('[data-dd-roll="normal"]').click();
+  await page.locator('input[name="threshold"]').fill('18');
+  await page.locator('input[name="base"]').fill('20');
+  await page.locator('input[name="base"]').fill('5');
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('5');
+});
+
+test('pointerdown начинает новый жест: T=8, жест T₀ 5→20 без change, затем 20→10 → T=10', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  await page.locator('input[name="threshold"]').fill('8');
+  for (const v of ['10', '20']) await dragStep(page, 'base', v);
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('20');
+  await page.locator('input[name="base"]').dispatchEvent('pointerdown');
+  await dragStep(page, 'base', '10');
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('10');
+});
+
+test('жест T₀ без change → ручной ввод → другой ползунок: T и журнал на месте', async ({ page }) => {
+  await page.goto(URL_RU);
+  await page.locator('details.dd > summary').click();
+  await page.locator('details.dd-more > summary').click();
+  for (const v of ['6', '9', '6', '5']) await dragStep(page, 'base', v);
+  await dragStep(page, 'manualValue', '9');
+  await page.locator('[data-dd-manual]').dispatchEvent('click');
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('6');
+  await dragStep(page, 'dark', '3');
+  await expect(page.locator('input[name="threshold"]')).toHaveValue('6');
   await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
-  const t = await page.locator('input[name="threshold"]').inputValue();
-  await page.locator('input[name="dark"]').fill('3');
-  await expect(page.locator('[data-dd-log] li')).toHaveCount(1);
-  await expect(page.locator('input[name="threshold"]')).toHaveValue(t);
 });

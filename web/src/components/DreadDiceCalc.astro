@@ -175,6 +175,7 @@ const SLIDERS = [
       render();
     });
     form.addEventListener('change', () => { anchor = null; });
+    form.addEventListener('pointerdown', () => { anchor = null; });
     form.addEventListener('submit', (ev) => ev.preventDefault());
     root.querySelectorAll<HTMLButtonElement>('[data-dd-roll]').forEach((b) => b.addEventListener('click', () => {
       state = rollCheck(state, b.dataset.ddRoll as 'normal' | 'advantage' | 'disadvantage', Math.random);
