@@ -37,8 +37,9 @@ it — a hand-applied one is reported and ignored.
    **When to remove it yourself** (owner's decision 2026-10-23, OmnisGM-App/OmnisGM-News#163): the label was earned by the head
    the clean round read; a push that changes behaviour after it would merge unreviewed. Remove the label
    BEFORE that push and say why in the round comment when at least one holds:
-   - product code changes behaviour — a new branch, condition, data shape, query, API call or effect, in
-     any file, including files the clean round never saw;
+   - product code changes behaviour beyond what a finding of the labelling round names — a new branch,
+     condition, data shape, query, API call or effect the thread did not ask for, in any file, including
+     files the clean round never saw;
    - a medium finding was fixed by a different approach than the one named in the thread, not by the
      reviewer's own line;
    - gate, review, CI, deploy or security logic changed (workflows, the gate script, access rules) in anything
@@ -50,10 +51,11 @@ it — a hand-applied one is reported and ignored.
    In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
    **What is not a reason to remove it** (owner's decision 2026-10-28, Table#1315: six removals in one
    night, every one for a medium finding of the round that had just set the label, and every one bought a
-   round with new mediums): a medium or a remark that arrives in the round that set the label. Such a
-   finding is answered «не чиню: причина» or goes to an issue «➡️ #N» with the reviewer's recipe as its
-   checklist (`review-response.md` step 6); the one-line fix exactly as the reviewer wrote it is pushed
-   with the label. The label comes off for a ❗ fix, or for new work the owner asked for in this PR.
+   round with new mediums): a medium or a remark of the round that set the label, fixed in this PR as the
+   thread describes it — the reviewer's own recipe, of any length, in the files the finding names. Such
+   fixes go into one commit and are pushed with the label (`review-response.md` step 6). The label comes
+   off when a fix goes beyond its finding (the bullets above), for a ❗, or for new work the owner asked
+   for in this PR.
 2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
    and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
    an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,
