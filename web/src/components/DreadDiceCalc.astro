@@ -75,14 +75,14 @@ const SLIDERS = [
     <details class="dd-more">
       <summary>{t('Дополнительно', 'More')}</summary>
       <div class="dd-opts">
-        <label><input name="resetWithStep" type="checkbox" /> {t('Сброс с шагом: T₀ + Δ', 'Reset with step: T₀ + Δ')}</label>
+        <label><input name="resetWithStep" type="checkbox" /> {t('Сброс с шагом: T₀ + Δ', 'Reset plus step: T₀ + Δ')}</label>
         <label><input name="twoDice" type="checkbox" /> {t('Преимущество и помеха — двумя кубами', 'Advantage and disadvantage with two dice')}</label>
         <label><input name="exhaust" type="checkbox" /> {t('Исчерпаемый мешок', 'Exhaustible bag')}</label>
         <label><input name="pairEffects" type="checkbox" /> {t('Отмечать парные эффекты', 'Mark pair effects')}</label>
       </div>
       <div class="dd-manual">
         <span class="dd-manual-k">{t('Результат, брошенный за столом', 'Result rolled at the table')}</span>
-        <div class="dd-seg" role="radiogroup" aria-label={t('Цвет оставленного куба', 'Kept die colour')}>
+        <div class="dd-seg" role="radiogroup" aria-label={t('Цвет оставленного куба', 'Kept die color')}>
           <label><input type="radio" name="manualColor" value="dark" checked /> {t('тёмный', 'dark')}</label>
           <label><input type="radio" name="manualColor" value="light" /> {t('светлый', 'light')}</label>
         </div>

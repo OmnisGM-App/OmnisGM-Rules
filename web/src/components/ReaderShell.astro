@@ -75,7 +75,7 @@ const pathSys = Astro.url.pathname.match(/^\/(?:en|ru)\/(dnd|daggerheart|brp)\//
 const attribSys = activeSys !== 'home' ? activeSys : pathSys;
 const isHomebrew = isHomebrewPath(Astro.url.pathname);
 const HOMEBREW_ATTRIB = {
-  en: 'OmnisGM homebrew, not SRD material. The rules text is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; the OmnisGM brand, illustrations and code are not covered by this licence.',
+  en: 'OmnisGM homebrew, not SRD material. The rules text is licensed under <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; the OmnisGM brand, illustrations and code are not covered by this license.',
   ru: 'Хоумбрю OmnisGM, не материал SRD. Текст правил — лицензия <a href="https://creativecommons.org/licenses/by/4.0/" target="_blank" rel="noopener license">CC BY 4.0</a>; бренд OmnisGM, иллюстрации и код под неё не подпадают.',
 };
 const attribution = isHomebrew ? HOMEBREW_ATTRIB : attribSys ? ATTRIB[attribSys] : undefined;
