@@ -29,6 +29,12 @@ const imageURL = new URL(image, ORIGIN).toString();
 const twitterCard = imageWidth >= 600 ? 'summary_large_image' : 'summary';
 const ogLocale = lang === 'ru' ? 'ru_RU' : 'en_US';
 const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';
+// alt картинки превью (#464): общая карточка описана словами, у портрета сущности — её заголовок без имени сайта.
+const imageAlt = image === '/og.png'
+  ? (lang === 'ru'
+    ? 'OmnisGM Rules — справочник настольных ролёвок: D&D 5.2.1 и 5.1, Daggerheart, Basic Roleplaying'
+    : 'OmnisGM Rules — tabletop RPG reference: D&D 5.2.1 and 5.1, Daggerheart, Basic Roleplaying')
+  : title.replace(/ · OmnisGM Rules$/, '');
 ---
 <!DOCTYPE html>
 <html lang={lang} data-title-ru={bilingual ? titleRu : undefined}>
@@ -95,12 +101,14 @@ const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';
     <meta property="og:image" content={imageURL} />
     <meta property="og:image:width" content={String(imageWidth)} />
     <meta property="og:image:height" content={String(imageHeight)} />
+    <meta property="og:image:alt" content={imageAlt} />
     <meta property="og:locale" content={ogLocale} />
     <meta property="og:locale:alternate" content={ogAltLocale} />
     <meta name="twitter:card" content={twitterCard} />
     <meta name="twitter:title" content={title} />
     {description && <meta name="twitter:description" content={description} />}
     <meta name="twitter:image" content={imageURL} />
+    <meta name="twitter:image:alt" content={imageAlt} />
     {jsonLd && <script type="application/ld+json" set:html={JSON.stringify(jsonLd)} />}
   </head>
   <body>
