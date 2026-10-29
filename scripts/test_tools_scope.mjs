@@ -23,13 +23,13 @@ export function listOf(/** @type {string} */ text, /** @type {string} */ key) {
   return [...body.matchAll(/"([^"]+)"/g)].map((m) => m[1]);
 }
 
-/** `.mjs` каталога, путями от `web/` (как их пишет конфиг). */
+/** `.mjs` каталога со всеми подкаталогами (`scripts/og-card/`, #466), путями от `web/` (как их пишет конфиг). */
 function mjsOf(/** @type {string} */ rel) {
   const abs = resolve(REPO, 'web', rel);
   if (!existsSync(abs)) return [];
-  return readdirSync(abs, { withFileTypes: true })
-    .filter((e) => e.isFile() && e.name.endsWith('.mjs'))
-    .map((e) => `${rel}/${e.name}`);
+  return readdirSync(abs, { recursive: true, encoding: 'utf8' })
+    .filter((name) => name.endsWith('.mjs') && !name.split('/').includes('node_modules'))
+    .map((name) => `${rel}/${name}`);
 }
 
 /**
