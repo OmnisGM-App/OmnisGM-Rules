@@ -7,7 +7,7 @@ test('термин: страница рендерится, индексируе�
   expect(res?.status()).toBe(200);
   await expect(page.locator('.rd-doc h1')).toContainText('Преимущество');
   await expect(page.locator('.ent-en')).toHaveText('Advantage');
-  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'max-image-preview:large');
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 });
 

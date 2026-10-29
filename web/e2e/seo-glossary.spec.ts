@@ -23,12 +23,12 @@ test('контентная страница: индексируема (robots �
 
 test('rules-glossary — контентная глава, НЕ noindex', async ({ page }) => {
   await page.goto(RULES_GLOSSARY);
-  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'max-image-preview:large');
 });
 
-test('справочник без хаба (#106): индексируем — без robots-meta, с hreflang', async ({ page }) => {
+test('справочник без хаба (#106): индексируем — robots только с крупным превью, с hreflang', async ({ page }) => {
   await page.goto(GLOSSARY_INDEXED);
-  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'max-image-preview:large');
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 });
 
