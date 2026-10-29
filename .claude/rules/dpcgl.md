@@ -27,9 +27,10 @@ reasoning lives outside this public repo; this file keeps only the parts a routi
    seansbox conversion the EN text is partly built from). The licence's stock sentence «There are no previous
    modifications by others» must NOT be used: for us it is false.
 4. The e2e «DPCGL: атрибуция §4.1 в футере и §2.5 в `<title>`» in `web/e2e/daggerheart.spec.ts` holds the
-   §4.1 attribution in the footer and «SRD» in hub titles that fit the first rung of the ladder; the short rung
-   (`short ? 'Daggerheart SRD' : …`) has no test yet — Rules#446. e2e does not run in CI, so a change to the title
-   ladder or to `ATTRIB` runs that spec by hand before the push.
+   §4.1 attribution in the footer and «SRD» in hub titles that fit the first rung of the ladder. The `<title>` of
+   EVERY built Daggerheart page — the short rung (`short ? 'Daggerheart SRD' : …`) included, reached by long
+   adversary names — is held in CI by `web/scripts/verify_dist_trademark.mjs` (`dpcglTitleProblem`, #446): «Daggerheart SRD»
+   present, no bare «Daggerheart». e2e does not run in CI, so a change to `ATTRIB` runs that spec by hand before the push.
 
 Adding another licensed system: its attribution formula and trademark line come from its licence before the
 first content commit (`third-party-trademarks.md` rule 5).

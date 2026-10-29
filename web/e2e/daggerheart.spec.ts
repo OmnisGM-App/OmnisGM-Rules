@@ -136,6 +136,14 @@ test('hovercard-бакет daggerheart отдаёт карточки терми�
   expect(map['rules-terms/action-roll']).toBeTruthy();
 });
 
+test('DPCGL §2.5: короткая ступень лестницы title сохраняет «SRD» (#446)', async ({ page }) => {
+  // Длинное имя противника доходит до короткой метки системы — там «SRD» выпадать не должен.
+  await page.goto('/ru/daggerheart/srd-1.0/adversaries/volcanic-dragon-obsidian-predator/');
+  const title = await page.title();
+  expect(title).toMatch(/Daggerheart SRD$/);
+  expect(title).not.toMatch(/Daggerheart(?! SRD)/);
+});
+
 test('DPCGL: атрибуция §4.1 в футере и §2.5 в <title>', async ({ page }) => {
   for (const [url, mods, prevMods] of [
     ['/ru/daggerheart/srd-1.0/adversaries/all/', /переведён на русский/, /сообществной конверсии/],
