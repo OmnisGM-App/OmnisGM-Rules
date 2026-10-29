@@ -58,7 +58,9 @@ const imageAlt = ownAlt || (image === '/og.png'
     )}
     <title>{title}</title>
     {description && <meta name="description" content={description} />}
-    {isGlossary && <meta name="robots" content="noindex, follow" />}
+    {/* Индексируемым страницам — крупное превью картинки в выдаче (#468): без директивы Google ограничен
+        миниатюрой, сколько бы пикселей ни было у og:image. */}
+    <meta name="robots" content={isGlossary ? 'noindex, follow' : 'max-image-preview:large'} />
     <link rel="canonical" href={canonicalURL} />
     {/* hreflang-кластер. Взаимоисключающе: корень «/» — через bilingual; остальные страницы — через alternates.
         Google требует взаимности (односторонний hreflang игнорируется) — RU/EN-пара выводит одинаковую тройку. */}

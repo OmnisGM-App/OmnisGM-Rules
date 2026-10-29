@@ -11,7 +11,7 @@ test('группа: все варианты на одной странице, я
   await expect(page.getByTestId('class-option').filter({ has: page.locator('#agonizing-blast') }).locator('.class-option-meta'))
     .toContainText('Требование: Колдун 2-го уровня');
   await expect(page.locator('.class-option-lead a')).toHaveAttribute('href', '/ru/dnd/srd-5.2/classes/warlock/');
-  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'max-image-preview:large');
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 });
 

@@ -17,6 +17,8 @@ export interface NavGroup {
   ru: string;
   en: string;
   kids: NavNode[];
+  // Имя документа в хлебных крошках, когда метка редакции («SRD 1.0») сама систему не называет (#468).
+  crumb?: string;
 }
 export type NavNode = NavPage | NavGroup;
 export const isGroup = (n: NavNode): n is NavGroup => 'kids' in n;
@@ -30,7 +32,8 @@ function pathToSlug(path: string): string {
 
 const page = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path) });
 const hidden = (id: string, ru: string, en: string, path: string): NavPage => ({ id, ru, en, slug: pathToSlug(path), hidden: true });
-const group = (id: string, ru: string, en: string, kids: NavNode[]): NavGroup => ({ id, ru, en, kids });
+const group = (id: string, ru: string, en: string, kids: NavNode[], crumb?: string): NavGroup =>
+  crumb ? { id, ru, en, kids, crumb } : { id, ru, en, kids };
 
 // Классы D&D — одни и те же имена в 5.2/5.1 (разный индекс папки).
 export const DND_CLASSES: [string, string, string][] = [
@@ -150,7 +153,7 @@ export const NAV: NavNode[] = [
         page('dh-domaincards-hub', 'Доменные карты (справочник)', 'Domain Cards (Reference)', '/daggerheart/srd-1.0/domain-cards/all/'),
         page('dh-environments-hub', 'Окружения (справочник)', 'Environments (Reference)', '/daggerheart/srd-1.0/environments/all/'),
       ]),
-    ]),
+    ], 'Daggerheart SRD 1.0'),
   ]),
 
   group('brp', 'Basic Roleplaying', 'Basic Roleplaying', [
@@ -174,7 +177,7 @@ export const NAV: NavNode[] = [
         page('brp-professions-hub', 'Профессии (справочник)', 'Professions (Reference)', '/brp/srd-1.0/professions/all/'),
         page('brp-spotrules-hub', 'Точечные правила (справочник)', 'Spot Rules (Reference)', '/brp/srd-1.0/spot-rules/all/'),
       ]),
-    ]),
+    ], 'Basic Roleplaying SRD 1.0'),
   ]),
 ];
 

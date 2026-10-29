@@ -116,7 +116,8 @@ if (currentId !== 'home' && trail.length) {
     if (i === 0 && isGroup(n) && trail[1] && isGroup(trail[1])) return;
     if (!isGroup(n)) { crumbs.push({ name: label(n, lang), url: routeOf(n.slug, lang) }); return; }
     const isDoc = i === 1 && isGroup(trail[0]);
-    crumbs.push({ name: label(n, lang), url: isDoc ? docRoute(n) : null });
+    // Игра схлопнута — метка «SRD 1.0» осталась бы без имени системы (#468): у документа своё имя крошки.
+    crumbs.push({ name: (isDoc && n.crumb) || label(n, lang), url: isDoc ? docRoute(n) : null });
   });
   // Сущностные страницы, хабы и фасеты живут вне NAV (currentId — глава-родитель): дописываем текущую.
   if (crumbs[crumbs.length - 1].url !== currentPath) {
