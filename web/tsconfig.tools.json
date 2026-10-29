@@ -63,6 +63,7 @@
     "scripts/build-sw.mjs",
     "scripts/build_fingerprint.mjs",
     "scripts/cf_purge_urls.mjs",
+    "scripts/og-card/render.mjs",
     "scripts/check_csp.mjs",
     "scripts/copy-brand-assets.mjs",
     "scripts/entity-image-pages.mjs",

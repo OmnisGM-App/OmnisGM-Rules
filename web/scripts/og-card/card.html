@@ -1,0 +1,35 @@
+<!doctype html>
+<!-- OG-карточка 1200×630 (#466) для scripts/og-card/render.mjs. Раскладка — как у карточки v1, знак — компас
+     кита (`assets/mark.svg`, `assets/mark-outline.svg`); __BRAND__ — путь к ассетам кита. -->
+<html>
+<head>
+<meta charset="utf-8" />
+<style>
+  @font-face { font-family: Spectral; font-weight: 700; src: url('__BRAND__/fonts/spectral-700-latin.woff2') format('woff2'); }
+  @font-face { font-family: Inter; font-weight: 100 900; src: url('__BRAND__/fonts/inter-latin.woff2') format('woff2'); }
+  @font-face { font-family: Inter; font-weight: 100 900; src: url('__BRAND__/fonts/inter-cyrillic.woff2') format('woff2');
+               unicode-range: U+0400-045F, U+0490-0491, U+04B0-04B1, U+2116; }
+  html, body { margin: 0; }
+  body { width: 1200px; height: 630px; position: relative; overflow: hidden; font-family: Inter, sans-serif;
+         background: radial-gradient(circle at 30% 20%, #1a1c26 0%, #0f1016 70%); }
+  .ghost { position: absolute; left: 790px; top: 85px; width: 460px; height: 460px; color: #1e2230; }
+  .ghost svg { width: 100%; height: 100%; }
+  .brand { position: absolute; left: 96px; top: 106px; display: flex; align-items: center; gap: 14px;
+           color: #9a9cb0; font-size: 24px; font-weight: 700; letter-spacing: 0.14em; }
+  .brand img { width: 40px; height: 40px; }
+  .title { position: absolute; left: 92px; top: 188px; color: #e8e6f0; font-family: Spectral, serif;
+           font-weight: 700; font-size: 150px; line-height: 1; letter-spacing: -0.01em; }
+  .sub { position: absolute; left: 98px; top: 362px; color: #a1a3b8; font-size: 33px; }
+  .systems { position: absolute; left: 98px; top: 446px; color: #6f9bff; font-size: 26px; }
+  .url { position: absolute; left: 98px; top: 534px; color: #6b6d84; font-size: 22px; }
+</style>
+</head>
+<body>
+  <div class="ghost">__GHOST__</div>
+  <div class="brand"><img src="__BRAND__/mark.svg" alt="" />OMNISGM</div>
+  <div class="title">Rules</div>
+  <div class="sub">Tabletop RPG reference · справочник ролёвок</div>
+  <div class="systems">D&amp;D 5.2.1 · 5.1 · Daggerheart · Basic Roleplaying</div>
+  <div class="url">rules.omnisgm.com</div>
+</body>
+</html>
