@@ -33,6 +33,24 @@ for (const { url, image } of pages) {
   }
   const card = meta(html, 'name', 'twitter:card');
   if (card !== 'summary') errors.push(`${url}: twitter:card «${card}», ожидался summary — широкая карточка обрежет квадрат`);
+  // alt превью (#464) — то же имя, что у портрета на странице, без поисковой формы и бренда.
+  const alt = meta(html, 'property', 'og:image:alt');
+  const imgAlt = img && /\balt="([^"]*)"/.exec(img)?.[1];
+  if (!alt) errors.push(`${url}: нет og:image:alt`);
+  else {
+    if (alt !== meta(html, 'name', 'twitter:image:alt')) errors.push(`${url}: twitter:image:alt не равен og:image:alt «${alt}»`);
+    if (imgAlt !== undefined && alt !== imgAlt) errors.push(`${url}: og:image:alt «${alt}», а портрет подписан «${imgAlt}»`);
+    if (alt.includes('OmnisGM Rules')) errors.push(`${url}: og:image:alt с именем сайта «${alt}»`);
+  }
+}
+
+// Общая карточка og.png на главных (#464): alt есть и на языке страницы.
+for (const [url, lang] of [['/', 'en'], ['/en/', 'en'], ['/ru/', 'ru']]) {
+  const file = join(DIST, url, 'index.html');
+  if (!existsSync(file)) { errors.push(`${url}: страницы нет в dist`); continue; }
+  const alt = meta(readFileSync(file, 'utf8'), 'property', 'og:image:alt') ?? '';
+  if (!alt) errors.push(`${url}: нет og:image:alt у общей карточки`);
+  else if (/[а-яё]/i.test(alt) !== (lang === 'ru')) errors.push(`${url}: og:image:alt не на языке страницы (${lang}): «${alt}»`);
 }
 
 if (errors.length) {

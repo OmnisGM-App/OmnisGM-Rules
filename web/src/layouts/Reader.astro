@@ -15,10 +15,11 @@ export interface Props {
   image?: string;        // og:image (путь от корня); по умолчанию /og.png
   imageWidth?: number;   // реальные размеры картинки: у общего og.png — 1200×630,
   imageHeight?: number;  // у портрета существа (#201) — 512×512
+  imageAlt?: string;     // og:image:alt своей картинки (имя сущности, #464); без него — заголовок без имени сайта
   jsonLd?: object;       // граф schema.org (Organization/WebSite/BreadcrumbList/Article)
   alternates?: { en: string; ru: string; xDefault: string }; // hreflang-пары (пути от корня) для не-корневых страниц
 }
-const { title, description = '', lang = 'en', canonical, bilingual = false, titleRu, image = '/og.png', imageWidth = 1200, imageHeight = 630, jsonLd, alternates } = Astro.props;
+const { title, description = '', lang = 'en', canonical, bilingual = false, titleRu, image = '/og.png', imageWidth = 1200, imageHeight = 630, imageAlt: ownAlt, jsonLd, alternates } = Astro.props;
 const canonicalURL = canonical ?? new URL(Astro.url.pathname, Astro.site).toString();
 const ORIGIN = Astro.site ? Astro.site.origin : 'https://rules.omnisgm.com';
 // Глоссарные страницы по умолчанию noindex,follow (issue #37); содержательные справочники без
@@ -29,12 +30,13 @@ const imageURL = new URL(image, ORIGIN).toString();
 const twitterCard = imageWidth >= 600 ? 'summary_large_image' : 'summary';
 const ogLocale = lang === 'ru' ? 'ru_RU' : 'en_US';
 const ogAltLocale = lang === 'ru' ? 'en_US' : 'ru_RU';
-// alt картинки превью (#464): общая карточка описана словами, у портрета сущности — её заголовок без имени сайта.
-const imageAlt = image === '/og.png'
+// alt картинки превью (#464): общая карточка описана словами, своя картинка — именем от страницы,
+// запасной путь — заголовок без имени сайта.
+const imageAlt = ownAlt || (image === '/og.png'
   ? (lang === 'ru'
     ? 'OmnisGM Rules — справочник настольных ролёвок: D&D 5.2.1 и 5.1, Daggerheart, Basic Roleplaying'
     : 'OmnisGM Rules — tabletop RPG reference: D&D 5.2.1 and 5.1, Daggerheart, Basic Roleplaying')
-  : title.replace(/ · OmnisGM Rules$/, '');
+  : title.replace(/ · OmnisGM Rules$/, ''));
 ---
 <!DOCTYPE html>
 <html lang={lang} data-title-ru={bilingual ? titleRu : undefined}>
