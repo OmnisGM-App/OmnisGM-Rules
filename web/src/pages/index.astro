@@ -14,7 +14,8 @@ const r = (id: string) => {
   return n && !isGroup(n) ? routeOf(n.slug, 'en') : '/en/';
 };
 
-const title = 'OmnisGM Rules — tabletop RPG SRD reference (D&D, Daggerheart, BRP)';
+// ≤ 65 символов (бюджет verify_dist_meta_budget.mjs, #468) и не равен заголовку /en/.
+const title = 'OmnisGM Rules — TTRPG SRD reference: D&D, Daggerheart, BRP';
 const titleRu = 'OmnisGM Rules — ридер SRD настольных игр (D&D, Daggerheart, BRP)';
 const description =
   'Tabletop RPG SRDs in English and Russian: D&D 5.2.1 and 5.1, Daggerheart, Basic Roleplaying — full rules, a page per spell and monster, Markdown sources.';

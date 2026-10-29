@@ -23,6 +23,18 @@ test('уровни ведут на разные адреса, документ �
   expect(items[2].url).toBe(`${SITE}/ru/dnd/srd-5.2/classes/warlock/`);
 });
 
+test('крошка документа Daggerheart и BRP называет систему (#468)', async ({ page }) => {
+  for (const [url, doc] of [
+    ['/en/daggerheart/srd-1.0/classes/bard/', 'Daggerheart SRD 1.0'],
+    ['/ru/brp/srd-1.0/introduction/', 'Basic Roleplaying SRD 1.0'],
+  ]) {
+    await page.goto(url);
+    expect((await trail(page))[1].name, url).toBe(doc);
+    // Видимая строка — тот же массив, что разметка (#220).
+    await expect(page.locator('.rd-crumb a').nth(1), url).toHaveText(doc);
+  }
+});
+
 test('на страницах 5.1 крошка документа не прыгает в 5.2', async ({ page }) => {
   await page.goto('/ru/dnd/srd-5.1/legal/');
   for (const item of await trail(page)) expect(item.url, item.name).not.toContain('/srd-5.2/');

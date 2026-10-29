@@ -15,9 +15,9 @@ test('глоссарий: noindex,follow и без hreflang', async ({ page }) =
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(0);
 });
 
-test('контентная страница: индексируема (без robots-meta) и с тройкой hreflang', async ({ page }) => {
+test('контентная страница: индексируема (robots — только крупное превью, #468) и с тройкой hreflang', async ({ page }) => {
   await page.goto(CONTENT);
-  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'max-image-preview:large');
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 });
 

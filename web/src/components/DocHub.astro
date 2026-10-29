@@ -70,8 +70,9 @@ const chapterCount = chapters.reduce((n, c) => n + (isGroup(c) ? c.kids.length :
 const entityCount = compendiums.reduce((n, c) => n + (totalOf(c) ?? 0), 0);
 const sections = pluralRu(chapterCount, ['раздел', 'раздела', 'разделов']);
 const pages = pluralRu(entityCount, ['страница', 'страницы', 'страниц']);
+// RU короче EN на хвост: «со ссылками на каждую» выводило сниппет хаба 5.2.1 за 155 символов (#468).
 const description = t(
-  `${sysLabel} ${verLabel} на русском: ${chapterCount} ${sections} правил и справочники — ${entityCount} ${pages} заклинаний, монстров, предметов и других сущностей со ссылками на каждую.`,
+  `${sysLabel} ${verLabel} на русском: ${chapterCount} ${sections} правил и справочники — ${entityCount} ${pages} заклинаний, монстров, предметов и других сущностей.`,
   `${sysLabel} ${verLabel} in full: ${chapterCount} rules sections plus reference compendiums — ${entityCount} pages of spells, monsters, items and other entities, each linked.`,
 );
 

@@ -71,7 +71,7 @@ test('хаб индексируем: в sitemap, с hreflang-парой и self-
   await expect(page.locator('head link[rel="canonical"]')).toHaveAttribute(
     'href', 'https://rules.omnisgm.com/ru/dnd/srd-5.2/',
   );
-  await expect(page.locator('head meta[name="robots"]')).toHaveCount(0);
+  await expect(page.locator('head meta[name="robots"]')).toHaveAttribute('content', 'max-image-preview:large');
   await expect(page.locator('head link[rel="alternate"][hreflang]')).toHaveCount(3);
 
   const xml = await (await request.get('/sitemap-0.xml')).text();

@@ -1,7 +1,8 @@
 // lastmod в sitemap (issue #221) — postbuild, сразу после astro build.
 // Дата — из САМОЙ собранной страницы (`dateModified` JSON-LD, #219), а не serialize в @astrojs/sitemap:
 // тот потребовал бы заново собрать карту URL→файл, продублировав роутинг. Дата билда у всех разом
-// обесценивает lastmod. Страницы без Article (языковые хабы) остаются без `lastmod`.
+// обесценивает lastmod. У языковых хабов (`/`, `/en/`, `/ru/`) Article нет: им — самая свежая дата
+// страниц их языка (корню — всех), то есть тоже дата контента, а не сборки (#468).
 import { readdirSync, readFileSync, writeFileSync } from 'node:fs';
 import { dirname, resolve } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -43,17 +44,50 @@ function pageDate(url) {
   }
 }
 
-let files = 0;
-let stamped = 0;
-let missing = 0;
+const HUBS = new Set([`${ORIGIN}/`, `${ORIGIN}/en/`, `${ORIGIN}/ru/`]);
+/** @type {Record<string, number>} самая свежая дата по языку ('' — по всем) */
+const newest = {};
+/** @type {Record<string, string>} её исходная запись (с часовым поясом страницы) */
+const newestIso = {};
+const URL_RE = /<url><loc>([^<]+)<\/loc>(?:<lastmod>[^<]*<\/lastmod>)?/g;
 
+/** @type {{file: string, xml: string}[]} */
+const sitemaps = [];
 for (const name of readdirSync(DIST)) {
   if (!/^sitemap-\d+\.xml$/.test(name)) continue;
-  files++;
   const file = resolve(DIST, name);
-  const xml = readFileSync(file, 'utf8');
-  const out = xml.replace(/<url><loc>([^<]+)<\/loc>(?:<lastmod>[^<]*<\/lastmod>)?/g, (_, url) => {
-    const date = pageDate(url);
+  sitemaps.push({ file, xml: readFileSync(file, 'utf8') });
+}
+const files = sitemaps.length;
+
+// Первый проход — даты страниц и самые свежие по языку для хабов.
+/** @type {Map<string, string|null>} */
+const dates = new Map();
+for (const { xml } of sitemaps) {
+  for (const [, url] of xml.matchAll(URL_RE)) {
+    const date = HUBS.has(url) ? null : pageDate(url);
+    dates.set(url, date);
+    if (!date) continue;
+    const lang = url.slice(ORIGIN.length + 1, ORIGIN.length + 3);
+    for (const key of ['', lang]) {
+      const t = Date.parse(date);
+      if (!(t <= newest[key])) {
+        newest[key] = t;
+        newestIso[key] = date;
+      }
+    }
+  }
+}
+for (const hub of HUBS) {
+  const lang = hub.slice(ORIGIN.length + 1, ORIGIN.length + 3);
+  dates.set(hub, newestIso[hub === `${ORIGIN}/` ? '' : lang] ?? null);
+}
+
+let stamped = 0;
+let missing = 0;
+for (const { file, xml } of sitemaps) {
+  const out = xml.replace(URL_RE, (_, url) => {
+    const date = dates.get(url);
     if (!date) {
       missing++;
       return `<url><loc>${url}</loc>`;
@@ -77,13 +111,11 @@ if (!stamped) {
   );
   process.exit(1);
 }
-// Без даты законно только языковые хабы; много таких — поехала маршрутизация или шаблон.
-const share = stamped / (stamped + missing);
-if (share < 0.99) {
+// Дата нужна каждому URL: хабы берут её у страниц своего языка (#468), остальные — из своего JSON-LD.
+if (missing) {
   console.error(
-    `[sitemap-lastmod] дата есть только у ${stamped} из ${stamped + missing} URL (${Math.round(share * 100)}%).\n` +
-      '  Ожидались единицы без даты (языковые хабы). Проверь, что URL из sitemap ведут на файлы dist\n' +
-      '  и что у страниц на месте JSON-LD с dateModified.',
+    `[sitemap-lastmod] без даты ${missing} из ${stamped + missing} URL.\n` +
+      '  Проверь, что URL из sitemap ведут на файлы dist и что у страниц на месте JSON-LD с dateModified.',
   );
   process.exit(1);
 }

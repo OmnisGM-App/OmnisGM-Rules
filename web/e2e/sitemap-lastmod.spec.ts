@@ -17,14 +17,23 @@ const entries = (xml: string) =>
     lastmod: m[2],
   }));
 
-test('lastmod есть почти у всех URL и в формате ISO 8601', async ({ request }) => {
+test('lastmod есть у всех URL и в формате ISO 8601', async ({ request }) => {
   const all = entries(await sitemap(request));
   expect(all.length).toBeGreaterThan(5000);
+  // Языковые хабы тоже с датой (#468): у них нет Article, дата — самая свежая у страниц их языка.
+  expect(all.filter((e) => !e.lastmod).map((e) => e.url)).toEqual([]);
+  for (const e of all.slice(0, 50)) expect(e.lastmod, e.url).toMatch(ISO);
+});
 
-  const withDate = all.filter((e) => e.lastmod);
-  // Без даты законно остаются только языковые хабы («/», «/en/», «/ru/») — у них нет Article.
-  expect(all.length - withDate.length).toBeLessThanOrEqual(3);
-  for (const e of withDate.slice(0, 50)) expect(e.lastmod, e.url).toMatch(ISO);
+test('языковой хаб датирован самой свежей страницей своего языка, корень — всех', async ({ request }) => {
+  const all = entries(await sitemap(request));
+  const newest = (prefix: string) =>
+    Math.max(...all.filter((e) => e.url.startsWith(prefix) && !/^https:\/\/[^/]+\/((en|ru)\/)?$/.test(e.url))
+      .map((e) => Date.parse(e.lastmod!)));
+  const at = (url: string) => Date.parse(all.find((e) => e.url === url)!.lastmod!);
+  expect(at(`${ORIGIN}/en/`)).toBe(newest(`${ORIGIN}/en/`));
+  expect(at(`${ORIGIN}/ru/`)).toBe(newest(`${ORIGIN}/ru/`));
+  expect(at(`${ORIGIN}/`)).toBe(newest(`${ORIGIN}/`));
 });
 
 test('lastmod совпадает с dateModified самой страницы', async ({ page, request }) => {

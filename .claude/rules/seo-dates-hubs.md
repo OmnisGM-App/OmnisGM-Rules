@@ -26,8 +26,23 @@ at once". That is why `ci.yml` and `deploy.yml` have `fetch-depth: 0` + `filter:
 Set by the postbuild script `web/scripts/add_sitemap_lastmod.mjs`: it reads `dateModified`
 from the JSON-LD of the already built pages (#219) and writes `<lastmod>` into `dist/sitemap-N.xml`. This way
 the routing and the "URL → source file" map are not duplicated anywhere — the sitemap and the page markup
-agree by construction. The script is idempotent and fails the build if there are no dates at all or they
-went missing on more than 1% of URLs (only the language hubs are legitimately dateless — they have no `Article`).
+agree by construction. The script is idempotent and fails the build if there are no dates at all or any URL
+is left without one. The language hubs (`/`, `/en/`, `/ru/`) have no `Article`: they get the newest date among
+the pages of their language (the root — of all pages), still a content date, never the build date (#468).
+
+## Breadcrumb name of a document (#468)
+
+The game level is collapsed into the edition (#220), so the edition label alone must name the system.
+D&D labels do («SRD 5.2.1 (5.5e, 2024)»); Daggerheart and BRP label the edition «SRD 1.0», so their NAV
+groups carry `crumb` («Daggerheart SRD 1.0», «Basic Roleplaying SRD 1.0») used in the breadcrumb instead.
+`verify_dist_meta_budget.mjs` fails on any breadcrumb named bare «SRD x.y».
+
+## Robots meta and snippet budget (#468)
+
+Every indexable page carries `<meta name="robots" content="max-image-preview:large">` (`Reader.astro`);
+noindex pages keep `noindex, follow`. The JSON API `/api/**` gets `X-Robots-Tag: noindex` from
+`firebase.json`. `verify_dist_meta_budget.mjs` fails on an indexable page without the directive and on a
+description longer than 155 characters on the entrances (`/`, `/en/`, `/ru/`, document hubs).
 
 ## Document-level hubs (#230)
 

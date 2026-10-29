@@ -11,7 +11,7 @@ const DIST = resolve(here, '../dist');
 const BUDGET = {
   dupDescriptionPages: 0,
   // Имя и редакцию лестница в page-title.ts не режет, тип — только последней ступенью; метка Daggerheart несёт «SRD» (DPCGL §2.5, #166).
-  longTitlePages: 1,
+  longTitlePages: 0,
   // Страниц с неуникальным <title>. Метка редакции («D&D 2024»/«D&D 2014») специально не
   // выпадает из лестницы — иначе одноимённые страницы 5.1 и 5.2 схлопнутся в дубли.
   dupTitlePages: 0,
@@ -22,6 +22,11 @@ const BUDGET = {
 // Нижняя граница комфортного сниппета: короче — Bing считает description «too short».
 const DESCRIPTION_MIN = 110;
 const TITLE_LIMIT = 65;
+// Верх сниппета (#468): длиннее Google режет хвост. Держим жёстко на входах — корнях и хабах
+// документов, где description пишется руками; сущностные страницы собираются из контента.
+const DESCRIPTION_MAX = 155;
+const isEntrance = (/** @type {string} */ page) =>
+  page === '/index.html' || /^\/(en|ru)\/(index\.html|[^/]+\/[^/]+\/index\.html)$/.test(page);
 // Разрешённая «недобранность»: если фактическое число упало ниже бюджета более чем на
 // SLACK, требуем обновить бюджет — иначе гейт молча перестаёт ловить регрессии.
 const SLACK = 25;
@@ -58,6 +63,9 @@ const modifiedDates = new Set();
 // Крошки (#220) проверяем после обхода: нужен полный список собранных страниц.
 const crumbTrails = []; // { page, urls }
 const noHeading = []; // страницы без <h1> (#228)
+const longEntrances = []; // { page, len } — входы с description длиннее DESCRIPTION_MAX
+const noPreview = []; // индексируемые страницы без max-image-preview:large (#468)
+const bareCrumbs = []; // { page, name } — крошка документа без имени системы («SRD 1.0», #468)
 const manyHeadings = []; // и с несколькими — второй H1 размывает тему не меньше, чем его отсутствие
 const pagePaths = new Set(); // '/ru/dnd/...' → страница существует в dist
 const byTitle = new Map(); // title → [страницы]
@@ -79,6 +87,7 @@ for (const file of htmlFiles(DIST)) {
     if (key) {
       withDescription++;
       if (key.length < DESCRIPTION_MIN) shortDescriptions.push({ page, len: key.length });
+      if (key.length > DESCRIPTION_MAX && isEntrance(page)) longEntrances.push({ page, len: key.length });
       if (!byDescription.has(key)) byDescription.set(key, []);
       byDescription.get(key).push(page);
     }
@@ -102,6 +111,9 @@ for (const file of htmlFiles(DIST)) {
     const crumbs = nodes.find((/** @type {any} */ n) => n['@type'] === 'BreadcrumbList');
     if (crumbs) {
       crumbTrails.push({ page, urls: (crumbs.itemListElement ?? []).map((/** @type {any} */ i) => i.item) });
+      for (const i of crumbs.itemListElement ?? []) {
+        if (/^SRD [\d.]+$/.test(String(i.name).trim())) bareCrumbs.push({ page, name: i.name });
+      }
     }
     if (article) {
       withArticle++;
@@ -109,6 +121,11 @@ for (const file of htmlFiles(DIST)) {
       if (missing.length) brokenArticles.push({ page, why: `Article без ${missing.join(', ')}` });
       if (article.dateModified) modifiedDates.add(article.dateModified);
     }
+  }
+
+  const robots = [...head.matchAll(/<meta\s+name="robots"\s+content="([^"]*)"/g)].map((m) => m[1].toLowerCase());
+  if (!robots.some((c) => c.includes('noindex')) && !robots.some((c) => c.includes('max-image-preview:large'))) {
+    noPreview.push(page);
   }
 
   const h1count = (html.match(/<h1[\s>]/g) ?? []).length;
@@ -256,6 +273,19 @@ if (noHeading.length) {
 if (manyHeadings.length) {
   errors.push(`страниц с несколькими <h1>: ${manyHeadings.length}`);
   for (const { page, n } of manyHeadings.slice(0, 10)) console.error(`    ${n}×h1 — ${page}`);
+}
+
+if (noPreview.length) {
+  errors.push(`индексируемых страниц без max-image-preview:large: ${noPreview.length}`);
+  for (const p of noPreview.slice(0, 5)) console.error(`    ${p}`);
+}
+if (longEntrances.length) {
+  errors.push(`description входа длиннее ${DESCRIPTION_MAX} символов: ${longEntrances.length} страниц`);
+  for (const { page, len } of longEntrances.slice(0, 10)) console.error(`    ${len} — ${page}`);
+}
+if (bareCrumbs.length) {
+  errors.push(`крошек без имени системы («SRD 1.0»): ${bareCrumbs.length} страниц`);
+  for (const { page, name } of bareCrumbs.slice(0, 5)) console.error(`    «${name}» — ${page}`);
 }
 
 // BreadcrumbList живёт в одном блоке шаблона с Article — покрытие сверяем с ним.

@@ -157,6 +157,12 @@
           { "key": "Cache-Control", "value": "no-cache" },
           { "key": "Access-Control-Allow-Origin", "value": "*" }
         ]
+      },
+      {
+        "source": "/api/**",
+        "headers": [
+          { "key": "X-Robots-Tag", "value": "noindex" }
+        ]
       }
     ]
   }
