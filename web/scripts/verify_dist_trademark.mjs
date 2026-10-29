@@ -46,6 +46,7 @@ export function dpcglTitleProblem(/** @type {string} */ title) {
 const errors = [];
 if (!dpcglTitleProblem('Вулканический дракон: Обсидиановый хищник — Daggerheart')) errors.push('самопроверка: голая марка в <title> не замечена');
 if (!dpcglTitleProblem('Бард — класс · OmnisGM Rules')) errors.push('самопроверка: <title> без источника не замечен');
+if (!dpcglTitleProblem('Daggerheart: хищник — Daggerheart SRD')) errors.push('самопроверка: голая марка рядом с «Daggerheart SRD» не замечена');
 if (dpcglTitleProblem('Вулканический дракон: Обсидиановый хищник — Daggerheart SRD') !== null) errors.push('самопроверка: короткая ступень засчитана ошибкой');
 // Самопроверка: страница без строки и со строкой чужого языка — ошибки; чужая разметка — не страница.
 if (!trademarkProblem('<html lang="en"><main class="rd-content">x</main>', false)) errors.push('самопроверка: пропажа строки не замечена');
@@ -64,7 +65,8 @@ for (const file of pages(DIST)) {
   if (/^(en|ru)\/daggerheart\//.test(rel.split('\\').join('/'))) {
     const title = html.match(/<title>([^<]*)<\/title>/)?.[1] ?? '';
     dhTitles++;
-    if (title.endsWith('Daggerheart SRD')) dhShortRung++;
+    // Короткая метка — «Daggerheart SRD» без версии; в EN за ней ещё идёт тип («… Daggerheart SRD adversary»).
+    if (/Daggerheart SRD(?! \d)/.test(title)) dhShortRung++;
     const bad = dpcglTitleProblem(title);
     if (bad) errors.push(`${rel}: ${bad} («${title}»)`);
   }
@@ -84,4 +86,4 @@ if (errors.length) {
   process.exit(1);
 }
 console.log(`✅ Товарные знаки в dist: строка на месте у ${checked} страниц справочника, llms.txt в порядке; ` +
-  `<title> Daggerheart по DPCGL §2.5 у ${dhTitles} страниц (короткая ступень — ${dhShortRung}); 6 самопроверок`);
+  `<title> Daggerheart по DPCGL §2.5 у ${dhTitles} страниц (короткая ступень — ${dhShortRung}); 7 самопроверок`);
