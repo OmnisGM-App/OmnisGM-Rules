@@ -28,13 +28,14 @@ export interface Props {
   image?: string;        // og:image страницы (портрет существа, #201); по умолчанию общий og.png
   imageWidth?: number;
   imageHeight?: number;
+  imageAlt?: string;     // og:image:alt своей картинки; по умолчанию searchTitle (чистое имя сущности)
   // Откуда собран контент сущностной страницы (#219) — для дат изменения из git.
   contentSource?: { game: string; ver: string; lang: string; resource: string };
   entitySlug?: string;   // слаг сущности: CTA ведёт на неё в компендиум Table (#164)
   // Хаб редакции (#230): даты — по всем файлам документа.
   docSource?: { game: string; version: string; lang: string };
 }
-const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, contentSource, entitySlug, docSource } = Astro.props;
+const { lang, currentId, title, description, headings = [], sourceId, searchTitle, bilingual = false, titleRu, upLink, image, imageWidth, imageHeight, imageAlt, contentSource, entitySlug, docSource } = Astro.props;
 const REPO = 'https://github.com/OmnisGM-App/OmnisGM-Rules';
 const REPO_BRANCH = 'main'; // дефолтная ветка репо — для ссылок «Источник»
 const MAIN = 'https://omnisgm.com';
@@ -207,7 +208,7 @@ const searchUi = {
   },
 };
 ---
-<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd} alternates={alternates} image={image} imageWidth={imageWidth} imageHeight={imageHeight}>
+<Reader title={title} description={description} lang={lang} bilingual={bilingual} titleRu={titleRu} jsonLd={jsonLd} alternates={alternates} image={image} imageWidth={imageWidth} imageHeight={imageHeight} imageAlt={imageAlt ?? (image ? searchTitle : undefined)}>
   <div class="rd-root">
     {/* Мобильные тогглы на CSS-радио (без JS): якоря первыми в .rd-root. Общий name="rd-panel"
         делает панели взаимоисключающими; rd-panel-none — закрытое состояние (по умолчанию).

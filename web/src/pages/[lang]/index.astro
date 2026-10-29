@@ -19,7 +19,8 @@ const r = (id: string) => {
   return n && !isGroup(n) ? routeOf(n.slug, lang) : `/${lang}`;
 };
 
-const title = t('Главная · OmnisGM Rules', 'Home · OmnisGM Rules');
+// Заголовок же уходит в og:title превью ссылок: «Главная · …» там ничего не говорит (#464).
+const title = t('OmnisGM Rules — справочник НРИ: D&D, Daggerheart, BRP', 'OmnisGM Rules — tabletop RPG reference: D&D, Daggerheart, BRP');
 const description = t(
   'SRD настольных ролевых игр на русском: D&D 5.2.1 и 5.1, Daggerheart, Basic Roleplaying — полный перевод правил и страница на каждое заклинание и монстра.',
   'Read the D&D 5.2.1 and 5.1, Daggerheart and Basic Roleplaying SRDs online: every rules section, thousands of entity pages, each with a Russian twin.',
