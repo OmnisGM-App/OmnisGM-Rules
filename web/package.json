@@ -21,21 +21,21 @@
     "astro": "astro"
   },
   "dependencies": {
-    "@astrojs/markdown-remark": "^7.3.4",
+    "@astrojs/markdown-remark": "^7.3.5",
     "@astrojs/sitemap": "^3.7.4",
     "@omnisgm-app/brand": "^0.12.0",
     "@omnisgm-app/core": "^0.4.3",
     "@pagefind/default-ui": "^1.5.2",
-    "astro": "^7.4.2",
+    "astro": "^7.4.4",
     "hast-util-from-html": "^2.0.3",
-    "hast-util-to-html": "^9.0.5",
-    "marked": "^18.1.1"
+    "hast-util-to-html": "^9.0.6",
+    "marked": "^18.1.2"
   },
   "devDependencies": {
     "@astrojs/check": "^0.9.12",
     "@playwright/test": "^1.64.1",
     "@types/hast": "^3.0.5",
-    "@types/node": "^26.6.5",
+    "@types/node": "^26.6.6",
     "astro-pagefind": "^2.0.1",
     "typescript": "^6.0.3",
     "workbox-build": "^7.4.1"
