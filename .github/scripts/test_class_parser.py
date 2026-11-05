@@ -696,10 +696,11 @@ eq("RU-подкласс: caster из EN, имя умения своё",
 FIXED = {("barbarian", "Primal Champion"): [{"abilities": ["str", "con"], "amount": 4, "max": 25}],
          ("monk", "Body and Mind"): [{"abilities": ["dex", "wis"], "amount": 4, "max": 25}]}
 for lang in ("en", "ru"):
-    got = {(c["slug"], c["name_en"] or c["name"], f["name"]): f["ability_increases"]
-           for c in cast[("srd52", lang, "classes")] for f in c["features"] if f["ability_increases"]}
-    eq(f"{lang}: прибавки без выбора — ровно два умения",
-       sorted((k[0], v) for k, v in got.items()), sorted((k[0], v) for k, v in FIXED.items()))
+    eq(f"{lang}: прибавки без выбора — ровно два умения, на позициях EN",
+       sorted((c["slug"], i, f["ability_increases"]) for c in cast[("srd52", lang, "classes")]
+              for i, f in enumerate(c["features"]) if f["ability_increases"]),
+       sorted((c["slug"], i, FIXED[(c["slug"], f["name"])]) for c in cast[("srd52", "en", "classes")]
+              for i, f in enumerate(c["features"]) if (c["slug"], f["name"]) in FIXED))
     eq(f"{lang}: прибавки подклассов пусты",
        [f["name"] for s in cast[("srd52", lang, "subclasses")] for f in s["features"] if f["ability_increases"]], [])
 en_feat = {(c["slug"], f["name"]): f for c in cast[("srd52", "en", "classes")] for f in c["features"]}
