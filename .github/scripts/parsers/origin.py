@@ -83,7 +83,7 @@ def _species_paragraphs(body: str) -> tuple[dict[str, str], list[dict], list[dic
     return facts, paragraphs, tables
 
 
-# Механика наследия из EN-текста (#476); RU получает её из EN по позиции в generate_api.
+# Механика наследия из EN-текста (#476); RU получает её из EN по слагу наследия в generate_api.
 _KNOWN_CANTRIP = re.compile(r"know the (.+?) cantrip")
 _RESISTANCE = re.compile(r"Resistance to (\w+) damage")
 _DEALT_DAMAGE = re.compile(r"deal \d+d\d+ (\w+) damage")
