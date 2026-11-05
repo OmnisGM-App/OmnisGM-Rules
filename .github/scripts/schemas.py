@@ -604,15 +604,30 @@ FEAT_SCHEMA = {
 
 # -- Class / subclass schemas (#365) -------------------------------------------
 
+_ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
+
+# Прибавка без выбора (#479): каждой из abilities — amount, но не выше max.
+_ABILITY_INCREASES = {"type": "array", "items": {
+    "type": "object",
+    "properties": {
+        "abilities": {"type": "array", "items": _ABILITY_CODE, "minItems": 1, "uniqueItems": True},
+        "amount": {"type": "integer", "minimum": 1},
+        "max": {"type": "integer", "minimum": 1},
+    },
+    "required": ["abilities", "amount", "max"],
+    "additionalProperties": False,
+}}
+
 _CLASS_FEATURE = {
     "type": "object",
     "properties": {
         "level": {"type": "integer", "minimum": 1, "maximum": 20},
         "name": {"type": "string"},
         "description_md": {"type": "string"},
+        "ability_increases": _ABILITY_INCREASES,
         "choices": _CHOICES,
     },
-    "required": ["level", "name", "description_md", "choices"],
+    "required": ["level", "name", "description_md", "ability_increases", "choices"],
     "additionalProperties": False,
 }
 
@@ -681,6 +696,22 @@ _ALWAYS_PREPARED = {"type": "array", "items": {
     "required": ["level", "spells", "choice"],
     "additionalProperties": False,
 }}
+
+_SPELLCASTING = {
+    "type": ["object", "null"],
+    "properties": {
+        "feature": {"type": "string"},
+        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+        "ability": _ABILITY_CODE,
+        "change_on": {"type": "string", "enum": ["long_rest", "level_up"]},
+        "change_count": {"type": "string", "enum": ["one", "any"]},
+        "prepare_from": {"type": "string", "enum": ["class_list", "spellbook"]},
+        "slots": {"type": "string", "enum": ["standard", "pact"]},
+    },
+    "required": ["feature", "level", "ability", "change_on", "change_count",
+                 "prepare_from", "slots", "caster"],
+    "additionalProperties": False,
+}
 
 CLASS_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
@@ -753,20 +784,14 @@ CLASS_SCHEMA = {
         "always_prepared": _ALWAYS_PREPARED,
         # Выборы самого класса, не умения: инструменты из таблицы черт (бард, монах).
         "choices": _CHOICES,
+        # caster — доля в уровне заклинателя мультикласса (#477); pact — вне суммы, ровно при slots: pact.
         "spellcasting": {
-            "type": ["object", "null"],
-            "properties": {
-                "feature": {"type": "string"},
-                "level": {"type": "integer", "minimum": 1, "maximum": 20},
-                "ability": _ABILITY_CODE,
-                "change_on": {"type": "string", "enum": ["long_rest", "level_up"]},
-                "change_count": {"type": "string", "enum": ["one", "any"]},
-                "prepare_from": {"type": "string", "enum": ["class_list", "spellbook"]},
-                "slots": {"type": "string", "enum": ["standard", "pact"]},
-            },
-            "required": ["feature", "level", "ability", "change_on", "change_count",
-                         "prepare_from", "slots"],
-            "additionalProperties": False,
+            **_SPELLCASTING,
+            "properties": {**_SPELLCASTING["properties"],
+                           "caster": {"type": "string", "enum": ["full", "half", "pact"]}},
+            "if": {"properties": {"slots": {"const": "pact"}}},
+            "then": {"properties": {"caster": {"const": "pact"}}},
+            "else": {"properties": {"caster": {"enum": ["full", "half"]}}},
         },
     },
     "required": [
@@ -789,9 +814,15 @@ SUBCLASS_SCHEMA = {
         "description_md": {"type": "string"},
         "features": {"type": "array", "items": _SUBCLASS_FEATURE},
         "always_prepared": _ALWAYS_PREPARED,
+        # Свой Spellcasting подкласса — доля third (#477).
+        "spellcasting": {
+            **_SPELLCASTING,
+            "properties": {**_SPELLCASTING["properties"],
+                           "slots": {"const": "standard"}, "caster": {"const": "third"}},
+        },
     },
     "required": ["slug", "name", "name_en", "class", "description_md", "features",
-                 "always_prepared"],
+                 "always_prepared", "spellcasting"],
     "additionalProperties": False,
 }
 

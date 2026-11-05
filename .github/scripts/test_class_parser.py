@@ -13,11 +13,13 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import config  # noqa: E402
-from generate_api import (align_class_options, align_classes, disambiguate_option_slugs,  # noqa: E402
-                          inject_spell_subclasses, resolve_always_prepared, slug_collisions)
-from parsers import parse_class, parse_class_options, parse_spells, parse_subclasses  # noqa: E402
+import jsonschema  # noqa: E402
+from generate_api import (align_class_options, align_classes, attach_caster_shares,  # noqa: E402
+                          disambiguate_option_slugs, inject_spell_subclasses, resolve_always_prepared,
+                          slug_collisions)
+from parsers import parse_caster_shares, parse_class, parse_class_options, parse_spells, parse_subclasses  # noqa: E402
 from parsers.classes import CANTRIP_PREREQS, COST_UNITS  # noqa: E402
-from schemas import CLASS_OPTION_SCHEMA  # noqa: E402
+from schemas import CLASS_OPTION_SCHEMA, CLASS_SCHEMA, SUBCLASS_SCHEMA  # noqa: E402
 
 failures = []
 
@@ -595,6 +597,138 @@ eq("RU-класс без оружия мультикласса — ошибка 
 eq("RU-класс с любым навыком вместо навыка из списка — ошибка структуры",
    ru_class_mutant("ranger", lambda c: c["multiclass"]["skills"].update(
        text="владение одним навыком по вашему выбору")), True)
+
+# --- Доля заклинателя в ячейках мультикласса (#477) ----------------------------------
+CREATION = (ROOT / "src/dnd" / config.MULTICLASS_RULES["srd52"]).read_text(encoding="utf-8")
+SHARES = parse_caster_shares(CREATION)
+eq("доли из правила Spell Slots мультикласса", SHARES,
+   {"Bard": "full", "Cleric": "full", "Druid": "full", "Sorcerer": "full", "Wizard": "full",
+    "Paladin": "half", "Ranger": "half"})
+
+
+def share_error(old, new):
+    if old not in CREATION:
+        return f"нет фрагмента {old!r}"
+    try:
+        parse_caster_shares(CREATION.replace(old, new))
+    except Exception as err:
+        return str(err)
+    return None
+
+
+eq("правило без строки половинных заклинателей роняет сборку",
+   share_error("- Half your levels (round up) in the", "- Half your levels, rounded up, in the"),
+   "multiclass Spell Slots: 0 «half» lines")
+
+
+def with_casters(data):
+    errors = attach_caster_shares(data, {"srd52": SHARES})
+    return errors + align_classes(data)
+
+
+cast = copy.deepcopy(pristine)
+eq("живой корпус: доли без ошибок", with_casters(cast), [])
+CASTERS = {"bard": "full", "cleric": "full", "druid": "full", "paladin": "half", "ranger": "half",
+           "sorcerer": "full", "warlock": "pact", "wizard": "full"}
+for lang in ("en", "ru"):
+    eq(f"{lang}: caster у заклинающих классов", {c["slug"]: c["spellcasting"].get("caster")
+                                                 for c in cast[("srd52", lang, "classes")] if c["spellcasting"]},
+       CASTERS)
+    eq(f"{lang}: живые классы проходят схему",
+       [c["slug"] for c in cast[("srd52", lang, "classes")] if not jsonschema.Draft7Validator(CLASS_SCHEMA).is_valid(
+           {**c, "choices": [], "multiclass": {**c["multiclass"], "choices": []},
+            "features": [{**f, "choices": []} for f in c["features"]]})], [])
+    eq(f"{lang}: в SRD 5.2.1 нет подкласса-заклинателя",
+       [s["slug"] for s in cast[("srd52", lang, "subclasses")] if s["spellcasting"] is not None], [])
+
+
+def caster_errors(mutate, shares=SHARES):
+    data = copy.deepcopy(pristine)
+    mutate({c["slug"]: c for c in data[("srd52", "en", "classes")]})
+    return attach_caster_shares(data, {"srd52": shares})
+
+
+eq("заклинающий класс вне правила Spell Slots — ошибка",
+   caster_errors(lambda c: None, {k: v for k, v in SHARES.items() if k != "Ranger"}),
+   ["srd52: «Ranger» casts but the multiclass Spell Slots rule omits it"])
+eq("класс без заклинательства в правиле — ошибка",
+   caster_errors(lambda c: None, {**SHARES, "Fighter": "full"}),
+   ["srd52: «Fighter» counts toward multiclass slots but has no Spellcasting"])
+eq("колдун в правиле Spell Slots — ошибка",
+   caster_errors(lambda c: None, {**SHARES, "Warlock": "full"}),
+   ["srd52: «Warlock» has Pact Magic slots and a «full» share"])
+eq("неизвестное имя класса в правиле — ошибка",
+   caster_errors(lambda c: None, {**SHARES, "Artificer": "half"}),
+   ["srd52: multiclass Spell Slots names unknown class «Artificer»"])
+eq("ячейки договора у класса из правила — ошибка",
+   caster_errors(lambda c: c["wizard"]["spellcasting"].update(slots="pact")),
+   ["srd52: «Wizard» has Pact Magic slots and a «full» share"])
+
+wizard = next(c for c in cast[("srd52", "en", "classes")] if c["slug"] == "wizard")
+warlock_c = next(c for c in cast[("srd52", "en", "classes")] if c["slug"] == "warlock")
+casting_ok = lambda sc: jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["spellcasting"]).is_valid(sc)
+eq("схема: pact без slots: pact отклонён", casting_ok({**wizard["spellcasting"], "caster": "pact"}), False)
+eq("схема: slots: pact с долей full отклонён", casting_ok({**warlock_c["spellcasting"], "caster": "full"}), False)
+eq("схема: без caster отклонён",
+   casting_ok({k: v for k, v in wizard["spellcasting"].items() if k != "caster"}), False)
+eq("схема: third у класса отклонён", casting_ok({**wizard["spellcasting"], "caster": "third"}), False)
+eq("схема: живые доли приняты", (casting_ok(wizard["spellcasting"]), casting_ok(warlock_c["spellcasting"])),
+   (True, True))
+
+# Подкласс со своим Spellcasting: в SRD 5.2.1 такого нет, поэтому глава с подставленным умением.
+CASTING_FEATURE = (
+    "#### Level 3: Spellcasting\n\nYou learn to cast spells.\n\n"
+    "**Spellcasting Ability.** Intelligence is your spellcasting ability for these spells.\n\n"
+    "**Changing Your Prepared Spells.** Whenever you gain a Fighter level, you can replace one spell.\n\n")
+fighter_text = read("en", "05_Fighter.md")
+champ_at = fighter_text.index("#### Level 3:", fighter_text.index("Fighter Subclass: Champion"))
+champ = parse_subclasses(fighter_text[:champ_at] + CASTING_FEATURE + fighter_text[champ_at:], "en")[0]
+eq("подкласс со Spellcasting — доля third", champ["spellcasting"],
+   {"feature": "Spellcasting", "level": 3, "ability": "int", "change_on": "level_up", "change_count": "one",
+    "prepare_from": "class_list", "slots": "standard", "caster": "third"})
+sub_ok = lambda sc: jsonschema.Draft7Validator(SUBCLASS_SCHEMA["properties"]["spellcasting"]).is_valid(sc)
+eq("схема подкласса: third принят, full отклонён",
+   (sub_ok(champ["spellcasting"]), sub_ok({**champ["spellcasting"], "caster": "full"})), (True, False))
+sub_data = copy.deepcopy(pristine)
+en_subs = sub_data[("srd52", "en", "subclasses")]
+champ_i = next(i for i, s in enumerate(en_subs) if s["slug"] == "champion")
+en_subs[champ_i]["spellcasting"] = {**champ["spellcasting"], "feature": en_subs[champ_i]["features"][0]["name"]}
+eq("RU-подкласс: выравнивание без ошибок", align_classes(sub_data), [])
+ru_champ = sub_data[("srd52", "ru", "subclasses")][champ_i]
+eq("RU-подкласс: caster из EN, имя умения своё",
+   ru_champ["spellcasting"] and (ru_champ["spellcasting"]["caster"], ru_champ["spellcasting"]["feature"]),
+   ("third", ru_champ["features"][0]["name"]))
+
+# --- Прибавки характеристик без выбора (#479) -----------------------------------------
+FIXED = {("barbarian", "Primal Champion"): [{"abilities": ["str", "con"], "amount": 4, "max": 25}],
+         ("monk", "Body and Mind"): [{"abilities": ["dex", "wis"], "amount": 4, "max": 25}]}
+for lang in ("en", "ru"):
+    eq(f"{lang}: прибавки без выбора — ровно два умения, на позициях EN",
+       sorted((c["slug"], i, f["ability_increases"]) for c in cast[("srd52", lang, "classes")]
+              for i, f in enumerate(c["features"]) if f["ability_increases"]),
+       sorted((c["slug"], i, FIXED[(c["slug"], f["name"])]) for c in cast[("srd52", "en", "classes")]
+              for i, f in enumerate(c["features"]) if (c["slug"], f["name"]) in FIXED))
+    eq(f"{lang}: прибавки подклассов пусты",
+       [f["name"] for s in cast[("srd52", lang, "subclasses")] for f in s["features"] if f["ability_increases"]], [])
+en_feat = {(c["slug"], f["name"]): f for c in cast[("srd52", "en", "classes")] for f in c["features"]}
+eq("EN: прибавка — у умения с именем из правил",
+   {k: en_feat[k]["ability_increases"] for k in FIXED}, FIXED)
+eq("description_md сохраняет фразу прибавки",
+   "increase by 4, to a maximum of 25" in en_feat[("barbarian", "Primal Champion")]["description_md"], True)
+eq("RU-умение до выравнивания — без кодов",
+   {f["ability_increases"] is None for c in pristine[("srd52", "ru", "classes")] for f in c["features"]}, {True})
+PRIMAL = "Your Strength and Constitution scores increase by 4, to a maximum of 25."
+eq("прибавка без потолка роняет сборку",
+   class_error("en", "01_Barbarian.md", PRIMAL, "Your Strength and Constitution scores increase by 4."),
+   "«Primal Champion»: an ability score increase in an unknown form")
+eq("прибавка неизвестной характеристике роняет сборку",
+   class_error("en", "01_Barbarian.md", PRIMAL, "Your Strength and Luck scores increase by 4, to a maximum of 25."),
+   "«Primal Champion»: unknown ability in 'Your Strength and Luck scores increase by 4, to a maximum of 25.'")
+eq("три характеристики через запятую",
+   next(f for f in parse_class(read("en", "01_Barbarian.md").replace(
+       PRIMAL, "Your Strength, Dexterity, and Constitution scores increase by 2, to a maximum of 22."), "en")[0]["features"]
+        if f["name"] == "Primal Champion")["ability_increases"],
+   [{"abilities": ["str", "dex", "con"], "amount": 2, "max": 22}])
 
 if failures:
     print(f"❌ classes/subclasses/class-options ({len(failures)}):")
