@@ -11,8 +11,9 @@ from pathlib import Path
 SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
-from generate_api import build_species_lineages  # noqa: E402
-from parsers import parse_origins, structure_species  # noqa: E402
+from config import SKIP_HEADINGS_SPELL  # noqa: E402
+from generate_api import build_species_lineages, resolve_lineage_grants  # noqa: E402
+from parsers import parse_origins, parse_spells, structure_species  # noqa: E402
 from schemas import SPECIES_LINEAGE_SCHEMA  # noqa: E402
 
 failures = []
@@ -147,9 +148,119 @@ eq("RU-вид с другим размером — ошибка структур
 eq("RU-таблица, разорванная посередине, — сборка падает",
    broken("ru", "Elf", "| Дроу ", "Дроу "), ["srd52: Эльф: expected one lineage table, found 2"])
 
+
+# --- Механика наследий и уровни особенностей (#476) ------------------------------------
+SPELLS = {lang: parse_spells((ROOT / "src/dnd/srd-5.2" / lang / "07_Spells.md").read_text(encoding="utf-8"),
+                             3, lang, None, SKIP_HEADINGS_SPELL) for lang in ("en", "ru")}
+
+
+def granted(lang="en", slug=None, old=None, new=None, spells=None):
+    data = copy.deepcopy(pristine)
+    if old is not None:
+        target = next(s for s in data[("srd52", lang, "species")] if s["slug"] == slug)
+        assert old in target["description_md"], old
+        target["description_md"] = target["description_md"].replace(old, new)
+    for spell_lang in ("en", "ru"):
+        data[("srd52", spell_lang, "spells")] = (spells or {}).get(spell_lang, SPELLS[spell_lang])
+    errors = build_species_lineages(data)
+    errors += resolve_lineage_grants(data)
+    return data, errors
+
+
+grants_data, grant_errors = granted()
+eq("живой корпус с заклинаниями: ошибок нет", grant_errors, [])
+ONCE = {"count": 1, "recharge": "long-rest"}
+PB = {"count": "proficiency-bonus", "recharge": "long-rest"}
+
+
+def spells_of(*rows):
+    return [{"slug": slug, "level": level, "uses": uses} for slug, level, uses in rows]
+
+
+def grants(spells=(), damage_type=None, resistances=(), darkvision=None, speed_min=None, uses=None):
+    return {"spells": spells_of(*spells), "damage_type": damage_type, "resistances": list(resistances),
+            "darkvision": darkvision, "speed_min": speed_min, "uses": uses}
+
+
+DRAGON = {"black": "acid", "blue": "lightning", "brass": "fire", "bronze": "lightning", "copper": "acid",
+          "gold": "fire", "green": "poison", "red": "fire", "silver": "cold", "white": "cold"}
+GIANT = {"cloud": None, "fire": "fire", "frost": "cold", "hill": None, "stone": None, "storm": "thunder"}
+GRANTS = {
+    **{f"dragonborn-{colour}": grants(damage_type=t) for colour, t in DRAGON.items()},
+    "elf-drow": grants([("dancing-lights", 1, None), ("faerie-fire", 3, ONCE), ("darkness", 5, ONCE)], darkvision=120),
+    "elf-high-elf": grants([("prestidigitation", 1, None), ("detect-magic", 3, ONCE), ("misty-step", 5, ONCE)]),
+    "elf-wood-elf": grants([("druidcraft", 1, None), ("longstrider", 3, ONCE), ("pass-without-trace", 5, ONCE)],
+                           speed_min=35),
+    "gnome-forest-gnome": grants([("minor-illusion", 1, None), ("speak-with-animals", 1, PB)]),
+    "gnome-rock-gnome": grants([("mending", 1, None), ("prestidigitation", 1, None)]),
+    **{f"goliath-{giant}-giant": grants(damage_type=t, uses=PB) for giant, t in GIANT.items()},
+    "tiefling-abyssal": grants([("poison-spray", 1, None), ("ray-of-sickness", 3, ONCE), ("hold-person", 5, ONCE)],
+                               resistances=["poison"]),
+    "tiefling-chthonic": grants([("chill-touch", 1, None), ("false-life", 3, ONCE), ("ray-of-enfeeblement", 5, ONCE)],
+                                resistances=["necrotic"]),
+    "tiefling-infernal": grants([("fire-bolt", 1, None), ("hellish-rebuke", 3, ONCE), ("darkness", 5, ONCE)],
+                                resistances=["fire"]),
+}
+for lang in ("en", "ru"):
+    eq(f"{lang}: механика 24 наследий", {l["slug"]: l["grants"] for l in grants_data[("srd52", lang, "species-lineages")]},
+       GRANTS)
+    eq(f"{lang}: уровни особенностей вида",
+       {(s["slug"], t["level"]) for s in grants_data[("srd52", lang, "species")] for t in s["traits"] if t["level"]},
+       {("dragonborn", 5), ("goliath", 5)})
+eq("разрешение grants не трогает details и description_md",
+   [(l["details"], l["description_md"]) for l in grants_data[("srd52", "en", "species-lineages")]],
+   [(l["details"], l["description_md"]) for l in structure_species(copy.deepcopy(pristine[("srd52", "en", "species")]), "en")[0]])
+
+
+def grant_errors_of(*args, **kwargs):
+    return granted(*args, **kwargs)[1]
+
+
+eq("EN: заклинание, которого нет в spells, — ошибка",
+   grant_errors_of("en", "elf", "| Faerie Fire  |", "| Fairy Fire  |"),
+   ["srd52/en/elf-drow: заклинание «Fairy Fire» не найдено в spells"])
+eq("EN: заклинание с уровнем без фразы о бесплатных сотворениях — ошибка",
+   grant_errors_of("en", "gnome", "a number of times equal to your Proficiency Bonus, and you regain all expended uses",
+                   "twice, and you regain all expended uses"),
+   ["srd52/en/gnome-forest-gnome: у «Speak with Animals» нет фразы о бесплатных сотворениях"])
+eq("EN: сопротивление вне списка — ошибка",
+   grant_errors_of("en", "tiefling", "Resistance to Poison damage", "Resistance to Ooze damage"),
+   ["srd52/en/tiefling-abyssal: тип урона «ooze» вне списка"])
+eq("EN: ячейка уровня без заклинания — ошибка",
+   grant_errors_of("en", "elf", "| Darkness           |", "| Darkness.          |"),
+   ["srd52: Elf: Drow: no spell in 'Level 5'"])
+eq("EN: незнакомая колонка таблицы наследий — ошибка",
+   grant_errors_of("en", "dragonborn", "| Dragon | Damage Type |", "| Dragon | Breath |"),
+   ["srd52: Dragonborn: Black: unknown lineage column 'Breath'"])
+eq("EN: тип урона вне списка — ошибка",
+   grant_errors_of("en", "dragonborn", "| Black  | Acid ", "| Black  | Ooze "),
+   ["srd52/en/dragonborn-black: тип урона «ooze» вне списка"])
+eq("EN: уровень особенности из «Starting at character level N»",
+   [t["level"] for s in granted("en", "goliath", "Starting at character level 5", "Starting at character level 7")[0]
+    [("srd52", "en", "species")] if s["slug"] == "goliath" for t in s["traits"] if t["name"] == "Large Form"], [7])
+no_grants = copy.deepcopy(pristine)
+for spell_lang in ("en", "ru"):
+    no_grants[("srd52", spell_lang, "spells")] = SPELLS[spell_lang]
+build_species_lineages(no_grants)
+no_grants[("srd52", "en", "species-lineages")][0]["grants"] = None
+eq("EN: наследие без grants — ошибка, а не исключение",
+   resolve_lineage_grants(no_grants)[:1], ["srd52/en/dragonborn-black: у наследия нет grants"])
+eq("RU: имя заклинания RU не стоит в тексте наследия — ошибка",
+   grant_errors_of("ru", "tiefling", "*Тьма* |", "*Мрак* |"),
+   ["srd52/ru/tiefling-infernal: в тексте нет заклинания «Тьма» (darkness)"])
+eq("RU: слага заклинания нет в RU spells — ошибка",
+   grant_errors_of(spells={"ru": [s for s in SPELLS["ru"] if s["slug"] != "longstrider"]}),
+   ["srd52/ru/elf-wood-elf: заклинания «longstrider» нет в RU spells"])
+eq("RU: другое число тёмного зрения — ошибка",
+   grant_errors_of("ru", "elf", "увеличивается до 120 футов", "увеличивается до 90 футов"),
+   ["srd52/ru/elf-drow: в тексте нет числа darkvision = 120 из EN"])
+eq("RU: в особенности нет уровня из EN — ошибка",
+   grant_errors_of("ru", "goliath", "Начиная с 5-го уровня персонажа", "Начиная с 7-го уровня персонажа"),
+   ["srd52/ru/goliath: в особенности «Большая форма» нет уровня 5 из EN"])
+
 if failures:
     print(f"❌ species/species-lineages ({len(failures)}):")
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print("✅ species/species-lineages: факты и особенности 9 видов, 24 наследия, выравнивание RU, отказы")
+print("✅ species/species-lineages: факты и особенности 9 видов, 24 наследия, механика наследий, выравнивание RU, отказы")
