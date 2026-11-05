@@ -2,7 +2,8 @@
 
 import re
 
-from .base import split_blocks, extract_names
+from .base import split_blocks, extract_names, slugify
+from .classes import ABILITY_CODES
 
 
 # Category detection from ### parent sections
@@ -69,6 +70,30 @@ def _detect_category_from_italic(italic_line: str, lang: str) -> tuple[str | Non
             return "epic_boon", prerequisite
 
     return None, prerequisite
+
+
+_ABILITY_WORD = "|".join(w.capitalize() for w in ABILITY_CODES)
+_LEVEL_RE = re.compile(r"Level (\d+)\+")
+# 5.2 «Strength or Dexterity 13+», 5.1 «Strength 13 or higher».
+_ABILITIES_RE = re.compile(rf"((?:{_ABILITY_WORD})(?: or (?:{_ABILITY_WORD}))*) (\d+)(?:\+| or higher)")
+_FEATURE_RE = re.compile(r"(.+) Feature")
+
+
+def feat_prerequisites(text: str, lang: str) -> dict:
+    """Codes from the EN parts; a part outside the three forms stays in `text` only (#478).
+    RU keeps its own text and gets the codes from EN by slug in generate_api."""
+    out = {"text": text, "level": None, "abilities": None, "feature": None}
+    if lang != "en":
+        return out
+    for part in text.split(", "):
+        if m := _LEVEL_RE.fullmatch(part):
+            out["level"] = int(m.group(1))
+        elif m := _ABILITIES_RE.fullmatch(part):
+            out["abilities"] = {"values": [ABILITY_CODES[w.lower()] for w in m.group(1).split(" or ")],
+                                "min": int(m.group(2))}
+        elif m := _FEATURE_RE.fullmatch(part):
+            out["feature"] = slugify(m.group(1))
+    return out
 
 
 def _parse_benefits(body: str) -> list[dict]:
@@ -188,6 +213,7 @@ def parse_feats(text: str, heading_level: int, lang: str,
             "name_en": name_en,
             "category": category,
             "prerequisite": prerequisite,
+            "prerequisites": feat_prerequisites(prerequisite, lang) if prerequisite else None,
             "repeatable": repeatable,
             "benefits": benefits,
             "description_md": desc_body,

@@ -14,3 +14,4 @@ from .glossary_defs import parse_defs, parse_tagged_defs, parse_untagged_defs, p
 from .daggerheart import (parse_ancestries, parse_communities, parse_domain_cards,
                           parse_adversaries, parse_environments, parse_dh_glossary)
 from .brp import parse_brp_skills, parse_brp_professions, parse_brp_spot_rules
+from .rule_lists import parse_table_terms, parse_languages

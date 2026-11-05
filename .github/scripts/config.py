@@ -77,6 +77,24 @@ SOURCES += [
 # Глава с правилами мультикласса (#481).
 MULTICLASS_RULES = {"srd52": "srd-5.2/en/02_CharacterCreation.md"}
 
+# Языки и подписи членов списков выбора (#482) — из таблиц глав; заголовки таблиц EN и RU парны по строкам.
+_LIST_TABLES = {
+    "en": {"01_PlayingTheGame": {"Ability Descriptions": "abilities", "Skills": "skills", "Creature Size and Space": "sizes"},
+           "08_RulesGlossary": {"Damage Types": "damage-types"}},
+    "ru": {"01_PlayingTheGame": {"Описания характеристик": "abilities", "Навыки": "skills",
+                                 "Размер существа и пространство": "sizes"},
+           "08_RulesGlossary": {"Типы урона": "damage-types"}},
+}
+_LANGUAGE_TABLES = {"en": {"Standard Languages": "standard", "Rare Languages": "rare"},
+                    "ru": {"Стандартные языки": "standard", "Редкие языки": "rare"}}
+SOURCES += [
+    {"ver": "srd52", "lang": lang, "type": "list_terms", "file": f"srd-5.2/{lang}/{name}.md", "tables": tables}
+    for lang, files in _LIST_TABLES.items() for name, tables in files.items()
+] + [
+    {"ver": "srd52", "lang": lang, "type": "languages", "file": f"srd-5.2/{lang}/02_CharacterCreation.md", "tables": tables}
+    for lang, tables in _LANGUAGE_TABLES.items()
+]
+
 # Heading patterns that are NOT entity entries (section headers, rules text, etc.)
 # Used to filter out non-entity headings from spell/monster/magic_item files.
 SKIP_HEADINGS_SPELL = {
