@@ -33,10 +33,11 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
-                     parse_brp_skills, parse_brp_professions, parse_brp_spot_rules)
+                     parse_brp_skills, parse_brp_professions, parse_brp_spot_rules,
+                     parse_table_terms, parse_languages)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS
-from choices import attach_choices
+from choices import SCHOOLS, attach_choices, build_choice_lists
 
 
 def load_game_config(game: str):
@@ -280,6 +281,25 @@ def inject_spell_subclasses(all_data: dict) -> None:
                 spell["subclasses"] = sorted(labels[spell["slug"]])
 
 
+def slug_spell_refs(all_data: dict) -> list[str]:
+    """`class_slugs` и `school_slug` рядом с подписями `classes` и `school` (#482) — у редакции с ресурсом классов.
+    Класс находится по имени в `classes` того же языка; школа RU — от EN-заклинания с тем же слагом."""
+    errors: list[str] = []
+    for (ver, lang, resource), spells in all_data.items():
+        if resource != "spells" or (ver, lang, "classes") not in all_data:
+            continue
+        by_name = {c["name"]: c["slug"] for c in all_data[(ver, lang, "classes")]}
+        en_school = {s["slug"]: s["school"] for s in all_data.get((ver, "en", "spells"), [])}
+        for spell in spells:
+            missing = [name for name in spell["classes"] if name not in by_name]
+            school = slugify(en_school.get(spell["slug"], ""))
+            if missing or school not in SCHOOLS:
+                errors.append(f"{ver}/{lang}/spells/{spell['slug']}: класс {missing} или школа {school!r} не найдены")
+            spell["class_slugs"] = [by_name.get(name) for name in spell["classes"]]
+            spell["school_slug"] = school
+    return errors
+
+
 # Ресурсы, которые нужны страницам сайта, но не входят в публичный API: пишутся только с `--site-data`.
 SITE_ONLY = {"equipment-groups", "magic-item-groups"}
 
@@ -497,6 +517,9 @@ def align_classes(all_data: dict) -> list[str]:
             r["proficiencies"]["skills"]["options"] = e["proficiencies"]["skills"]["options"]
             for kind in ("armor", "weapons"):
                 r["multiclass"][kind]["categories"] = e["multiclass"][kind]["categories"]
+            for owner in ("proficiencies", "multiclass"):
+                if e[owner]["tools"]:
+                    r[owner]["tools"]["slug"] = e[owner]["tools"]["slug"]
             if e["multiclass"]["skills"]:
                 r["multiclass"]["skills"]["options"] = e["multiclass"]["skills"]["options"]
             keys = [c["key"] for c in e["progression"]["columns"]]
@@ -940,6 +963,12 @@ def main():
         elif entity_type == "section_tables":
             entities = parse_section_tables(text, lang)
             resource = out_resource
+        elif entity_type == "list_terms":
+            entities = parse_table_terms(text, source["tables"])
+            resource = "list-terms"
+        elif entity_type == "languages":
+            entities = parse_languages(text, lang, source["tables"])
+            resource = "languages"
         elif entity_type == "ancestry":
             entities = parse_ancestries(text, lang)
             resource = "ancestries"
@@ -1001,8 +1030,8 @@ def main():
                         + align_classes(all_data) + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + align_feat_prerequisites(all_data)
                         + build_species_lineages(all_data)
-                        + build_backgrounds(all_data))
-        class_errors = class_errors or attach_choices(all_data)
+                        + build_backgrounds(all_data) + slug_spell_refs(all_data))
+        class_errors = class_errors or build_choice_lists(all_data) or attach_choices(all_data)
         if class_errors:
             print("Error: классы/подклассы/варианты умений/черты/виды/предыстории (#365, #374, #478, #413):", file=sys.stderr)
             for msg in class_errors:
