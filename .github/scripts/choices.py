@@ -10,6 +10,7 @@
 
 from parsers.base import slugify
 from parsers.classes import ABILITY_CODES, SKILLS
+from parsers.equipment import TOOL_TYPES
 
 ABILITIES = tuple(ABILITY_CODES.values())
 SKILL_SLUGS = tuple(sorted(slugify(name) for name in SKILLS))
@@ -35,16 +36,15 @@ FILTERS = {
     "class-options": {"class": "`class`", "feature": "`feature.key`"},
     "species-lineages": {"species": "`species`"},
     "weapons": {"type": "`type`: melee | ranged"},
-    # Предметы группы (игровой набор → кости, карты…): слаг записи `equipment-groups`.
+    # Предметы группы (игровой набор → кости, карты…): значение поля `group` предметов `equipment`.
     "equipment": {"group": "`group`"},
     "spells": {
         # Слаг класса, список слагов или "@id" — ответ на выбор с этим id у того же хозяина.
-        # У заклинания класс стоит именем в `classes`; имя берётся из `classes[].name` по слагу.
-        "class": "`classes`",
+        "class": "`class_slugs`",
         # Число — круг; "slots" — круги, на которые у персонажа есть ячейки; "cantrip-or-slots" — они же и заговоры.
         "level": "`level`",
         "max_level": "`level`, не выше",
-        "school": "`school`, слагом",
+        "school": "`school_slug`",
         "ritual": "`casting_time.ritual`",
     },
     "skill-proficiencies": {"values": "слаги навыков, из которых выбирают"},
@@ -176,6 +176,10 @@ CLASSES = {
     "bard": [ch("instruments", "tool", 3, res("equipment", group="musical-instrument"))],
     "monk": [ch("tool", "tool", 1, lst("artisan-tools-or-musical-instruments"))],
 }
+# Инструмент на выбор из строки «As a Multiclass Character» — выбор в `multiclass.choices` класса (#480).
+MULTICLASS = {
+    "bard": [ch("instrument", "tool", 1, res("equipment", group="musical-instrument"))],
+}
 
 # --- Подклассы: умение, которому принадлежит таблица `always_prepared` (Table#817, срез 2d-2) ------
 ALWAYS_PREPARED_OWNERS = {
@@ -267,9 +271,73 @@ CLASS_OPTIONS = {
 }
 
 
+# --- Ресурс `choice-lists` (#482): члены каждого списка из LISTS на языке издания --------------------
+# Таблица правил → (тип члена, слаг по EN-строке, словарь слагов). Подписи RU — из той же таблицы по строке.
+TERM_LISTS = {
+    "skills": ("skill", slugify, SKILL_SLUGS),
+    "abilities": ("ability", lambda name: ABILITY_CODES.get(name.lower()), ABILITIES),
+    "damage-types": ("damage-type", slugify, DAMAGE_TYPES),
+    "sizes": ("size", slugify, ("tiny", "small", "medium", "large", "huge", "gargantuan")),
+}
+# Список из инструментов `equipment`: поле записи → значения, по любому из которых она входит; None — любой инструмент.
+TOOL_LISTS = {"tools": None,
+              "artisan-tools-or-musical-instruments": {"tool_type": ("artisan-tools",), "group": ("musical-instrument",)}}
+
+
+def build_choice_lists(all_data: dict) -> list[str]:
+    """Пишет ресурсы `languages` (RU — слаг и name_en из EN по строке) и `choice-lists`, забирает внутренний
+    `list-terms`. Члены списка — {type, slug, name}; tool — слаг `equipment`, language — `languages`, class — `classes`."""
+    errors: list[str] = []
+    for ver in sorted({key[0] for key in all_data if key[1:] == ("en", "classes")}):
+        en_langs, ru_langs = all_data.get((ver, "en", "languages"), []), all_data.get((ver, "ru", "languages"))
+        if ru_langs is not None:
+            if [l["category"] for l in ru_langs] != [l["category"] for l in en_langs]:
+                errors.append(f"{ver}/ru/languages: строки RU не напротив EN ({len(ru_langs)} против {len(en_langs)})")
+            for r, e in zip(ru_langs, en_langs):
+                r["slug"], r["name_en"] = e["slug"], e["name"]
+        terms = {lang: all_data.pop((ver, lang, "list-terms"), []) for lang in ("en", "ru")}
+        en_slugs: dict[str, list] = {}
+        for key, (kind, to_slug, known) in TERM_LISTS.items():
+            names = [t["name"] for t in terms["en"] if t["list"] == key]
+            en_slugs[key] = [to_slug(n) for n in names]
+            if sorted(map(str, en_slugs[key])) != sorted(known):
+                errors.append(f"{ver}/en/{key}: таблица даёт {en_slugs[key]}, словарь — {sorted(known)}")
+        for lang in ("en", "ru"):
+            if (ver, lang, "classes") not in all_data:
+                continue
+            lists = {}
+            for key, (kind, _, _) in TERM_LISTS.items():
+                names = [t["name"] for t in terms[lang] if t["list"] == key]
+                if len(names) != len(en_slugs[key]):
+                    errors.append(f"{ver}/{lang}/{key}: строк {len(names)}, в EN {len(en_slugs[key])}")
+                lists[key] = [{"type": kind, "slug": slug, "name": name} for slug, name in zip(en_slugs[key], names)]
+            tools = [e for e in all_data.get((ver, lang, "equipment"), []) if e["section"] == "tools"]
+            types = {e["slug"]: e["tool_type"] for e in all_data.get((ver, "en", "equipment"), [])}
+            for e in tools:
+                if e["tool_type"] not in (None, *TOOL_TYPES) or e["tool_type"] != types.get(e["slug"]):
+                    errors.append(f"{ver}/{lang}/equipment/{e['slug']}: тип инструмента {e['tool_type']!r} вне словаря или ≠ EN")
+            for kind in sorted(set(TOOL_TYPES) - {e["tool_type"] for e in tools}):
+                errors.append(f"{ver}/{lang}/equipment: у типа инструмента {kind!r} нет предметов")
+            for key, match in TOOL_LISTS.items():
+                lists[key] = [{"type": "tool", "slug": e["slug"], "name": e["name"]} for e in tools
+                              if match is None or any(e[field] in values for field, values in match.items())]
+            lists["skills-or-tools"] = lists["skills"] + lists["tools"]
+            lists["languages"] = [{"type": "language", "slug": l["slug"], "name": l["name"]}
+                                  for l in all_data.get((ver, lang, "languages"), [])]
+            lists["classes"] = [{"type": "class", "slug": c["slug"], "name": c["name"]}
+                                for c in all_data.get((ver, lang, "classes"), [])]
+            lands = {row["choice"]["key"]: row["choice"]["name"] for sub in all_data.get((ver, lang, "subclasses"), [])
+                     for row in sub["always_prepared"] if row["choice"]}
+            lists["lands"] = [{"type": "land", "slug": slug, "name": name} for slug, name in sorted(lands.items())]
+            for key in sorted(set(LISTS) - set(lists)) + sorted(set(lists) - set(LISTS)):
+                errors.append(f"{ver}/{lang}/choice-lists: список {key!r} не объявлен в LISTS или не собран")
+            for key in sorted(k for k in LISTS if k in lists and not lists[k]):
+                errors.append(f"{ver}/{lang}/choice-lists: у списка {key!r} нет членов")
+            all_data[(ver, lang, "choice-lists")] = [{"slug": key, "members": lists[key]} for key in LISTS if key in lists]
+    return errors
+
+
 # --- Сборка: объявления → поле `choices` ---------------------------------------------------------
-_LIST_VALUES = {"skills": SKILL_SLUGS, "abilities": ABILITIES, "damage-types": DAMAGE_TYPES,
-                "sizes": ("medium", "small")}
 
 
 def _count(count, cls, where, errors):
@@ -359,11 +427,12 @@ def _check(choice, where, known, ids, errors):
         errors.append(f"{where}: вид {choice['kind']!r} или замена {choice['replace']!r} вне словаря")
     for source in [choice["from"]] + ([choice["or"]] if "or" in choice else []):
         if "list" in source:
-            allowed = known["classes"] if source["list"] == "classes" else _LIST_VALUES.get(source["list"])
+            allowed = known["lists"].get(source["list"])
             if source["list"] not in LISTS:
                 errors.append(f"{where}: список {source['list']!r} вне словаря")
-            elif source["values"] is not None and (not source["values"] or (
-                    allowed is not None and [v for v in source["values"] if v not in allowed])):
+            elif allowed is None:
+                errors.append(f"{where}: списка {source['list']!r} нет в choice-lists")
+            elif source["values"] is not None and (not source["values"] or [v for v in source["values"] if v not in allowed]):
                 errors.append(f"{where}: значения {source['values']} не из списка {source['list']!r}")
         elif "resource" in source:
             if source["resource"] not in RESOURCES or source["resource"] not in known["resources"]:
@@ -396,7 +465,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     errors: list[str] = []
     en = {res_: all_data.get((ver, "en", res_), []) for res_ in
           ("classes", "subclasses", "species", "species-lineages", "backgrounds", "feats", "class-options",
-           "spells", "weapons", "equipment", "equipment-groups")}
+           "spells", "weapons", "equipment", "equipment-groups", "choice-lists")}
     known = {
         "resources": {name for name, items in en.items() if items},
         "classes": {c["slug"] for c in en["classes"]},
@@ -406,6 +475,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         "subclass-classes": {s["class"] for s in en["subclasses"]},
         "lineage-species": {l["species"] for l in en["species-lineages"]},
         "equipment-groups": {g["slug"] for g in en["equipment-groups"]},
+        "equipment": {e["slug"] for e in en["equipment"]},
+        "lists": {lst_["slug"]: {m["slug"] for m in lst_["members"]} for lst_ in en["choice-lists"]},
     }
     used: set = set()
 
@@ -420,7 +491,15 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         context = {"{class}": slug, "{class-skills}": cls["proficiencies"]["skills"]["options"],
                    "{epic-boon}": EPIC_BOON.get(slug, "")}
         put(cls, CLASSES.get(slug, []), context, f"classes/{slug}")
+        put(cls["multiclass"], MULTICLASS.get(slug, []), context, f"classes/{slug}/multiclass")
         used.add(("class", slug))
+        used.add(("multiclass", slug))
+        for owner, choices_of in (("proficiencies", cls), ("multiclass", cls["multiclass"])):
+            tools = cls[owner]["tools"]
+            if tools and tools["slug"] is not None and tools["slug"] not in known["equipment"]:
+                errors.append(f"classes/{slug}/{owner}: инструмента {tools['slug']!r} нет в equipment")
+            if bool(tools and tools["slug"] is None) != any(c["kind"] == "tool" for c in choices_of["choices"]):
+                errors.append(f"classes/{slug}/{owner}: инструмент на выбор в тексте и в объявлении расходятся")
         for feature in cls["features"]:
             name = feature["name"]
             key = next((k for k in ((slug, name), ("*", name), ("*", "{Class} Subclass"))
@@ -472,7 +551,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     for option in en["class-options"]:
         put(option, CLASS_OPTIONS.get(option["slug"], []), {}, f"class-options/{option['slug']}")
 
-    declared = ({("class", k) for k in CLASSES} | {("class-feature", k) for k in CLASS_FEATURES}
+    declared = ({("class", k) for k in CLASSES} | {("multiclass", k) for k in MULTICLASS}
+                | {("class-feature", k) for k in CLASS_FEATURES}
                 | {("subclass-feature", k) for k in SUBCLASS_FEATURES} | {("species-trait", k) for k in SPECIES_TRAITS}
                 | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS})
     for kind, key in sorted(declared - used, key=str):
@@ -492,6 +572,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                 continue
             if "choices" in origin:
                 entity["choices"] = origin["choices"]
+            if name == "classes":
+                entity["multiclass"]["choices"] = origin["multiclass"]["choices"]
             for item, pair in zip(entity[nested], origin[nested]) if nested else ():
                 item["choices"] = pair["choices"]
                 if "always_prepared" in pair:

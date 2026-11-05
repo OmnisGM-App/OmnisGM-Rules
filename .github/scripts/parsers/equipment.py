@@ -237,6 +237,7 @@ def _parse_bold_italic_blocks(section_text: str, section: str,
             "variants": None,
             "description_md": description_md,
             "group": None,
+            "tool_type": None,
             "quantity": None,
             "storage": None,
         })
@@ -292,6 +293,8 @@ COMPOSITE_GEAR = {
     "musical-instrument": ("variants", 10),
 }
 _SMALL_WORDS = {"of", "the", "a", "an", "and", "or"}
+# Тип инструмента (#475): раздел главы «Tools», которому принадлежит запись. Не `group`: тот — сегмент адреса страницы.
+TOOL_TYPES = {"artisan-tools": ("Artisan's Tools", "Инструменты ремесленника")}
 
 
 def _item_name(raw: str, lang: str) -> str:
@@ -368,6 +371,7 @@ def _varieties(parent: dict, body: str, lang: str) -> list[dict]:
             "variants": None,
             "description_md": "\n\n".join(t for t in (note, text) if t),
             "group": parent["slug"],
+            "tool_type": None,
             "quantity": row["quantity"],
             "storage": row["storage"],
         })
@@ -391,6 +395,9 @@ def parse_equipment(text: str, heading_level: int, lang: str,
 
     # SRD 5.2 path (unchanged)
     blocks = split_blocks(text, heading_level, after)
+    tool_type = {heading: key for key, titles in TOOL_TYPES.items()
+                 for section, body in split_blocks(text, heading_level - 1, after) if section in titles
+                 for heading, _ in split_blocks(body, heading_level)}
     items = []
 
     for heading, body in blocks:
@@ -433,6 +440,7 @@ def parse_equipment(text: str, heading_level: int, lang: str,
             "variants": variants,
             "description_md": description_md,
             "group": None,
+            "tool_type": tool_type.get(heading),
             "quantity": None,
             "storage": None,
         }
