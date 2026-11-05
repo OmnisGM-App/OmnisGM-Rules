@@ -605,7 +605,7 @@ def share_error(old, new):
         return f"нет фрагмента {old!r}"
     try:
         parse_caster_shares(CREATION.replace(old, new))
-    except ValueError as err:
+    except Exception as err:
         return str(err)
     return None
 
@@ -625,7 +625,7 @@ eq("живой корпус: доли без ошибок", with_casters(cast), 
 CASTERS = {"bard": "full", "cleric": "full", "druid": "full", "paladin": "half", "ranger": "half",
            "sorcerer": "full", "warlock": "pact", "wizard": "full"}
 for lang in ("en", "ru"):
-    eq(f"{lang}: caster у заклинающих классов", {c["slug"]: c["spellcasting"]["caster"]
+    eq(f"{lang}: caster у заклинающих классов", {c["slug"]: c["spellcasting"].get("caster")
                                                  for c in cast[("srd52", lang, "classes")] if c["spellcasting"]},
        CASTERS)
     eq(f"{lang}: живые классы проходят схему",
@@ -689,7 +689,7 @@ en_subs[champ_i]["spellcasting"] = {**champ["spellcasting"], "feature": en_subs[
 eq("RU-подкласс: выравнивание без ошибок", align_classes(sub_data), [])
 ru_champ = sub_data[("srd52", "ru", "subclasses")][champ_i]
 eq("RU-подкласс: caster из EN, имя умения своё",
-   (ru_champ["spellcasting"]["caster"], ru_champ["spellcasting"]["feature"]),
+   ru_champ["spellcasting"] and (ru_champ["spellcasting"]["caster"], ru_champ["spellcasting"]["feature"]),
    ("third", ru_champ["features"][0]["name"]))
 
 # --- Прибавки характеристик без выбора (#479) -----------------------------------------
