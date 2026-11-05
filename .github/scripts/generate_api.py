@@ -29,13 +29,13 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins, structure_backgrounds,
                      structure_species,
-                     parse_class, parse_class_options, parse_subclasses,
+                     parse_class, parse_class_options, parse_subclasses, parse_multiclass_rules,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
                      parse_brp_skills, parse_brp_professions, parse_brp_spot_rules)
 from parsers.base import slugify
-from schemas import RESOURCE_SCHEMAS
+from schemas import RESOURCE_SCHEMAS, SYSTEM_SCHEMA
 from choices import attach_choices
 
 
@@ -623,6 +623,20 @@ def slug_collisions(all_data: dict, system: str) -> list[str]:
     return errors
 
 
+def system_descriptor(cfg, ver: str, src_root: Path) -> dict:
+    """Описатель версии системы (#473, #481): флаг компендиума из `cfg.COMPENDIUM`, правила мультикласса
+    из главы `cfg.MULTICLASS_RULES[ver]`; у версии без главы — multiclass null."""
+    status = getattr(cfg, "COMPENDIUM", {}).get(ver)
+    path = getattr(cfg, "MULTICLASS_RULES", {}).get(ver)
+    return {
+        "system": cfg.SYSTEM,
+        "version": ver,
+        "name": cfg.VERSION_NAMES.get(ver, ver),
+        **({"compendium": status} if status else {}),
+        "multiclass": parse_multiclass_rules((src_root / path).read_text(encoding="utf-8")) if path else None,
+    }
+
+
 def write_json(path: Path, data) -> None:
     """Write data as JSON with consistent formatting."""
     path.parent.mkdir(parents=True, exist_ok=True)
@@ -1009,6 +1023,8 @@ def main():
     # Write files and collect hierarchy info
     file_count = 0
 
+    descriptors = {ver: system_descriptor(cfg, ver, src_root) for ver in sorted({key[0] for key in all_data})}
+
     # Validate all parsed entities against JSON Schemas
     if args.no_validate:
         print("  (schema validation skipped: --no-validate)", file=sys.stderr)
@@ -1019,6 +1035,8 @@ def main():
             schema = RESOURCE_SCHEMAS.get(resource)
             if schema:
                 validate_entities(entities, schema, resource, f"{ver}/{lang}")
+        for ver, descriptor in descriptors.items():
+            validate_entities([descriptor], SYSTEM_SCHEMA, "system", ver)
 
     # Ресурсы только для страниц сайта: в публичный API не пишутся (решение по #412 — группа
     # снаряжения остаётся страницей, но не записью API). Проверены выше вместе с остальными.
@@ -1106,7 +1124,9 @@ def main():
     # Level 3: /dnd/{ver}/ — available languages
     for ver, langs in sorted(hierarchy.items()):
         ver_dir = system_dir / ver
-        links = []
+        write_json(ver_dir / "system.json", descriptors[ver])
+        file_count += 1
+        links = [{"href": "system.json", "label": "system.json"}]
         for lang in sorted(langs):
             links.append({"href": f"{lang}/", "label": lang})
 
