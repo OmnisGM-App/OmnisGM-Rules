@@ -225,7 +225,7 @@ SPECIES_TRAITS = {
 
 # --- Наследия видов: слаг наследия → выборы (#490). Выбор одного наследия, а не всей особенности вида ---
 LINEAGES = {
-    # «Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.»
+    # src/dnd/srd-5.2/en/04_CharacterOrigins.md, таблица Elven Lineages, строка High Elf.
     "elf-high-elf": [ch("cantrip", "spell", 1, res("spells", **{"class": "wizard"}, level=0), "long-rest",
                         suggest={"slug": "prestidigitation"})],
 }
