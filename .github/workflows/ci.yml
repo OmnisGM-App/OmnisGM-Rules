@@ -40,6 +40,10 @@ jobs:
         with:
           npm-token: ${{ secrets.GITHUB_TOKEN }}
 
+      # До юнитов: тесты классов и описателя системы сверяют записи со схемами (#477, #481).
+      - name: Install jsonschema
+        run: pip install jsonschema
+
       # Инвариант «поле image ставим ТОЛЬКО при наличии файла» (#201). На живых данных
       # его не поймать — портрет пока есть у всех существ, поэтому проверка на синтетике.
       - name: Unit — attach_images
@@ -149,7 +153,6 @@ jobs:
 
       - name: Validate JSON API schema
         run: |
-          pip install jsonschema
           python3 .github/scripts/generate_api.py \
             --src-root src/dnd --output-dir "$RUNNER_TEMP/api-validate"
           # Daggerheart — те же схемы (schemas.py): ловит дрейф парсеров DH на PR
