@@ -1,8 +1,8 @@
 """Объявления выборов SRD 5.2 (#413): что игрок выбирает при сборке персонажа и откуда берутся варианты.
 
 Текст правил объявляет выбор словами («of your choice»), поэтому объявления написаны руками и
-прикрепляются к умению класса или подкласса, особенности вида, предыстории, черте и варианту умения
-по EN-имени. Объявление, которому не нашлось хозяина, и ссылка, которая не разрешилась, роняют сборку.
+прикрепляются к умению класса или подкласса, особенности вида, наследию, предыстории, черте и варианту
+умения по EN-имени или слагу. Объявление, которому не нашлось хозяина, и ссылка, которая не разрешилась, роняют сборку.
 
 Выбор при применении (цель, форма области, эффект удара) не объявляется: он не хранится у персонажа.
 Стартовое снаряжение «A или B» остаётся текстом.
@@ -52,6 +52,8 @@ FILTERS = {
     "known-cantrips": {"class": "класс, чьи заговоры считаются"},
     "spellbook": {"level": "`level`", "casting_time": "`casting_time.type`"},
 }
+# Подсказка `suggest` по виду выбора: ресурс, в котором ищется слаг, и слово для ошибки.
+SUGGESTED = {"feat": ("feats", "черты"), "spell": ("spells", "заклинания")}
 SPELL_LEVELS = ("slots", "cantrip-or-slots")
 SCHOOLS = ("abjuration", "conjuration", "divination", "enchantment", "evocation", "illusion", "necromancy",
            "transmutation")
@@ -220,6 +222,16 @@ SPECIES_TRAITS = {
     ("human", "Skillful"): [ch("skill", "skill", 1, lst("skills"))],
     ("human", "Versatile"): [ch("feat", "feat", 1, res("feats", category="origin"), suggest={"slug": "skilled"})],
 }
+
+# --- Наследия видов: слаг наследия → выборы (#490). Выбор одного наследия, а не всей особенности вида ---
+LINEAGES = {
+    # src/dnd/srd-5.2/en/04_CharacterOrigins.md, таблица Elven Lineages, строка High Elf.
+    "elf-high-elf": [ch("cantrip", "spell", 1, res("spells", **{"class": "wizard"}, level=0), "long-rest",
+                        suggest={"slug": "prestidigitation"})],
+}
+# Заклинание из grants наследия, которое заменяет выбор этого же наследия: (наследие, заклинание) → id выбора.
+# Сборка пишет id в grants.spells[].choice; заклинание-подсказка выбора без такой связи роняет сборку.
+LINEAGE_GRANT_CHOICES = {("elf-high-elf", "prestidigitation"): "cantrip"}
 
 # --- Предыстории: правило прибавок у всех одно; характеристики — свои, подставляет сборка ---------
 # increase — допустимые распределения: +2 и +1 либо по +1 к каждой из трёх.
@@ -455,15 +467,17 @@ def _check(choice, where, known, ids, errors):
         else:
             _check_filter(source["character"], source["filter"], where, known, ids, errors)
     suggest = choice.get("suggest", {})
-    if "slug" in suggest and suggest["slug"] not in known["feats"]:
-        errors.append(f"{where}: черты-подсказки {suggest['slug']!r} нет")
+    if "slug" in suggest and choice["kind"] not in SUGGESTED:
+        errors.append(f"{where}: подсказка у выбора вида {choice['kind']!r} не поддерживается")
+    elif "slug" in suggest and suggest["slug"] not in known[SUGGESTED[choice["kind"]][0]]:
+        errors.append(f"{where}: {SUGGESTED[choice['kind']][1]}-подсказки {suggest['slug']!r} нет")
     if set(suggest) - {"slug"}:
-        errors.append(f"{where}: подсказка — только слаг черты, получено {sorted(suggest)}")
+        errors.append(f"{where}: подсказка — только слаг записи, получено {sorted(suggest)}")
 
 
 def attach_choices(all_data: dict) -> list[str]:
-    """Пишет `choices` классам и их умениям, подклассам, видам и их особенностям, предысториям, чертам
-    и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции.
+    """Пишет `choices` классам и их умениям, подклассам, видам, их особенностям и наследиям, предысториям,
+    чертам и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции.
 
     Объявления написаны для редакции, у которой есть ресурс классов; остальные версии не трогаются."""
     errors: list[str] = []
@@ -481,6 +495,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         "resources": {name for name, items in en.items() if items},
         "classes": {c["slug"] for c in en["classes"]},
         "feats": {f["slug"] for f in en["feats"]},
+        "spells": {sp["slug"] for sp in en["spells"]},
         "feat-categories": {f["category"] for f in en["feats"]},
         "option-groups": {(o["class"], o["feature"]["key"]) for o in en["class-options"] if o["selection"] == "learned"},
         "subclass-classes": {s["class"] for s in en["subclasses"]},
@@ -548,6 +563,24 @@ def _attach(all_data: dict, ver: str) -> list[str]:
             put(trait, declared, {}, f"species/{sp['slug']}/{trait['name']}")
             if key in SPECIES_TRAITS:
                 used.add(("species-trait", key))
+    for lineage in en["species-lineages"]:
+        where = f"species-lineages/{lineage['slug']}"
+        put(lineage, LINEAGES.get(lineage["slug"], []), {}, where)
+        ids = {choice["id"] for choice in lineage["choices"]}
+        for spell in lineage["grants"]["spells"]:
+            spell.pop("choice", None)
+            key = (lineage["slug"], spell["slug"])
+            if key in LINEAGE_GRANT_CHOICES:
+                used.add(("lineage-grant", key))
+                if LINEAGE_GRANT_CHOICES[key] in ids:
+                    spell["choice"] = LINEAGE_GRANT_CHOICES[key]
+                else:
+                    errors.append(f"{where}: заклинание {spell['slug']!r} связано с выбором "
+                                  f"{LINEAGE_GRANT_CHOICES[key]!r}, а такого выбора у наследия нет")
+        for choice in lineage["choices"]:
+            hint = choice.get("suggest", {}).get("slug")
+            if any(sp["slug"] == hint and sp.get("choice") != choice["id"] for sp in lineage["grants"]["spells"]):
+                errors.append(f"{where}: заклинание {hint!r} в grants — подсказка выбора {choice['id']!r}, а связи choice нет")
     feats = {f["slug"]: f for f in en["feats"]}
     for feat in en["feats"]:
         put(feat, FEATS.get(feat["slug"], []), {}, f"feats/{feat['slug']}")
@@ -567,16 +600,18 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     declared = ({("class", k) for k in CLASSES} | {("multiclass", k) for k in MULTICLASS}
                 | {("class-feature", k) for k in CLASS_FEATURES}
                 | {("subclass-feature", k) for k in SUBCLASS_FEATURES} | {("species-trait", k) for k in SPECIES_TRAITS}
-                | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS})
+                | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS}
+                | {("lineage-grant", k) for k in LINEAGE_GRANT_CHOICES})
     for kind, key in sorted(declared - used, key=str):
         errors.append(f"объявление без хозяина: {kind} {key}")
-    for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS)):
+    for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS),
+                        ("species-lineages", LINEAGES)):
         for slug in sorted(set(table) - {e["slug"] for e in en[name]}):
             errors.append(f"объявление без хозяина: {name}/{slug}")
 
     # RU: те же выборы, что у EN — по слагу записи и по позиции умения или особенности.
     for name, nested in (("classes", "features"), ("subclasses", "features"), ("species", "traits"),
-                         ("backgrounds", None), ("feats", None), ("class-options", None)):
+                         ("backgrounds", None), ("feats", None), ("class-options", None), ("species-lineages", None)):
         source = {e["slug"]: e for e in en[name]}
         for entity in all_data.get((ver, "ru", name), []):
             origin = source.get(entity["slug"])
@@ -587,6 +622,11 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                 entity["choices"] = origin["choices"]
             if name == "classes":
                 entity["multiclass"]["choices"] = origin["multiclass"]["choices"]
+            if name == "species-lineages":
+                for spell, pair in zip(entity["grants"]["spells"], origin["grants"]["spells"]):
+                    spell.pop("choice", None)
+                    if "choice" in pair:
+                        spell["choice"] = pair["choice"]
             for item, pair in zip(entity[nested], origin[nested]) if nested else ():
                 item["choices"] = pair["choices"]
                 if "always_prepared" in pair:
