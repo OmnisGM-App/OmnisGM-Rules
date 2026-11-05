@@ -95,9 +95,32 @@ def _feature_blocks(lines: list[str], lang: str | None = None) -> list[dict]:
     return out
 
 
-def _features(lines: list[str]) -> list[dict]:
+# Прибавка без выбора (#479): «Your Strength and Constitution scores increase by 4, to a maximum of 25».
+_FIXED_INCREASE = re.compile(r"Your ((?:\w+, )*\w+(?:,? and \w+)?) scores? increases? by (\d+), "
+                             r"to a maximum of (\d+)\.")
+_FIXED_INCREASE_HINT = re.compile(r"(?i)\b(?:strength|dexterity|constitution|intelligence|wisdom|charisma)"
+                                  r"\b[^.]*\bscores?\b[^.]*\bincreases? by \d")
+
+
+def _ability_increases(feature: str, body: str) -> list[dict]:
+    out = []
+    for m in _FIXED_INCREASE.finditer(body):
+        names = re.split(r",? and |, ", m.group(1).lower())
+        if not set(names) <= set(ABILITY_CODES):
+            raise ValueError(f"«{feature}»: unknown ability in {m.group(0)!r}")
+        out.append({"abilities": [ABILITY_CODES[n] for n in names], "amount": int(m.group(2)),
+                    "max": int(m.group(3))})
+    if _FIXED_INCREASE_HINT.search(_FIXED_INCREASE.sub("", body)):
+        raise ValueError(f"«{feature}»: an ability score increase in an unknown form")
+    return out
+
+
+def _features(lines: list[str], lang: str) -> list[dict]:
+    """`ability_increases` — коды из EN; у RU None до generate_api.align_classes."""
     return [{"level": f["level"], "name": f["name"],
-             "description_md": "\n".join(f["body"]).strip()} for f in _feature_blocks(lines)]
+             "description_md": "\n".join(f["body"]).strip(),
+             "ability_increases": _ability_increases(f["name"], "\n".join(f["body"])) if lang == "en" else None}
+            for f in _feature_blocks(lines)]
 
 
 # «You always have the *X* spell prepared» в теле умения класса (#366). Таблицы подклассов и выбор
@@ -311,6 +334,24 @@ def _spellcasting(features: list[dict], progression: dict) -> dict | None:
     return None
 
 
+_CASTER_SHARES = {"full": re.compile(r"^- All your levels in the (.+) classes$", re.M),
+                  "half": re.compile(r"^- Half your levels(?: \([^)]*\))? in the (.+) classes$", re.M)}
+
+
+def parse_caster_shares(text: str) -> dict[str, str]:
+    """EN class name → `full` | `half` from the multiclass Spell Slots list of the character creation chapter.
+
+    Raises ValueError unless each share has exactly one line there."""
+    out = {}
+    for share, pattern in _CASTER_SHARES.items():
+        found = pattern.findall(text)
+        if len(found) != 1:
+            raise ValueError(f"multiclass Spell Slots: {len(found)} «{share}» lines")
+        for name in re.split(r",? and |, ", found[0]):
+            out[name] = share
+    return out
+
+
 def _subclass_starts(lines: list[str], lang: str) -> list[tuple[int, str, str]]:
     out = []
     for i, line in enumerate(lines):
@@ -348,7 +389,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
     if not prog_table:
         raise ValueError(f"{name}: no class progression table")
     progression = _progression(prog_table, lang, name)
-    features = _features(class_lines)
+    features = _features(class_lines, lang)
     en = lang == "en"
     skills = _skills(traits["skills"], lang)
     return [{
@@ -407,6 +448,8 @@ def parse_subclasses(text: str, lang: str) -> list[dict]:
         section = lines[start + 1:end]
         first_feature = next((i for i, l in enumerate(section) if _FEATURE_RE.match(_clean(l))),
                              len(section))
+        features = _features(section, lang)
+        casting = _spellcasting(features, {"columns": []}) if lang == "en" else None
         tables = _spell_tables(section)
         always = []
         for t in tables:
@@ -420,8 +463,10 @@ def parse_subclasses(text: str, lang: str) -> list[dict]:
             "name_en": None,
             "class": slugify(class_name) if lang == "en" else None,
             "description_md": "\n".join(section[:first_feature]).strip(),
-            "features": _features(section),
+            "features": features,
             "always_prepared": always,
+            # Доля трети (#477): в SRD 5.2.1 такого подкласса и правила округления для него нет.
+            "spellcasting": {**casting, "caster": "third"} if casting else None,
         })
     return out
 
