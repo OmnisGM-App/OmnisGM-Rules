@@ -69,7 +69,7 @@ for lang in ("en", "ru"):
        codes(live[("srd51", lang, "feats")]), {"grappler": (None, {"values": ["str"], "min": 13}, None)})
 ru = {f["slug"]: f for f in live[("srd52", "ru", "feats")]}
 eq("RU: text — своя строка, prerequisite не тронута",
-   (ru["grappler"]["prerequisites"]["text"], ru["grappler"]["prerequisite"]),
+   ((ru["grappler"]["prerequisites"] or {}).get("text"), ru["grappler"]["prerequisite"]),
    ("Уровень 4+, Сила или Ловкость 13+", "Уровень 4+, Сила или Ловкость 13+"))
 eq("черта без строки — prerequisites null",
    [f["prerequisites"] for f in live[("srd52", "en", "feats")] if f["slug"] == "alert"], [None])
