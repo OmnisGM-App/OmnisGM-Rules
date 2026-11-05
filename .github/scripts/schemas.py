@@ -543,7 +543,6 @@ _CHOICES = {"type": "array", "items": {
         "replace": {"type": "string", "enum": list(_choices.REPLACE)},
         "levels": {"type": "array", "items": _LEVEL, "minItems": 2},
         "level": _LEVEL,
-        # Черта, которую правила советуют взять («Defense is recommended»).
         "suggest": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"],
                     "additionalProperties": False},
         # Прибавки характеристик: допустимые распределения и потолок значения.
@@ -1082,6 +1081,8 @@ _LINEAGE_GRANTS = {
                 "slug": {"type": "string"},
                 "level": {"type": "integer", "minimum": 1, "maximum": 20},
                 "uses": _USES,
+                # id выбора этого же наследия, который заменяет заклинание (#490); сверяет attach_choices.
+                "choice": {"type": "string"},
             },
             "required": ["slug", "level", "uses"],
             "additionalProperties": False,

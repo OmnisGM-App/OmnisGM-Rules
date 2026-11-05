@@ -52,8 +52,8 @@ FILTERS = {
     "known-cantrips": {"class": "класс, чьи заговоры считаются"},
     "spellbook": {"level": "`level`", "casting_time": "`casting_time.type`"},
 }
-# Подсказка `suggest` — слаг записи того ресурса, из которого выбирает выбор этого вида.
-SUGGESTED = {"feat": "feats", "spell": "spells"}
+# Подсказка `suggest` по виду выбора: ресурс, в котором ищется слаг, и слово для ошибки.
+SUGGESTED = {"feat": ("feats", "черты"), "spell": ("spells", "заклинания")}
 SPELL_LEVELS = ("slots", "cantrip-or-slots")
 SCHOOLS = ("abjuration", "conjuration", "divination", "enchantment", "evocation", "illusion", "necromancy",
            "transmutation")
@@ -229,6 +229,9 @@ LINEAGES = {
     "elf-high-elf": [ch("cantrip", "spell", 1, res("spells", **{"class": "wizard"}, level=0), "long-rest",
                         suggest={"slug": "prestidigitation"})],
 }
+# Заклинание из grants наследия, которое заменяет выбор этого же наследия: (наследие, заклинание) → id выбора.
+# Сборка пишет id в grants.spells[].choice; заклинание-подсказка выбора без такой связи роняет сборку.
+LINEAGE_GRANT_CHOICES = {("elf-high-elf", "prestidigitation"): "cantrip"}
 
 # --- Предыстории: правило прибавок у всех одно; характеристики — свои, подставляет сборка ---------
 # increase — допустимые распределения: +2 и +1 либо по +1 к каждой из трёх.
@@ -455,8 +458,8 @@ def _check(choice, where, known, ids, errors):
     suggest = choice.get("suggest", {})
     if "slug" in suggest and choice["kind"] not in SUGGESTED:
         errors.append(f"{where}: подсказка у выбора вида {choice['kind']!r} не поддерживается")
-    elif "slug" in suggest and suggest["slug"] not in known[SUGGESTED[choice["kind"]]]:
-        errors.append(f"{where}: {'черты' if choice['kind'] == 'feat' else 'заклинания'}-подсказки {suggest['slug']!r} нет")
+    elif "slug" in suggest and suggest["slug"] not in known[SUGGESTED[choice["kind"]][0]]:
+        errors.append(f"{where}: {SUGGESTED[choice['kind']][1]}-подсказки {suggest['slug']!r} нет")
     if set(suggest) - {"slug"}:
         errors.append(f"{where}: подсказка — только слаг записи, получено {sorted(suggest)}")
 
@@ -548,7 +551,23 @@ def _attach(all_data: dict, ver: str) -> list[str]:
             if key in SPECIES_TRAITS:
                 used.add(("species-trait", key))
     for lineage in en["species-lineages"]:
-        put(lineage, LINEAGES.get(lineage["slug"], []), {}, f"species-lineages/{lineage['slug']}")
+        where = f"species-lineages/{lineage['slug']}"
+        put(lineage, LINEAGES.get(lineage["slug"], []), {}, where)
+        ids = {choice["id"] for choice in lineage["choices"]}
+        for spell in lineage["grants"]["spells"]:
+            spell.pop("choice", None)
+            key = (lineage["slug"], spell["slug"])
+            if key in LINEAGE_GRANT_CHOICES:
+                used.add(("lineage-grant", key))
+                if LINEAGE_GRANT_CHOICES[key] in ids:
+                    spell["choice"] = LINEAGE_GRANT_CHOICES[key]
+                else:
+                    errors.append(f"{where}: заклинание {spell['slug']!r} связано с выбором "
+                                  f"{LINEAGE_GRANT_CHOICES[key]!r}, а такого выбора у наследия нет")
+        for choice in lineage["choices"]:
+            hint = choice.get("suggest", {}).get("slug")
+            if any(sp["slug"] == hint and sp.get("choice") != choice["id"] for sp in lineage["grants"]["spells"]):
+                errors.append(f"{where}: заклинание {hint!r} в grants — подсказка выбора {choice['id']!r}, а связи choice нет")
     feats = {f["slug"]: f for f in en["feats"]}
     for feat in en["feats"]:
         put(feat, FEATS.get(feat["slug"], []), {}, f"feats/{feat['slug']}")
@@ -568,7 +587,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     declared = ({("class", k) for k in CLASSES} | {("multiclass", k) for k in MULTICLASS}
                 | {("class-feature", k) for k in CLASS_FEATURES}
                 | {("subclass-feature", k) for k in SUBCLASS_FEATURES} | {("species-trait", k) for k in SPECIES_TRAITS}
-                | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS})
+                | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS}
+                | {("lineage-grant", k) for k in LINEAGE_GRANT_CHOICES})
     for kind, key in sorted(declared - used, key=str):
         errors.append(f"объявление без хозяина: {kind} {key}")
     for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS),
@@ -589,6 +609,11 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                 entity["choices"] = origin["choices"]
             if name == "classes":
                 entity["multiclass"]["choices"] = origin["multiclass"]["choices"]
+            if name == "species-lineages":
+                for spell, pair in zip(entity["grants"]["spells"], origin["grants"]["spells"]):
+                    spell.pop("choice", None)
+                    if "choice" in pair:
+                        spell["choice"] = pair["choice"]
             for item, pair in zip(entity[nested], origin[nested]) if nested else ():
                 item["choices"] = pair["choices"]
                 if "always_prepared" in pair:

@@ -219,6 +219,11 @@ for lang in ("en", "ru"):
     eq(f"{lang}: заговор волшебника — выбор высшего эльфа, не дроу и не лесного эльфа",
        {slug: l.get("choices") for slug, l in by_slug(lang, "species-lineages").items() if l["species"] == "elf"},
        {"elf-drow": [], "elf-high-elf": HIGH_ELF_CANTRIP, "elf-wood-elf": []})
+for lang in ("en", "ru"):
+    eq(f"{lang}: Prestidigitation высшего эльфа в grants связан с выбором cantrip, других связей нет",
+       {(slug, sp["slug"]): sp["choice"] for slug, l in by_slug(lang, "species-lineages").items()
+        for sp in l["grants"]["spells"] if "choice" in sp},
+       {("elf-high-elf", "prestidigitation"): "cantrip"})
 eq("выбор заговора — у наследия, а не у особенности «Эльфийская родословная»",
    [c["id"] for c in feature("en", "species", "elf", "Elven Lineage")["choices"]], ["lineage", "spellcasting-ability"])
 eq("размер — выбор у человека и тифлинга",
@@ -281,6 +286,14 @@ def rebuilt(mutate_data=None, **tables):
     finally:
         for name, table in saved.items():
             setattr(choices, name, table)
+
+
+def errors_or_exception(**tables):
+    """Ошибки сборки списком; исключение вместо ошибки — тоже строка, чтобы кейс упал на сверке, а не трассой."""
+    try:
+        return rebuilt(**tables)
+    except Exception as exc:  # noqa: BLE001
+        return [f"исключение {type(exc).__name__}: {exc}"]
 
 
 def also(table, key, value):
@@ -362,6 +375,13 @@ for name, tables, want in (
     ("заклинания-подсказки нет", {"LINEAGES": {"elf-high-elf": [choices.ch(
         "cantrip", "spell", 1, choices.res("spells", **{"class": "wizard"}, level=0), suggest={"slug": "no-such"})]}},
      "species-lineages/elf-high-elf: заклинания-подсказки 'no-such' нет"),
+    ("заклинание-подсказка в grants без связи с выбором", {"LINEAGE_GRANT_CHOICES": {}},
+     "species-lineages/elf-high-elf: заклинание 'prestidigitation' в grants — подсказка выбора 'cantrip', а связи choice нет"),
+    ("связь с выбором, которого у наследия нет", {"LINEAGE_GRANT_CHOICES": {("elf-high-elf", "prestidigitation"): "spell"}},
+     "species-lineages/elf-high-elf: заклинание 'prestidigitation' связано с выбором 'spell', а такого выбора у наследия нет"),
+    ("связь для заклинания, которого нет в grants наследия", {"LINEAGE_GRANT_CHOICES": also(
+        "LINEAGE_GRANT_CHOICES", ("elf-drow", "prestidigitation"), "cantrip")},
+     "объявление без хозяина: lineage-grant ('elf-drow', 'prestidigitation')"),
     ("подсказка у выбора вида без подсказок", {"FEATS": also("FEATS", "skilled", [choices.ch(
         "c", "skill", 1, choices.lst("skills"), suggest={"slug": "athletics"})])},
      "feats/skilled: подсказка у выбора вида 'skill' не поддерживается"),
@@ -374,7 +394,7 @@ for name, tables, want in (
     ("типа оружия нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "weapon-mastery", 1, choices.res("weapons", type="thrown"))])},
      "feats/skilled: типа оружия 'thrown' нет"),
 ):
-    eq(f"{name} — сборка падает", [e for e in rebuilt(**tables) if e == want], [want])
+    eq(f"{name} — сборка падает", [e for e in errors_or_exception(**tables) if e == want], [want])
 
 
 def whole_spell_list(data):
