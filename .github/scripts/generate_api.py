@@ -565,6 +565,10 @@ def align_classes(all_data: dict) -> list[str]:
                 idx = next(i for i, f in enumerate(e["features"])
                            if f["name"] == e["spellcasting"]["feature"])
                 r["spellcasting"] = {**e["spellcasting"], "feature": r["features"][idx]["name"]}
+                swap = e["spellcasting"]["short_rest_swap"]
+                if swap:
+                    at = next(i for i, f in enumerate(e["features"]) if f["name"] == swap["feature"])
+                    r["spellcasting"]["short_rest_swap"] = {**swap, "feature": r["features"][at]["name"]}
             if resource == "subclasses":
                 r["class"] = e["class"]
                 for rr, er in zip(r["always_prepared"], e["always_prepared"]):

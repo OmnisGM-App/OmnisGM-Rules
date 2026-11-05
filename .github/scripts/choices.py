@@ -385,6 +385,17 @@ def _fill(value, context):
     return value
 
 
+# Сколько видов оружия Weapon Mastery меняется после долгого отдыха (#491) — по фразе умения.
+REPLACE_COUNT = {"one": "change one of those weapon choices", "any": "change the kinds of weapons you chose"}
+
+
+def _replace_count(owner, where, errors):
+    found = [count for count, phrase in REPLACE_COUNT.items() if phrase in owner.get("description_md", "")]
+    if len(found) != 1:
+        errors.append(f"{where}: сколько видов оружия меняется — фраз {found or 'нет'}")
+    return found[0] if found else None
+
+
 def _build(declared, context, where, errors, cls=None, levels=None):
     out = []
     for choice in declared:
@@ -499,6 +510,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         owner["choices"] = _build(declared, context, where, errors, cls, levels)
         ids = {choice["id"] for choice in owner["choices"]}
         for choice in owner["choices"]:
+            if choice["kind"] == "weapon-mastery":
+                choice["replace_count"] = _replace_count(owner, where, errors)
             _check(choice, where, known, ids, errors)
 
     for cls in en["classes"]:
