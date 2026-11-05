@@ -786,7 +786,7 @@ SUBCLASS_SCHEMA = {
         "description_md": {"type": "string"},
         "features": {"type": "array", "items": _SUBCLASS_FEATURE},
         "always_prepared": _ALWAYS_PREPARED,
-        # Подкласс с собственным заклинательством считается третью уровня (#477).
+        # Свой Spellcasting подкласса — доля third (#477).
         "spellcasting": {
             **_SPELLCASTING,
             "properties": {**_SPELLCASTING["properties"],
