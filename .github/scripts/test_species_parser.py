@@ -207,7 +207,7 @@ for lang in ("en", "ru"):
     eq(f"{lang}: уровни особенностей вида",
        {(s["slug"], t["level"]) for s in grants_data[("srd52", lang, "species")] for t in s["traits"] if t["level"]},
        {("dragonborn", 5), ("goliath", 5)})
-eq("EN: details и description_md наследий не тронуты",
+eq("разрешение grants не трогает details и description_md",
    [(l["details"], l["description_md"]) for l in grants_data[("srd52", "en", "species-lineages")]],
    [(l["details"], l["description_md"]) for l in structure_species(copy.deepcopy(pristine[("srd52", "en", "species")]), "en")[0]])
 
@@ -223,6 +223,15 @@ eq("EN: заклинание с уровнем без фразы о беспла
    grant_errors_of("en", "gnome", "a number of times equal to your Proficiency Bonus, and you regain all expended uses",
                    "twice, and you regain all expended uses"),
    ["srd52/en/gnome-forest-gnome: у «Speak with Animals» нет фразы о бесплатных сотворениях"])
+eq("EN: сопротивление вне списка — ошибка",
+   grant_errors_of("en", "tiefling", "Resistance to Poison damage", "Resistance to Ooze damage"),
+   ["srd52/en/tiefling-abyssal: тип урона «ooze» вне списка"])
+eq("EN: ячейка уровня без заклинания — ошибка",
+   grant_errors_of("en", "elf", "| Darkness           |", "| Darkness.          |"),
+   ["srd52: Elf: Drow: no spell in 'Level 5'"])
+eq("EN: незнакомая колонка таблицы наследий — ошибка",
+   grant_errors_of("en", "dragonborn", "| Dragon | Damage Type |", "| Dragon | Breath |"),
+   ["srd52: Dragonborn: Black: unknown lineage column 'Breath'"])
 eq("EN: тип урона вне списка — ошибка",
    grant_errors_of("en", "dragonborn", "| Black  | Acid ", "| Black  | Ooze "),
    ["srd52/en/dragonborn-black: тип урона «ooze» вне списка"])

@@ -111,7 +111,7 @@ def _uses(text: str, phrases: dict) -> dict | None:
     return dict(found[0]) if len(found) == 1 else None
 
 
-def _lineage_grants(variant: dict, owner_text: str) -> dict:
+def _lineage_grants(species: str, variant: dict, owner_text: str) -> dict:
     """`spells` — EN-имена с уровнем персонажа (слаги и `uses` дописывает generate_api по `spells`);
     `speed_min` — «Speed increases to N»: скорость не ниже N, не прибавка."""
     grants = {"spells": [], "damage_type": None, "resistances": [], "darkvision": None, "speed_min": None,
@@ -126,11 +126,13 @@ def _lineage_grants(variant: dict, owner_text: str) -> dict:
             continue
         level = _LEVEL_LABEL.fullmatch(label)
         if not level:
-            raise ValueError(f"{variant['name']}: unknown lineage column {label!r}")
+            raise ValueError(f"{species}: {variant['name']}: unknown lineage column {label!r}")
         if _BARE_NAME.fullmatch(text):
             names = [text]
         else:
             names = list(dict.fromkeys(_ITALIC.findall(text))) or _KNOWN_CANTRIP.findall(text)
+        if variant["details"] and not names:
+            raise ValueError(f"{species}: {variant['name']}: no spell in {label!r}")
         grants["spells"] += [{"name": n, "level": int(level.group(1))} for n in names]
         grants["resistances"] += [t.lower() for t in _RESISTANCE.findall(text)]
         dealt = _DEALT_DAMAGE.findall(text)
@@ -233,7 +235,7 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
                 "trait": owner,
                 "description_md": variant["description_md"],
                 "details": variant["details"],
-                "grants": _lineage_grants(variant, owner_text) if en else None,
+                "grants": _lineage_grants(name, variant, owner_text) if en else None,
             })
     return lineages, out_shape
 
