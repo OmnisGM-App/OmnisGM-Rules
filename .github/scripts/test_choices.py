@@ -59,10 +59,10 @@ classes = by_slug("en", "classes")
 def all_choices(lang):
     out = {}
     for res, nested in (("classes", "features"), ("subclasses", "features"), ("species", "traits"),
-                        ("backgrounds", None), ("feats", None), ("class-options", None)):
+                        ("backgrounds", None), ("feats", None), ("class-options", None), ("species-lineages", None)):
         for e in live[("srd52", lang, res)]:
             if res != "subclasses":
-                out[(res, e["slug"])] = e["choices"]
+                out[(res, e["slug"])] = e.get("choices", [])
             if res == "classes":
                 out[(res, e["slug"], "multiclass")] = e["multiclass"].get("choices")
             for index, item in enumerate(e[nested]) if nested else ():
@@ -212,6 +212,20 @@ eq("наследие — у пяти видов, из их наследий",
 eq("заклинательная характеристика наследия: эльф, гном, тифлинг",
    sorted(slug for slug, sp in species.items() for t in sp["traits"] for c in t["choices"] if c["kind"] == "spellcasting-ability"),
    ["elf", "gnome", "tiefling"])
+HIGH_ELF_CANTRIP = [{"id": "cantrip", "kind": "spell", "count": 1,
+                     "from": {"resource": "spells", "filter": {"class": "wizard", "level": 0}},
+                     "replace": "long-rest", "suggest": {"slug": "prestidigitation"}}]
+for lang in ("en", "ru"):
+    eq(f"{lang}: заговор волшебника — выбор высшего эльфа, не дроу и не лесного эльфа",
+       {slug: l.get("choices") for slug, l in by_slug(lang, "species-lineages").items() if l["species"] == "elf"},
+       {"elf-drow": [], "elf-high-elf": HIGH_ELF_CANTRIP, "elf-wood-elf": []})
+for lang in ("en", "ru"):
+    eq(f"{lang}: Prestidigitation высшего эльфа в grants связан с выбором cantrip, других связей нет",
+       {(slug, sp["slug"]): sp["choice"] for slug, l in by_slug(lang, "species-lineages").items()
+        for sp in l["grants"]["spells"] if "choice" in sp},
+       {("elf-high-elf", "prestidigitation"): "cantrip"})
+eq("выбор заговора — у наследия, а не у особенности «Эльфийская родословная»",
+   [c["id"] for c in feature("en", "species", "elf", "Elven Lineage")["choices"]], ["lineage", "spellcasting-ability"])
 eq("размер — выбор у человека и тифлинга",
    {slug: [c["from"]["values"] for c in sp["choices"]] for slug, sp in species.items() if sp["choices"]},
    {"human": [["medium", "small"]], "tiefling": [["medium", "small"]]})
@@ -255,7 +269,7 @@ eq("ключи фильтров — только из словаря",
           - {(name, key) for name, keys in choices.FILTERS.items() for key in keys}), [])
 
 eq("RU несёт те же выборы, что EN, у каждой записи, умения и особенности", all_choices("ru"), all_choices("en"))
-eq("всего объявлено выборов", sum(len(v) for v in all_choices("en").values()), 133)
+eq("всего объявлено выборов", sum(len(v) for v in all_choices("en").values()), 134)
 
 
 # --- Отказы: сборка на испорченных объявлениях и данных -----------------------------------------
@@ -274,6 +288,14 @@ def rebuilt(mutate_data=None, **tables):
             setattr(choices, name, table)
 
 
+def errors_or_exception(**tables):
+    """Ошибки сборки списком; исключение вместо ошибки — тоже строка, чтобы кейс упал на сверке, а не трассой."""
+    try:
+        return rebuilt(**tables)
+    except Exception as exc:  # noqa: BLE001
+        return [f"исключение {type(exc).__name__}: {exc}"]
+
+
 def also(table, key, value):
     return {**getattr(choices, table), key: value}
 
@@ -285,6 +307,8 @@ eq("объявление для умения, которого нет, роня�
 eq("объявление для особенности вида, которой нет, роняет сборку",
    rebuilt(SPECIES_TRAITS=also("SPECIES_TRAITS", ("orc", "Menacing"), [])),
    ["объявление без хозяина: species-trait ('orc', 'Menacing')"])
+eq("объявление для наследия, которого нет, роняет сборку",
+   rebuilt(LINEAGES=also("LINEAGES", "elf-sun-elf", [])), ["объявление без хозяина: species-lineages/elf-sun-elf"])
 eq("объявление для черты, которой нет, роняет сборку",
    rebuilt(FEATS=also("FEATS", "lucky", [])), ["объявление без хозяина: feats/lucky"])
 eq("владелец таблицы для умения, которого нет, роняет сборку",
@@ -348,8 +372,21 @@ for name, tables, want in (
      "feats/skilled: наследий вида 'orc' нет"),
     ("черты-подсказки нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "feat", 1, choices.ANY_FEAT, suggest={"slug": "no-such"})])},
      "feats/skilled: черты-подсказки 'no-such' нет"),
+    ("заклинания-подсказки нет", {"LINEAGES": {"elf-high-elf": [choices.ch(
+        "cantrip", "spell", 1, choices.res("spells", **{"class": "wizard"}, level=0), suggest={"slug": "no-such"})]}},
+     "species-lineages/elf-high-elf: заклинания-подсказки 'no-such' нет"),
+    ("заклинание-подсказка в grants без связи с выбором", {"LINEAGE_GRANT_CHOICES": {}},
+     "species-lineages/elf-high-elf: заклинание 'prestidigitation' в grants — подсказка выбора 'cantrip', а связи choice нет"),
+    ("связь с выбором, которого у наследия нет", {"LINEAGE_GRANT_CHOICES": {("elf-high-elf", "prestidigitation"): "spell"}},
+     "species-lineages/elf-high-elf: заклинание 'prestidigitation' связано с выбором 'spell', а такого выбора у наследия нет"),
+    ("связь для заклинания, которого нет в grants наследия", {"LINEAGE_GRANT_CHOICES": also(
+        "LINEAGE_GRANT_CHOICES", ("elf-drow", "prestidigitation"), "cantrip")},
+     "объявление без хозяина: lineage-grant ('elf-drow', 'prestidigitation')"),
+    ("подсказка у выбора вида без подсказок", {"FEATS": also("FEATS", "skilled", [choices.ch(
+        "c", "skill", 1, choices.lst("skills"), suggest={"slug": "athletics"})])},
+     "feats/skilled: подсказка у выбора вида 'skill' не поддерживается"),
     ("подсказка не слагом", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "feat", 1, choices.ANY_FEAT, suggest={"category": "origin"})])},
-     "feats/skilled: подсказка — только слаг черты, получено ['category']"),
+     "feats/skilled: подсказка — только слаг записи, получено ['category']"),
     ("списка нет в словаре", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "skill", 1, choices.lst("hobbies"))])},
      "feats/skilled: список 'hobbies' вне словаря"),
     ("плохое значение во втором источнике", {"CLASS_FEATURES": STYLE_OR(choices.res("feats", category="heroic"))},
@@ -357,7 +394,7 @@ for name, tables, want in (
     ("типа оружия нет", {"FEATS": also("FEATS", "skilled", [choices.ch("c", "weapon-mastery", 1, choices.res("weapons", type="thrown"))])},
      "feats/skilled: типа оружия 'thrown' нет"),
 ):
-    eq(f"{name} — сборка падает", [e for e in rebuilt(**tables) if e == want], [want])
+    eq(f"{name} — сборка падает", [e for e in errors_or_exception(**tables) if e == want], [want])
 
 
 def whole_spell_list(data):
@@ -573,4 +610,4 @@ if failures:
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print("✅ choices: 133 объявления выбора, число по уровням, источники, RU копией EN, отказы сборки")
+print("✅ choices: 134 объявления выбора, число по уровням, источники, RU копией EN, отказы сборки")

@@ -505,7 +505,7 @@ CONDITION_SCHEMA = {
 # count — число или «уровень класса → всего на этом уровне». from — закрытый список (values null —
 # целиком), записи ресурса по фильтру или то, что у персонажа уже есть. or — второй источник на тот же
 # выбор. levels — уровни класса, на которых умение с этим выбором даётся снова. level — уровень, с
-# которого появляется этот выбор, когда он позже уровня умения. suggest — черта, которую текст умения советует взять.
+# которого появляется этот выбор, когда он позже уровня умения. suggest — черта или заклинание, которые текст советует взять (слаг ресурса выбора).
 # replace — самый ранний момент замены: short-rest значит «на коротком или долгом отдыхе».
 # Ключи фильтра и поля записей, которые они читают, — словарь `FILTERS` в choices.py. Значение "@id" —
 # ответ на выбор с этим id в той же записи; level: "slots" — круги, на которые у персонажа есть ячейки,
@@ -543,7 +543,6 @@ _CHOICES = {"type": "array", "items": {
         "replace": {"type": "string", "enum": list(_choices.REPLACE)},
         "levels": {"type": "array", "items": _LEVEL, "minItems": 2},
         "level": _LEVEL,
-        # Черта, которую правила советуют взять («Defense is recommended»).
         "suggest": {"type": "object", "properties": {"slug": {"type": "string"}}, "required": ["slug"],
                     "additionalProperties": False},
         # Прибавки характеристик: допустимые распределения и потолок значения.
@@ -1113,6 +1112,8 @@ _LINEAGE_GRANTS = {
                 "slug": {"type": "string"},
                 "level": {"type": "integer", "minimum": 1, "maximum": 20},
                 "uses": _USES,
+                # id выбора этого же наследия, который заменяет заклинание (#490); сверяет attach_choices.
+                "choice": {"type": "string"},
             },
             "required": ["slug", "level", "uses"],
             "additionalProperties": False,
@@ -1138,6 +1139,7 @@ SPECIES_LINEAGE_SCHEMA = {
         "species": {"type": "string"},
         "trait": {"type": "string"},
         "description_md": {"type": "string", "minLength": 1},
+        "choices": _CHOICES,
         "details": {"type": "array", "items": {
             "type": "object",
             "properties": {"label": {"type": "string"}, "text": {"type": "string"}},
@@ -1146,7 +1148,7 @@ SPECIES_LINEAGE_SCHEMA = {
         }},
         "grants": _LINEAGE_GRANTS,
     },
-    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details", "grants"],
+    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details", "grants", "choices"],
     "additionalProperties": False,
 }
 
