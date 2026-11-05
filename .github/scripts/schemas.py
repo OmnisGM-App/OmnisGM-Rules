@@ -1080,6 +1080,41 @@ SPECIES_LINEAGE_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Описатель версии системы: /api/{system}/{ver}/system.json (#473, #481).
+SYSTEM_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "System",
+    "type": "object",
+    "properties": {
+        "system": {"type": "string"},
+        "version": {"type": "string"},
+        "name": {"type": "string"},
+        # Нет поля — компендиум ещё меняется.
+        "compendium": {"type": "string", "enum": ["stable"]},
+        "multiclass": {
+            "type": ["object", "null"],
+            "properties": {
+                "prerequisite_score": {"type": "integer", "minimum": 1},
+                "caster_level_rounding": {"type": "string", "enum": ["up", "down"]},
+                "spell_slots": {"type": "array", "minItems": 20, "maxItems": 20, "items": {
+                    "type": "object",
+                    "properties": {
+                        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "spell_slots": {"type": "array", "items": {"type": "integer", "minimum": 0},
+                                        "minItems": 9, "maxItems": 9},
+                    },
+                    "required": ["level", "spell_slots"],
+                    "additionalProperties": False,
+                }},
+            },
+            "required": ["prerequisite_score", "caster_level_rounding", "spell_slots"],
+            "additionalProperties": False,
+        },
+    },
+    "required": ["system", "version", "name", "multiclass"],
+    "additionalProperties": False,
+}
+
 # Языки SRD 5.2 (#482): таблицы стандартных и редких языков главы «Создание персонажа».
 LANGUAGE_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",

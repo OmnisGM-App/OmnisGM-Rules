@@ -3,6 +3,8 @@
 SYSTEM = "dnd"
 SYSTEM_NAME = "Dungeons & Dragons"
 VERSION_NAMES = {"srd52": "SRD 5.2.1", "srd51": "SRD 5.1"}
+# Компендиум версии вычитан (#473): "stable" ставит владелец PR в Rules; версия без записи ещё меняется.
+COMPENDIUM = {}
 
 SOURCES = [
     # SRD 5.2 RU
@@ -71,6 +73,9 @@ SOURCES += [
     {"ver": "srd52", "lang": lang, "type": kind, "file": f"srd-5.2/{lang}/03_Classes/{name}.md"}
     for lang in ("ru", "en") for kind in ("class", "subclass", "class_option") for name in _CLASS_FILES
 ]
+
+# Глава с правилами мультикласса (#481).
+MULTICLASS_RULES = {"srd52": "srd-5.2/en/02_CharacterCreation.md"}
 
 # Языки и подписи членов списков выбора (#482) — из таблиц глав; заголовки таблиц EN и RU парны по строкам.
 _LIST_TABLES = {
