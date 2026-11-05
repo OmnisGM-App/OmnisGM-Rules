@@ -57,6 +57,7 @@ fail() {
 # как правка кода гейта, и ловить это на CI через десять минут — потеря времени. Стоят они
 # пару секунд.
 if [ -n "$py_touched" ]; then
+  python3 -c 'import jsonschema' >/dev/null 2>&1 || fail "python-гейтам нужен jsonschema" "pip install jsonschema"
   echo "pre-commit: python-гейты…"
   npm run --silent test:unit:py >/dev/null 2>&1 || fail "python-гейты упали" "npm run test:unit:py"
 fi

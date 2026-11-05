@@ -160,6 +160,11 @@ jobs:
         run: |
           python3 .github/scripts/generate_api.py \
             --src-root src/dnd --output-dir "$RUNNER_TEMP/api-validate"
+          # Описатель системы (#473, #481) — файл и ссылка в индексе версии, их читает Table.
+          test -s "$RUNNER_TEMP/api-validate/dnd/srd52/system.json"
+          python3 -c 'import json, sys; sys.exit(json.load(open(sys.argv[1]))["multiclass"]["prerequisite_score"] != 13)' \
+            "$RUNNER_TEMP/api-validate/dnd/srd52/system.json"
+          grep -q 'href="system.json"' "$RUNNER_TEMP/api-validate/dnd/srd52/index.html"
           # Daggerheart — те же схемы (schemas.py): ловит дрейф парсеров DH на PR
           # (в т.ч. level/recall доменных карт ≠ null). rules-terms без схемы (проза).
           python3 .github/scripts/generate_api.py --game daggerheart \

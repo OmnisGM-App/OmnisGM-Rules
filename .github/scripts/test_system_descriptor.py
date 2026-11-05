@@ -12,7 +12,6 @@ ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import jsonschema  # noqa: E402
 import config  # noqa: E402
-import config_brp  # noqa: E402
 import config_daggerheart  # noqa: E402
 from generate_api import system_descriptor  # noqa: E402
 from parsers import parse_multiclass_rules  # noqa: E402
@@ -30,8 +29,14 @@ SRC = ROOT / "src/dnd"
 CREATION = (SRC / "srd-5.2/en/02_CharacterCreation.md").read_text(encoding="utf-8")
 valid = jsonschema.Draft7Validator(SYSTEM_SCHEMA).is_valid
 
+# Конфигурация-фикстура: флаг, который владелец поставит в config.COMPENDIUM, тест не роняет.
+def dnd_cfg(compendium):
+    return types.SimpleNamespace(**{k: getattr(config, k) for k in ("SYSTEM", "VERSION_NAMES", "MULTICLASS_RULES")},
+                                 COMPENDIUM=compendium)
+
+
 # --- SRD 5.2.1: правила мультикласса из главы создания персонажа -----------------------
-srd52 = system_descriptor(config, "srd52", SRC)
+srd52 = system_descriptor(dnd_cfg({}), "srd52", SRC)
 eq("srd52: шапка описателя", {k: v for k, v in srd52.items() if k != "multiclass"},
    {"system": "dnd", "version": "srd52", "name": "SRD 5.2.1"})
 rules = srd52["multiclass"] or {"prerequisite_score": None, "caster_level_rounding": None,
@@ -46,18 +51,15 @@ eq("srd52: ячейки уровней 1, 5, 17, 20",
 eq("srd52: описатель проходит схему", valid(srd52), True)
 
 # --- Флаг готовности: нет записи — поля нет («ещё меняется»), «stable» — из конфигурации ----
-for cfg in (config, config_daggerheart, config_brp):
-    eq(f"{cfg.SYSTEM}: ни одна версия не объявлена стабильной", getattr(cfg, "COMPENDIUM", {}), {})
 eq("srd52: без записи нет флага", "compendium" in srd52, False)
-stable_cfg = types.SimpleNamespace(**{k: getattr(config, k) for k in ("SYSTEM", "VERSION_NAMES", "MULTICLASS_RULES")},
-                                   COMPENDIUM={"srd52": "stable"})
+stable_cfg = dnd_cfg({"srd52": "stable"})
 stable = system_descriptor(stable_cfg, "srd52", SRC)
 eq("srd52: «stable» из конфигурации", (stable.get("compendium"), valid(stable)), ("stable", True))
 eq("srd51: флаг другой версии не протекает", "compendium" in system_descriptor(stable_cfg, "srd51", SRC), False)
 eq("схема: неизвестное значение флага отклонено", valid({**srd52, "compendium": "changing"}), False)
 
 # --- Версии без главы правил мультикласса ------------------------------------------------
-srd51 = system_descriptor(config, "srd51", SRC)
+srd51 = system_descriptor(dnd_cfg({}), "srd51", SRC)
 eq("srd51: правил мультикласса пока нет (#461)", (srd51["multiclass"], valid(srd51)), (None, True))
 dh = system_descriptor(config_daggerheart, "srd10", ROOT / "src/daggerheart")
 eq("daggerheart: описатель без мультикласса", (dh["system"], dh["multiclass"], valid(dh)),
@@ -76,7 +78,7 @@ def rules_error(old, new):
     return None
 
 
-eq("5.1-форма «rounded down» читается как down",
+eq("«(rounded down)» в пункте списка читается как down",
    parse_multiclass_rules(CREATION.replace("(round up)", "(rounded down)"))["caster_level_rounding"], "down")
 eq("округление без скобки роняет сборку",
    rules_error("Half your levels (round up) in the", "Half your levels, rounded up, in the"),
