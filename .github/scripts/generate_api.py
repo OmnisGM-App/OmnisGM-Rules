@@ -391,11 +391,64 @@ def build_species_lineages(all_data: dict) -> list[str]:
             if (r["slug"], r["size"]["options"], r["speed"], len(r["traits"])) != \
                     (e["slug"], e["size"]["options"], e["speed"], len(e["traits"])):
                 errors.append(f"{ver}/ru/{r['slug']}: структура RU ≠ EN (вид, размер, скорость, число особенностей)")
+                continue
+            for te, tr in zip(e["traits"], r["traits"]):
+                tr["level"] = te["level"]
+                if te["level"] and not re.search(rf"\b{te['level']}-го уровня персонажа", tr["description_md"]):
+                    errors.append(f"{ver}/ru/{r['slug']}: в особенности «{tr['name']}» нет уровня {te['level']} из EN")
         for e, r in zip(en_lineages, ru_lineages):
             if r["species"] != e["species"] or len(r["details"]) != len(e["details"]):
                 errors.append(f"{ver}/ru: наследие «{r['name']}» не сходится с EN «{e['name']}»")
             r["slug"], r["name_en"] = e["slug"], e["name"]
         all_data[(ver, "ru", "species-lineages")] = ru_lineages
+    return errors
+
+
+def resolve_lineage_grants(all_data: dict) -> list[str]:
+    """`grants` наследий (#476): имена заклинаний EN → слаги `spells` той же версии, у заклинания с уровнем —
+    бесплатные сотворения из текста; типы урона — из закрытого списка. RU — копия EN по слагу наследия, а
+    имена заклинаний RU `spells` и числа обязаны стоять в тексте RU-наследия."""
+    from choices import DAMAGE_TYPES  # noqa: PLC0415
+    errors: list[str] = []
+    for (ver, lang, resource) in [k for k in all_data if k[1] == "en" and k[2] == "species-lineages"]:
+        spells = {s["name"]: s for s in all_data.get((ver, "en", "spells"), [])}
+        by_slug = {}
+        for lineage in all_data[(ver, "en", resource)]:
+            grants = lineage["grants"]
+            free = grants.pop("_spell_uses")
+            resolved = []
+            for entry in grants["spells"]:
+                spell = spells.get(entry["name"])
+                if spell is None:
+                    errors.append(f"{ver}/en/{lineage['slug']}: заклинание «{entry['name']}» не найдено в spells")
+                    continue
+                if spell["level"] and free is None:
+                    errors.append(f"{ver}/en/{lineage['slug']}: у «{entry['name']}» нет фразы о бесплатных сотворениях")
+                resolved.append({"slug": spell["slug"], "level": entry["level"],
+                                 "uses": dict(free) if spell["level"] and free else None})
+            grants["spells"] = resolved
+            for damage in [grants["damage_type"], *grants["resistances"]]:
+                if damage is not None and damage not in DAMAGE_TYPES:
+                    errors.append(f"{ver}/en/{lineage['slug']}: тип урона «{damage}» вне списка")
+            by_slug[lineage["slug"]] = lineage
+        ru_spells = {s["slug"]: s for s in all_data.get((ver, "ru", "spells"), [])}
+        for lineage in all_data.get((ver, "ru", resource), []):
+            source = by_slug.get(lineage["slug"])
+            if source is None:
+                errors.append(f"{ver}/ru/{lineage['slug']}: наследия нет в EN")
+                continue
+            lineage["grants"] = copy.deepcopy(source["grants"])
+            text = lineage["description_md"]
+            for entry in lineage["grants"]["spells"]:
+                spell = ru_spells.get(entry["slug"])
+                if spell is None:
+                    errors.append(f"{ver}/ru/{lineage['slug']}: заклинания «{entry['slug']}» нет в RU spells")
+                elif f"*{spell['name']}*" not in text:
+                    errors.append(f"{ver}/ru/{lineage['slug']}: в тексте нет заклинания «{spell['name']}» ({entry['slug']})")
+            for key in ("darkvision", "speed_min"):
+                value = lineage["grants"][key]
+                if value is not None and not re.search(rf"\b{value} фут", text):
+                    errors.append(f"{ver}/ru/{lineage['slug']}: в тексте нет числа {key} = {value} из EN")
     return errors
 
 
@@ -963,6 +1016,7 @@ def main():
         class_errors = (build_equipment_groups(all_data) + build_magic_item_groups(all_data)
                         + align_classes(all_data) + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + build_species_lineages(all_data)
+                        + resolve_lineage_grants(all_data)
                         + build_backgrounds(all_data))
         class_errors = class_errors or attach_choices(all_data)
         if class_errors:

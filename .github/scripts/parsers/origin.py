@@ -83,6 +83,66 @@ def _species_paragraphs(body: str) -> tuple[dict[str, str], list[dict], list[dic
     return facts, paragraphs, tables
 
 
+# Механика наследия из EN-текста (#476); RU получает её из EN по позиции в generate_api.
+_KNOWN_CANTRIP = re.compile(r"know the (.+?) cantrip")
+_RESISTANCE = re.compile(r"Resistance to (\w+) damage")
+_DEALT_DAMAGE = re.compile(r"deal \d+d\d+ (\w+) damage")
+_DARKVISION = re.compile(r"Darkvision increases to (\d+) feet")
+_SPEED_AT_LEAST = re.compile(r"Speed increases to (\d+) feet")
+_ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
+_BARE_NAME = re.compile(r"[A-Z][\w' ]+")
+_LEVEL_LABEL = re.compile(r"Level (\d+)")
+# Бесплатные сотворения заклинания и использования дара: фраза целиком, чтобы новая форма не прошла молча.
+SPELL_USES = {
+    "cast it once without a spell slot, and you regain the ability to cast it in that way when you finish a Long Rest":
+        {"count": 1, "recharge": "long-rest"},
+    "cast it without a spell slot a number of times equal to your Proficiency Bonus, and you regain all expended "
+    "uses when you finish a Long Rest": {"count": "proficiency-bonus", "recharge": "long-rest"},
+}
+BENEFIT_USES = {
+    "use the chosen benefit a number of times equal to your Proficiency Bonus, and you regain all expended uses "
+    "when you finish a Long Rest": {"count": "proficiency-bonus", "recharge": "long-rest"},
+}
+TRAIT_LEVEL = re.compile(r"^(?:When you reach|Starting at) character level (\d+)\b")
+
+
+def _uses(text: str, phrases: dict) -> dict | None:
+    found = [uses for phrase, uses in phrases.items() if phrase in text]
+    return dict(found[0]) if len(found) == 1 else None
+
+
+def _lineage_grants(variant: dict, owner_text: str) -> dict:
+    """`spells` — EN-имена с уровнем персонажа (слаги и `uses` дописывает generate_api по `spells`);
+    `speed_min` — «Speed increases to N»: скорость не ниже N, не прибавка."""
+    grants = {"spells": [], "damage_type": None, "resistances": [], "darkvision": None, "speed_min": None,
+              "uses": _uses(owner_text, BENEFIT_USES)}
+    if variant["details"]:
+        cells = [(d["label"], d["text"]) for d in variant["details"]]
+    else:
+        cells = [("Level 1", variant["description_md"])]
+    for label, text in cells:
+        if label == "Damage Type":
+            grants["damage_type"] = text.lower()
+            continue
+        level = _LEVEL_LABEL.fullmatch(label)
+        if not level:
+            raise ValueError(f"{variant['name']}: unknown lineage column {label!r}")
+        if _BARE_NAME.fullmatch(text):
+            names = [text]
+        else:
+            names = list(dict.fromkeys(_ITALIC.findall(text))) or _KNOWN_CANTRIP.findall(text)
+        grants["spells"] += [{"name": n, "level": int(level.group(1))} for n in names]
+        grants["resistances"] += [t.lower() for t in _RESISTANCE.findall(text)]
+        dealt = _DEALT_DAMAGE.findall(text)
+        if dealt:
+            grants["damage_type"] = dealt[0].lower()
+        for key, form in (("darkvision", _DARKVISION), ("speed_min", _SPEED_AT_LEAST)):
+            if m := form.search(text):
+                grants[key] = int(m.group(1))
+    grants["_spell_uses"] = _uses(variant["description_md"] + "\n" + owner_text, SPELL_USES)
+    return grants
+
+
 def structure_species(species: list[dict], lang: str, shape: list | None = None) -> tuple[list[dict], list]:
     """Дописывает видам факты и `traits`; возвращает записи `species-lineages` и форму разбора.
 
@@ -142,7 +202,9 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
             if index in inline:
                 variants.append({**entry, "details": []})
             else:
-                traits.append({**entry, "lineages": index == owner_index})
+                level = TRAIT_LEVEL.match(entry["description_md"]) if en else None
+                traits.append({**entry, "lineages": index == owner_index,
+                               "level": int(level.group(1)) if level else None})
         if kind == "table":
             if len(tables) != 1:
                 raise ValueError(f"{name}: expected one lineage table, found {len(tables)}")
@@ -160,6 +222,7 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
             raise ValueError(f"{name}: {len(variants)} lineages, declared {count}")
         sp["traits"] = traits
         owner = paragraphs[owner_index]["name"] if owner_index is not None else None
+        owner_text = " ".join(paragraphs[owner_index]["text"]) if owner_index is not None else ""
         for variant in variants:
             key = re.search(r"\(([^)]+)\)$", variant["name"])
             lineages.append({
@@ -170,6 +233,7 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
                 "trait": owner,
                 "description_md": variant["description_md"],
                 "details": variant["details"],
+                "grants": _lineage_grants(variant, owner_text) if en else None,
             })
     return lineages, out_shape
 
