@@ -1,8 +1,8 @@
 """Объявления выборов SRD 5.2 (#413): что игрок выбирает при сборке персонажа и откуда берутся варианты.
 
 Текст правил объявляет выбор словами («of your choice»), поэтому объявления написаны руками и
-прикрепляются к умению класса или подкласса, особенности вида, предыстории, черте и варианту умения
-по EN-имени. Объявление, которому не нашлось хозяина, и ссылка, которая не разрешилась, роняют сборку.
+прикрепляются к умению класса или подкласса, особенности вида, наследию, предыстории, черте и варианту
+умения по EN-имени или слагу. Объявление, которому не нашлось хозяина, и ссылка, которая не разрешилась, роняют сборку.
 
 Выбор при применении (цель, форма области, эффект удара) не объявляется: он не хранится у персонажа.
 Стартовое снаряжение «A или B» остаётся текстом.
@@ -52,6 +52,8 @@ FILTERS = {
     "known-cantrips": {"class": "класс, чьи заговоры считаются"},
     "spellbook": {"level": "`level`", "casting_time": "`casting_time.type`"},
 }
+# Подсказка `suggest` — слаг записи того ресурса, из которого выбирает выбор этого вида.
+SUGGESTED = {"feat": "feats", "spell": "spells"}
 SPELL_LEVELS = ("slots", "cantrip-or-slots")
 SCHOOLS = ("abjuration", "conjuration", "divination", "enchantment", "evocation", "illusion", "necromancy",
            "transmutation")
@@ -219,6 +221,13 @@ SPECIES_TRAITS = {
     ("tiefling", "Fiendish Legacy"): [ch("spellcasting-ability", "spellcasting-ability", 1, lst("abilities", MENTAL))],
     ("human", "Skillful"): [ch("skill", "skill", 1, lst("skills"))],
     ("human", "Versatile"): [ch("feat", "feat", 1, res("feats", category="origin"), suggest={"slug": "skilled"})],
+}
+
+# --- Наследия видов: слаг наследия → выборы (#490). Выбор одного наследия, а не всей особенности вида ---
+LINEAGES = {
+    # «Whenever you finish a Long Rest, you can replace that cantrip with a different cantrip from the Wizard spell list.»
+    "elf-high-elf": [ch("cantrip", "spell", 1, res("spells", **{"class": "wizard"}, level=0), "long-rest",
+                        suggest={"slug": "prestidigitation"})],
 }
 
 # --- Предыстории: правило прибавок у всех одно; характеристики — свои, подставляет сборка ---------
@@ -444,15 +453,17 @@ def _check(choice, where, known, ids, errors):
         else:
             _check_filter(source["character"], source["filter"], where, known, ids, errors)
     suggest = choice.get("suggest", {})
-    if "slug" in suggest and suggest["slug"] not in known["feats"]:
-        errors.append(f"{where}: черты-подсказки {suggest['slug']!r} нет")
+    if "slug" in suggest and choice["kind"] not in SUGGESTED:
+        errors.append(f"{where}: подсказка у выбора вида {choice['kind']!r} не поддерживается")
+    elif "slug" in suggest and suggest["slug"] not in known[SUGGESTED[choice["kind"]]]:
+        errors.append(f"{where}: {'черты' if choice['kind'] == 'feat' else 'заклинания'}-подсказки {suggest['slug']!r} нет")
     if set(suggest) - {"slug"}:
-        errors.append(f"{where}: подсказка — только слаг черты, получено {sorted(suggest)}")
+        errors.append(f"{where}: подсказка — только слаг записи, получено {sorted(suggest)}")
 
 
 def attach_choices(all_data: dict) -> list[str]:
-    """Пишет `choices` классам и их умениям, подклассам, видам и их особенностям, предысториям, чертам
-    и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции.
+    """Пишет `choices` классам и их умениям, подклассам, видам, их особенностям и наследиям, предысториям,
+    чертам и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции.
 
     Объявления написаны для редакции, у которой есть ресурс классов; остальные версии не трогаются."""
     errors: list[str] = []
@@ -470,6 +481,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         "resources": {name for name, items in en.items() if items},
         "classes": {c["slug"] for c in en["classes"]},
         "feats": {f["slug"] for f in en["feats"]},
+        "spells": {sp["slug"] for sp in en["spells"]},
         "feat-categories": {f["category"] for f in en["feats"]},
         "option-groups": {(o["class"], o["feature"]["key"]) for o in en["class-options"] if o["selection"] == "learned"},
         "subclass-classes": {s["class"] for s in en["subclasses"]},
@@ -535,6 +547,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
             put(trait, declared, {}, f"species/{sp['slug']}/{trait['name']}")
             if key in SPECIES_TRAITS:
                 used.add(("species-trait", key))
+    for lineage in en["species-lineages"]:
+        put(lineage, LINEAGES.get(lineage["slug"], []), {}, f"species-lineages/{lineage['slug']}")
     feats = {f["slug"]: f for f in en["feats"]}
     for feat in en["feats"]:
         put(feat, FEATS.get(feat["slug"], []), {}, f"feats/{feat['slug']}")
@@ -557,13 +571,14 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                 | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS})
     for kind, key in sorted(declared - used, key=str):
         errors.append(f"объявление без хозяина: {kind} {key}")
-    for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS)):
+    for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS),
+                        ("species-lineages", LINEAGES)):
         for slug in sorted(set(table) - {e["slug"] for e in en[name]}):
             errors.append(f"объявление без хозяина: {name}/{slug}")
 
     # RU: те же выборы, что у EN — по слагу записи и по позиции умения или особенности.
     for name, nested in (("classes", "features"), ("subclasses", "features"), ("species", "traits"),
-                         ("backgrounds", None), ("feats", None), ("class-options", None)):
+                         ("backgrounds", None), ("feats", None), ("class-options", None), ("species-lineages", None)):
         source = {e["slug"]: e for e in en[name]}
         for entity in all_data.get((ver, "ru", name), []):
             origin = source.get(entity["slug"])

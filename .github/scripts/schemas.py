@@ -505,7 +505,7 @@ CONDITION_SCHEMA = {
 # count — число или «уровень класса → всего на этом уровне». from — закрытый список (values null —
 # целиком), записи ресурса по фильтру или то, что у персонажа уже есть. or — второй источник на тот же
 # выбор. levels — уровни класса, на которых умение с этим выбором даётся снова. level — уровень, с
-# которого появляется этот выбор, когда он позже уровня умения. suggest — черта, которую текст умения советует взять.
+# которого появляется этот выбор, когда он позже уровня умения. suggest — черта или заклинание, которые текст советует взять (слаг ресурса выбора).
 # replace — самый ранний момент замены: short-rest значит «на коротком или долгом отдыхе».
 # Ключи фильтра и поля записей, которые они читают, — словарь `FILTERS` в choices.py. Значение "@id" —
 # ответ на выбор с этим id в той же записи; level: "slots" — круги, на которые у персонажа есть ячейки,
@@ -1107,6 +1107,7 @@ SPECIES_LINEAGE_SCHEMA = {
         "species": {"type": "string"},
         "trait": {"type": "string"},
         "description_md": {"type": "string", "minLength": 1},
+        "choices": _CHOICES,
         "details": {"type": "array", "items": {
             "type": "object",
             "properties": {"label": {"type": "string"}, "text": {"type": "string"}},
@@ -1115,7 +1116,7 @@ SPECIES_LINEAGE_SCHEMA = {
         }},
         "grants": _LINEAGE_GRANTS,
     },
-    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details", "grants"],
+    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details", "grants", "choices"],
     "additionalProperties": False,
 }
 

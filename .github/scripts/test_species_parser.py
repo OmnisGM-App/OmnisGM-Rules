@@ -75,8 +75,8 @@ for lang in ("en", "ru"):
        [l["slug"] for l in lineages], [f"{sp}-{v}" for sp, variants in LINEAGES.items() for v in variants])
     eq(f"{lang}: у каждого наследия свой текст", [l["slug"] for l in lineages if not l["description_md"]], [])
     # Полную сверку со схемой делает шаг «Validate JSON API schema»; здесь — что поля те же.
-    eq(f"{lang}: поля записи — поля схемы", {tuple(sorted(l)) for l in lineages},
-       {tuple(sorted(SPECIES_LINEAGE_SCHEMA["required"]))})
+    eq(f"{lang}: поля записи — поля схемы, кроме choices (их пишет attach_choices)", {tuple(sorted(l)) for l in lineages},
+       {tuple(sorted(set(SPECIES_LINEAGE_SCHEMA["required"]) - {"choices"}))})
 by_slug = {lang: {l["slug"]: l for l in live[("srd52", lang, "species-lineages")]} for lang in ("en", "ru")}
 eq("EN дроу: колонки таблицы в details и в тексте",
    (by_slug["en"]["elf-drow"]["trait"], [d["label"] for d in by_slug["en"]["elf-drow"]["details"]],
