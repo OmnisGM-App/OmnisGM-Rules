@@ -10,6 +10,7 @@
 
 from parsers.base import slugify
 from parsers.classes import ABILITY_CODES, SKILLS
+from parsers.equipment import TOOL_TYPES
 
 ABILITIES = tuple(ABILITY_CODES.values())
 SKILL_SLUGS = tuple(sorted(slugify(name) for name in SKILLS))
@@ -35,7 +36,7 @@ FILTERS = {
     "class-options": {"class": "`class`", "feature": "`feature.key`"},
     "species-lineages": {"species": "`species`"},
     "weapons": {"type": "`type`: melee | ranged"},
-    # Предметы группы (игровой набор → кости, карты…): слаг записи `equipment-groups`.
+    # Предметы группы (игровой набор → кости, карты…): значение поля `group` предметов `equipment`.
     "equipment": {"group": "`group`"},
     "spells": {
         # Слаг класса, список слагов или "@id" — ответ на выбор с этим id у того же хозяина.
@@ -278,8 +279,9 @@ TERM_LISTS = {
     "damage-types": ("damage-type", slugify, DAMAGE_TYPES),
     "sizes": ("size", slugify, ("tiny", "small", "medium", "large", "huge", "gargantuan")),
 }
-# Список из предметов `equipment`: группы, чьи предметы в него входят; None — любой инструмент.
-TOOL_LISTS = {"tools": None, "artisan-tools-or-musical-instruments": ("artisan-tools", "musical-instrument")}
+# Список из инструментов `equipment`: поле записи → значения, по любому из которых она входит; None — любой инструмент.
+TOOL_LISTS = {"tools": None,
+              "artisan-tools-or-musical-instruments": {"tool_type": ("artisan-tools",), "group": ("musical-instrument",)}}
 
 
 def build_choice_lists(all_data: dict) -> list[str]:
@@ -310,9 +312,15 @@ def build_choice_lists(all_data: dict) -> list[str]:
                     errors.append(f"{ver}/{lang}/{key}: строк {len(names)}, в EN {len(en_slugs[key])}")
                 lists[key] = [{"type": kind, "slug": slug, "name": name} for slug, name in zip(en_slugs[key], names)]
             tools = [e for e in all_data.get((ver, lang, "equipment"), []) if e["section"] == "tools"]
-            for key, groups in TOOL_LISTS.items():
-                lists[key] = [{"type": "tool", "slug": e["slug"], "name": e["name"]}
-                              for e in tools if groups is None or e["group"] in groups]
+            types = {e["slug"]: e["tool_type"] for e in all_data.get((ver, "en", "equipment"), [])}
+            for e in tools:
+                if e["tool_type"] not in (None, *TOOL_TYPES) or e["tool_type"] != types.get(e["slug"]):
+                    errors.append(f"{ver}/{lang}/equipment/{e['slug']}: тип инструмента {e['tool_type']!r} вне словаря или ≠ EN")
+            for kind in sorted(set(TOOL_TYPES) - {e["tool_type"] for e in tools}):
+                errors.append(f"{ver}/{lang}/equipment: у типа инструмента {kind!r} нет предметов")
+            for key, match in TOOL_LISTS.items():
+                lists[key] = [{"type": "tool", "slug": e["slug"], "name": e["name"]} for e in tools
+                              if match is None or any(e[field] in values for field, values in match.items())]
             lists["skills-or-tools"] = lists["skills"] + lists["tools"]
             lists["languages"] = [{"type": "language", "slug": l["slug"], "name": l["name"]}
                                   for l in all_data.get((ver, lang, "languages"), [])]

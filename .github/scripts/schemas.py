@@ -5,6 +5,7 @@ Each schema describes a single entity object produced by the corresponding parse
 """
 
 import choices as _choices
+from parsers.equipment import TOOL_TYPES
 
 # -- Shared sub-schemas -------------------------------------------------------
 
@@ -422,6 +423,8 @@ EQUIPMENT_SCHEMA = {
         # боеприпасов (20 стрел, колчан). Иначе null. variants после нарезки всегда null: поле оставлено
         # до правки импортёра Table, который его читает.
         "group": {"type": ["string", "null"]},
+        # Тип инструмента (#475) — раздел главы «Tools»: artisan-tools у инструментов ремесленника, иначе null.
+        "tool_type": {"enum": [*TOOL_TYPES, None]},
         "quantity": {"type": ["integer", "null"], "minimum": 1},
         "storage": {"type": ["string", "null"]},
         # Картинка (#202) — абсолютный URL; только у сущностей с файлом.
@@ -429,7 +432,7 @@ EQUIPMENT_SCHEMA = {
     },
     "required": [
         "slug", "name", "name_en", "section", "cost", "weight",
-        "ability", "utilize", "craft", "variants", "description_md", "group", "quantity", "storage",
+        "ability", "utilize", "craft", "variants", "description_md", "group", "tool_type", "quantity", "storage",
     ],
     "additionalProperties": False,
 }

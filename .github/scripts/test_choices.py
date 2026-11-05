@@ -64,7 +64,7 @@ def all_choices(lang):
             if res != "subclasses":
                 out[(res, e["slug"])] = e["choices"]
             if res == "classes":
-                out[(res, e["slug"], "multiclass")] = e["multiclass"]["choices"]
+                out[(res, e["slug"], "multiclass")] = e["multiclass"].get("choices")
             for index, item in enumerate(e[nested]) if nested else ():
                 out[(res, e["slug"], index)] = item["choices"]
     return out
@@ -513,15 +513,38 @@ eq("RU-язык не напротив EN — сборка падает", with_te
    ["srd52/ru/languages: строки RU не напротив EN (19 против 19)"])
 
 
-def no_artisan_tools(data):
+def no_tool_lists(data):
     for lang in ("en", "ru"):
         for e in data[("srd52", lang, "equipment")]:
-            if e["group"] in ("artisan-tools", "musical-instrument"):
-                e["group"] = None
+            e["tool_type"] = e["group"] = None
 
 
-eq("список без членов — сборка падает", with_terms(no_artisan_tools)[0],
+eq("список без членов — сборка падает", [e for e in with_terms(no_tool_lists)[0] if "choice-lists" in e],
    [f"srd52/{lang}/choice-lists: у списка 'artisan-tools-or-musical-instruments' нет членов" for lang in ("en", "ru")])
+
+
+def tool_type(lang, slug, value):
+    def mutate(data):
+        next(e for e in data[("srd52", lang, "equipment")] if e["slug"] == slug)["tool_type"] = value
+    return mutate
+
+
+eq("тип инструмента вне словаря — сборка падает", with_terms(tool_type("en", "lute", "instrument"))[0],
+   [f"srd52/{lang}/equipment/lute: тип инструмента {v!r} вне словаря или ≠ EN" for lang, v in (("en", "instrument"), ("ru", None))])
+eq("RU-тип инструмента ≠ EN — сборка падает", with_terms(tool_type("ru", "smith-s-tools", None))[0],
+   ["srd52/ru/equipment/smith-s-tools: тип инструмента None вне словаря или ≠ EN"])
+eq("у типа инструмента нет предметов — сборка падает", [e for e in with_terms(no_tool_lists)[0] if "нет предметов" in e],
+   [f"srd52/{lang}/equipment: у типа инструмента 'artisan-tools' нет предметов" for lang in ("en", "ru")])
+eq("инструменты ремесленника или музыкальные: 17 ремесленника из раздела «Artisan's Tools» и 10 инструментов",
+   sorted(m["slug"] for m in lists("en")["artisan-tools-or-musical-instruments"]),
+   sorted([e["slug"] for e in live[("srd52", "en", "equipment")] if e["tool_type"] == "artisan-tools"]
+          + [e["slug"] for e in live[("srd52", "en", "equipment")] if e["group"] == "musical-instrument"]))
+eq("тип artisan-tools — ровно у инструментов раздела «Artisan's Tools», RU — те же",
+   {lang: sorted(e["slug"] for e in live[("srd52", lang, "equipment")] if e["tool_type"]) for lang in ("en", "ru")},
+   {lang: ["alchemist-s-supplies", "brewer-s-supplies", "calligrapher-s-supplies", "carpenter-s-tools",
+           "cartographer-s-tools", "cobbler-s-tools", "cook-s-utensils", "glassblower-s-tools", "jeweler-s-tools",
+           "leatherworker-s-tools", "mason-s-tools", "painter-s-supplies", "potter-s-tools", "smith-s-tools",
+           "tinker-s-tools", "weaver-s-tools", "woodcarver-s-tools"] for lang in ("en", "ru")})
 saved_lists = choices.LISTS
 choices.LISTS = saved_lists + ("hobbies",)
 try:
