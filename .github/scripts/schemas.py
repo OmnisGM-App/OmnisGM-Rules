@@ -1025,9 +1025,11 @@ SPECIES_SCHEMA = {
                 "name": {"type": "string", "minLength": 1},
                 "description_md": {"type": "string", "minLength": 1},
                 "lineages": {"type": "boolean"},
+                # Уровень персонажа, с которого особенность действует (#476); null — с 1-го.
+                "level": {"type": ["integer", "null"], "minimum": 2, "maximum": 20},
                 "choices": _CHOICES,
             },
-            "required": ["name", "description_md", "lineages", "choices"],
+            "required": ["name", "description_md", "lineages", "level", "choices"],
             "additionalProperties": False,
         }},
         "image": {"type": "string", "format": "uri"},
@@ -1089,6 +1091,42 @@ BACKGROUND_SCHEMA = {
 # Наследие вида (#413): вариант особенности вида, который игрок выбирает (дракон-предок, родословная
 # эльфа или гнома, наследие великанов, наследие исчадий). species — слаг вида; trait — имя особенности
 # вида, чьи это варианты; details — колонки строки таблицы наследий, пусто у наследия-абзаца.
+_USES = {"anyOf": [{"type": "null"}, {
+    "type": "object",
+    "properties": {
+        "count": {"anyOf": [{"type": "integer", "minimum": 1}, {"enum": ["proficiency-bonus"]}]},
+        "recharge": {"enum": ["long-rest"]},
+    },
+    "required": ["count", "recharge"],
+    "additionalProperties": False,
+}]}
+_DAMAGE_TYPE = {"type": "string", "enum": list(_choices.DAMAGE_TYPES)}
+# Механика наследия (#476): заклинания слагами с уровнем персонажа и бесплатными сотворениями (у заговора
+# null); damage_type — тип урона, к которому привязано наследие или который оно наносит (не сопротивление:
+# сопротивления — в resistances); speed_min — скорость не ниже, не прибавка.
+_LINEAGE_GRANTS = {
+    "type": "object",
+    "properties": {
+        "spells": {"type": "array", "items": {
+            "type": "object",
+            "properties": {
+                "slug": {"type": "string"},
+                "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                "uses": _USES,
+            },
+            "required": ["slug", "level", "uses"],
+            "additionalProperties": False,
+        }},
+        "damage_type": {"anyOf": [{"type": "null"}, _DAMAGE_TYPE]},
+        "resistances": {"type": "array", "items": _DAMAGE_TYPE},
+        "darkvision": {"type": ["integer", "null"], "minimum": 5},
+        "speed_min": {"type": ["integer", "null"], "minimum": 5},
+        "uses": _USES,
+    },
+    "required": ["spells", "damage_type", "resistances", "darkvision", "speed_min", "uses"],
+    "additionalProperties": False,
+}
+
 SPECIES_LINEAGE_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "SpeciesLineage",
@@ -1106,8 +1144,44 @@ SPECIES_LINEAGE_SCHEMA = {
             "required": ["label", "text"],
             "additionalProperties": False,
         }},
+        "grants": _LINEAGE_GRANTS,
     },
-    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details"],
+    "required": ["slug", "name", "name_en", "species", "trait", "description_md", "details", "grants"],
+    "additionalProperties": False,
+}
+
+# Описатель версии системы: /api/{system}/{ver}/system.json (#473, #481).
+SYSTEM_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "System",
+    "type": "object",
+    "properties": {
+        "system": {"type": "string"},
+        "version": {"type": "string"},
+        "name": {"type": "string"},
+        # Нет поля — компендиум ещё меняется.
+        "compendium": {"type": "string", "enum": ["stable"]},
+        "multiclass": {
+            "type": ["object", "null"],
+            "properties": {
+                "prerequisite_score": {"type": "integer", "minimum": 1},
+                "caster_level_rounding": {"type": "string", "enum": ["up", "down"]},
+                "spell_slots": {"type": "array", "minItems": 20, "maxItems": 20, "items": {
+                    "type": "object",
+                    "properties": {
+                        "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                        "spell_slots": {"type": "array", "items": {"type": "integer", "minimum": 0},
+                                        "minItems": 9, "maxItems": 9},
+                    },
+                    "required": ["level", "spell_slots"],
+                    "additionalProperties": False,
+                }},
+            },
+            "required": ["prerequisite_score", "caster_level_rounding", "spell_slots"],
+            "additionalProperties": False,
+        },
+    },
+    "required": ["system", "version", "name", "multiclass"],
     "additionalProperties": False,
 }
 

@@ -9,6 +9,7 @@ from .feat import parse_feats
 from .race import parse_races
 from .origin import parse_origins, structure_backgrounds, structure_species
 from .classes import parse_caster_shares, parse_class, parse_class_options, parse_subclasses
+from .multiclass import parse_multiclass_rules
 from .glossary_defs import parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables
 from .daggerheart import (parse_ancestries, parse_communities, parse_domain_cards,
                           parse_adversaries, parse_environments, parse_dh_glossary)

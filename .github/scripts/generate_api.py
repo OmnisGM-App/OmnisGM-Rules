@@ -29,14 +29,14 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins, structure_backgrounds,
                      structure_species,
-                     parse_caster_shares, parse_class, parse_class_options, parse_subclasses,
+                     parse_caster_shares, parse_class, parse_class_options, parse_subclasses, parse_multiclass_rules,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
                      parse_brp_skills, parse_brp_professions, parse_brp_spot_rules,
                      parse_table_terms, parse_languages)
 from parsers.base import slugify
-from schemas import RESOURCE_SCHEMAS
+from schemas import RESOURCE_SCHEMAS, SYSTEM_SCHEMA
 from choices import SCHOOLS, attach_choices, build_choice_lists
 
 
@@ -411,11 +411,67 @@ def build_species_lineages(all_data: dict) -> list[str]:
             if (r["slug"], r["size"]["options"], r["speed"], len(r["traits"])) != \
                     (e["slug"], e["size"]["options"], e["speed"], len(e["traits"])):
                 errors.append(f"{ver}/ru/{r['slug']}: структура RU ≠ EN (вид, размер, скорость, число особенностей)")
+                continue
+            for te, tr in zip(e["traits"], r["traits"]):
+                tr["level"] = te["level"]
+                if te["level"] and not re.search(rf"\b{te['level']}-го уровня персонажа", tr["description_md"]):
+                    errors.append(f"{ver}/ru/{r['slug']}: в особенности «{tr['name']}» нет уровня {te['level']} из EN")
         for e, r in zip(en_lineages, ru_lineages):
             if r["species"] != e["species"] or len(r["details"]) != len(e["details"]):
                 errors.append(f"{ver}/ru: наследие «{r['name']}» не сходится с EN «{e['name']}»")
             r["slug"], r["name_en"] = e["slug"], e["name"]
         all_data[(ver, "ru", "species-lineages")] = ru_lineages
+    return errors
+
+
+def resolve_lineage_grants(all_data: dict) -> list[str]:
+    """`grants` наследий (#476): имена заклинаний EN → слаги `spells` той же версии, у заклинания с уровнем —
+    бесплатные сотворения из текста; типы урона — из закрытого списка. RU — копия EN по слагу наследия, а
+    имена заклинаний RU `spells` и числа обязаны стоять в тексте RU-наследия."""
+    from choices import DAMAGE_TYPES  # noqa: PLC0415
+    errors: list[str] = []
+    for (ver, lang, resource) in [k for k in all_data if k[1] == "en" and k[2] == "species-lineages"]:
+        spells = {s["name"]: s for s in all_data.get((ver, "en", "spells"), [])}
+        by_slug = {}
+        for lineage in all_data[(ver, "en", resource)]:
+            grants = lineage["grants"]
+            if grants is None:
+                errors.append(f"{ver}/en/{lineage['slug']}: у наследия нет grants")
+                continue
+            free = grants.pop("_spell_uses")
+            resolved = []
+            for entry in grants["spells"]:
+                spell = spells.get(entry["name"])
+                if spell is None:
+                    errors.append(f"{ver}/en/{lineage['slug']}: заклинание «{entry['name']}» не найдено в spells")
+                    continue
+                if spell["level"] and free is None:
+                    errors.append(f"{ver}/en/{lineage['slug']}: у «{entry['name']}» нет фразы о бесплатных сотворениях")
+                resolved.append({"slug": spell["slug"], "level": entry["level"],
+                                 "uses": dict(free) if spell["level"] and free else None})
+            grants["spells"] = resolved
+            for damage in [grants["damage_type"], *grants["resistances"]]:
+                if damage is not None and damage not in DAMAGE_TYPES:
+                    errors.append(f"{ver}/en/{lineage['slug']}: тип урона «{damage}» вне списка")
+            by_slug[lineage["slug"]] = lineage
+        ru_spells = {s["slug"]: s for s in all_data.get((ver, "ru", "spells"), [])}
+        for lineage in all_data.get((ver, "ru", resource), []):
+            source = by_slug.get(lineage["slug"])
+            if source is None:
+                errors.append(f"{ver}/ru/{lineage['slug']}: наследия нет в EN")
+                continue
+            lineage["grants"] = copy.deepcopy(source["grants"])
+            text = lineage["description_md"]
+            for entry in lineage["grants"]["spells"]:
+                spell = ru_spells.get(entry["slug"])
+                if spell is None:
+                    errors.append(f"{ver}/ru/{lineage['slug']}: заклинания «{entry['slug']}» нет в RU spells")
+                elif f"*{spell['name']}*" not in text:
+                    errors.append(f"{ver}/ru/{lineage['slug']}: в тексте нет заклинания «{spell['name']}» ({entry['slug']})")
+            for key in ("darkvision", "speed_min"):
+                value = lineage["grants"][key]
+                if value is not None and not re.search(rf"\b{value} фут", text):
+                    errors.append(f"{ver}/ru/{lineage['slug']}: в тексте нет числа {key} = {value} из EN")
     return errors
 
 
@@ -707,6 +763,20 @@ def slug_collisions(all_data: dict, system: str) -> list[str]:
             else:
                 seen[slug] = e.get("name")
     return errors
+
+
+def system_descriptor(cfg, ver: str, src_root: Path) -> dict:
+    """Описатель версии системы (#473, #481): флаг компендиума из `cfg.COMPENDIUM`, правила мультикласса
+    из главы `cfg.MULTICLASS_RULES[ver]`; у версии без главы — multiclass null."""
+    status = getattr(cfg, "COMPENDIUM", {}).get(ver)
+    path = getattr(cfg, "MULTICLASS_RULES", {}).get(ver)
+    return {
+        "system": cfg.SYSTEM,
+        "version": ver,
+        "name": cfg.VERSION_NAMES.get(ver, ver),
+        **({"compendium": status} if status else {}),
+        "multiclass": parse_multiclass_rules((src_root / path).read_text(encoding="utf-8")) if path else None,
+    }
 
 
 def write_json(path: Path, data) -> None:
@@ -1062,11 +1132,11 @@ def main():
                         + attach_caster_shares(all_data, shares) + align_classes(all_data)
                         + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + align_feat_prerequisites(all_data)
-                        + build_species_lineages(all_data)
+                        + build_species_lineages(all_data) + resolve_lineage_grants(all_data)
                         + build_backgrounds(all_data) + slug_spell_refs(all_data))
         class_errors = class_errors or build_choice_lists(all_data) or attach_choices(all_data)
         if class_errors:
-            print("Error: классы/подклассы/варианты умений/черты/виды/предыстории (#365, #374, #478, #413):", file=sys.stderr)
+            print("Error: классы/подклассы/варианты умений/черты/виды/предыстории (#365, #374, #478, #413, #476):", file=sys.stderr)
             for msg in class_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)
@@ -1109,6 +1179,8 @@ def main():
     # Write files and collect hierarchy info
     file_count = 0
 
+    descriptors = {ver: system_descriptor(cfg, ver, src_root) for ver in sorted({key[0] for key in all_data})}
+
     # Validate all parsed entities against JSON Schemas
     if args.no_validate:
         print("  (schema validation skipped: --no-validate)", file=sys.stderr)
@@ -1119,6 +1191,8 @@ def main():
             schema = RESOURCE_SCHEMAS.get(resource)
             if schema:
                 validate_entities(entities, schema, resource, f"{ver}/{lang}")
+        for ver, descriptor in descriptors.items():
+            validate_entities([descriptor], SYSTEM_SCHEMA, "system", ver)
 
     # Ресурсы только для страниц сайта: в публичный API не пишутся (решение по #412 — группа
     # снаряжения остаётся страницей, но не записью API). Проверены выше вместе с остальными.
@@ -1206,7 +1280,9 @@ def main():
     # Level 3: /dnd/{ver}/ — available languages
     for ver, langs in sorted(hierarchy.items()):
         ver_dir = system_dir / ver
-        links = []
+        write_json(ver_dir / "system.json", descriptors[ver])
+        file_count += 1
+        links = [{"href": "system.json", "label": "system.json"}]
         for lang in sorted(langs):
             links.append({"href": f"{lang}/", "label": lang})
 
