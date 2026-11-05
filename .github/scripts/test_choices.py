@@ -62,7 +62,7 @@ def all_choices(lang):
                         ("backgrounds", None), ("feats", None), ("class-options", None), ("species-lineages", None)):
         for e in live[("srd52", lang, res)]:
             if res != "subclasses":
-                out[(res, e["slug"])] = e["choices"]
+                out[(res, e["slug"])] = e.get("choices", [])
             if res == "classes":
                 out[(res, e["slug"], "multiclass")] = e["multiclass"].get("choices")
             for index, item in enumerate(e[nested]) if nested else ():
