@@ -557,6 +557,8 @@ _CHOICES = {"type": "array", "items": {
 
 # -- Feat schema ---------------------------------------------------------------
 
+_ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
+
 FEAT_SCHEMA = {
     "$schema": "http://json-schema.org/draft-07/schema#",
     "title": "Feat",
@@ -567,6 +569,25 @@ FEAT_SCHEMA = {
         "name_en": {"type": ["string", "null"]},
         "category": {"type": ["string", "null"]},
         "prerequisite": {"type": ["string", "null"]},
+        "prerequisites": {"anyOf": [{"type": "null"}, {
+            "type": "object",
+            "properties": {
+                "text": {"type": "string"},
+                "level": {"type": ["integer", "null"], "minimum": 1, "maximum": 20},
+                "abilities": {"anyOf": [{"type": "null"}, {
+                    "type": "object",
+                    "properties": {
+                        "values": {"type": "array", "minItems": 1, "items": _ABILITY_CODE},
+                        "min": {"type": "integer", "minimum": 1, "maximum": 30},
+                    },
+                    "required": ["values", "min"],
+                    "additionalProperties": False,
+                }]},
+                "feature": {"type": ["string", "null"]},
+            },
+            "required": ["text", "level", "abilities", "feature"],
+            "additionalProperties": False,
+        }]},
         "repeatable": {"type": "boolean"},
         "benefits": {"type": "array", "items": _SECTION_ENTRY},
         "description_md": {"type": "string"},
@@ -575,7 +596,7 @@ FEAT_SCHEMA = {
         "image": {"type": "string", "format": "uri"},
     },
     "required": [
-        "slug", "name", "name_en", "category", "prerequisite",
+        "slug", "name", "name_en", "category", "prerequisite", "prerequisites",
         "repeatable", "benefits", "description_md",
     ],
     "additionalProperties": False,
@@ -601,8 +622,6 @@ _SUBCLASS_FEATURE = {
     "properties": {**_CLASS_FEATURE["properties"], "always_prepared": {"type": "boolean"}},
     "required": [*_CLASS_FEATURE["required"], "always_prepared"],
 }
-
-_ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
 
 # Владения класса: одна форма у `proficiencies` и `multiclass`.
 _PROF_ARMOR = {
