@@ -72,6 +72,9 @@ SOURCES += [
     for lang in ("ru", "en") for kind in ("class", "subclass", "class_option") for name in _CLASS_FILES
 ]
 
+# Глава с правилами мультикласса: доли заклинателей в общих ячейках (#477).
+MULTICLASS_RULES = {"srd52": "srd-5.2/en/02_CharacterCreation.md"}
+
 # Heading patterns that are NOT entity entries (section headers, rules text, etc.)
 # Used to filter out non-entity headings from spell/monster/magic_item files.
 SKIP_HEADINGS_SPELL = {

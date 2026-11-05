@@ -29,7 +29,7 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_weapons, parse_armor, parse_equipment,
                      parse_conditions, parse_feats, parse_races, parse_origins, structure_backgrounds,
                      structure_species,
-                     parse_class, parse_class_options, parse_subclasses,
+                     parse_caster_shares, parse_class, parse_class_options, parse_subclasses,
                      parse_defs, parse_tagged_defs, parse_untagged_defs, parse_section_tables,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
@@ -483,6 +483,12 @@ def align_classes(all_data: dict) -> list[str]:
                 errors.append(f"{ver}/{resource}: структура RU «{r['name']}» ≠ EN «{e['name']}»")
                 continue
             r["slug"], r["name_en"] = e["slug"], e["name"]
+            for rf, ef in zip(r["features"], e["features"]):
+                rf["ability_increases"] = ef["ability_increases"]
+            if e["spellcasting"]:
+                idx = next(i for i, f in enumerate(e["features"])
+                           if f["name"] == e["spellcasting"]["feature"])
+                r["spellcasting"] = {**e["spellcasting"], "feature": r["features"][idx]["name"]}
             if resource == "subclasses":
                 r["class"] = e["class"]
                 for rr, er in zip(r["always_prepared"], e["always_prepared"]):
@@ -504,10 +510,30 @@ def align_classes(all_data: dict) -> list[str]:
                 rc["key"] = key
             for row in r["progression"]["rows"]:
                 row["values"] = dict(zip(keys, row["values"]))
-            if e["spellcasting"]:
-                idx = next(i for i, f in enumerate(e["features"])
-                           if f["name"] == e["spellcasting"]["feature"])
-                r["spellcasting"] = {**e["spellcasting"], "feature": r["features"][idx]["name"]}
+    return errors
+
+
+def attach_caster_shares(all_data: dict, shares_by_ver: dict[str, dict[str, str]]) -> list[str]:
+    """`spellcasting.caster` EN-классам (#477): full / half — из правила Spell Slots мультикласса
+    (`parse_caster_shares`), pact — у ячеек Pact Magic. RU получает поле копией в align_classes."""
+    errors = []
+    for ver, shares in shares_by_ver.items():
+        classes = all_data.get((ver, "en", "classes"), [])
+        unknown = set(shares) - {c["name"] for c in classes}
+        errors += [f"{ver}: multiclass Spell Slots names unknown class «{n}»" for n in sorted(unknown)]
+        for c in classes:
+            casting, share = c["spellcasting"], shares.get(c["name"])
+            if casting is None:
+                if share:
+                    errors.append(f"{ver}: «{c['name']}» counts toward multiclass slots but has no Spellcasting")
+            elif casting["slots"] == "pact":
+                if share:
+                    errors.append(f"{ver}: «{c['name']}» has Pact Magic slots and a «{share}» share")
+                casting["caster"] = "pact"
+            elif share:
+                casting["caster"] = share
+            else:
+                errors.append(f"{ver}: «{c['name']}» casts but the multiclass Spell Slots rule omits it")
     return errors
 
 
@@ -960,8 +986,15 @@ def main():
         # Resolve cross-references
         resolve_cross_refs(all_data)
         disambiguate_option_slugs(all_data)
+        shares = {}
+        for ver, path in getattr(cfg, "MULTICLASS_RULES", {}).items():
+            shares[ver] = parse_caster_shares((src_root / path).read_text(encoding="utf-8"))
+            for lang in ("en", "ru"):
+                if (ver, lang, "classes") in sources_map:
+                    sources_map[(ver, lang, "classes")].append(str(Path(src_root.name) / path))
         class_errors = (build_equipment_groups(all_data) + build_magic_item_groups(all_data)
-                        + align_classes(all_data) + resolve_always_prepared(all_data)
+                        + attach_caster_shares(all_data, shares) + align_classes(all_data)
+                        + resolve_always_prepared(all_data)
                         + align_class_options(all_data) + build_species_lineages(all_data)
                         + build_backgrounds(all_data))
         class_errors = class_errors or attach_choices(all_data)
