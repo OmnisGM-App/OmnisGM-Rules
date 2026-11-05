@@ -58,7 +58,7 @@ eq("тело умения не захватывает Metamagic Options",
    "Careful Spell" in sorc["features"][-1]["description_md"], False)
 eq("заклинательство", sorc["spellcasting"],
    {"feature": "Spellcasting", "level": 1, "ability": "cha", "change_on": "level_up",
-    "change_count": "one", "prepare_from": "class_list", "slots": "standard"})
+    "change_count": "one", "prepare_from": "class_list", "slots": "standard", "short_rest_swap": None})
 
 monk = parse_class(read("en", "06_Monk.md"), "en")[0]
 eq("монах: частичное воинское оружие не даёт категорию martial",
@@ -685,7 +685,7 @@ champ_at = fighter_text.index("#### Level 3:", fighter_text.index("Fighter Subcl
 champ = parse_subclasses(fighter_text[:champ_at] + CASTING_FEATURE + fighter_text[champ_at:], "en")[0]
 eq("подкласс со Spellcasting — доля third", champ["spellcasting"],
    {"feature": "Spellcasting", "level": 3, "ability": "int", "change_on": "level_up", "change_count": "one",
-    "prepare_from": "class_list", "slots": "standard", "caster": "third"})
+    "prepare_from": "class_list", "slots": "standard", "short_rest_swap": None, "caster": "third"})
 sub_ok = lambda sc: jsonschema.Draft7Validator(SUBCLASS_SCHEMA["properties"]["spellcasting"]).is_valid(sc)
 eq("схема подкласса: third принят, full отклонён",
    (sub_ok(champ["spellcasting"]), sub_ok({**champ["spellcasting"], "caster": "full"})), (True, False))
@@ -698,6 +698,28 @@ ru_champ = sub_data[("srd52", "ru", "subclasses")][champ_i]
 eq("RU-подкласс: caster из EN, имя умения своё",
    ru_champ["spellcasting"] and (ru_champ["spellcasting"]["caster"], ru_champ["spellcasting"]["feature"]),
    ("third", ru_champ["features"][0]["name"]))
+
+# --- Memorize Spell: замена подготовленного заклинания на коротком отдыхе (#491) -------------
+MEMORIZE = {"feature": "Memorize Spell", "level": 5, "count": "one", "min_spell_level": 1}
+eq("волшебник: short_rest_swap из Memorize Spell",
+   parse_class(read("en", "12_Wizard.md"), "en")[0]["spellcasting"]["short_rest_swap"], MEMORIZE)
+for lang in ("en", "ru"):
+    eq(f"{lang}: short_rest_swap только у волшебника",
+       {c["slug"]: c["spellcasting"]["short_rest_swap"]["level"] for c in cast[("srd52", lang, "classes")]
+        if c["spellcasting"] and c["spellcasting"]["short_rest_swap"]}, {"wizard": 5})
+ru_wiz = next(c for c in cast[("srd52", "ru", "classes")] if c["slug"] == "wizard")["spellcasting"]["short_rest_swap"]
+eq("RU: short_rest_swap — имя умения своё, числа из EN",
+   ru_wiz, {**MEMORIZE, "feature": "Запоминание заклинания"})
+MEMO = "Whenever you finish a Short Rest, you can study your spellbook and replace one of the level 1+ Wizard spells"
+eq("замена на коротком отдыхе в незнакомой форме роняет сборку",
+   class_error("en", "12_Wizard.md", MEMO,
+               "After a Short Rest, you can study your spellbook and replace one of the level 1+ Wizard spells"),
+   "«Memorize Spell»: a short-rest swap of prepared spells in an unknown form")
+eq("схема: spellcasting без short_rest_swap отклонён",
+   casting_ok({k: v for k, v in wizard["spellcasting"].items() if k != "short_rest_swap"}), False)
+eq("схема: short_rest_swap без круга отклонён",
+   casting_ok({**wizard["spellcasting"], "short_rest_swap": {k: v for k, v in MEMORIZE.items() if k != "min_spell_level"}}),
+   False)
 
 # --- Прибавки характеристик без выбора (#479) -----------------------------------------
 FIXED = {("barbarian", "Primal Champion"): [{"abilities": ["str", "con"], "amount": 4, "max": 25}],

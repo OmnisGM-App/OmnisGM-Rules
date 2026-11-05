@@ -305,6 +305,26 @@ def _progression(table: dict, lang: str, name: str) -> dict:
     return {"columns": [{"key": k, "name": h} for k, (_, h) in zip(keys, extra)], "rows": rows}
 
 
+# Замена подготовленного заклинания на коротком отдыхе (#491): Memorize Spell волшебника.
+_SHORT_REST_SWAP = re.compile(r"Whenever you finish a Short Rest, you can [^.]*?\breplace (one|any) of the level (\d)\+ "
+                              r"[^.]*?spells you have prepared")
+_SHORT_REST_SWAP_HINT = re.compile(r"(?i)short rest[^.]*\b(?:replace|change|swap)[^.]*\bprepared")
+
+
+def _short_rest_swap(features: list[dict]) -> dict | None:
+    found = []
+    for f in features:
+        m = _SHORT_REST_SWAP.search(f["description_md"])
+        if m:
+            found.append({"feature": f["name"], "level": f["level"], "count": m.group(1),
+                          "min_spell_level": int(m.group(2))})
+        elif _SHORT_REST_SWAP_HINT.search(f["description_md"]):
+            raise ValueError(f"«{f['name']}»: a short-rest swap of prepared spells in an unknown form")
+    if len(found) > 1:
+        raise ValueError(f"short-rest swaps in {[s['feature'] for s in found]}")
+    return found[0] if found else None
+
+
 def _spellcasting(features: list[dict], progression: dict) -> dict | None:
     for f in features:
         body = f["description_md"]
@@ -330,6 +350,7 @@ def _spellcasting(features: list[dict], progression: dict) -> dict | None:
             "change_count": "one" if "replace one spell" in rule else "any",
             "prepare_from": "spellbook" if "spellbook" in rule else "class_list",
             "slots": "pact" if "slot-level" in keys else "standard",
+            "short_rest_swap": _short_rest_swap(features),
         }
     return None
 

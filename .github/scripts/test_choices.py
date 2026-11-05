@@ -16,7 +16,9 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import choices  # noqa: E402
+import jsonschema  # noqa: E402
 import config  # noqa: E402
+from schemas import _CHOICES  # noqa: E402
 
 failures = []
 
@@ -562,6 +564,44 @@ eq("заклинания: class_slugs напротив classes, школа сл�
      or s["school_slug"] != s["school"].lower()],
     {s["slug"]: (sorted(s["class_slugs"]), s["school_slug"]) for s in live[("srd52", "ru", "spells")]}),
    ([], {s["slug"]: (sorted(s["class_slugs"]), s["school_slug"]) for s in live[("srd52", "en", "spells")]}))
+# --- Weapon Mastery: сколько видов оружия меняется за раз (#491) ---------------------------------
+MASTERY = {"barbarian": "one", "fighter": "one", "paladin": "any", "ranger": "any", "rogue": "any"}
+for lang in ("en", "ru"):
+    eq(f"{lang}: replace_count у Weapon Mastery пяти классов",
+       {slug: [c.get("replace_count") for c in feature(lang, "classes", slug, i)["choices"] if c["kind"] == "weapon-mastery"]
+        for slug, cls in by_slug(lang, "classes").items() for i, f in enumerate(cls["features"])
+        if any(c["kind"] == "weapon-mastery" for c in f["choices"])},
+       {slug: [count] for slug, count in MASTERY.items()})
+eq("replace_count только у weapon-mastery",
+   sorted({c["kind"] for owner in all_choices("en").values() for c in owner if "replace_count" in c}), ["weapon-mastery"])
+
+
+def mastery_text(slug, old, new):
+    def mutate(data):
+        cls = next(c for c in data[("srd52", "en", "classes")] if c["slug"] == slug)
+        f = next(f for f in cls["features"] if f["name"] == "Weapon Mastery")
+        assert old in f["description_md"]
+        f["description_md"] = f["description_md"].replace(old, new)
+    return mutate
+
+
+eq("Weapon Mastery без фразы о замене роняет сборку",
+   rebuilt(mastery_text("fighter", "change one of those weapon choices", "change a weapon choice")),
+   ["classes/fighter/Weapon Mastery: сколько видов оружия меняется — фраз нет"])
+eq("обе фразы о замене в одном умении роняют сборку",
+   rebuilt(mastery_text("rogue", "change the kinds of weapons you chose",
+                        "change the kinds of weapons you chose or change one of those weapon choices")),
+   ["classes/rogue/Weapon Mastery: сколько видов оружия меняется — фраз ['one', 'any']"])
+choice_ok = jsonschema.Draft7Validator(_CHOICES).is_valid
+mastery = one(feature("en", "classes", "rogue", "Weapon Mastery"), "weapons")
+eq("схема: weapon-mastery без replace_count отклонён",
+   choice_ok([{k: v for k, v in mastery.items() if k != "replace_count"}]), False)
+eq("схема: replace_count вне one/any отклонён", choice_ok([{**mastery, "replace_count": "two"}]), False)
+eq("схема: replace_count у другого вида отклонён",
+   choice_ok([{**one(feature("en", "classes", "bard", "Bard Subclass"), "subclass"), "replace_count": "one"}]), False)
+eq("схема: живые выборы приняты",
+   [where for where, owner in all_choices("en").items() if not choice_ok(owner)], [])
+
 spell_data = copy.deepcopy(live)
 spell_data[("srd52", "ru", "spells")][0]["classes"] = ["Изобретатель"]
 eq("класс заклинания не найден по имени — сборка падает", slug_spell_refs(spell_data),

@@ -541,6 +541,8 @@ _CHOICES = {"type": "array", "items": {
         "from": _CHOICE_SOURCE,
         "or": _CHOICE_SOURCE,
         "replace": {"type": "string", "enum": list(_choices.REPLACE)},
+        # Сколько видов оружия меняется за раз (#491), как `spellcasting.change_count`; у других видов поле запрещено (else ниже).
+        "replace_count": {"type": "string", "enum": ["one", "any"]},
         "levels": {"type": "array", "items": _LEVEL, "minItems": 2},
         "level": _LEVEL,
         # Черта, которую правила советуют взять («Defense is recommended»).
@@ -552,6 +554,9 @@ _CHOICES = {"type": "array", "items": {
         "max": {"type": "integer"},
     },
     "required": ["id", "kind", "count", "from", "replace"],
+    "if": {"properties": {"kind": {"const": "weapon-mastery"}}},
+    "then": {"required": ["replace_count"]},
+    "else": {"not": {"required": ["replace_count"]}},
     "additionalProperties": False,
 }}
 
@@ -707,9 +712,21 @@ _SPELLCASTING = {
         "change_count": {"type": "string", "enum": ["one", "any"]},
         "prepare_from": {"type": "string", "enum": ["class_list", "spellbook"]},
         "slots": {"type": "string", "enum": ["standard", "pact"]},
+        # Отдельная замена на коротком отдыхе (#491, Memorize Spell): умение, его уровень, сколько и с какого круга.
+        "short_rest_swap": {
+            "type": ["object", "null"],
+            "properties": {
+                "feature": {"type": "string"},
+                "level": {"type": "integer", "minimum": 1, "maximum": 20},
+                "count": {"type": "string", "enum": ["one", "any"]},
+                "min_spell_level": {"type": "integer", "minimum": 1, "maximum": 9},
+            },
+            "required": ["feature", "level", "count", "min_spell_level"],
+            "additionalProperties": False,
+        },
     },
     "required": ["feature", "level", "ability", "change_on", "change_count",
-                 "prepare_from", "slots", "caster"],
+                 "prepare_from", "slots", "caster", "short_rest_swap"],
     "additionalProperties": False,
 }
 
