@@ -182,6 +182,18 @@ eq("Круг Земли: земля из ключей always_prepared, заме�
    (one(feature("en", "subclasses", "circle-of-the-land", "Circle of the Land Spells"), "land")["from"]["values"],
     one(feature("en", "subclasses", "circle-of-the-land", "Circle of the Land Spells"), "land")["replace"]),
    (["arid-land", "polar-land", "temperate-land", "tropical-land"], "long-rest"))
+eq("владелец таблицы always_prepared — одно умение у каждого подкласса с таблицей, RU — на той же позиции",
+   {lang: {slug: [f["name"] for f in sub["features"] if f["always_prepared"]] for slug, sub in by_slug(lang, "subclasses").items()
+           if sub["always_prepared"]} for lang in ("en",)}
+   | {"ru-positions": {slug: [i for i, f in enumerate(sub["features"]) if f.get("always_prepared")]
+                       for slug, sub in by_slug("ru", "subclasses").items() if sub["always_prepared"]}},
+   {"en": {"circle-of-the-land": ["Circle of the Land Spells"], "draconic-sorcery": ["Draconic Spells"],
+           "fiend-patron": ["Fiend Spells"], "life-domain": ["Life Domain Spells"], "oath-of-devotion": ["Oath of Devotion Spells"]},
+    "ru-positions": {slug: [i for i, f in enumerate(sub["features"]) if f.get("always_prepared")]
+                     for slug, sub in by_slug("en", "subclasses").items() if sub["always_prepared"]}})
+eq("у подклассов без таблицы флаг — false на каждом умении",
+   [f"{slug}/{f['name']}" for lang in ("en", "ru") for slug, sub in by_slug(lang, "subclasses").items()
+    if not sub["always_prepared"] for f in sub["features"] if f.get("always_prepared") is not False], [])
 eq("исчадие: любой тип урона, кроме силового",
    "force" in one(feature("en", "subclasses", "fiend-patron", "Fiendish Resilience"), "damage-type")["from"]["values"], False)
 
@@ -268,6 +280,23 @@ eq("объявление для особенности вида, которой 
    ["объявление без хозяина: species-trait ('orc', 'Menacing')"])
 eq("объявление для черты, которой нет, роняет сборку",
    rebuilt(FEATS=also("FEATS", "lucky", [])), ["объявление без хозяина: feats/lucky"])
+eq("владелец таблицы для умения, которого нет, роняет сборку",
+   rebuilt(ALWAYS_PREPARED_OWNERS=choices.ALWAYS_PREPARED_OWNERS | {("life-domain", "Life Spells")}),
+   ["объявление без хозяина: always-prepared ('life-domain', 'Life Spells')"])
+eq("два владельца одной таблицы роняют сборку",
+   rebuilt(ALWAYS_PREPARED_OWNERS=choices.ALWAYS_PREPARED_OWNERS | {("life-domain", "Disciple of Life")}),
+   ["subclasses/life-domain: у таблицы always_prepared умений-владельцев 2, ждали одно"])
+eq("таблица без владельца роняет сборку",
+   rebuilt(ALWAYS_PREPARED_OWNERS=choices.ALWAYS_PREPARED_OWNERS - {("fiend-patron", "Fiend Spells")}),
+   ["subclasses/fiend-patron: у таблицы always_prepared умений-владельцев 0, ждали одно"])
+
+
+def no_life_table(data):
+    next(s for s in data[("srd52", "en", "subclasses")] if s["slug"] == "life-domain")["always_prepared"] = []
+
+
+eq("владелец у подкласса без таблицы роняет сборку", rebuilt(no_life_table),
+   ["subclasses/life-domain: умение-владелец объявлено, а таблицы always_prepared нет"])
 eq("колонки прогрессии нет — сборка падает",
    rebuilt(CLASS_FEATURES=also("CLASS_FEATURES", ("rogue", "Weapon Mastery"),
                                [choices.ch("weapons", "weapon-mastery", ("column", "weapon-mastery"), choices.res("weapons"))])),

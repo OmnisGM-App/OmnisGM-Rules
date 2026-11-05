@@ -177,6 +177,15 @@ CLASSES = {
     "monk": [ch("tool", "tool", 1, lst("artisan-tools-or-musical-instruments"))],
 }
 
+# --- Подклассы: умение, которому принадлежит таблица `always_prepared` (Table#817, срез 2d-2) ------
+ALWAYS_PREPARED_OWNERS = {
+    ("circle-of-the-land", "Circle of the Land Spells"),
+    ("draconic-sorcery", "Draconic Spells"),
+    ("fiend-patron", "Fiend Spells"),
+    ("life-domain", "Life Domain Spells"),
+    ("oath-of-devotion", "Oath of Devotion Spells"),
+}
+
 # --- Подклассы: (слаг подкласса, EN-имя умения) → выборы -----------------------------------------
 SUBCLASS_FEATURES = {
     ("champion", "Additional Fighting Style"): [ch("feat", "feat", 1, STYLE)],
@@ -423,11 +432,20 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     for sub in en["subclasses"]:
         lands = sorted({row["choice"]["key"] for row in sub["always_prepared"] if row["choice"]})
         context = {"{class}": sub["class"], "{lands}": lands}
+        owners = 0
         for feature in sub["features"]:
             key = (sub["slug"], feature["name"])
             put(feature, SUBCLASS_FEATURES.get(key, []), context, f"subclasses/{sub['slug']}/{feature['name']}")
             if key in SUBCLASS_FEATURES:
                 used.add(("subclass-feature", key))
+            feature["always_prepared"] = key in ALWAYS_PREPARED_OWNERS
+            if feature["always_prepared"]:
+                owners += 1
+                used.add(("always-prepared", key))
+        if sub["always_prepared"] and owners != 1:
+            errors.append(f"subclasses/{sub['slug']}: у таблицы always_prepared умений-владельцев {owners}, ждали одно")
+        if owners and not sub["always_prepared"]:
+            errors.append(f"subclasses/{sub['slug']}: умение-владелец объявлено, а таблицы always_prepared нет")
     for sp in en["species"]:
         sizes = sp["size"]["options"]
         put(sp, [ch("size", "size", 1, lst("sizes", sizes))] if len(sizes) > 1 else [], {}, f"species/{sp['slug']}")
@@ -455,7 +473,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         put(option, CLASS_OPTIONS.get(option["slug"], []), {}, f"class-options/{option['slug']}")
 
     declared = ({("class", k) for k in CLASSES} | {("class-feature", k) for k in CLASS_FEATURES}
-                | {("subclass-feature", k) for k in SUBCLASS_FEATURES} | {("species-trait", k) for k in SPECIES_TRAITS})
+                | {("subclass-feature", k) for k in SUBCLASS_FEATURES} | {("species-trait", k) for k in SPECIES_TRAITS}
+                | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS})
     for kind, key in sorted(declared - used, key=str):
         errors.append(f"объявление без хозяина: {kind} {key}")
     for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS)):
@@ -475,4 +494,6 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                 entity["choices"] = origin["choices"]
             for item, pair in zip(entity[nested], origin[nested]) if nested else ():
                 item["choices"] = pair["choices"]
+                if "always_prepared" in pair:
+                    item["always_prepared"] = pair["always_prepared"]
     return errors

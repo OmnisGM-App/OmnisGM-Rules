@@ -589,6 +589,13 @@ _CLASS_FEATURE = {
     "additionalProperties": False,
 }
 
+# Умение подкласса: `always_prepared` — оно владеет таблицей подкласса (`ALWAYS_PREPARED_OWNERS` в choices.py).
+_SUBCLASS_FEATURE = {
+    **_CLASS_FEATURE,
+    "properties": {**_CLASS_FEATURE["properties"], "always_prepared": {"type": "boolean"}},
+    "required": [*_CLASS_FEATURE["required"], "always_prepared"],
+}
+
 _ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
 
 # Владения класса: одна форма у `proficiencies` и `multiclass`.
@@ -754,7 +761,7 @@ SUBCLASS_SCHEMA = {
         "name_en": {"type": ["string", "null"]},
         "class": {"type": "string"},
         "description_md": {"type": "string"},
-        "features": {"type": "array", "items": _CLASS_FEATURE},
+        "features": {"type": "array", "items": _SUBCLASS_FEATURE},
         "always_prepared": _ALWAYS_PREPARED,
     },
     "required": ["slug", "name", "name_en", "class", "description_md", "features",
