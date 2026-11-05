@@ -218,6 +218,12 @@ _MULTICLASS_SPLIT = {"en": r",\s*(?:and\s+)?|\s+and\s+(?=training|proficiency)",
                      "ru": r",(?!\s*а также)\s*|\s+и\s+(?=владение)"}
 
 
+def _tool(text: str, lang: str) -> dict:
+    """slug — у одного названного инструмента (EN); инструмент на выбор объявлен в choices.py, slug null."""
+    named = lang == "en" and not re.search(r"^Choose |of your choice", text)
+    return {"text": text, "slug": slugify(re.sub(r"^proficiency with ", "", text)) if named else None}
+
+
 def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> dict:
     """Владения второго класса из первой строки раздела «As a Multiclass Character» (#414).
 
@@ -262,7 +268,7 @@ def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> d
         "armor": armor,
         "weapons": {"text": found.get("weapons", ""),
                     "categories": (["martial"] if "weapons" in found else []) if en else None},
-        "tools": {"text": found["tools"]} if "tools" in found else None,
+        "tools": _tool(found["tools"], lang) if "tools" in found else None,
         "skills": skills,
     }
 
@@ -399,7 +405,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
         "proficiencies": {
             "armor": _armor(traits["armor"], lang),
             "weapons": _weapons(traits["weapons"], lang),
-            "tools": {"text": traits["tools"]} if "tools" in traits else None,
+            "tools": _tool(traits["tools"], lang) if "tools" in traits else None,
             "skills": skills,
         },
         "multiclass": _multiclass(class_lines, lang, name, skills),
