@@ -58,6 +58,9 @@ SPELL_SCHEMA = {
             "type": "array",
             "items": {"type": "string"},
         },
+        # Слаги `classes` и `school` (#482): только у редакции с ресурсом классов (5.2).
+        "class_slugs": {"type": "array", "items": {"type": "string"}},
+        "school_slug": {"type": "string", "enum": list(_choices.SCHOOLS)},
         "casting_time": {
             "type": "object",
             "properties": {
@@ -619,10 +622,11 @@ _PROF_WEAPONS = {
     "required": ["text", "categories"],
     "additionalProperties": False,
 }
+# slug — названный инструмент из `equipment`; null — инструмент на выбор, его объявление в `choices` владельца.
 _PROF_TOOLS = {
     "type": ["object", "null"],
-    "properties": {"text": {"type": "string"}},
-    "required": ["text"],
+    "properties": {"text": {"type": "string"}, "slug": {"type": ["string", "null"]}},
+    "required": ["text", "slug"],
     "additionalProperties": False,
 }
 # options — слаги навыков; null — любой навык на выбор.
@@ -690,8 +694,8 @@ CLASS_SCHEMA = {
         "multiclass": {
             "type": "object",
             "properties": {"armor": _PROF_ARMOR, "weapons": _PROF_WEAPONS, "tools": _PROF_TOOLS,
-                           "skills": {**_PROF_SKILLS, "type": ["object", "null"]}},
-            "required": ["armor", "weapons", "tools", "skills"],
+                           "skills": {**_PROF_SKILLS, "type": ["object", "null"]}, "choices": _CHOICES},
+            "required": ["armor", "weapons", "tools", "skills", "choices"],
             "additionalProperties": False,
         },
         "starting_equipment": {"type": "string"},
@@ -1054,6 +1058,45 @@ SPECIES_LINEAGE_SCHEMA = {
     "additionalProperties": False,
 }
 
+# Языки SRD 5.2 (#482): таблицы стандартных и редких языков главы «Создание персонажа».
+LANGUAGE_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "Language",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string"},
+        "name": {"type": "string"},
+        "name_en": {"type": ["string", "null"]},
+        "category": {"type": "string", "enum": ["standard", "rare"]},
+    },
+    "required": ["slug", "name", "name_en", "category"],
+    "additionalProperties": False,
+}
+
+# Список выбора (#482): slug — ключ `from.list` объявлений, members — его члены на языке издания.
+# Член: tool — слаг `equipment`, language — `languages`, class — `classes`; остальные типы — ключи без ресурса.
+CHOICE_LIST_SCHEMA = {
+    "$schema": "http://json-schema.org/draft-07/schema#",
+    "title": "ChoiceList",
+    "type": "object",
+    "properties": {
+        "slug": {"type": "string", "enum": list(_choices.LISTS)},
+        "members": {"type": "array", "minItems": 1, "items": {
+            "type": "object",
+            "properties": {
+                "type": {"type": "string", "enum": ["skill", "ability", "damage-type", "size", "tool", "language",
+                                                    "class", "land"]},
+                "slug": {"type": "string"},
+                "name": {"type": "string"},
+            },
+            "required": ["type", "slug", "name"],
+            "additionalProperties": False,
+        }},
+    },
+    "required": ["slug", "members"],
+    "additionalProperties": False,
+}
+
 RESOURCE_SCHEMAS = {
     "spells": SPELL_SCHEMA,
     "monsters": MONSTER_SCHEMA,
@@ -1072,6 +1115,8 @@ RESOURCE_SCHEMAS = {
     "species": SPECIES_SCHEMA,
     "backgrounds": BACKGROUND_SCHEMA,
     "species-lineages": SPECIES_LINEAGE_SCHEMA,
+    "languages": LANGUAGE_SCHEMA,
+    "choice-lists": CHOICE_LIST_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
     "communities": DH_SECTION_SCHEMA,

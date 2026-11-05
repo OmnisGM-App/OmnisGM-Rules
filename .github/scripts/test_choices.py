@@ -16,6 +16,7 @@ SCRIPTS = Path(__file__).resolve().parent
 ROOT = SCRIPTS.parents[1]
 sys.path.insert(0, str(SCRIPTS))
 import choices  # noqa: E402
+import config  # noqa: E402
 
 failures = []
 
@@ -26,7 +27,7 @@ def eq(name, got, want):
 
 
 RESOURCES = ("classes", "subclasses", "species", "species-lineages", "backgrounds", "feats", "class-options",
-             "spells", "weapons", "equipment", "equipment-groups")
+             "spells", "weapons", "equipment", "equipment-groups", "choice-lists", "languages")
 # --site-data: сверке ссылок нужны и группы снаряжения, которых в публичном API нет.
 with tempfile.TemporaryDirectory() as out:
     run = subprocess.run([sys.executable, str(SCRIPTS / "generate_api.py"), "--src-root", str(ROOT / "src/dnd"),
@@ -62,6 +63,8 @@ def all_choices(lang):
         for e in live[("srd52", lang, res)]:
             if res != "subclasses":
                 out[(res, e["slug"])] = e["choices"]
+            if res == "classes":
+                out[(res, e["slug"], "multiclass")] = e["multiclass"]["choices"]
             for index, item in enumerate(e[nested]) if nested else ():
                 out[(res, e["slug"], index)] = item["choices"]
     return out
@@ -178,6 +181,10 @@ eq("выборы самого класса: инструменты барда и
    {slug: [(c["kind"], c["count"], c["from"]) for c in cls["choices"]] for slug, cls in classes.items() if cls["choices"]},
    {"bard": [("tool", 3, {"resource": "equipment", "filter": {"group": "musical-instrument"}})],
     "monk": [("tool", 1, {"list": "artisan-tools-or-musical-instruments", "values": None})]})
+eq("мультикласс: инструмент на выбор — только у барда, из музыкальных инструментов",
+   {slug: [(c["kind"], c["count"], c["from"]) for c in cls["multiclass"]["choices"]]
+    for slug, cls in classes.items() if cls["multiclass"]["choices"]},
+   {"bard": [("tool", 1, {"resource": "equipment", "filter": {"group": "musical-instrument"}})]})
 eq("Круг Земли: земля из ключей always_prepared, замена на долгом отдыхе",
    (one(feature("en", "subclasses", "circle-of-the-land", "Circle of the Land Spells"), "land")["from"]["values"],
     one(feature("en", "subclasses", "circle-of-the-land", "Circle of the Land Spells"), "land")["replace"]),
@@ -248,7 +255,7 @@ eq("ключи фильтров — только из словаря",
           - {(name, key) for name, keys in choices.FILTERS.items() for key in keys}), [])
 
 eq("RU несёт те же выборы, что EN, у каждой записи, умения и особенности", all_choices("ru"), all_choices("en"))
-eq("всего объявлено выборов", sum(len(v) for v in all_choices("en").values()), 132)
+eq("всего объявлено выборов", sum(len(v) for v in all_choices("en").values()), 133)
 
 
 # --- Отказы: сборка на испорченных объявлениях и данных -----------------------------------------
@@ -392,9 +399,155 @@ def ru_without_feature(data):
 eq("RU-класс с другим числом умений — выборы не копируются молча", rebuilt(ru_without_feature),
    ["ru/classes/bard: нет пары в EN для выборов"])
 
+
+def class_tool(slug, owner, value):
+    def mutate(data):
+        next(c for c in data[("srd52", "en", "classes")] if c["slug"] == slug)[owner]["tools"] = value
+    return mutate
+
+
+eq("инструмента класса нет в equipment — сборка падает",
+   rebuilt(class_tool("druid", "proficiencies", {"text": "Herbalism Kit", "slug": "herbal-kit"})),
+   ["classes/druid/proficiencies: инструмента 'herbal-kit' нет в equipment"])
+eq("инструмент на выбор в мультиклассе без объявления — сборка падает", rebuilt(MULTICLASS={}),
+   ["classes/bard/multiclass: инструмент на выбор в тексте и в объявлении расходятся"])
+eq("объявление выбора мультикласса при названном инструменте — сборка падает",
+   rebuilt(class_tool("bard", "multiclass", {"text": "proficiency with Lute", "slug": "lute"})),
+   ["classes/bard/multiclass: инструмент на выбор в тексте и в объявлении расходятся"])
+eq("объявление мультикласса для класса, которого нет, роняет сборку",
+   rebuilt(MULTICLASS=also("MULTICLASS", "artificer", [])), ["объявление без хозяина: multiclass artificer"])
+
+
+# --- choice-lists и languages (#482) -------------------------------------------------------------
+def lists(lang):
+    return {e["slug"]: e["members"] for e in live[("srd52", lang, "choice-lists")]}
+
+
+eq("choice-lists: каждый список из LISTS, у каждого члены, RU — те же слаги и типы",
+   {lang: sorted(k for k, v in lists(lang).items() if v) for lang in ("en", "ru")}
+   | {"ru-keys": {k: [(m["type"], m["slug"]) for m in v] for k, v in lists("ru").items()}},
+   {lang: sorted(choices.LISTS) for lang in ("en", "ru")}
+   | {"ru-keys": {k: [(m["type"], m["slug"]) for m in v] for k, v in lists("en").items()}})
+eq("choice-lists: члены по типам и ресурсам",
+   {k: (len(v), sorted({m["type"] for m in v})) for k, v in lists("en").items()},
+   {"abilities": (6, ["ability"]), "classes": (12, ["class"]), "damage-types": (13, ["damage-type"]),
+    "lands": (4, ["land"]), "languages": (19, ["language"]), "sizes": (6, ["size"]), "skills": (18, ["skill"]),
+    "tools": (37, ["tool"]), "skills-or-tools": (55, ["skill", "tool"]),
+    "artisan-tools-or-musical-instruments": (27, ["tool"])})
+eq("choice-lists: слаги инструментов, языков и классов разрешаются в своих ресурсах",
+   [(k, m["slug"]) for k, v in lists("en").items() for m in v
+    if m["slug"] not in {"tool": by_slug("en", "equipment"), "language": by_slug("en", "languages"),
+                         "class": classes}.get(m["type"], {m["slug"]: 1})], [])
+eq("choice-lists: подписи RU — из таблиц правил, не EN",
+   {k: lists("ru")[k][0]["name"] for k in ("skills", "abilities", "damage-types", "sizes", "languages", "lands")},
+   {"skills": "Акробатика", "abilities": "Сила", "damage-types": "Кислота", "sizes": "Крошечный",
+    "languages": "Общий", "lands": "Засушливая земля"})
+languages = live[("srd52", "ru", "languages")]
+eq("languages: 10 стандартных и 9 редких, RU — слаг и name_en из EN",
+   ([l["category"] for l in live[("srd52", "en", "languages")]].count("standard"),
+    [l["category"] for l in languages].count("rare"),
+    {l["slug"]: l["name_en"] for l in languages}["thieves-cant"]), (10, 9, "Thieves' Cant"))
+
+
+def drop_list(key):
+    def mutate(data):
+        data[("srd52", "en", "choice-lists")] = [e for e in data[("srd52", "en", "choice-lists")] if e["slug"] != key]
+    return mutate
+
+
+eq("объявление называет список, которого нет в choice-lists, — сборка падает", [e for e in rebuilt(drop_list("languages"))
+   if "languages" in e], ["classes/ranger/Deft Explorer: списка 'languages' нет в choice-lists",
+                          "classes/rogue/Thieves' Cant: списка 'languages' нет в choice-lists"])
+eq("значение не из членов списка — сборка падает",
+   rebuilt(SPECIES_TRAITS=also("SPECIES_TRAITS", ("elf", "Keen Senses"),
+                               [choices.ch("skill", "skill", 1, choices.lst("sizes", ["colossal"]))])),
+   ["species/elf/Keen Senses: значения ['colossal'] не из списка 'sizes'"])
+
+
+def with_terms(mutate=None):
+    """Данные до сборки списков: таблицы правил из глав, без choice-lists, RU-языки без слагов."""
+    from parsers import parse_table_terms
+    data = copy.deepcopy(live)
+    for lang in ("en", "ru"):
+        del data[("srd52", lang, "choice-lists")]
+        data[("srd52", lang, "list-terms")] = [
+            t for src in config.SOURCES if src["type"] == "list_terms" and src["lang"] == lang
+            for t in parse_table_terms((ROOT / "src/dnd" / src["file"]).read_text(encoding="utf-8"), src["tables"])]
+    for l in data[("srd52", "ru", "languages")]:
+        l["slug"] = l["name_en"] = None
+    if mutate:
+        mutate(data)
+    errors = choices.build_choice_lists(data)
+    return errors, data
+
+
+def unordered(entries):
+    """all.json пишет записи по слагу, а пересборка берёт предметы и языки уже из all.json."""
+    return {e["slug"]: sorted(e["members"], key=lambda m: (m["type"], m["slug"])) for e in entries}
+
+
+errors, rebuilt_lists = with_terms()
+eq("сборка списков из глав — без ошибок и как в API",
+   (errors, {lang: unordered(rebuilt_lists[("srd52", lang, "choice-lists")]) for lang in ("en", "ru")},
+    rebuilt_lists[("srd52", "ru", "languages")], ("srd52", "en", "list-terms") in rebuilt_lists),
+   ([], {lang: unordered(live[("srd52", lang, "choice-lists")]) for lang in ("en", "ru")}, live[("srd52", "ru", "languages")], False))
+
+
+def drop_term(lang, name):
+    def mutate(data):
+        data[("srd52", lang, "list-terms")] = [t for t in data[("srd52", lang, "list-terms")] if t["name"] != name]
+    return mutate
+
+
+eq("RU-таблица навыков без строки — сборка падает", with_terms(drop_term("ru", "Магия"))[0],
+   ["srd52/ru/skills: строк 17, в EN 18"])
+eq("EN-таблица навыков без строки — ошибка словаря первой",
+   with_terms(drop_term("en", "Arcana"))[0][0].startswith("srd52/en/skills: таблица даёт"), True)
+
+
+def ru_language_swapped(data):
+    data[("srd52", "ru", "languages")][0]["category"] = "standard"
+
+
+eq("RU-язык не напротив EN — сборка падает", with_terms(ru_language_swapped)[0],
+   ["srd52/ru/languages: строки RU не напротив EN (19 против 19)"])
+
+
+def no_artisan_tools(data):
+    for lang in ("en", "ru"):
+        for e in data[("srd52", lang, "equipment")]:
+            if e["group"] in ("artisan-tools", "musical-instrument"):
+                e["group"] = None
+
+
+eq("список без членов — сборка падает", with_terms(no_artisan_tools)[0],
+   [f"srd52/{lang}/choice-lists: у списка 'artisan-tools-or-musical-instruments' нет членов" for lang in ("en", "ru")])
+saved_lists = choices.LISTS
+choices.LISTS = saved_lists + ("hobbies",)
+try:
+    eq("список в LISTS, которого сборка не собирает, — сборка падает", with_terms()[0],
+       [f"srd52/{lang}/choice-lists: список 'hobbies' не объявлен в LISTS или не собран" for lang in ("en", "ru")])
+finally:
+    choices.LISTS = saved_lists
+
+
+# --- Слаги классов и школы у заклинаний (#482) ---------------------------------------------------
+from generate_api import slug_spell_refs  # noqa: E402
+
+eq("заклинания: class_slugs напротив classes, школа слагом, RU — как EN",
+   ([s["slug"] for s in live[("srd52", "en", "spells")] if len(s["class_slugs"]) != len(s["classes"])
+     or s["school_slug"] != s["school"].lower()],
+    {s["slug"]: (sorted(s["class_slugs"]), s["school_slug"]) for s in live[("srd52", "ru", "spells")]}),
+   ([], {s["slug"]: (sorted(s["class_slugs"]), s["school_slug"]) for s in live[("srd52", "en", "spells")]}))
+spell_data = copy.deepcopy(live)
+spell_data[("srd52", "ru", "spells")][0]["classes"] = ["Изобретатель"]
+eq("класс заклинания не найден по имени — сборка падает", slug_spell_refs(spell_data),
+   [f"srd52/ru/spells/{spell_data[('srd52', 'ru', 'spells')][0]['slug']}: класс ['Изобретатель'] или школа "
+    f"{spell_data[('srd52', 'ru', 'spells')][0]['school_slug']!r} не найдены"])
+
 if failures:
     print(f"❌ choices ({len(failures)}):")
     for f in failures:
         print(f"  — {f}")
     sys.exit(1)
-print("✅ choices: 132 объявления выбора, число по уровням, источники, RU копией EN, отказы сборки")
+print("✅ choices: 133 объявления выбора, число по уровням, источники, RU копией EN, отказы сборки")

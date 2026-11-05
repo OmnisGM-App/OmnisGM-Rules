@@ -528,8 +528,14 @@ for lang in ("en", "ru"):
                [bool(m[k]["categories"]) for k in ("weapons", "armor")])
         if m["skills"]:
             eq(f"{lang}/{c['slug']}: один навык", m["skills"]["choose"], 1)
-eq("EN плут: инструмент текстом", {c["slug"]: c for c in live[("srd52", "en", "classes")]}
-   ["rogue"]["multiclass"]["tools"], {"text": "proficiency with Thieves' Tools"})
+eq("EN плут: инструмент текстом и слагом", {c["slug"]: c for c in live[("srd52", "en", "classes")]}
+   ["rogue"]["multiclass"]["tools"], {"text": "proficiency with Thieves' Tools", "slug": "thieves-tools"})
+eq("слаги инструментов классов: названный — слагом, на выбор — null; RU из EN",
+   {lang: {c["slug"]: [c[k]["tools"]["slug"] if c[k]["tools"] else "-" for k in ("proficiencies", "multiclass")]
+           for c in live[("srd52", lang, "classes")] if c["proficiencies"]["tools"] or c["multiclass"]["tools"]}
+    for lang in ("en", "ru")},
+   {lang: {"bard": [None, None], "druid": ["herbalism-kit", "-"], "monk": [None, "-"],
+           "rogue": ["thieves-tools", "thieves-tools"]} for lang in ("en", "ru")})
 eq("RU жрец: «а также щитами» — один фрагмент доспехов", ru_cls["cleric"]["multiclass"]["armor"]["text"],
    "владение Лёгкими и Средними доспехами, а также щитами")
 eq("RU следопыт: текст свой, навыки из EN", (ru_cls["ranger"]["multiclass"]["skills"]["text"],
