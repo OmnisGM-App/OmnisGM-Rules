@@ -229,6 +229,13 @@ eq("EN: тип урона вне списка — ошибка",
 eq("EN: уровень особенности из «Starting at character level N»",
    [t["level"] for s in granted("en", "goliath", "Starting at character level 5", "Starting at character level 7")[0]
     [("srd52", "en", "species")] if s["slug"] == "goliath" for t in s["traits"] if t["name"] == "Large Form"], [7])
+no_grants = copy.deepcopy(pristine)
+for spell_lang in ("en", "ru"):
+    no_grants[("srd52", spell_lang, "spells")] = SPELLS[spell_lang]
+build_species_lineages(no_grants)
+no_grants[("srd52", "en", "species-lineages")][0]["grants"] = None
+eq("EN: наследие без grants — ошибка, а не исключение",
+   resolve_lineage_grants(no_grants)[:1], ["srd52/en/dragonborn-black: у наследия нет grants"])
 eq("RU: имя заклинания RU не стоит в тексте наследия — ошибка",
    grant_errors_of("ru", "tiefling", "*Тьма* |", "*Мрак* |"),
    ["srd52/ru/tiefling-infernal: в тексте нет заклинания «Тьма» (darkness)"])

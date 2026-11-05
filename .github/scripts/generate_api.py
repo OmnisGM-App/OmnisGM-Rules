@@ -415,6 +415,9 @@ def resolve_lineage_grants(all_data: dict) -> list[str]:
         by_slug = {}
         for lineage in all_data[(ver, "en", resource)]:
             grants = lineage["grants"]
+            if grants is None:
+                errors.append(f"{ver}/en/{lineage['slug']}: у наследия нет grants")
+                continue
             free = grants.pop("_spell_uses")
             resolved = []
             for entry in grants["spells"]:
@@ -1020,7 +1023,7 @@ def main():
                         + build_backgrounds(all_data))
         class_errors = class_errors or attach_choices(all_data)
         if class_errors:
-            print("Error: классы/подклассы/варианты умений/виды/предыстории (#365, #374, #413):", file=sys.stderr)
+            print("Error: классы/подклассы/варианты умений/виды/предыстории (#365, #374, #413, #476):", file=sys.stderr)
             for msg in class_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)
