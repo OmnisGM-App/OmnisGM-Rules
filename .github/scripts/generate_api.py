@@ -608,6 +608,43 @@ def align_class_options(all_data: dict) -> list[str]:
     return errors
 
 
+def align_feat_prerequisites(all_data: dict) -> list[str]:
+    """Предусловия черт структурой (#478): у каждой черты со строкой `prerequisite` есть `prerequisites`
+    с тем же text; умение EN сверяется с умениями классов; RU — коды из EN по слагу, те же части и числа."""
+    errors = []
+    for (ver, lang, resource), feats in all_data.items():
+        if resource != "feats":
+            continue
+        mismatched = {f["slug"] for f in feats if (f["prerequisites"] or {}).get("text") != f["prerequisite"]}
+        errors += [f"{ver}/{lang}/{slug}: prerequisites не сходится со строкой prerequisite" for slug in sorted(mismatched)]
+        if lang == "en":
+            features = {slugify(x["name"]) for c in all_data.get((ver, "en", "classes"), []) for x in c["features"]}
+            for f in feats:
+                key = f["prerequisites"] and f["prerequisites"]["feature"]
+                if key and key not in features:
+                    errors.append(f"{ver}/en/{f['slug']}: умение-предусловие «{key}» не найдено в classes")
+            continue
+        en_by_slug = {f["slug"]: f for f in all_data.get((ver, "en", resource), [])}
+        for r in feats:
+            e = en_by_slug.get(r["slug"])
+            if e is None:
+                errors.append(f"{ver}/ru/{r['slug']}: черты нет в EN")
+                continue
+            if (r["prerequisite"] is None) != (e["prerequisite"] is None):
+                errors.append(f"{ver}/ru/{r['slug']}: предусловие есть только в одном языке")
+                continue
+            if not (r["prerequisite"] and r["prerequisites"] and e["prerequisites"]):
+                continue
+            if (len(r["prerequisite"].split(", ")), re.findall(r"\d+", r["prerequisite"])) != \
+                    (len(e["prerequisite"].split(", ")), re.findall(r"\d+", e["prerequisite"])):
+                errors.append(f"{ver}/ru/{r['slug']}: предусловие RU «{r['prerequisite']}» ≠ EN «{e['prerequisite']}» "
+                              "(число частей или числа)")
+                continue
+            for k in ("level", "abilities", "feature"):
+                r["prerequisites"][k] = copy.deepcopy(e["prerequisites"][k])
+    return errors
+
+
 def slug_collisions(all_data: dict, system: str) -> list[str]:
     """Дубли слага внутри (ver, lang, resource) — каждый молча перезаписал бы чужую сущность."""
     errors = []
@@ -962,11 +999,12 @@ def main():
         disambiguate_option_slugs(all_data)
         class_errors = (build_equipment_groups(all_data) + build_magic_item_groups(all_data)
                         + align_classes(all_data) + resolve_always_prepared(all_data)
-                        + align_class_options(all_data) + build_species_lineages(all_data)
+                        + align_class_options(all_data) + align_feat_prerequisites(all_data)
+                        + build_species_lineages(all_data)
                         + build_backgrounds(all_data))
         class_errors = class_errors or attach_choices(all_data)
         if class_errors:
-            print("Error: классы/подклассы/варианты умений/виды/предыстории (#365, #374, #413):", file=sys.stderr)
+            print("Error: классы/подклассы/варианты умений/черты/виды/предыстории (#365, #374, #478, #413):", file=sys.stderr)
             for msg in class_errors:
                 print(f"  {msg}", file=sys.stderr)
             sys.exit(1)
