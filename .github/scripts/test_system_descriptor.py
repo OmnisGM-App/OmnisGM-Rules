@@ -34,7 +34,8 @@ valid = jsonschema.Draft7Validator(SYSTEM_SCHEMA).is_valid
 srd52 = system_descriptor(config, "srd52", SRC)
 eq("srd52: шапка описателя", {k: v for k, v in srd52.items() if k != "multiclass"},
    {"system": "dnd", "version": "srd52", "name": "SRD 5.2.1"})
-rules = srd52["multiclass"]
+rules = srd52["multiclass"] or {"prerequisite_score": None, "caster_level_rounding": None,
+                                "spell_slots": [{"level": None, "spell_slots": None}] * 20}
 eq("srd52: порог характеристики", rules["prerequisite_score"], 13)
 eq("srd52: округление доли половинного заклинателя", rules["caster_level_rounding"], "up")
 eq("srd52: уровни таблицы ячеек", [r["level"] for r in rules["spell_slots"]], list(range(1, 21)))
