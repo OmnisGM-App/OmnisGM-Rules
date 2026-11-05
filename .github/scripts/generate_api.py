@@ -450,7 +450,7 @@ def resolve_lineage_grants(all_data: dict) -> list[str]:
                 resolved.append({"slug": spell["slug"], "level": entry["level"],
                                  "uses": dict(free) if spell["level"] and free else None})
             grants["spells"] = resolved
-            for damage in [grants["damage_type"], *grants["resistances"]]:
+            for damage in dict.fromkeys([grants["damage_type"], *grants["resistances"]]):
                 if damage is not None and damage not in DAMAGE_TYPES:
                     errors.append(f"{ver}/en/{lineage['slug']}: тип урона «{damage}» вне списка")
             by_slug[lineage["slug"]] = lineage

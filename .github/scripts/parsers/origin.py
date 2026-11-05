@@ -86,6 +86,7 @@ def _species_paragraphs(body: str) -> tuple[dict[str, str], list[dict], list[dic
 # Механика наследия из EN-текста (#476); RU получает её из EN по слагу наследия в generate_api.
 _KNOWN_CANTRIP = re.compile(r"know the (.+?) cantrip")
 _RESISTANCE = re.compile(r"Resistance to (\w+) damage")
+_RESISTANCE_FROM_TRAIT = re.compile(r"Resistance to the damage type determined by your (.+?) trait")
 _DEALT_DAMAGE = re.compile(r"deal \d+d\d+ (\w+) damage")
 _DARKVISION = re.compile(r"Darkvision increases to (\d+) feet")
 _SPEED_AT_LEAST = re.compile(r"Speed increases to (\d+) feet")
@@ -225,6 +226,8 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
         sp["traits"] = traits
         owner = paragraphs[owner_index]["name"] if owner_index is not None else None
         owner_text = " ".join(paragraphs[owner_index]["text"]) if owner_index is not None else ""
+        resisted = en and owner is not None and any(
+            m.group(1) == owner for t in traits for m in _RESISTANCE_FROM_TRAIT.finditer(t["description_md"]))
         for variant in variants:
             key = re.search(r"\(([^)]+)\)$", variant["name"])
             lineages.append({
@@ -237,6 +240,11 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
                 "details": variant["details"],
                 "grants": _lineage_grants(name, variant, owner_text) if en else None,
             })
+            if resisted:
+                grants = lineages[-1]["grants"]
+                if grants["damage_type"] is None:
+                    raise ValueError(f"{name}: {variant['name']}: {owner!r} grants resistance, the lineage has no damage type")
+                grants["resistances"].append(grants["damage_type"])
     return lineages, out_shape
 
 

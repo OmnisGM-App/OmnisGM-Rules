@@ -186,7 +186,7 @@ DRAGON = {"black": "acid", "blue": "lightning", "brass": "fire", "bronze": "ligh
           "gold": "fire", "green": "poison", "red": "fire", "silver": "cold", "white": "cold"}
 GIANT = {"cloud": None, "fire": "fire", "frost": "cold", "hill": None, "stone": None, "storm": "thunder"}
 GRANTS = {
-    **{f"dragonborn-{colour}": grants(damage_type=t) for colour, t in DRAGON.items()},
+    **{f"dragonborn-{colour}": grants(damage_type=t, resistances=[t]) for colour, t in DRAGON.items()},
     "elf-drow": grants([("dancing-lights", 1, None), ("faerie-fire", 3, ONCE), ("darkness", 5, ONCE)], darkvision=120),
     "elf-high-elf": grants([("prestidigitation", 1, None), ("detect-magic", 3, ONCE), ("misty-step", 5, ONCE)]),
     "elf-wood-elf": grants([("druidcraft", 1, None), ("longstrider", 3, ONCE), ("pass-without-trace", 5, ONCE)],
@@ -235,6 +235,14 @@ eq("EN: незнакомая колонка таблицы наследий — 
 eq("EN: тип урона вне списка — ошибка",
    grant_errors_of("en", "dragonborn", "| Black  | Acid ", "| Black  | Ooze "),
    ["srd52/en/dragonborn-black: тип урона «ooze» вне списка"])
+eq("EN: без особенности «Damage Resistance» драконорождённый остаётся без сопротивления",
+   [l["grants"]["resistances"] for l in granted("en", "dragonborn", "You have Resistance to the damage type",
+                                                 "You have Advantage against the damage type")[0]
+    [("srd52", "en", "species-lineages")] if l["slug"] == "dragonborn-black"], [[]])
+eq("EN: сопротивление по чужой особенности не берётся",
+   [l["grants"]["resistances"] for l in granted("en", "dragonborn", "determined by your Draconic Ancestry trait.",
+                                                 "determined by your Breath Weapon trait.")[0]
+    [("srd52", "en", "species-lineages")] if l["slug"] == "dragonborn-black"], [[]])
 eq("EN: уровень особенности из «Starting at character level N»",
    [t["level"] for s in granted("en", "goliath", "Starting at character level 5", "Starting at character level 7")[0]
     [("srd52", "en", "species")] if s["slug"] == "goliath" for t in s["traits"] if t["name"] == "Large Form"], [7])
