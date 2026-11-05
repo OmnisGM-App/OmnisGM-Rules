@@ -243,6 +243,10 @@ eq("EN: сопротивление по чужой особенности не �
    [l["grants"]["resistances"] for l in granted("en", "dragonborn", "determined by your Draconic Ancestry trait.",
                                                  "determined by your Breath Weapon trait.")[0]
     [("srd52", "en", "species-lineages")] if l["slug"] == "dragonborn-black"], [[]])
+eq("EN: сопротивление по особенности наследий без типа урона — ошибка",
+   grant_errors_of("en", "goliath", "**Large Form.**", "**Giant Hide.** You have Resistance to the damage type "
+                   "determined by your Giant Ancestry trait.\n\n**Large Form.**")[:1],
+   ["srd52: Goliath: Cloud's Jaunt (Cloud Giant): 'Giant Ancestry' grants resistance, the lineage has no damage type"])
 eq("EN: уровень особенности из «Starting at character level N»",
    [t["level"] for s in granted("en", "goliath", "Starting at character level 5", "Starting at character level 7")[0]
     [("srd52", "en", "species")] if s["slug"] == "goliath" for t in s["traits"] if t["name"] == "Large Form"], [7])
