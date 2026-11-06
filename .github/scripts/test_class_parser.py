@@ -199,6 +199,9 @@ FREE_SMITE = "you can cast it without expending a spell slot, but you must finis
 eq("бесплатное сотворение без числа и без повтора после отдыха роняет сборку",
    class_error("en", "07_Paladin.md", FREE_SMITE, "you can cast it without expending a spell slot"),
    "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
+eq("бесплатное сотворение без числа роняет сборку, даже с долгим отдыхом",
+   class_error("en", "07_Paladin.md", FREE_SMITE, "you can cast it without expending a spell slot. Its magic fades after a Long Rest"),
+   "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
 eq("бесплатное сотворение с коротким отдыхом роняет сборку",
    class_error("en", "07_Paladin.md", FREE_SMITE, FREE_SMITE.replace("a Long Rest", "a Short or Long Rest")),
    "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
