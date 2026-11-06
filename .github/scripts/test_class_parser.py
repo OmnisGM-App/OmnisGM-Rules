@@ -202,6 +202,17 @@ eq("бесплатное сотворение без числа и без пов
 eq("бесплатное сотворение без числа роняет сборку, даже с долгим отдыхом",
    class_error("en", "07_Paladin.md", FREE_SMITE, "you can cast it without expending a spell slot. Its magic fades after a Long Rest"),
    "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
+eq("бесплатное сотворение с числом, но без долгого отдыха роняет сборку",
+   class_error("en", "08_Ranger.md", ", and you regain all expended uses of this ability when you finish a Long Rest", ""),
+   "Ranger: «Favored Enemy» casts an always prepared spell for free in an unknown form")
+eq("бесплатное сотворение «three times» роняет сборку, а не читается как «once»",
+   class_error("en", "07_Paladin.md", FREE_SMITE,
+               "you can cast it three times without expending a spell slot (no Concentration), and you regain all expended uses when you finish a Long Rest"),
+   "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
+eq("долгий отдых из другого абзаца умения не засчитывается",
+   class_error("en", "08_Ranger.md", ", and you regain all expended uses of this ability when you finish a Long Rest",
+               ". The hunt is long.\n\nYou cannot use it again until a Long Rest"),
+   "Ranger: «Favored Enemy» casts an always prepared spell for free in an unknown form")
 eq("бесплатное сотворение с коротким отдыхом роняет сборку",
    class_error("en", "07_Paladin.md", FREE_SMITE, FREE_SMITE.replace("a Long Rest", "a Short or Long Rest")),
    "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")

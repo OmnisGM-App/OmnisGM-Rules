@@ -140,17 +140,22 @@ _ALWAYS_PREPARED_HINT = {
 
 _FREE_CAST = "without expending a spell slot"
 _FREE_ONCE_MORE = re.compile(r"can't do so in this way again until|before you can cast it in this way again")
+_FREE_TIMES = re.compile(r"\b(?:\d+|three|four|five|six) times\b")
 _FREE_COLUMN = re.compile(r"as shown in the (.+?) column")
 
 
 def _free_casts(f: dict, columns: list[dict], name: str) -> dict | None:
     """Бесплатные сотворения строки (Table#1523): `count` на уровне умения, `column` — ключ прогрессии, если число растёт."""
     text = f["description_md"]
-    sentence = next((x for x in re.split(r"(?<=\.)\s+", text) if _FREE_CAST in x), None)
-    if sentence is None:
+    sentences = re.split(r"(?<=\.)\s+", text)
+    at = next((i for i, x in enumerate(sentences) if _FREE_CAST in x), None)
+    if at is None:
         return None
-    count = 2 if "twice" in sentence else 1 if "once" in sentence or _FREE_ONCE_MORE.search(text) else None
-    if count is None or "Long Rest" not in text or re.search(r"\bShort\b", text):
+    sentence, window = sentences[at], " ".join(sentences[at:at + 2])
+    count = (2 if re.search(r"\btwice\b", sentence) else 1
+             if re.search(r"\bonce\b", sentence) or _FREE_ONCE_MORE.search(window) else None)
+    if (count is None or _FREE_TIMES.search(sentence) or "Long Rest" not in window
+            or re.search(r"\bShort\b", window)):
         raise ValueError(f"{name}: «{f['name']}» casts an always prepared spell for free in an unknown form")
     column = None
     if m := _FREE_COLUMN.search(text):
