@@ -138,10 +138,32 @@ _ALWAYS_PREPARED_HINT = {
 }
 
 
-def _always_prepared(features: list[dict], lang: str, name: str) -> list[dict]:
+_FREE_CAST = "without expending a spell slot"
+_FREE_ONCE_MORE = re.compile(r"can't do so in this way again until|before you can cast it in this way again")
+_FREE_COLUMN = re.compile(r"as shown in the (.+?) column")
+
+
+def _free_casts(f: dict, columns: list[dict], name: str) -> dict | None:
+    """Бесплатные сотворения строки (Table#1523): `count` на уровне умения, `column` — ключ прогрессии, если число растёт."""
+    text = f["description_md"]
+    sentence = next((x for x in re.split(r"(?<=\.)\s+", text) if _FREE_CAST in x), None)
+    if sentence is None:
+        return None
+    count = 2 if "twice" in sentence else 1 if "once" in sentence or _FREE_ONCE_MORE.search(text) else None
+    if count is None or "Long Rest" not in text or re.search(r"\bShort\b", text):
+        raise ValueError(f"{name}: «{f['name']}» casts an always prepared spell for free in an unknown form")
+    column = None
+    if m := _FREE_COLUMN.search(text):
+        column = next((c["key"] for c in columns if c["name"] == m.group(1)), None)
+        if column is None:
+            raise ValueError(f"{name}: «{f['name']}»: no progression column {m.group(1)!r}")
+    return {"count": count, "column": column, "recharge": "long-rest"}
+
+
+def _always_prepared(features: list[dict], lang: str, name: str, columns: list[dict]) -> list[dict]:
     """Заклинания, которые класс держит подготовленными всегда: форма как у подкласса, `choice` — null.
 
-    `spells` — ИМЕНА до резолва в слаги в generate_api.
+    `spells` — ИМЕНА до резолва в слаги в generate_api; `feature` — имя умения-владельца; `uses` — из EN.
     """
     out = []
     for f in features:
@@ -150,7 +172,8 @@ def _always_prepared(features: list[dict], lang: str, name: str) -> list[dict]:
         if re.search(_ALWAYS_PREPARED_HINT[lang], re.sub(_ALWAYS_PREPARED[lang], "", f["description_md"])):
             raise ValueError(f"{name}: «{f['name']}» names an always prepared spell in an unknown form")
         if spells:
-            out.append({"level": f["level"], "spells": spells, "choice": None})
+            out.append({"level": f["level"], "spells": spells, "choice": None, "feature": f["name"],
+                        "uses": _free_casts(f, columns, name) if lang == "en" else None})
     return out
 
 
@@ -433,7 +456,7 @@ def parse_class(text: str, lang: str) -> list[dict]:
         "starting_equipment": traits["starting_equipment"],
         "progression": progression,
         "features": features,
-        "always_prepared": _always_prepared(features, lang, name),
+        "always_prepared": _always_prepared(features, lang, name, progression["columns"]),
         "spellcasting": _spellcasting(features, progression) if en else None,
     }]
 

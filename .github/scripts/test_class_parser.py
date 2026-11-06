@@ -139,6 +139,26 @@ for lang in ("en", "ru"):
         if r["choice"] is not None], [])
 
 
+ONCE = {"count": 1, "column": None, "recharge": "long-rest"}
+CLASS_ALWAYS_OWNERS = {
+    "en": {"bard": [("Words of Creation", None)], "druid": [("Druidic", None)],
+           "paladin": [("Paladin's Smite", ONCE), ("Faithful Steed", ONCE)],
+           "ranger": [("Favored Enemy", {"count": 2, "column": "favored-enemy", "recharge": "long-rest"})],
+           "warlock": [("Contact Patron", ONCE)]},
+}
+eq("en: умение-владелец и бесплатные сотворения строк always_prepared",
+   {c["slug"]: [(r["feature"], r["uses"]) for r in c["always_prepared"]]
+    for c in live[("srd52", "en", "classes")] if c["always_prepared"]}, CLASS_ALWAYS_OWNERS["en"])
+en_names = {c["slug"]: [f["name"] for f in c["features"]] for c in live[("srd52", "en", "classes")]}
+for lang in ("en", "ru"):
+    eq(f"{lang}: владелец строки — умение класса того же уровня на языке записи",
+       [(c["slug"], r["level"]) for c in live[("srd52", lang, "classes")] for r in c["always_prepared"]
+        if not any(f["name"] == r["feature"] and f["level"] == r["level"] for f in c["features"])], [])
+eq("ru: бесплатные сотворения — копия EN",
+   {c["slug"]: [r["uses"] for r in c["always_prepared"]] for c in live[("srd52", "ru", "classes")] if c["always_prepared"]},
+   {slug: [u for _, u in rows] for slug, rows in CLASS_ALWAYS_OWNERS["en"].items()})
+
+
 def class_error(lang, name, old, new):
     text = read(lang, name)
     if old not in text:
@@ -163,7 +183,8 @@ MARK = "You always have the *Hunter's Mark* spell prepared."
 eq("вторая фраза в том же умении не теряется",
    next(c for c in parse_class(read("en", "08_Ranger.md").replace(
        MARK, MARK + " You also always have the *Alarm* spell prepared."), "en"))["always_prepared"],
-   [{"level": 1, "spells": ["Hunter's Mark", "Alarm"], "choice": None}])
+   [{"level": 1, "spells": ["Hunter's Mark", "Alarm"], "choice": None, "feature": "Favored Enemy",
+     "uses": {"count": 2, "column": "favored-enemy", "recharge": "long-rest"}}])
 eq("незнакомая форма рядом со знакомой роняет сборку",
    class_error("en", "08_Ranger.md", MARK, MARK + " You also always have *Alarm* prepared."), UNKNOWN)
 eq("обратный порядок слов роняет сборку",
@@ -174,6 +195,16 @@ eq("RU: обратный порядок слов роняет сборку",
    class_error("ru", "08_Ranger.md", "У вас всегда подготовлено заклинание *Метка охотника*.",
                "Заклинание *Метка охотника* у вас всегда подготовлено."),
    "Следопыт: «Избранный враг» names an always prepared spell in an unknown form")
+FREE_SMITE = "you can cast it without expending a spell slot, but you must finish a Long Rest before you can cast it in this way again"
+eq("бесплатное сотворение без числа и без повтора после отдыха роняет сборку",
+   class_error("en", "07_Paladin.md", FREE_SMITE, "you can cast it without expending a spell slot"),
+   "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
+eq("бесплатное сотворение с коротким отдыхом роняет сборку",
+   class_error("en", "07_Paladin.md", FREE_SMITE, FREE_SMITE.replace("a Long Rest", "a Short or Long Rest")),
+   "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
+eq("колонка числа сотворений, которой нет в прогрессии, роняет сборку",
+   class_error("en", "08_Ranger.md", "as shown in the Favored Enemy column", "as shown in the Hunted Foe column"),
+   "Ranger: «Favored Enemy»: no progression column 'Hunted Foe'")
 eq("выбор игрока («those spells») — не строка always_prepared",
    [c for c in live[("srd52", "en", "classes")] if c["slug"] == "wizard"][0]["always_prepared"], [])
 
