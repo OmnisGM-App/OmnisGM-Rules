@@ -207,7 +207,11 @@ eq("бесплатное сотворение с числом, но без до�
    "Ranger: «Favored Enemy» casts an always prepared spell for free in an unknown form")
 eq("бесплатное сотворение «three times» роняет сборку, а не читается как «once»",
    class_error("en", "07_Paladin.md", FREE_SMITE,
-               "you can cast it three times without expending a spell slot (no Concentration), and you regain all expended uses when you finish a Long Rest"),
+               "you can cast it three times without expending a spell slot, once on each turn, and you regain all expended uses when you finish a Long Rest"),
+   "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
+eq("«once» внутри слова не считается числом",
+   class_error("en", "07_Paladin.md", FREE_SMITE,
+               "you can cast it without expending a spell slot (it needs no Concentration), and you regain the use when you finish a Long Rest"),
    "Paladin: «Paladin's Smite» casts an always prepared spell for free in an unknown form")
 eq("долгий отдых из другого абзаца умения не засчитывается",
    class_error("en", "08_Ranger.md", ", and you regain all expended uses of this ability when you finish a Long Rest",
