@@ -701,6 +701,22 @@ _ALWAYS_PREPARED = {"type": "array", "items": {
     "additionalProperties": False,
 }}
 
+# Строка класса (Table#1523): `feature` — имя умения-владельца на языке записи; `uses` — бесплатные
+# сотворения, `column` — ключ колонки прогрессии, когда число растёт с уровнем.
+_CLASS_ALWAYS_PREPARED = {"type": "array", "items": {
+    **_ALWAYS_PREPARED["items"],
+    "properties": {
+        **_ALWAYS_PREPARED["items"]["properties"],
+        "feature": {"type": "string"},
+        "uses": {"type": ["object", "null"], "properties": {
+            "count": {"type": "integer", "minimum": 1},
+            "column": {"type": ["string", "null"]},
+            "recharge": {"enum": ["long-rest"]},
+        }, "required": ["count", "column", "recharge"], "additionalProperties": False},
+    },
+    "required": [*_ALWAYS_PREPARED["items"]["required"], "feature", "uses"],
+}}
+
 _SPELLCASTING = {
     "type": ["object", "null"],
     "properties": {
@@ -797,7 +813,7 @@ CLASS_SCHEMA = {
             "additionalProperties": False,
         },
         "features": {"type": "array", "items": _CLASS_FEATURE},
-        "always_prepared": _ALWAYS_PREPARED,
+        "always_prepared": _CLASS_ALWAYS_PREPARED,
         # Выборы самого класса, не умения: инструменты из таблицы черт (бард, монах).
         "choices": _CHOICES,
         # caster — доля в уровне заклинателя мультикласса (#477); pact — вне суммы, ровно при slots: pact.
