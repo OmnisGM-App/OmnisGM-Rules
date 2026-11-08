@@ -33,7 +33,11 @@ name: Merge gate
 # a push on purpose: it is the receipt of a 0 ❗ round, and a round costs ~$6 (review-response.md).
 # Exemptions: dependabot PRs are not reviewed (the matrix label comes from dependabot.yml); release
 # PRs (`release/*` → `master`, Table only — a repo without a release branch never matches)
-# are promotions of an already-gated branch (matrix label only).
+# are promotions of an already-gated branch (matrix label only). Template-sync PRs (`sync/templates-*`, opened by
+# claude-plugins sync-templates.yml) need no labels when every changed file is a `.claude/rules/*.md` whose blob is
+# the template's on claude-plugins master — the script compares the blobs itself with TEMPLATES_TOKEN (owner's
+# decision 2026-11-08, instead of an admin bypass). The token is read-only on claude-plugins: like the rest of the
+# job it runs from the PR's merge ref, so a PR that edits this file can print it (the blind spot below).
 # Blind spot: on `pull_request` the script runs from the PR's merge ref, so a PR that edits this file,
 # merge_gate.py or claude-review.yml can rewrite its own gate — the gate does not vouch for such a PR; it
 # is merged by the agent under the ordinary readiness criteria (merge-gate.md, "How to merge").
@@ -67,6 +71,8 @@ jobs:
       EVENT: ${{ github.event.action }}
       EVENT_LABEL: ${{ github.event.label.name }}
       EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      # Org secret, contents:read on claude-plugins only: lets template-sync PRs prove their copies (merge_gate.py).
+      TEMPLATES_TOKEN: ${{ secrets.TEMPLATES_READ_TOKEN }}
       # Regex over changed paths that counts as a screenshot baseline (Playwright default dir).
       SNAPSHOT_RE: '(^|/)[^/]+-snapshots/'
     steps:
