@@ -856,7 +856,7 @@ eq("перечисления схемы = ATTACK_KEYS / ARMOR_CLASS_GROUPS па�
    (list(ATTACK_KEYS), list(ATTACK_KEYS), list(ATTACK_KEYS), list(ARMOR_CLASS_GROUPS)))
 monk_ud = next(f for c in cast[("srd52", "en", "classes")] if c["slug"] == "monk" for f in c["features"]
                if f["name"] == "Unarmored Defense")
-eq("схема: неизвестный key атак и неизвестная group КД отклонены",
+eq("схема: неизвестные key и group, значения вне границ отклонены",
    [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid({**monk_ud, "choices": [], **NO_MECHANICS, **patch})
     for patch in ({}, {"attacks": {**EXTRA, "key": "flurry"}}, {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")],
                                                                              "group": "natural-armor"}},
