@@ -7,6 +7,15 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.59 (2026-11-10, security H1–H3): the previous review is the bot's own (Prepare reads REST reviews with
+# user.login/type, iter_state.py keeps github-actions[bot] only); the plugin hook denies gh writes in the session;
+# the marketplace clone drops the token from its remote right after cloning, and the Claude step no longer gets
+# GH_PLUGINS_TOKEN in its env.
+# v2.58 (2026-11-10, token plan step 1): a base-merge round writes its fixed verdict in Prepare (iter_state.py
+# --write-verdict) and skips npm ci/tsc and the Claude session — publish/label read the same files as before; a
+# workflow_run round whose resolved head the PR has already moved past stops in Prepare (`superseded`, check run
+# closed neutral) — the newer head gets its own round from its own CI; the skill folder (not the clone root: its
+# .git/config holds the token) is an `--add-dir`, so cat/grep/ls on the prompts are no longer denied.
 # v2.57 (2026-11-10, probe step 0): the run's lens reports (+ their write order), 08-triage.md, 80-validation*.md and 90-verdict.json are kept as
 # the `review-files` artifact (30 days, private repos only — Rules is public) — probe_replay.py reads per-lens candidates and the validator's verdicts from it;
 # the PER AGENT table of the transcript dump splits cache tokens into read and write (they are priced 0.1× and 1.25×).
@@ -294,6 +303,7 @@ jobs:
       major: ${{ steps.verdict.outputs.major }}
       iter_mode: ${{ steps.verdict.outputs.iter_mode }}
       prev_major: ${{ steps.verdict.outputs.prev_major }}
+      superseded: ${{ steps.prep.outputs.superseded }}
     runs-on: ubuntu-latest   # GitHub-hosted stopped on billing for private repos (2026-10-20)
     permissions:
       contents: read
@@ -354,6 +364,9 @@ jobs:
         run: |
           rm -rf "$RUNNER_TEMP/omnisgm-marketplace"
           git clone -q --depth 1 --branch "${PLUGIN_REF:-master}" "https://x-access-token:${GH_PLUGINS_TOKEN}@github.com/OmnisGM-App/claude-plugins.git" "$RUNNER_TEMP/omnisgm-marketplace"
+          # v2.59: the token leaves .git/config at once — the session can `cat`/`git -C` this clone (security H3).
+          # Nothing fetches it again: plugin_marketplaces is this local path, the next run re-clones.
+          git -C "$RUNNER_TEMP/omnisgm-marketplace" remote set-url origin https://github.com/OmnisGM-App/claude-plugins.git
           echo "plugin from branch ${PLUGIN_REF:-master}: $(git -C "$RUNNER_TEMP/omnisgm-marketplace" rev-parse --short HEAD), version $(python3 -c "import json;print(json.load(open('$RUNNER_TEMP/omnisgm-marketplace/plugins/omnisgm/.claude-plugin/plugin.json'))['version'])")"
 
       # Saving Claude turns: the PR context is captured by a script BEFORE the start (analogous to
@@ -390,6 +403,12 @@ jobs:
             # v2.48: the round reviews the head the `resolve` job accepted (green CI, check run opened) — not
             # whatever the PR points at by the time a runner frees up; a push in between gets its own round.
             if [ -n "$RESOLVED_SHA" ] && [ "$RESOLVED_SHA" != "$headsha" ]; then
+              # v2.58: a CI-triggered round on a head the PR has moved past is superseded — the newer head's CI
+              # completion starts its own round (and would cancel this one mid-wave). The button keeps the resolved head.
+              if [ -z "$DISPATCH" ]; then
+                echo "::notice::live head is $headsha, the round was started for $RESOLVED_SHA — superseded, no review"
+                echo "superseded=1" >> "$GITHUB_OUTPUT"; exit 0
+              fi
               echo "::notice::live head is $headsha, reviewing the resolved head $RESOLVED_SHA"; headsha=$RESOLVED_SHA
             fi
             # v2.49: a failed fetch is fatal (`-e` does not fire on the left side of `&&`), and the merge takes
@@ -470,13 +489,29 @@ jobs:
           echo "src/: $nsrc diff files at the PR head (text, existing at the head)" >> "$OUT/INDEX.md"
           # v2.35: iteration mode — from the last published review and git, not from the model
           # reading 02-pr-comments.md (stop rule, fix-diff, clean base merge — all there).
-          gh pr view "$PR" --repo "$REPO" --json reviews > "$OUT/.reviews.json" || echo '{"reviews":[]}' > "$OUT/.reviews.json"
-          python3 "$SKILL/scripts/iter_state.py" "$OUT" "$PWD" "$BASE" "$headwc" $( [ -n "$REPLAY" ] && echo --replay ) $( [ -n "$FORCE" ] && echo --force )
+          # v2.59: REST — its `user.login`/`user.type` tell the bot from a person (H1: a hand-written
+          # «Голова `x`. Находок нет.» must not become the previous review). Wrapped as {"reviews": […]}, the document
+          # shape iter_state.py of an older plugin_ref reads too. A failed read stays "no reviews" → full pipeline.
+          gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
+            --jq '.[] | {body, submittedAt: .submitted_at, user: {login: .user.login, type: .user.type}}' > "$OUT/.reviews.lines" \
+            || : > "$OUT/.reviews.lines"
+          python3 -c 'import json, sys; print(json.dumps({"reviews": [json.loads(l) for l in open(sys.argv[1]) if l.strip()]}, ensure_ascii=False))' \
+            "$OUT/.reviews.lines" > "$OUT/.reviews.json" || echo '{"reviews": []}' > "$OUT/.reviews.json"
+          rm -f "$OUT/.reviews.lines"
+          python3 "$SKILL/scripts/iter_state.py" "$OUT" "$PWD" "$BASE" "$headwc" --write-verdict $( [ -n "$REPLAY" ] && echo --replay ) $( [ -n "$FORCE" ] && echo --force )
           rm -f "$OUT/.reviews.json"
+          # v2.58: base-merge — iter_state wrote the contract's files itself (ci-pipeline.md item 2), no session needed.
+          # Only when the files are there: an older plugin_ref without --write-verdict still gets its Claude step.
+          iter_mode=$(sed -n 's/^ITER: mode=\([^ ]*\).*/\1/p' "$OUT/INDEX.md" | head -1)
+          skip_claude=""
+          [ "$iter_mode" = "base-merge" ] && [ -s "$OUT/90-verdict.json" ] && skip_claude=1
+          echo "skip_claude=$skip_claude" >> "$GITHUB_OUTPUT"
           # v2.35: dependencies and the shared workspace build — deterministic shell, not a model turn.
           # Environment facts of the CURRENT run — only in 06-runfacts.md (history in 02/05 is not facts).
           : > "$OUT/06-runfacts.md"
-          if [ -f package.json ]; then
+          if [ -n "$skip_claude" ]; then
+            echo "npm ci: skipped (base-merge round — verdict written by iter_state.py, no review session)" >> "$OUT/06-runfacts.md"
+          elif [ -f package.json ]; then
             ci=0; npm ci > "$OUT/.npm-ci.log" 2>&1 || ci=$?
             echo "npm ci: exit $ci" >> "$OUT/06-runfacts.md"; tail -3 "$OUT/.npm-ci.log"
             if [ "$ci" = 0 ] && [ -f shared/package.json ]; then
@@ -523,9 +558,10 @@ jobs:
           true
 
       - name: Claude review
+        if: steps.prep.outputs.skip_claude != '1' && steps.prep.outputs.superseded != '1'
         uses: anthropics/claude-code-action@v1
         env:
-          GH_PLUGINS_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
+          # v2.59: no GH_PLUGINS_TOKEN here — nothing in the session uses it since v2.11 (the journal is its own step).
           # v2.43: the aliases `opus`/`sonnet` in Agent calls resolve via these variables,
           # not via the CLI version on the runner.
           ANTHROPIC_DEFAULT_OPUS_MODEL: claude-opus-5-5
@@ -545,12 +581,14 @@ jobs:
             --model claude-opus-5-5
             --effort high
             --add-dir /tmp
+            --add-dir ${{ steps.prep.outputs.skill }}
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
           prompt: |
             You are the MAIN LOOP of the multi-agent CI review of a PR. Skill directory:
-            ${{ steps.prep.outputs.skill }} — read TWO files from there with the Read tool:
+            ${{ steps.prep.outputs.skill }}. In your FIRST message issue these Reads together (one message):
             references/ci-pipeline.md (the whole pipeline and the rules — follow them) and
-            references/triage.md (agent composition and models). Agent prompts live in
+            references/triage.md (agent composition and models) from the skill directory, plus
+            INDEX.md, 00-pr.md, 04-files.txt and 06-runfacts.md from OUT (the RUN line). Agent prompts live in
             references/agents/ — the agent reads them ITSELF, you do not read or embed them.
             The review is posted to the PR in Russian. Write in Russian.
 
@@ -561,7 +599,7 @@ jobs:
 
       - name: Publish review
         id: publish
-        if: always()
+        if: always() && steps.prep.outputs.superseded != '1'
         env:
           RUN_OUT: ${{ steps.prep.outputs.out }}
           GH_TOKEN: ${{ github.token }}
@@ -668,7 +706,7 @@ jobs:
 
       # v2.48: the verdict numbers for the `gate-label` job below (a separate job: it needs `actions: write`
       # and must not share it with the agent's job — review of Table#1179). A base-merge round carries the
-      # previous verdict with counts 0 without checking code (ci-pipeline.md), so its mode is passed too.
+      # previous verdict without checking code (ci-pipeline.md), so its mode is passed too.
       - name: Verdict outputs
         id: verdict
         if: always()
@@ -850,6 +888,7 @@ jobs:
       PUBLISHED: ${{ needs.review.outputs.published }}
       REVIEW_RESULT: ${{ needs.review.result }}
       CHECK_ID: ${{ needs.resolve.outputs.check_id }}
+      SUPERSEDED: ${{ needs.review.outputs.superseded }}
     steps:
       - name: Ensure gh CLI in PATH
         shell: bash
@@ -865,7 +904,9 @@ jobs:
         if: env.CHECK_ID != ''
         shell: bash
         run: |
-          if [ "$REVIEW_RESULT" != "success" ] || [ "$PUBLISHED" != "success" ] || [ -z "$MAJOR" ]; then
+          if [ "$REVIEW_RESULT" = "success" ] && [ "$SUPERSEDED" = "1" ]; then
+            conclusion=neutral; title="superseded — the PR head moved on, its own round reviews it"; summary="See the run log."
+          elif [ "$REVIEW_RESULT" != "success" ] || [ "$PUBLISHED" != "success" ] || [ -z "$MAJOR" ]; then
             conclusion=failure; title="review did not finish (job: $REVIEW_RESULT, publish: ${PUBLISHED:-none})"; summary="See the run log."
           elif [ "$ITER_MODE" = "base-merge" ]; then
             title="base merge only — carried verdict: ${PREV_MAJOR:-?} ❗"; conclusion=$([ "${PREV_MAJOR:-1}" = 0 ] && echo success || echo failure)
