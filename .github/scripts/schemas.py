@@ -622,6 +622,34 @@ _ABILITY_INCREASES = {"type": "array", "items": {
     "additionalProperties": False,
 }}
 
+# Атаки за действие Attack (#503): один key у всех источников — потребитель берёт наибольший count,
+# не складывает; weapon "pact" — только оружием договора. Перечисления — ATTACK_KEYS / ARMOR_CLASS_GROUPS
+# в parsers/classes.py, равенство держит test_class_parser.py.
+_FEATURE_ATTACKS = {"anyOf": [{"type": "null"}, {
+    "type": "object",
+    "properties": {
+        "key": {"type": "string", "enum": ["extra-attack"]},
+        "count": {"type": "integer", "minimum": 2},
+        "weapon": {"enum": [None, "pact"]},
+    },
+    "required": ["key", "count", "weapon"],
+    "additionalProperties": False,
+}]}
+
+# Базовый КД (#503): формулы одной group взаимоисключающие. shield/armor — работает ли со щитом / в доспехе.
+_FEATURE_ARMOR_CLASS = {"anyOf": [{"type": "null"}, {
+    "type": "object",
+    "properties": {
+        "group": {"type": "string", "enum": ["base-formula"]},
+        "base": {"type": "integer", "minimum": 0},
+        "abilities": {"type": "array", "items": _ABILITY_CODE, "minItems": 1, "uniqueItems": True},
+        "shield": {"type": "boolean"},
+        "armor": {"type": "boolean"},
+    },
+    "required": ["group", "base", "abilities", "shield", "armor"],
+    "additionalProperties": False,
+}]}
+
 _CLASS_FEATURE = {
     "type": "object",
     "properties": {
@@ -629,9 +657,11 @@ _CLASS_FEATURE = {
         "name": {"type": "string"},
         "description_md": {"type": "string"},
         "ability_increases": _ABILITY_INCREASES,
+        "attacks": _FEATURE_ATTACKS,
+        "armor_class": _FEATURE_ARMOR_CLASS,
         "choices": _CHOICES,
     },
-    "required": ["level", "name", "description_md", "ability_increases", "choices"],
+    "required": ["level", "name", "description_md", "ability_increases", "attacks", "armor_class", "choices"],
     "additionalProperties": False,
 }
 
@@ -908,11 +938,12 @@ CLASS_OPTION_SCHEMA = {
         }]},
         "repeatable": {"type": "boolean"},
         "description_md": {"type": "string", "minLength": 1},
+        "attacks": _FEATURE_ATTACKS,
         "choices": _CHOICES,
         "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "class", "subclass", "feature", "granted_by",
-                 "selection", "prerequisites", "cost", "repeatable", "description_md", "choices"],
+                 "selection", "prerequisites", "cost", "repeatable", "description_md", "attacks", "choices"],
     "additionalProperties": False,
 }
 
