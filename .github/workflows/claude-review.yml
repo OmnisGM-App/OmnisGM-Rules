@@ -7,6 +7,11 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.55 (2026-11-10, News#189): a failed fetch of the inline review threads prints a warning instead of being swallowed.
+# v2.54 (2026-11-08): a `sync/templates-*` branch gets no round — the merge gate compares those copies with the
+# claude-plugins templates blob by blob (merge_gate.py, "Template sync"); a round would review the template twice.
+# v2.53 (2026-11-08, review of #33): 02-pr-comments.md also carries the inline review threads (`pulls/N/comments`), as
+# fetch_pr.sh does locally.
 # v2.52 (2026-10-27, Table#1283): when the CI run that woke the workflow is on the live head, the resolve step
 # reads the CI_CHECK job's conclusion from that run's own job list — the commit's check-runs list lagged the event
 # ('none' 14 s after the green CI) and the round was skipped; any other path reads the check-runs list with a
@@ -206,12 +211,14 @@ jobs:
         run: |
           set -euo pipefail
           # REST, not `gh pr view`: the latter reports dependabot as `app/dependabot` (review of Table#1179).
-          read -r draft author base sha state labelled < <(gh api "repos/$REPO/pulls/$PR" \
-            --jq '"\(.draft) \(.user.login) \(.base.ref) \(.head.sha) \(.state) \([.labels[].name] | index("gate/review-passed") != null)"')
+          read -r draft author base sha state labelled head < <(gh api "repos/$REPO/pulls/$PR" \
+            --jq '"\(.draft) \(.user.login) \(.base.ref) \(.head.sha) \(.state) \([.labels[].name] | index("gate/review-passed") != null) \(.head.ref)"')
           skip=""
           if [ -z "$DISPATCH" ]; then
             [ "$draft" = "false" ] || skip="draft"
             [ "$author" != "dependabot[bot]" ] || skip="dependabot"
+            # template sync: the merge gate compares the copies with claude-plugins itself — no round (2026-11-08)
+            [ "${head#sync/templates-}" = "$head" ] || skip="template sync (merge gate checks the copies)"
             [ "$base" = "$DEFAULT_BRANCH" ] || skip="base is not the default branch (stacked PR)"
             [ "$state" = "open" ] || skip="PR is not open"
             [ "$labelled" = "false" ] || skip="gate/review-passed is set — remove the label to request a round"
@@ -405,6 +412,11 @@ jobs:
           gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nhead: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | files: \(.changedFiles)\n\n\(.body)"' > $OUT/00-pr.md
           git diff "origin/${BASE}...HEAD" > $OUT/01-diff.patch
           gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- comment \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- review \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > $OUT/02-pr-comments.md || true
+          # v2.53: inline review threads too, in fetch_pr.sh's format — CI publishes findings inline and authors answer
+          # there; without them the "grep 02-pr-comments.md for «не чиню»" rule (_header.md) sees nothing (review of #33).
+          gh api "repos/$REPO/pulls/$PR/comments" --paginate \
+            --jq '.[] | "--- inline \(.path):\(.line // .original_line) @\(.commit_id[0:8]) | \(.user.login) \(.created_at)\n\(.body)\n"' \
+            >> $OUT/02-pr-comments.md || echo "::warning::inline review threads not fetched — 02-pr-comments.md is partial"
           git diff --name-only "origin/${BASE}...HEAD" > $OUT/04-files.txt
           for n in $(grep -oE '#[0-9]+' $OUT/00-pr.md | tr -d '#' | sort -un | head -5); do
             [ "$n" = "$PR" ] && continue

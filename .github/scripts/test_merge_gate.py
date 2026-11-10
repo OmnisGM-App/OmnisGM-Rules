@@ -11,9 +11,9 @@ BOT = mg.WORKFLOW_ACTOR
 SNAP = "tests/e2e/a.spec.ts-snapshots/x.png"
 
 
-def pull(labels=(), head="feat/x", base="dev", author="Nemo", sha="head1"):
+def pull(labels=(), head="feat/x", base="dev", author="Nemo", sha="head1", default="dev", merge=None):
     return {"labels": [{"name": l} for l in labels], "head": {"ref": head, "sha": sha},
-            "base": {"ref": base}, "user": {"login": author}}
+            "base": {"ref": base, "repo": {"default_branch": default}}, "user": {"login": author}, "merge_commit_sha": merge}
 
 
 def labeled(name, actor=BOT, at="2026-10-20T10:00:00Z"):
@@ -31,6 +31,21 @@ class Fake:
     def compare_files(self, base, head):
         self.compared.append((base, head))
         return self.compare
+
+
+class SyncFake(Fake):
+    """A sync-branch PR: `bad` is what template_mismatches returns (at the head, at the merge), `status` what
+    file_status returns, `unreadable` what templates_unreadable returns, `merge` the test merge when the pull has none."""
+    def __init__(self, bad, status, unreadable=None, merge="m0"):
+        super().__init__(); self.bad, self.status, self.unreadable, self.merge, self.asked = bad, status, unreadable, merge, []
+    def templates_unreadable(self):
+        return self.unreadable
+    def merge_commit(self, pull):
+        return pull.get("merge_commit_sha") or self.merge
+    def template_mismatches(self, files, head, merge):
+        self.asked.append((tuple(files), head, merge)); return self.bad
+    def file_status(self):
+        return dict(self.status)
 
 
 class Recorder(Fake):
@@ -264,6 +279,162 @@ class Gate(unittest.TestCase):
         for head in ("dev", "feat/x"):  # dev -> master is a feature PR since 2026-10-23: release/* only
             _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], head=head, base="master"), files, [], {})
             self.assertEqual(len(fail), 2, head)
+
+    def test_template_sync_needs_no_labels_when_every_blob_matches(self):
+        files = [".claude/rules/review-response.md", ".claude/rules/code-comments.md"]
+        Sync = lambda bad=([], []), **kw: SyncFake(bad, {f: "modified" for f in files}, **kw)
+        gh = Sync()
+        _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
+        self.assertEqual(fail, [])
+        self.assertEqual(gh.asked, [(tuple(files), "head1", "m0")])  # compared at the live head, all files
+        gh = Sync()
+        mg.evaluate(gh, pull(head="sync/templates-abc1234", merge="m1"), files, [], {})
+        self.assertEqual(gh.asked, [(tuple(files), "head1", "m1")])  # and in the test merge with the base
+        _, fail, _ = mg.evaluate(Sync(), pull(["gate/matrix-not-needed"], head="sync/templates-abc1234"), files, [], {})
+        self.assertEqual(fail, [])  # a matrix label set by habit does not break it
+        _, fail, _ = mg.evaluate(Sync(), pull(["gate/matrix-passed", "gate/matrix-not-needed"], head="sync/templates-abc1234"),
+                                 files, [], {"gate/matrix-passed": "head1"})
+        self.assertTrue(any("exactly one of" in f and "found 2" in f for f in mg.split_outcome(fail)[1]), fail)
+        out = "outside `sync/templates-*`"
+        cases = ((Sync(([files[0]], [])), ("differ from", "at the head —", out)),
+                 (Sync(([], [files[0]])), ("in the merge with the base", "run sync-templates.yml", out)),
+                 (Sync(merge=None), ("no test merge", "Re-run jobs", out)),
+                 (Sync(unreadable="TEMPLATES_TOKEN cannot read x"), ("cannot read x",)))
+        for gh, whys in cases:
+            for labels in ((), ("gate/review-passed", "gate/matrix-not-needed")):
+                _, fail, _ = mg.evaluate(gh, pull(list(labels), head="sync/templates-abc1234"), files,
+                                         [labeled("gate/review-passed")], {})
+                waiting, errors = mg.split_outcome(fail)
+                why = whys[0]
+                self.assertTrue(any(all(w in e for w in whys) for e in errors), (whys, fail))  # blocked, labels do not lift it
+                self.assertEqual(waiting, [], (why, labels))  # no review round or matrix is promised: none would come
+
+    def test_template_sync_exempts_only_modified_copies(self):
+        files = [".claude/rules/a.md", ".claude/rules/b.md"]
+        for status in ("added", "renamed", "removed", "copied", ""):
+            gh = SyncFake(([], []), {files[0]: "modified", files[1]: status})
+            _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
+            waiting, errors = mg.split_outcome(fail)
+            self.assertTrue(any("only modified copies" in e and ".claude/rules/b.md" in e and "outside `sync/templates-*`" in e
+                                for e in errors), (status, fail))
+            self.assertEqual(waiting, [], status)
+            self.assertEqual(gh.asked, [], status)  # blobs are not even compared
+
+    def test_template_sync_rejects_foreign_files_without_reading_blobs(self):
+        class Never(Fake):
+            def template_mismatches(self, files, head, merge):
+                raise AssertionError("must not be asked")
+            def merge_commit(self, pull):
+                raise AssertionError("must not be asked")
+            def templates_unreadable(self):
+                raise AssertionError("must not be asked")
+            def file_status(self):
+                raise AssertionError("must not be asked")
+        for files in ([".claude/rules/a.md", "src/a.ts"], [".claude/rules/sub/a.md"], [".claude/rules/a.txt"],
+                      [".github/workflows/merge-gate.yml"], [], [".claude/rules/review-response.md?x=.md"],
+                      [".claude/rules/a.md\n"], [".claude/rules/a&ref=x.md"], [".claude/rules/a%3F.md"],
+                      [".claude/rules/.hidden.md"], ["x/.claude/rules/a.md"]):
+            _, fail, _ = mg.evaluate(Never(), pull(head="sync/templates-abc1234"), files, [], {})
+            self.assertTrue(any("template-sync branch but changes" in f and "outside `sync/templates-*`" in f
+                                for f in mg.split_outcome(fail)[1]), files)
+        # the same rule files on an ordinary branch are an ordinary PR: the review label is awaited
+        _, fail, _ = mg.evaluate(Never(), pull(head="docs/rules"), [".claude/rules/a.md"], [], {})
+        self.assertTrue(any("gate/review-passed" in f for f in fail))
+
+    def test_template_sync_holds_only_into_the_default_branch(self):
+        files = [".claude/rules/a.md"]
+        gh = SyncFake(([], []), {files[0]: "modified"})
+        _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234", base="master", default="dev"), files, [], {})
+        waiting, errors = mg.split_outcome(fail)
+        self.assertTrue(any("not the default branch `dev`" in e and "outside `sync/templates-*`" in e for e in errors), fail)
+        self.assertEqual(gh.asked, [])
+        _, fail, _ = mg.evaluate(SyncFake(([], []), {files[0]: "modified"}), pull(head="sync/templates-abc1234", base="main", default="main"),
+                                 files, [], {})
+        self.assertEqual(fail, [])
+
+    def test_file_status_reads_every_page(self):
+        gh = mg.GitHub("o/r", "1")
+        with mock.patch.object(mg, "gh_json", return_value=[[{"filename": "a", "status": "added"}], [{"filename": "b"}]]):
+            self.assertEqual(gh.file_status(), {"a": "added", "b": ""})
+
+    def test_templates_unreadable_names_the_token_on_401_403_404_and_raises_otherwise(self):
+        gh = mg.GitHub("o/r", "1")
+        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": ""}):
+            self.assertIn("TEMPLATES_TOKEN is empty", gh.templates_unreadable())
+        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):
+            with mock.patch.object(mg, "gh_json", return_value={"full_name": mg.TEMPLATES_REPO}) as call:
+                self.assertIsNone(gh.templates_unreadable())
+                self.assertEqual(call.call_args.kwargs["token"], "t")
+            for code in ("401", "403", "404"):
+                with mock.patch.object(mg, "gh_json", side_effect=RuntimeError(f"gh: Not Found (HTTP {code})")):
+                    self.assertIn("cannot read", gh.templates_unreadable(), code)
+            with mock.patch.object(mg, "gh_json", side_effect=RuntimeError(f"gh api repos/{mg.TEMPLATES_REPO}: gh: Bad credentials (HTTP 401)")):
+                self.assertIn("(gh: Bad credentials (HTTP 401))", gh.templates_unreadable())  # the cause, not the call
+            for err in ("HTTP 502: Bad Gateway", "gh: API rate limit exceeded for user ID 1. (HTTP 403)"):
+                with mock.patch.object(mg, "gh_json", side_effect=RuntimeError(err)):
+                    with self.assertRaises(RuntimeError, msg=err):
+                        gh.templates_unreadable()
+
+    def test_gh_json_passes_the_token_only_when_given(self):
+        ok = mock.Mock(returncode=0, stdout='{"sha": "s"}', stderr="")
+        with mock.patch.object(mg.subprocess, "run", return_value=ok) as run:
+            mg.gh_json("repos/o/r/contents/x", token="t")
+            self.assertEqual(run.call_args.kwargs["env"]["GH_TOKEN"], "t")
+            mg.gh_json("repos/o/r/contents/x")
+            self.assertIsNone(run.call_args.kwargs["env"])
+
+    def test_blob_sha_404_is_none_other_errors_raise_and_the_path_is_quoted(self):
+        gh = mg.GitHub("o/r", "1")
+        with mock.patch.object(mg.subprocess, "run", return_value=mock.Mock(returncode=0, stdout='{"sha": "s1"}', stderr="")) as run:
+            self.assertEqual(gh.blob_sha("o/r", ".claude/rules/a b?.md", "h#1"), "s1")
+            self.assertIn("contents/.claude/rules/a%20b%3F.md?ref=h%231", run.call_args.args[0][2])
+        with mock.patch.object(mg.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="gh: Not Found (HTTP 404)")):
+            self.assertIsNone(gh.blob_sha("o/r", "x.md", "h"))
+        with mock.patch.object(mg.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="HTTP 502: Bad Gateway")):
+            with self.assertRaises(RuntimeError):
+                gh.blob_sha("o/r", "x.md", "h")
+
+    def test_template_mismatches_compares_blob_shas_with_the_template_repo(self):
+        gh = mg.GitHub("o/r", "1")
+        blobs = {("o/r", ".claude/rules/a.md", "h"): "s1", ("o/r", ".claude/rules/b.md", "h"): "s2",
+                 ("o/r", ".claude/rules/gone.md", "h"): None,
+                 (mg.TEMPLATES_REPO, "templates/a.md", mg.TEMPLATES_REF): "s1",
+                 (mg.TEMPLATES_REPO, "templates/b.md", mg.TEMPLATES_REF): "other",
+                 (mg.TEMPLATES_REPO, "templates/gone.md", mg.TEMPLATES_REF): "s3"}
+        tokens = []
+        def blob(repo, path, ref, token=None):
+            tokens.append((repo, token)); return blobs[(repo, path, ref)]
+        gh.blob_sha = blob
+        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):
+            blobs.update({("o/r", ".claude/rules/a.md", "m"): "s1", ("o/r", ".claude/rules/b.md", "m"): "other",
+                          ("o/r", ".claude/rules/gone.md", "m"): "s3"})
+            self.assertEqual(gh.template_mismatches([".claude/rules/a.md", ".claude/rules/b.md", ".claude/rules/gone.md"], "h", "m"),
+                             ([".claude/rules/b.md", ".claude/rules/gone.md"], []))
+        self.assertTrue(all(t == "t" for r, t in tokens if r == mg.TEMPLATES_REPO))
+        self.assertTrue(all(t is None for r, t in tokens if r == "o/r"))  # the PR repo is read with the job's own token
+        blobs[("o/r", ".claude/rules/a.md", "m")] = "merged"  # the base changed the copy too: the squash would not be the template
+        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):
+            self.assertEqual(gh.template_mismatches([".claude/rules/a.md"], "h", "m"), ([], [".claude/rules/a.md"]))
+            blobs[("o/r", ".claude/rules/a.md", "m")] = "s1"
+            self.assertEqual(gh.template_mismatches([".claude/rules/a.md"], "h", "m"), ([], []))
+        blobs[("o/r", ".claude/rules/none.md", "h")] = None
+        blobs[(mg.TEMPLATES_REPO, "templates/none.md", mg.TEMPLATES_REF)] = None
+        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):  # missing on both sides is not "equal"
+            self.assertEqual(gh.template_mismatches([".claude/rules/none.md"], "h", "m"), ([".claude/rules/none.md"], []))
+
+    def test_merge_commit_is_re_read_until_github_computes_it(self):
+        gh = mg.GitHub("o/r", "1")
+        with mock.patch("time.sleep") as sleep:
+            with mock.patch.object(gh, "pull", side_effect=[{"mergeable": None, "merge_commit_sha": "old"},
+                                                            {"mergeable": True, "merge_commit_sha": "m"}]):
+                self.assertEqual(gh.merge_commit({"mergeable": None, "merge_commit_sha": "old"}), "m")  # a stale sha is not used
+            self.assertEqual(sleep.call_count, 2)
+            with mock.patch.object(gh, "pull", return_value={"mergeable": None, "merge_commit_sha": "old"}) as again:
+                self.assertIsNone(gh.merge_commit({"mergeable": None, "merge_commit_sha": "old"}))
+                self.assertEqual(again.call_count, 3)
+            with mock.patch.object(gh, "pull", side_effect=AssertionError("not re-read")):
+                self.assertEqual(gh.merge_commit({"mergeable": True, "merge_commit_sha": "m1"}), "m1")
+                self.assertIsNone(gh.merge_commit({"mergeable": False, "merge_commit_sha": "m1"}))  # a conflict
 
     def test_outcome_splits_waiting_from_contradictions(self):
         _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-passed", "gate/matrix-not-needed"]), [SNAP], [], {"gate/matrix-passed": "head1"})

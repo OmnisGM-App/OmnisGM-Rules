@@ -30,11 +30,22 @@ it). A label without a recorded head is reported, never guessed — fail-closed:
 itself was superseded in the concurrency queue, the label has to be removed and re-applied.
 `gate/review-passed` counts only when its latest `labeled` event was made by github-actions[bot] (the
 review workflow), not by a hand; the events list can lag behind the label, so it is re-read with a backoff.
+
+Template sync (owner's decision 2026-11-08, instead of an admin bypass): a PR from a `sync/templates-*` branch
+needs neither `gate/review-passed` nor a matrix label when it targets the default branch and the gate itself confirms
+that every changed file is `.claude/rules/<name>.md` and its blob at the head and at GitHub's test merge commit
+(as of this run: a later change of the base does not re-run the gate) is the blob of `templates/<name>.md` on the live master of
+TEMPLATES_REPO (claude-plugins, read with TEMPLATES_TOKEN — the org secret TEMPLATES_READ_TOKEN), and every file's
+status is `modified` (an added copy is a new rule for the repo, a rename hides a removal: ordinary PRs). The branch
+name only asks for the check; the blobs decide it. A sync branch that fails it (a foreign file, a blob that
+differs, a token that cannot read TEMPLATES_REPO, another base) is blocked with the reason and the way out, and no
+review round or matrix is awaited for it: claude-review.yml skips the branch by name, and labels do not lift the block.
 """
 from __future__ import annotations
 
 import json
 import os
+import urllib.parse
 import re
 import subprocess
 import sys
@@ -44,6 +55,11 @@ LABEL_MATRIX_OK = os.environ.get("LABEL_MATRIX_OK", "gate/matrix-passed")
 LABEL_MATRIX_NA = os.environ.get("LABEL_MATRIX_NA", "gate/matrix-not-needed")
 LABEL_REVIEW = os.environ.get("LABEL_REVIEW", "gate/review-passed")
 SNAPSHOT_RE = re.compile(os.environ.get("SNAPSHOT_RE", r"(^|/)[^/]+-snapshots/"))
+SYNC_PREFIX = "sync/templates-"
+# a plain rule file name only: `?`, `&`, `#`, `%` or a newline would reshape the contents-API URL (review of #37)
+SYNC_PATH = re.compile(r"\.claude/rules/[A-Za-z0-9][A-Za-z0-9._-]*\.md")
+TEMPLATES_REPO = os.environ.get("TEMPLATES_REPO", "OmnisGM-App/claude-plugins")
+TEMPLATES_REF = os.environ.get("TEMPLATES_REF", "master")
 BOT_LOGINS = {"dependabot[bot]", "app/dependabot"}  # REST gives the first, `gh pr view` the second
 WORKFLOW_ACTOR = "github-actions[bot]"  # labels applied with GITHUB_TOKEN carry this actor
 WAIT = "⏳ "  # prefix of a "still awaited" message — reported as "waiting:", not as a contradiction
@@ -51,10 +67,11 @@ STATE_MARK = "<!-- merge-gate-state "
 STATE_END = " -->"
 
 
-def gh_json(*args: str):
+def gh_json(*args: str, token: str | None = None):
     """`gh api` output as JSON; with --paginate gh concatenates one JSON document per page —
     they are decoded one after another (no `--slurp`: it needs gh ≥ 2.48, a preinstalled gh may be older)."""
-    r = subprocess.run(["gh", "api", *args], capture_output=True, text=True)
+    env = dict(os.environ, GH_TOKEN=token) if token else None
+    r = subprocess.run(["gh", "api", *args], capture_output=True, text=True, env=env)
     if r.returncode:
         raise RuntimeError(f"gh api {' '.join(args)}: {r.stderr.strip()[:300]}")
     dec, out, pos, text = json.JSONDecoder(), [], 0, r.stdout
@@ -81,6 +98,11 @@ class GitHub:
         pages = gh_json(f"repos/{self.repo}/pulls/{self.pr}/files", "--paginate")
         return [f["filename"] for page in pages for f in page]
 
+    def file_status(self) -> dict[str, str]:
+        """{filename: status} of the PR's files (added / modified / removed / renamed …) — the sync exemption needs it."""
+        pages = gh_json(f"repos/{self.repo}/pulls/{self.pr}/files", "--paginate")
+        return {f["filename"]: f.get("status", "") for page in pages for f in page}
+
     def events(self) -> list[dict]:
         pages = gh_json(f"repos/{self.repo}/issues/{self.pr}/events", "--paginate")
         return [e for page in pages for e in page]
@@ -104,6 +126,54 @@ class GitHub:
             return None
         files = [f["filename"] for page in pages for f in page.get("files", [])]
         return None if len(files) >= 300 else files  # compare lists at most 300 files — unknown beyond
+
+    def blob_sha(self, repo: str, path: str, ref: str, token: str | None = None) -> str | None:
+        """The git blob sha of `path` at `ref`; None when the file is not there (removed by the PR, no template)."""
+        try:
+            q = urllib.parse.quote
+            return gh_json(f"repos/{repo}/contents/{q(path, safe='/')}?ref={q(ref, safe='')}", token=token)["sha"]
+        except RuntimeError as e:
+            if "HTTP 404" in str(e):
+                return None
+            raise  # 5xx / rate limit / a bad token: the run goes red, nothing is exempted
+
+    def templates_unreadable(self) -> str | None:
+        """Why the copies cannot be compared (no token, or the token does not see TEMPLATES_REPO); None when they can."""
+        token = os.environ.get("TEMPLATES_TOKEN")
+        if not token:
+            return f"TEMPLATES_TOKEN is empty — the copies cannot be compared with {TEMPLATES_REPO}@{TEMPLATES_REF} (org secret TEMPLATES_READ_TOKEN)."
+        try:
+            gh_json(f"repos/{TEMPLATES_REPO}", token=token)
+        except RuntimeError as e:
+            # a private repo answers 404 to a token that cannot see it, so 404 is an access problem here, not a missing file
+            if "rate limit" not in str(e).lower() and any(code in str(e) for code in ("HTTP 401", "HTTP 403", "HTTP 404")):
+                return (f"TEMPLATES_TOKEN cannot read {TEMPLATES_REPO} ({str(e).split(': ', 1)[-1].strip()[:80]}) — fix the org secret "
+                        "TEMPLATES_READ_TOKEN (its repository access), not the templates.")
+            raise
+        return None
+
+    def template_mismatches(self, files: list[str], head: str, merge: str) -> tuple[list[str], list[str]]:
+        """Changed files whose blob is not the template's on TEMPLATES_REF: (at the head, at the test merge commit only)."""
+        token = os.environ.get("TEMPLATES_TOKEN")
+        at_head, at_merge = [], []
+        for f in files:
+            want = self.blob_sha(TEMPLATES_REPO, "templates/" + f.rsplit("/", 1)[-1], TEMPLATES_REF, token)
+            if want is None or self.blob_sha(self.repo, f, head) != want:
+                at_head.append(f)
+            elif self.blob_sha(self.repo, f, merge) != want:
+                at_merge.append(f)
+        return at_head, at_merge
+
+    def merge_commit(self, pull: dict) -> str | None:
+        """GitHub's test merge commit of the PR, None on a conflict; `mergeable: null` means GitHub is recomputing it
+        (REST "Get a pull request"), so the PR is re-read with a backoff and an older merge_commit_sha is not trusted."""
+        import time
+        for delay in (5, 10, 20):
+            if pull.get("mergeable") is not None:
+                break
+            time.sleep(delay)
+            pull = self.pull()
+        return pull.get("merge_commit_sha") if pull.get("mergeable") is True else None
 
     def state(self) -> tuple[int | None, dict]:
         """The gate's state comment on the PR: {label: head sha}."""
@@ -198,16 +268,46 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
 
     release = base_ref == "master" and head_ref.startswith("release/")  # dev -> master is not a release since 2026-10-23
     bot = author in BOT_LOGINS
+    sync_branch = head_ref.startswith(SYNC_PREFIX)
+    if sync_branch:
+        default = (pull["base"].get("repo") or {}).get("default_branch")
+        way_out = (" This branch is never merged as an ordinary PR: a change beyond the template copies goes in a PR from "
+                   "a branch outside `sync/templates-*`; the next sync run opens a new PR and closes this one.")
+        foreign = [f for f in files if not SYNC_PATH.fullmatch(f)]
+        if base_ref != default:
+            fail.append(f"`{head_ref}` targets `{base_ref}`, not the default branch `{default}` — the template-sync "
+                        "exemption holds only there." + way_out)
+        elif not files or foreign:
+            fail.append(f"`{head_ref}` is a template-sync branch but changes {', '.join(map(repr, foreign[:5])) or 'nothing'} — "
+                        "only `.claude/rules/*.md` copies of claude-plugins templates are exempt." + way_out)
+        elif (not_mod := sorted(f"{f} ({st or '?'})" for f, st in gh.file_status().items() if st != "modified")):
+            # an added copy is a new rule for the repo (a decision, an ordinary PR); a rename hides the removal of its source
+            fail.append(f"template-sync branch: {', '.join(not_mod[:5])} — only modified copies are exempt." + way_out)
+        elif (why := gh.templates_unreadable()):
+            fail.append(f"template-sync branch: {why}")
+        elif not (merge := gh.merge_commit(pull)):
+            fail.append("template-sync branch: GitHub has no test merge of this PR with the base (not computed yet, or a "
+                        "conflict) — press \"Re-run jobs\" on this gate run; on a conflict run sync-templates.yml "
+                        "(workflow_dispatch, dry_run: false), it clones the current base and replaces this PR." + way_out)
+        else:
+            at_head, at_merge = gh.template_mismatches(files, head, merge)
+            if at_head:
+                fail.append(f"template-sync branch: {', '.join(at_head[:5])} differ from {TEMPLATES_REPO} "
+                            f"templates@{TEMPLATES_REF} at the head — edit the template, not the copy." + way_out)
+            if at_merge:
+                fail.append(f"template-sync branch: {', '.join(at_merge[:5])} match the template at the head but not in the "
+                            "merge with the base (the base changed the copy) — run sync-templates.yml (workflow_dispatch, "
+                            "dry_run: false): it clones the current base and replaces this PR." + way_out)
     nsnap = len(pr_snaps)
     if nsnap and not release and LABEL_SNAP not in labels:
         fail.append(f"{WAIT}{nsnap} screenshot baseline(s) changed in this PR — waiting for `{LABEL_SNAP}`. "
                     "Only a human (the owner) sets it after looking at the new images; an agent never does.")
     n_matrix = (LABEL_MATRIX_OK in labels) + (LABEL_MATRIX_NA in labels)
-    if n_matrix != 1:
+    if n_matrix != 1 and not (sync_branch and n_matrix == 0):  # rule files only: no UI, no matrix; a failed sync is blocked above
         fail.append(f"{WAIT if n_matrix == 0 else ''}exactly one of `{LABEL_MATRIX_OK}` (full Playwright matrix green on "
                     f"head {head[:7]}) or `{LABEL_MATRIX_NA}` (diff does not touch UI — say so in the PR body) is required; "
                     f"found {n_matrix}.")
-    if not bot and not release and not review_ok and not any(LABEL_REVIEW in f for f in fail):
+    if not bot and not release and not sync_branch and not review_ok and not any(LABEL_REVIEW in f for f in fail):
         fail.append(f"{WAIT}waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
                     "it runs after CI on every push while the label is absent (removing the label starts a round too); "
                     "a PR whose base is not the default branch gets a round only by workflow_dispatch.")
