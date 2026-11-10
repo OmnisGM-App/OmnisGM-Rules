@@ -680,6 +680,9 @@ eq("язык вне списка languages роняет сборку",
    rebuilt(FEATURE_LANGUAGES=also("FEATURE_LANGUAGES", ("rogue", "Thieves' Cant"), ["thieves-argot"])),
    ["classes/rogue/Thieves' Cant: языка 'thieves-argot' нет в списке languages",
     "classes/rogue/Thieves' Cant: языки в тексте ['thieves-cant'] ≠ объявленным ['thieves-argot']"])
+eq("язык объявлен, а в тексте его нет, — сборка падает",
+   rebuilt(FEATURE_LANGUAGES=also("FEATURE_LANGUAGES", ("rogue", "Thieves' Cant"), ["thieves-cant", "druidic"])),
+   ["classes/rogue/Thieves' Cant: языки в тексте ['thieves-cant'] ≠ объявленным ['thieves-cant', 'druidic']"])
 eq("язык в тексте без объявления роняет сборку",
    rebuilt(FEATURE_LANGUAGES={k: v for k, v in choices.FEATURE_LANGUAGES.items() if k[0] != "druid"}),
    ["classes/druid/Druidic: языки в тексте ['druidic'] ≠ объявленным []"])

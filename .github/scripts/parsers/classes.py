@@ -133,7 +133,7 @@ _BASE_AC_HINT = re.compile(r"(?i)\bbase Armor Class\b|\bArmor Class equals\b")
 
 def _attacks(feature: str, body: str, options: dict | None = None) -> dict | None:
     """`options` — варианты главы по имени: «The Extra Attack of your X invocation» берёт оружие у X."""
-    found = [{"key": "extra-attack", "count": _ATTACK_COUNTS[m.group(2)], "weapon": "pact" if m.group(1) else None}
+    found = [{"key": ATTACK_KEYS[0], "count": _ATTACK_COUNTS[m.group(2)], "weapon": "pact" if m.group(1) else None}
              for m in _ATTACKS.finditer(body)]
     for m in _ATTACKS_RAISED.finditer(body):
         base = (options or {}).get(m.group(1))
@@ -152,7 +152,7 @@ def _armor_class(feature: str, body: str) -> dict | None:
         names = re.split(r",? and |, ", m.group(3).lower())
         if not set(names) <= set(ABILITY_CODES):
             raise ValueError(f"«{feature}»: unknown ability in {m.group(0)!r}")
-        found.append({"group": "base-formula", "base": int(m.group(2)), "abilities": [ABILITY_CODES[n] for n in names],
+        found.append({"group": ARMOR_CLASS_GROUPS[0], "base": int(m.group(2)), "abilities": [ABILITY_CODES[n] for n in names],
                       "shield": m.group(1) is None, "armor": False})
     if _BASE_AC_HINT.search(_BASE_AC.sub("", body)) or len(found) > 1:
         raise ValueError(f"«{feature}»: a base Armor Class in an unknown form")

@@ -818,7 +818,7 @@ ARMOR_CLASS = {("barbarian", "Unarmored Defense"): {**UNARMORED, "abilities": ["
 OPTION_ATTACKS = {"thirsting-blade": {**EXTRA, "weapon": "pact"}, "devouring-blade": {**EXTRA, "count": 3, "weapon": "pact"}}
 
 
-def en_named(field, pins):
+def en_named(pins):
     """{позиция умения: значение} для EN — ключи pins по имени EN, чтобы RU сверялся с теми же позициями."""
     out = {}
     for res in ("classes", "subclasses"):
@@ -833,7 +833,7 @@ for lang in ("en", "ru"):
     for field, pins in (("attacks", ATTACKS), ("armor_class", ARMOR_CLASS)):
         eq(f"{lang}: {field} — ровно у умений SRD, на позициях EN",
            {(e["slug"], i): f[field] for res in ("classes", "subclasses") for e in cast[("srd52", lang, res)]
-            for i, f in enumerate(e["features"]) if f.get(field) is not None}, en_named(field, pins))
+            for i, f in enumerate(e["features"]) if f.get(field) is not None}, en_named(pins))
     eq(f"{lang}: attacks вариантов — Thirsting Blade и Devouring Blade, оружие договора",
        {o["slug"]: o.get("attacks") for o in opts[("srd52", lang, "class-options")] if o.get("attacks")}, OPTION_ATTACKS)
     eq(f"{lang}: живые подклассы проходят схему",
@@ -854,13 +854,18 @@ eq("перечисления схемы = ATTACK_KEYS / ARMOR_CLASS_GROUPS па�
     CLASS_OPTION_SCHEMA["properties"]["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
     feature_schema["armor_class"]["anyOf"][1]["properties"]["group"].get("enum")),
    (list(ATTACK_KEYS), list(ATTACK_KEYS), list(ATTACK_KEYS), list(ARMOR_CLASS_GROUPS)))
-monk_ud = next(f for f in cast[("srd52", "en", "classes")] if f["slug"] == "monk")["features"][0]
+monk_ud = next(f for c in cast[("srd52", "en", "classes")] if c["slug"] == "monk" for f in c["features"]
+               if f["name"] == "Unarmored Defense")
 eq("схема: неизвестный key атак и неизвестная group КД отклонены",
    [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid({**monk_ud, "choices": [], **NO_MECHANICS, **patch})
     for patch in ({}, {"attacks": {**EXTRA, "key": "flurry"}}, {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")],
                                                                              "group": "natural-armor"}},
-                  {"attacks": {k: v for k, v in EXTRA.items() if k != "weapon"}})],
-   [True, False, False, False])
+                  {"attacks": {k: v for k, v in EXTRA.items() if k != "weapon"}},
+                  {"attacks": {**EXTRA, "count": 1}},
+                  {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")], "abilities": []}},
+                  {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")], "abilities": ["dex", "dex"]}},
+                  {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")], "base": -1}})],
+   [True, False, False, False, False, False, False, False])
 eq("схема: умение без attacks или armor_class, вариант без attacks отклонены",
    [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid(
        {k: v for k, v in {**monk_ud, "choices": [], **NO_MECHANICS}.items() if k != drop}) for drop in ("attacks", "armor_class")]
