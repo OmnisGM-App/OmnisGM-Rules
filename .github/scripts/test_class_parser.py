@@ -857,6 +857,12 @@ eq("схема: неизвестный key атак и неизвестная gr
                                                                              "group": "natural-armor"}},
                   {"attacks": {k: v for k, v in EXTRA.items() if k != "weapon"}})],
    [True, False, False, False])
+eq("схема: умение без attacks или armor_class, вариант без attacks отклонены",
+   [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid(
+       {k: v for k, v in {**monk_ud, "choices": []}.items() if k != drop}) for drop in ("attacks", "armor_class")]
+   + [jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid(
+       {k: v for k, v in {**opts[("srd52", "en", "class-options")][0], "choices": []}.items() if k != "attacks"})],
+   [False, False, False])
 
 EXTRA_LINE = "You can attack twice instead of once whenever you take the Attack action on your turn."
 eq("атаки в незнакомой форме роняют сборку",
