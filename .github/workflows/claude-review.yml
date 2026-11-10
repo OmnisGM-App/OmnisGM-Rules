@@ -7,6 +7,7 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.55 (2026-11-10, News#189): a failed fetch of the inline review threads prints a warning instead of being swallowed.
 # v2.54 (2026-11-08): a `sync/templates-*` branch gets no round — the merge gate compares those copies with the
 # claude-plugins templates blob by blob (merge_gate.py, "Template sync"); a round would review the template twice.
 # v2.53 (2026-11-08, review of #33): 02-pr-comments.md also carries the inline review threads (`pulls/N/comments`), as
@@ -415,7 +416,7 @@ jobs:
           # there; without them the "grep 02-pr-comments.md for «не чиню»" rule (_header.md) sees nothing (review of #33).
           gh api "repos/$REPO/pulls/$PR/comments" --paginate \
             --jq '.[] | "--- inline \(.path):\(.line // .original_line) @\(.commit_id[0:8]) | \(.user.login) \(.created_at)\n\(.body)\n"' \
-            >> $OUT/02-pr-comments.md 2>/dev/null || true
+            >> $OUT/02-pr-comments.md || echo "::warning::inline review threads not fetched — 02-pr-comments.md is partial"
           git diff --name-only "origin/${BASE}...HEAD" > $OUT/04-files.txt
           for n in $(grep -oE '#[0-9]+' $OUT/00-pr.md | tr -d '#' | sort -un | head -5); do
             [ "$n" = "$PR" ] && continue
