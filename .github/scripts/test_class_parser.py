@@ -841,7 +841,7 @@ for lang in ("en", "ru"):
            {**s, "features": [{**f, "choices": [], "always_prepared": False, **NO_MECHANICS} for f in s["features"]]})], [])
     eq(f"{lang}: живые варианты проходят схему",
        [o["slug"] for o in opts[("srd52", lang, "class-options")]
-        if not jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid({**o, "choices": []})], [])
+        if not jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid({**o, "choices": [], "damage_bonuses": []})], [])
 eq("RU-умение и RU-вариант до выравнивания — без attacks и armor_class",
    {k for res in ("classes", "subclasses") for e in pristine[("srd52", "ru", res)] for f in e["features"]
     for k in ("attacks", "armor_class") if k in f}

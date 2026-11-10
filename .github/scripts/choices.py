@@ -219,8 +219,26 @@ SUBCLASS_FEATURES = {
 # --- Механика умений классов и подклассов (#501, #502): (слаг класса или подкласса, EN-имя умения) → значение ---
 # Форма полей — в schemas.py у `_CLASS_FEATURE`; `attacks` и `armor_class` разбирает parsers/classes.py.
 FEATURE_LANGUAGES = {("druid", "Druidic"): ["druidic"], ("rogue", "Thieves' Cant"): ["thieves-cant"]}
-DAMAGE_BONUSES = {("draconic-sorcery", "Elemental Affinity"): [
-    {"ability": "cha", "applies_to": "spell", "rolls": "one", "damage_type": {"choice": "damage-type"}}]}
+# Бонус урона (#501, #508): rolls — к одному броску / один раз к урону / к каждому броску; spells — какие заклинания
+# (ключи DAMAGE_SPELL_FILTERS, choice — id выбора заклинания у того же владельца); when — только при этом ответе на выбор.
+DAMAGE_ROLLS = ("one", "once", "each")
+DAMAGE_SPELL_FILTERS = ("class", "school", "level", "choice")
+DAMAGE_BONUSES = {
+    ("draconic-sorcery", "Elemental Affinity"): [
+        {"ability": "cha", "applies_to": "spell", "rolls": "one", "damage_type": {"choice": "damage-type"}}],
+    ("evoker", "Empowered Evocation"): [
+        {"ability": "int", "applies_to": "spell", "rolls": "one", "spells": {"class": "wizard", "school": "evocation"}}],
+    ("cleric", "Blessed Strikes"): [
+        {"ability": "wis", "applies_to": "spell", "rolls": "once", "spells": {"class": "cleric", "level": 0},
+         "when": {"choice": "option", "value": "cleric-potent-spellcasting"}}],
+    ("druid", "Elemental Fury"): [
+        {"ability": "wis", "applies_to": "spell", "rolls": "once", "spells": {"class": "druid", "level": 0},
+         "when": {"choice": "option", "value": "druid-potent-spellcasting"}}],
+}
+# Те же бонусы у вариантов умений: слаг варианта → бонусы.
+OPTION_DAMAGE_BONUSES = {
+    "agonizing-blast": [{"ability": "cha", "applies_to": "spell", "rolls": "each", "spells": {"choice": "cantrip"}}],
+}
 
 # --- Виды: (слаг вида, EN-имя особенности) → выборы. Размер и наследие сборка объявляет сама ------
 SPECIES_TRAITS = {
@@ -498,11 +516,33 @@ def _check_mechanics(record, where, known, errors):
              if re.search(rf"\bYou know {re.escape(name)}\b", record["description_md"])}
     if named != set(record.get("languages", named)):
         errors.append(f"{where}: языки в тексте {sorted(named)} ≠ объявленным {record.get('languages')}")
-    damage_types = {c["id"] for c in record["choices"] if c["kind"] == "damage-type"}
+    kinds = {c["id"]: c for c in record["choices"]}
+
+    def chosen(ref, kind, what):
+        if ref not in kinds or kinds[ref]["kind"] != kind:
+            errors.append(f"{where}: {what} ссылается на выбор {ref!r}, а выбора вида {kind} с таким id у умения нет")
+            return None
+        return kinds[ref]
+
     for bonus in record.get("damage_bonuses", []):
-        if bonus["damage_type"]["choice"] not in damage_types:
-            errors.append(f"{where}: бонус урона ссылается на выбор {bonus['damage_type']['choice']!r}, "
-                          "а выбора вида damage-type с таким id у умения нет")
+        if bonus["rolls"] not in DAMAGE_ROLLS:
+            errors.append(f"{where}: бонус урона: rolls {bonus['rolls']!r} вне DAMAGE_ROLLS")
+        if "damage_type" in bonus:
+            chosen(bonus["damage_type"]["choice"], "damage-type", "бонус урона")
+        spells = bonus.get("spells", {})
+        for key in sorted(set(spells) - set(DAMAGE_SPELL_FILTERS)):
+            errors.append(f"{where}: бонус урона: фильтр заклинаний {key!r} вне DAMAGE_SPELL_FILTERS")
+        if "class" in spells and spells["class"] not in known["classes"]:
+            errors.append(f"{where}: бонус урона: класса {spells['class']!r} нет")
+        if "school" in spells and spells["school"] not in SCHOOLS:
+            errors.append(f"{where}: бонус урона: школы {spells['school']!r} нет")
+        if "choice" in spells:
+            chosen(spells["choice"], "spell", "бонус урона (spells)")
+        if "when" in bonus:
+            choice = chosen(bonus["when"]["choice"], "option", "условие бонуса урона")
+            group = choice and (choice["from"]["filter"].get("class"), choice["from"]["filter"].get("feature"))
+            if choice and known["options"].get(bonus["when"]["value"]) != group:
+                errors.append(f"{where}: условие бонуса урона: варианта {bonus['when']['value']!r} нет среди {group}")
 
 
 def attach_choices(all_data: dict) -> list[str]:
@@ -528,6 +568,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         "spells": {sp["slug"] for sp in en["spells"]},
         "feat-categories": {f["category"] for f in en["feats"]},
         "option-groups": {(o["class"], o["feature"]["key"]) for o in en["class-options"] if o["selection"] == "learned"},
+        "options": {o["slug"]: (o["class"], o["feature"]["key"]) for o in en["class-options"]},
         "subclass-classes": {s["class"] for s in en["subclasses"]},
         "lineage-species": {l["species"] for l in en["species-lineages"]},
         "equipment-groups": {g["slug"] for g in en["equipment-groups"]},
@@ -637,6 +678,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
             errors.append(f"backgrounds/{bg['slug']}: варианта черты {variant!r} нет среди выборов «{bg['feat']['slug']}»")
     for option in en["class-options"]:
         put(option, CLASS_OPTIONS.get(option["slug"], []), {}, f"class-options/{option['slug']}")
+        option["damage_bonuses"] = OPTION_DAMAGE_BONUSES.get(option["slug"], [])
         _check_mechanics(option, f"class-options/{option['slug']}", known, errors)
 
     declared = ({("class", k) for k in CLASSES} | {("multiclass", k) for k in MULTICLASS}
@@ -648,6 +690,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
     for kind, key in sorted(declared - used, key=str):
         errors.append(f"объявление без хозяина: {kind} {key}")
     for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS),
+                        ("class-options", OPTION_DAMAGE_BONUSES),
                         ("species-lineages", LINEAGES)):
         for slug in sorted(set(table) - {e["slug"] for e in en[name]}):
             errors.append(f"объявление без хозяина: {name}/{slug}")
@@ -663,6 +706,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                 continue
             if "choices" in origin:
                 entity["choices"] = origin["choices"]
+            if name == "class-options":
+                entity["damage_bonuses"] = origin["damage_bonuses"]
             if name == "classes":
                 entity["multiclass"]["choices"] = origin["multiclass"]["choices"]
             if name == "species-lineages":

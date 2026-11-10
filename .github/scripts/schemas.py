@@ -620,8 +620,10 @@ _ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "
 # - armor_class (#503): базовый КД base + модификаторы abilities; формулы одной group взаимоисключающие;
 #   shield / armor — действует ли со щитом / в доспехе.
 # - languages (#502): языки без выбора — слаги списка `languages` в choice-lists.
-# - damage_bonuses (#501): +модификатор ability к rolls бросков урона того, к чему applies_to, если тип
-#   урона — ответ на выбор damage_type.choice того же умения.
+# - damage_bonuses (#501, #508; и у варианта умения): +модификатор ability к урону того, к чему applies_to.
+#   rolls: one — к одному броску, once — один раз к урону, each — к каждому броску. Необязательные условия:
+#   damage_type.choice — тип урона равен ответу на этот выбор; spells — фильтр заклинаний (class, school,
+#   level 0 — заговоры, choice — выбранное заклинание); when — только когда выбор when.choice ответили when.value.
 # Перечисления key / group — ATTACK_KEYS / ARMOR_CLASS_GROUPS в parsers/classes.py, равенство держит test_class_parser.py.
 _ABILITY_INCREASES = {"type": "array", "items": {
     "type": "object",
@@ -665,11 +667,17 @@ _DAMAGE_BONUSES = {"type": "array", "items": {
     "properties": {
         "ability": _ABILITY_CODE,
         "applies_to": {"type": "string", "enum": ["spell"]},
-        "rolls": {"type": "string", "enum": ["one"]},
+        "rolls": {"type": "string", "enum": list(_choices.DAMAGE_ROLLS)},
         "damage_type": {"type": "object", "properties": {"choice": {"type": "string", "minLength": 1}},
                         "required": ["choice"], "additionalProperties": False},
+        "spells": {"type": "object", "minProperties": 1, "additionalProperties": False, "properties": {
+            "class": {"type": "string", "minLength": 1}, "school": {"type": "string", "enum": list(_choices.SCHOOLS)},
+            "level": {"type": "integer", "minimum": 0, "maximum": 9}, "choice": {"type": "string", "minLength": 1}}},
+        "when": {"type": "object", "properties": {"choice": {"type": "string", "minLength": 1},
+                                                  "value": {"type": "string", "minLength": 1}},
+                 "required": ["choice", "value"], "additionalProperties": False},
     },
-    "required": ["ability", "applies_to", "rolls", "damage_type"],
+    "required": ["ability", "applies_to", "rolls"],
     "additionalProperties": False,
 }}
 
@@ -965,11 +973,13 @@ CLASS_OPTION_SCHEMA = {
         "repeatable": {"type": "boolean"},
         "description_md": {"type": "string", "minLength": 1},
         "attacks": _FEATURE_ATTACKS,
+        "damage_bonuses": _DAMAGE_BONUSES,
         "choices": _CHOICES,
         "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "class", "subclass", "feature", "granted_by",
-                 "selection", "prerequisites", "cost", "repeatable", "description_md", "attacks", "choices"],
+                 "selection", "prerequisites", "cost", "repeatable", "description_md", "attacks", "damage_bonuses",
+                 "choices"],
     "additionalProperties": False,
 }
 
