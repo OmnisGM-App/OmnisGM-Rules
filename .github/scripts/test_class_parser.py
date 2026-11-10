@@ -880,10 +880,17 @@ eq("атаки в незнакомой форме роняют сборку",
    build_error(parse_class, "en", "01_Barbarian.md", EXTRA_LINE,
                "You can attack twice instead of once when you take the Magic action."),
    "«Extra Attack»: attacks per Attack action in an unknown form")
+eq("два правила атак в одном умении роняют сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", EXTRA_LINE, EXTRA_LINE + " " + EXTRA_LINE.replace("twice", "three times")),
+   "«Extra Attack»: attacks per Attack action in an unknown form")
 BARB_UD = "your base Armor Class equals 10 plus your Dexterity and Constitution modifiers."
 eq("базовый КД в незнакомой форме роняет сборку",
    build_error(parse_class, "en", "01_Barbarian.md", "While you aren't wearing any armor, " + BARB_UD,
                "While you are unarmored, " + BARB_UD),
+   "«Unarmored Defense»: a base Armor Class in an unknown form")
+eq("две формулы КД в одном умении роняют сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", "While you aren't wearing any armor, " + BARB_UD,
+               ("While you aren't wearing any armor, " + BARB_UD + " ") * 2),
    "«Unarmored Defense»: a base Armor Class in an unknown form")
 eq("базовый КД с неизвестной характеристикой роняет сборку",
    build_error(parse_class, "en", "01_Barbarian.md", BARB_UD, BARB_UD.replace("Constitution", "Luck")),
