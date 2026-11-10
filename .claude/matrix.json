@@ -3,5 +3,6 @@
   "e2eDir": "web/e2e",
   "playwrightCwd": "web",
   "portBlock": "rules",
-  "release": null
+  "release": null,
+  "rebuild": { "paths": ["web/package.json", "web/package-lock.json"], "hint": "npm ci --prefix web" }
 }
