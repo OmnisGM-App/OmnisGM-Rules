@@ -11,3 +11,6 @@ DND-SRD-5.2.1-RU.md
 
 firebase-debug.log
 .firebase/
+
+# Отчёт и сводка матрицы по слоту (скилл omnisgm-matrix плагина omnisgm).
+web/e2e/matrix-slot-*/
