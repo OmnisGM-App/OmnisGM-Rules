@@ -29,8 +29,8 @@ it — a hand-applied one is reported and ignored.
 **Template sync** (owner's decision 2026-11-08, instead of an admin bypass): a `sync/templates-*` PR opened by
 claude-plugins `sync-templates.yml` into the default branch needs no label at all and gets no review round — the
 gate itself checks that every changed file is a MODIFIED `.claude/rules/*.md` whose blob, at the head and in the
-merge with the base as of the gate's last run (a later change of the base does not re-run it), equals `templates/<name>.md` on claude-plugins master, and blocks the PR with the reason and
-the way out otherwise (labels do not lift that block, and no round comes for it). Never edit a copy on such a branch or push one by hand:
+merge with the base, equals `templates/<name>.md` on claude-plugins master, and blocks the PR with the reason and
+the way out otherwise (labels do not lift that block, and no round comes for it). A push to the default branch re-runs the gate of every open sync PR (`sync-recheck.yml`), so the merge it checks is the one with the live base. Never edit a copy on such a branch or push one by hand:
 change the template, the next sync run opens a new PR and closes the old one. Workflow copies (`merge-gate.yml`, `merge_gate.py`,
 `claude-review.yml`) and a template a repo does not carry yet go through an ordinary PR.
 
