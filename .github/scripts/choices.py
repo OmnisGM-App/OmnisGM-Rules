@@ -220,7 +220,7 @@ SUBCLASS_FEATURES = {
 # Форма полей — в schemas.py у `_CLASS_FEATURE`; `attacks` и `armor_class` разбирает parsers/classes.py.
 FEATURE_LANGUAGES = {("druid", "Druidic"): ["druidic"], ("rogue", "Thieves' Cant"): ["thieves-cant"]}
 # Бонус урона (#501, #508): rolls — к одному броску / один раз к урону / к каждому броску; spells — какие заклинания
-# (ключи DAMAGE_SPELL_FILTERS, choice — id выбора заклинания у того же владельца); when — только при этом ответе на выбор.
+# (ключи DAMAGE_SPELL_FILTERS, choice — id выбора заклинания у того же владельца); when — бонус действует при этом ответе на выбор.
 DAMAGE_ROLLS = ("one", "once", "each")
 DAMAGE_SPELL_FILTERS = ("class", "school", "level", "choice")
 DAMAGE_BONUSES = {
@@ -503,7 +503,7 @@ def _check(choice, where, known, ids, errors):
 
 
 def _check_mechanics(record, where, known, errors):
-    """Ключи, группы, слаги языков и id выборов в механике умения или варианта разрешаются (#501–#503)."""
+    """Ключи, группы, слаги языков и id выборов в механике умения или варианта разрешаются (#501–#503, #508)."""
     attacks, armor = record.get("attacks"), record.get("armor_class")
     if attacks and attacks["key"] not in ATTACK_KEYS:
         errors.append(f"{where}: ключ атак {attacks['key']!r} вне ATTACK_KEYS")

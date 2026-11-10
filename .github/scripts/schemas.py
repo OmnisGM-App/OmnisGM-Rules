@@ -623,7 +623,7 @@ _ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "
 # - damage_bonuses (#501, #508; и у варианта умения): +модификатор ability к урону того, к чему applies_to.
 #   rolls: one — к одному броску, once — один раз к урону, each — к каждому броску. Необязательные условия:
 #   damage_type.choice — тип урона равен ответу на этот выбор; spells — фильтр заклинаний (class, school,
-#   level 0 — заговоры, choice — выбранное заклинание); when — только когда выбор when.choice ответили when.value.
+#   level 0 — заговоры, choice — выбранное заклинание); when — бонус действует, когда выбор when.choice ответили when.value.
 # Перечисления key / group — ATTACK_KEYS / ARMOR_CLASS_GROUPS в parsers/classes.py, равенство держит test_class_parser.py.
 _ABILITY_INCREASES = {"type": "array", "items": {
     "type": "object",
