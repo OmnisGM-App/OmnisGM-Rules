@@ -654,7 +654,7 @@ AFFINITY = [{"ability": "cha", "applies_to": "spell", "rolls": "one", "damage_ty
 
 def mechanic(lang, field):
     return {(res, e["slug"], i): f[field] for res in ("classes", "subclasses") for e in live[("srd52", lang, res)]
-            for i, f in enumerate(e["features"]) if f[field]}
+            for i, f in enumerate(e["features"]) if f.get(field)}
 
 
 en_index = {(res, e["slug"], f["name"]): i for res in ("classes", "subclasses") for e in live[("srd52", "en", res)]
@@ -666,11 +666,11 @@ for lang in ("en", "ru"):
        {("subclasses", "draconic-sorcery", en_index[("subclasses", "draconic-sorcery", "Elemental Affinity")]): AFFINITY})
     cant = feature(lang, "classes", "rogue", en_index[("classes", "rogue", "Thieves' Cant")])
     eq(f"{lang}: Thieves' Cant — фиксированный язык и выбор ещё одного",
-       (cant["languages"], [(c["kind"], c["count"], c["from"]) for c in cant["choices"]]),
+       (cant.get("languages"), [(c["kind"], c["count"], c["from"]) for c in cant["choices"]]),
        (["thieves-cant"], [("language", 1, {"list": "languages", "values": None})]))
     fiend = feature(lang, "subclasses", "fiend-patron", en_index[("subclasses", "fiend-patron", "Fiendish Resilience")])
     eq(f"{lang}: Fiendish Resilience — выбор damage-type без бонуса урона",
-       ([c["kind"] for c in fiend["choices"]], fiend["damage_bonuses"]), (["damage-type"], []))
+       ([c["kind"] for c in fiend["choices"]], fiend.get("damage_bonuses")), (["damage-type"], []))
 eq("слаги языков механики — члены списка languages",
    {slug for value in LANGS.values() for slug in value}
    <= {m["slug"] for lst_ in live[("srd52", "en", "choice-lists")] if lst_["slug"] == "languages" for m in lst_["members"]},
