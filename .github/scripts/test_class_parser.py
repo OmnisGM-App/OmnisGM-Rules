@@ -829,9 +829,9 @@ for lang in ("en", "ru"):
     for field, pins in (("attacks", ATTACKS), ("armor_class", ARMOR_CLASS)):
         eq(f"{lang}: {field} — ровно у умений SRD, на позициях EN",
            {(e["slug"], i): f[field] for res in ("classes", "subclasses") for e in cast[("srd52", lang, res)]
-            for i, f in enumerate(e["features"]) if f[field] is not None}, en_named(field, pins))
+            for i, f in enumerate(e["features"]) if f.get(field) is not None}, en_named(field, pins))
     eq(f"{lang}: attacks вариантов — Thirsting Blade и Devouring Blade, оружие договора",
-       {o["slug"]: o["attacks"] for o in opts[("srd52", lang, "class-options")] if o["attacks"]}, OPTION_ATTACKS)
+       {o["slug"]: o.get("attacks") for o in opts[("srd52", lang, "class-options")] if o.get("attacks")}, OPTION_ATTACKS)
     eq(f"{lang}: живые подклассы проходят схему",
        [s["slug"] for s in cast[("srd52", lang, "subclasses")] if not jsonschema.Draft7Validator(SUBCLASS_SCHEMA).is_valid(
            {**s, "features": [{**f, "choices": [], "always_prepared": False} for f in s["features"]]})], [])
@@ -845,10 +845,10 @@ eq("RU-умение и RU-вариант до выравнивания — бе�
 
 feature_schema = SUBCLASS_SCHEMA["properties"]["features"]["items"]["properties"]
 eq("перечисления схемы = ATTACK_KEYS / ARMOR_CLASS_GROUPS парсера",
-   (feature_schema["attacks"]["anyOf"][1]["properties"]["key"]["enum"],
-    CLASS_SCHEMA["properties"]["features"]["items"]["properties"]["attacks"]["anyOf"][1]["properties"]["key"]["enum"],
-    CLASS_OPTION_SCHEMA["properties"]["attacks"]["anyOf"][1]["properties"]["key"]["enum"],
-    feature_schema["armor_class"]["anyOf"][1]["properties"]["group"]["enum"]),
+   (feature_schema["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
+    CLASS_SCHEMA["properties"]["features"]["items"]["properties"]["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
+    CLASS_OPTION_SCHEMA["properties"]["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
+    feature_schema["armor_class"]["anyOf"][1]["properties"]["group"].get("enum")),
    (list(ATTACK_KEYS), list(ATTACK_KEYS), list(ATTACK_KEYS), list(ARMOR_CLASS_GROUPS)))
 monk_ud = next(f for f in cast[("srd52", "en", "classes")] if f["slug"] == "monk")["features"][0]
 eq("схема: неизвестный key атак и неизвестная group КД отклонены",
@@ -864,17 +864,29 @@ eq("схема: умение без attacks или armor_class, вариант �
        {k: v for k, v in {**opts[("srd52", "en", "class-options")][0], "choices": []}.items() if k != "attacks"})],
    [False, False, False])
 
+def build_error(parse, lang, name, old, new):
+    text = read(lang, name)
+    if old not in text:
+        return f"нет фрагмента {old!r}"
+    try:
+        parse(text.replace(old, new), lang)
+    except Exception as err:
+        return str(err)
+    return None
+
+
 EXTRA_LINE = "You can attack twice instead of once whenever you take the Attack action on your turn."
 eq("атаки в незнакомой форме роняют сборку",
-   class_error("en", "01_Barbarian.md", EXTRA_LINE, "You can attack twice instead of once when you take the Magic action."),
+   build_error(parse_class, "en", "01_Barbarian.md", EXTRA_LINE,
+               "You can attack twice instead of once when you take the Magic action."),
    "«Extra Attack»: attacks per Attack action in an unknown form")
 BARB_UD = "your base Armor Class equals 10 plus your Dexterity and Constitution modifiers."
 eq("базовый КД в незнакомой форме роняет сборку",
-   class_error("en", "01_Barbarian.md", "While you aren't wearing any armor, " + BARB_UD,
+   build_error(parse_class, "en", "01_Barbarian.md", "While you aren't wearing any armor, " + BARB_UD,
                "While you are unarmored, " + BARB_UD),
    "«Unarmored Defense»: a base Armor Class in an unknown form")
 eq("базовый КД с неизвестной характеристикой роняет сборку",
-   class_error("en", "01_Barbarian.md", BARB_UD, BARB_UD.replace("Constitution", "Luck")),
+   build_error(parse_class, "en", "01_Barbarian.md", BARB_UD, BARB_UD.replace("Constitution", "Luck")),
    "«Unarmored Defense»: unknown ability in \"While you aren't wearing any armor, your base Armor Class equals 10 "
    "plus your Dexterity and Luck modifiers. You can use a Shield and still gain this benefit.\"")
 eq("базовый КД: одна характеристика и иное основание",
@@ -884,23 +896,14 @@ eq("базовый КД: одна характеристика и иное ос�
    {**UNARMORED, "base": 13, "abilities": ["dex"]})
 
 
-def option_error(old, new):
-    text = read("en", "11_Warlock.md")
-    if old not in text:
-        return f"нет фрагмента {old!r}"
-    try:
-        parse_class_options(text.replace(old, new), "en")
-    except ValueError as err:
-        return str(err)
-    return None
-
-
 eq("Devouring Blade над вариантом без Extra Attack роняет сборку",
-   option_error("your Thirsting Blade invocation confers", "your Misty Escape invocation confers"),
+   build_error(parse_class_options, "en", "11_Warlock.md", "your Thirsting Blade invocation confers",
+               "your Misty Escape invocation confers"),
    "«Devouring Blade»: raises the Extra Attack of «Misty Escape», which grants none")
 eq("вариант с базовым КД роняет сборку",
-   option_error("You can see normally in Dim Light", "While you aren't wearing armor, your base Armor Class equals "
-                "13 plus your Dexterity modifier. You can see normally in Dim Light"),
+   build_error(parse_class_options, "en", "11_Warlock.md", "You can see normally in Dim Light",
+               "While you aren't wearing armor, your base Armor Class equals 13 plus your Dexterity modifier. "
+               "You can see normally in Dim Light"),
    "Warlock: option «Devil's Sight» sets a base Armor Class; class options carry no armor_class")
 
 if failures:
