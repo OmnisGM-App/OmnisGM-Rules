@@ -622,9 +622,9 @@ _ABILITY_INCREASES = {"type": "array", "items": {
     "additionalProperties": False,
 }}
 
-# Атаки за действие Attack (#503): один key у всех источников — потребитель берёт наибольший count,
-# не складывает; weapon "pact" — только оружием договора. Перечисления — ATTACK_KEYS / ARMOR_CLASS_GROUPS
-# в parsers/classes.py, равенство держит test_class_parser.py.
+# Атаки за действие Attack (#503): записи одного key не складываются, действует наибольший count;
+# weapon "pact" — оружием договора. Перечисления — ATTACK_KEYS / ARMOR_CLASS_GROUPS в parsers/classes.py,
+# равенство держит test_class_parser.py.
 _FEATURE_ATTACKS = {"anyOf": [{"type": "null"}, {
     "type": "object",
     "properties": {

@@ -115,7 +115,7 @@ def _ability_increases(feature: str, body: str) -> list[dict]:
     return out
 
 
-# Атаки за действие Attack и базовый КД (#503): ключ общий у всех источников, правила мультикласса —
+# Атаки за действие Attack и базовый КД (#503): один ключ на разные классы, правила мультикласса —
 # `src/dnd/srd-5.2/en/02_CharacterCreation.md` «Extra Attack» и «Unarmored Defense».
 ATTACK_KEYS = ("extra-attack",)
 ARMOR_CLASS_GROUPS = ("base-formula",)
@@ -160,7 +160,7 @@ def _armor_class(feature: str, body: str) -> dict | None:
 
 
 def _features(lines: list[str], lang: str) -> list[dict]:
-    """`ability_increases`, `attacks`, `armor_class` — из EN; у RU первого None, остальных нет до generate_api.align_classes."""
+    """`ability_increases`, `attacks`, `armor_class` — из EN; у RU до generate_api.align_classes первое None, двух других нет."""
     return [{"level": f["level"], "name": f["name"],
              "description_md": "\n".join(f["body"]).strip(),
              "ability_increases": _ability_increases(f["name"], "\n".join(f["body"])) if lang == "en" else None,
