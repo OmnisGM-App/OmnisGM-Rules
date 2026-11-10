@@ -34,7 +34,7 @@ review workflow), not by a hand; the events list can lag behind the label, so it
 Template sync (owner's decision 2026-11-08, instead of an admin bypass): a PR from a `sync/templates-*` branch
 needs neither `gate/review-passed` nor a matrix label when it targets the default branch and the gate itself confirms
 that every changed file is `.claude/rules/<name>.md` and its blob at the head and at GitHub's test merge commit
-(as of this run: a later change of the base does not re-run the gate) is the blob of `templates/<name>.md` on the live master of
+(sync-recheck.yml re-runs the gate after the base moves) is the blob of `templates/<name>.md` on the live master of
 TEMPLATES_REPO (claude-plugins, read with TEMPLATES_TOKEN — the org secret TEMPLATES_READ_TOKEN), and every file's
 status is `modified` (an added copy is a new rule for the repo, a rename hides a removal: ordinary PRs). The branch
 name only asks for the check; the blobs decide it. A sync branch that fails it (a foreign file, a blob that
@@ -164,16 +164,29 @@ class GitHub:
                 at_merge.append(f)
         return at_head, at_merge
 
+    def merge_parent(self, sha: str) -> str | None:
+        parents = gh_json(f"repos/{self.repo}/commits/{sha}").get("parents") or []
+        return parents[0]["sha"] if parents else None
+
+    def base_tip(self, ref: str) -> str:
+        return gh_json(f"repos/{self.repo}/branches/{urllib.parse.quote(ref, safe='')}")["commit"]["sha"]
+
     def merge_commit(self, pull: dict) -> str | None:
-        """GitHub's test merge commit of the PR, None on a conflict; `mergeable: null` means GitHub is recomputing it
-        (REST "Get a pull request"), so the PR is re-read with a backoff and an older merge_commit_sha is not trusted."""
+        """GitHub's test merge commit of the PR when it is built on the live tip of the base, None on a conflict or when
+        it does not settle. `mergeable: null` means GitHub is recomputing it (REST "Get a pull request"), and right after
+        a push to the base an older merge_commit_sha can still read as mergeable, so the PR is re-read with a backoff."""
         import time
-        for delay in (5, 10, 20):
-            if pull.get("mergeable") is not None:
-                break
+        base = (pull.get("base") or {}).get("ref", "")
+        for delay in (5, 10, 20, None):
+            if pull.get("mergeable") is False:
+                return None
+            sha = pull.get("merge_commit_sha")
+            if pull.get("mergeable") is True and sha and self.merge_parent(sha) == self.base_tip(base):
+                return sha
+            if delay is None:
+                return None
             time.sleep(delay)
             pull = self.pull()
-        return pull.get("merge_commit_sha") if pull.get("mergeable") is True else None
 
     def state(self) -> tuple[int | None, dict]:
         """The gate's state comment on the PR: {label: head sha}."""
@@ -286,8 +299,8 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         elif (why := gh.templates_unreadable()):
             fail.append(f"template-sync branch: {why}")
         elif not (merge := gh.merge_commit(pull)):
-            fail.append("template-sync branch: GitHub has no test merge of this PR with the base (not computed yet, or a "
-                        "conflict) — press \"Re-run jobs\" on this gate run; on a conflict run sync-templates.yml "
+            fail.append("template-sync branch: GitHub has no test merge of this PR with the live base (not computed "
+                        "yet, not rebuilt after a push to the base, or a conflict) — press \"Re-run jobs\" on this gate run; on a conflict run sync-templates.yml "
                         "(workflow_dispatch, dry_run: false), it clones the current base and replaces this PR." + way_out)
         else:
             at_head, at_merge = gh.template_mismatches(files, head, merge)

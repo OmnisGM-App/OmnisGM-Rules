@@ -160,6 +160,8 @@ jobs:
         run: python3 .github/scripts/test_armor_category_register.py
       - name: Unit — merge gate (job verdict, label binding)
         run: python3 .github/scripts/test_merge_gate.py
+      - name: Unit — sync PR recheck
+        run: python3 .github/scripts/test_sync_recheck.py
 
       - name: Validate JSON API schema
         run: |
