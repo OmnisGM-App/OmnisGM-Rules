@@ -424,7 +424,8 @@ class Gate(unittest.TestCase):
 
     def test_merge_commit_is_re_read_until_github_computes_it(self):
         gh = mg.GitHub("o/r", "1")
-        with mock.patch("time.sleep") as sleep:
+        with mock.patch("time.sleep") as sleep, mock.patch.object(gh, "merge_parent", return_value="tip"), \
+                mock.patch.object(gh, "base_tip", return_value="tip"):
             with mock.patch.object(gh, "pull", side_effect=[{"mergeable": None, "merge_commit_sha": "old"},
                                                             {"mergeable": True, "merge_commit_sha": "m"}]):
                 self.assertEqual(gh.merge_commit({"mergeable": None, "merge_commit_sha": "old"}), "m")  # a stale sha is not used
@@ -435,6 +436,27 @@ class Gate(unittest.TestCase):
             with mock.patch.object(gh, "pull", side_effect=AssertionError("not re-read")):
                 self.assertEqual(gh.merge_commit({"mergeable": True, "merge_commit_sha": "m1"}), "m1")
                 self.assertIsNone(gh.merge_commit({"mergeable": False, "merge_commit_sha": "m1"}))  # a conflict
+
+    def test_merge_commit_on_a_stale_base_is_not_trusted(self):
+        gh = mg.GitHub("o/r", "1")
+        parents = {"old-merge": "old-tip", "new-merge": "tip"}
+        with mock.patch("time.sleep"), mock.patch.object(gh, "merge_parent", side_effect=parents.get), \
+                mock.patch.object(gh, "base_tip", return_value="tip") as tip:
+            with mock.patch.object(gh, "pull", return_value={"mergeable": True, "merge_commit_sha": "new-merge"}) as re_read:
+                self.assertEqual(gh.merge_commit({"mergeable": True, "merge_commit_sha": "old-merge", "base": {"ref": "dev"}}), "new-merge")
+                self.assertEqual(re_read.call_count, 1)
+            tip.assert_called_with("dev")
+            with mock.patch.object(gh, "pull", return_value={"mergeable": True, "merge_commit_sha": "old-merge"}) as re_read:
+                self.assertIsNone(gh.merge_commit({"mergeable": True, "merge_commit_sha": "old-merge", "base": {"ref": "dev"}}))
+                self.assertEqual(re_read.call_count, 3)
+
+    def test_merge_parent_and_base_tip_read_the_api(self):
+        gh = mg.GitHub("o/r", "1")
+        answers = {"repos/o/r/commits/m": {"parents": [{"sha": "p1"}, {"sha": "p2"}]},
+                   "repos/o/r/branches/release%2F2026": {"commit": {"sha": "t"}}}
+        with mock.patch.object(mg, "gh_json", side_effect=lambda path: answers[path]):
+            self.assertEqual(gh.merge_parent("m"), "p1")
+            self.assertEqual(gh.base_tip("release/2026"), "t")
 
     def test_outcome_splits_waiting_from_contradictions(self):
         _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-passed", "gate/matrix-not-needed"]), [SNAP], [], {"gate/matrix-passed": "head1"})

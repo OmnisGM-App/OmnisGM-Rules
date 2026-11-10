@@ -1,0 +1,46 @@
+name: Sync PR recheck
+
+# A COPY of the shared template: source of truth — OmnisGM-App/claude-plugins
+# templates/workflows/sync-recheck.yml (+ sync_recheck.py → .github/scripts/sync_recheck.py); edit there,
+# roll out as copies next to merge-gate.yml. After a push to the default branch it re-runs the `Merge gate`
+# run of every open `sync/templates-*` PR, so the gate compares the copies in the test merge with the new base
+# (claude-plugins#42: the rulesets do not require an up-to-date branch).
+
+on:
+  push:
+
+jobs:
+  recheck:
+    if: github.ref == format('refs/heads/{0}', github.event.repository.default_branch)
+    # job-level: a run skipped by `if` (a push to another branch) never takes the pending slot
+    concurrency:
+      group: sync-recheck
+      cancel-in-progress: false
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      actions: write        # gh run rerun
+      pull-requests: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      BASE: ${{ github.event.repository.default_branch }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - name: Ensure gh CLI in PATH
+        shell: bash
+        run: |
+          # self-hosted containers do not ship gh (run 39410099942: `gh: command not found`).
+          command -v gh >/dev/null && exit 0
+          v=$(curl -fsSL --max-time 60 -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
+          curl -fsSL --max-time 120 "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+          tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
+      - name: Re-run the gate of open sync PRs
+        run: python3 .github/scripts/sync_recheck.py
