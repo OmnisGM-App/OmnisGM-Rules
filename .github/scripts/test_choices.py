@@ -18,7 +18,7 @@ sys.path.insert(0, str(SCRIPTS))
 import choices  # noqa: E402
 import jsonschema  # noqa: E402
 import config  # noqa: E402
-from schemas import _CHOICES, CLASS_SCHEMA  # noqa: E402
+from schemas import _CHOICES, CLASS_OPTION_SCHEMA, CLASS_SCHEMA  # noqa: E402
 
 failures = []
 
@@ -650,6 +650,15 @@ eq("класс заклинания не найден по имени — сбо
 # --- Механика умений: фиксированные языки (#502) и бонус урона по выбору (#501) ---------------------
 LANGS = {("classes", "druid", "Druidic"): ["druidic"], ("classes", "rogue", "Thieves' Cant"): ["thieves-cant"]}
 AFFINITY = [{"ability": "cha", "applies_to": "spell", "rolls": "one", "damage_type": {"choice": "damage-type"}}]
+POTENT = {"ability": "wis", "applies_to": "spell", "rolls": "once"}
+BONUSES = {("subclasses", "draconic-sorcery", "Elemental Affinity"): AFFINITY,
+           ("subclasses", "evoker", "Empowered Evocation"): [
+               {"ability": "int", "applies_to": "spell", "rolls": "one", "spells": {"class": "wizard", "school": "evocation"}}],
+           ("classes", "cleric", "Blessed Strikes"): [
+               {**POTENT, "spells": {"class": "cleric", "level": 0}, "when": {"choice": "option", "value": "cleric-potent-spellcasting"}}],
+           ("classes", "druid", "Elemental Fury"): [
+               {**POTENT, "spells": {"class": "druid", "level": 0}, "when": {"choice": "option", "value": "druid-potent-spellcasting"}}]}
+AGONIZING = [{"ability": "cha", "applies_to": "spell", "rolls": "each", "spells": {"choice": "cantrip"}}]
 
 
 def mechanic(lang, field):
@@ -662,8 +671,12 @@ en_index = {(res, e["slug"], f["name"]): i for res in ("classes", "subclasses") 
 for lang in ("en", "ru"):
     eq(f"{lang}: languages — у Druidic и Thieves' Cant, на позициях EN", mechanic(lang, "languages"),
        {(res, slug, en_index[(res, slug, name)]): value for (res, slug, name), value in LANGS.items()})
-    eq(f"{lang}: damage_bonuses — только у Elemental Affinity", mechanic(lang, "damage_bonuses"),
-       {("subclasses", "draconic-sorcery", en_index[("subclasses", "draconic-sorcery", "Elemental Affinity")]): AFFINITY})
+    eq(f"{lang}: damage_bonuses умений — Elemental Affinity, Empowered Evocation, Blessed Strikes, Elemental Fury",
+       mechanic(lang, "damage_bonuses"), {(res, slug, en_index[(res, slug, name)]): value for (res, slug, name), value in BONUSES.items()})
+    eq(f"{lang}: damage_bonuses вариантов — только Agonizing Blast; Divine Strike, Primal Strike и Potent Spellcasting без бонуса",
+       {o["slug"]: o.get("damage_bonuses") for o in live[("srd52", lang, "class-options")]
+        if o.get("damage_bonuses") or o["slug"] in ("divine-strike", "primal-strike", "cleric-potent-spellcasting")},
+       {"agonizing-blast": AGONIZING, "divine-strike": [], "primal-strike": [], "cleric-potent-spellcasting": []})
     cant = feature(lang, "classes", "rogue", en_index[("classes", "rogue", "Thieves' Cant")])
     eq(f"{lang}: Thieves' Cant — фиксированный язык и выбор ещё одного",
        (cant.get("languages"), [(c["kind"], c["count"], c["from"]) for c in cant["choices"]]),
@@ -694,6 +707,39 @@ eq("бонус урона по выбору, которого у умения н
                                [{**AFFINITY[0], "damage_type": {"choice": "element"}}])),
    ["subclasses/draconic-sorcery/Elemental Affinity: бонус урона ссылается на выбор 'element', "
     "а выбора вида damage-type с таким id у умения нет"])
+EVOCATION = ("evoker", "Empowered Evocation")
+BLESSED = ("cleric", "Blessed Strikes")
+for label, key, patch, want in (
+        ("неизвестный rolls", EVOCATION, {"rolls": "all"}, "бонус урона: rolls 'all' вне DAMAGE_ROLLS"),
+        ("неизвестный фильтр заклинаний", EVOCATION, {"spells": {"class": "wizard", "ritual": True}},
+         "бонус урона: фильтр заклинаний 'ritual' вне DAMAGE_SPELL_FILTERS"),
+        ("класс фильтра, которого нет", EVOCATION, {"spells": {"class": "artificer"}}, "бонус урона: класса 'artificer' нет"),
+        ("школа фильтра, которой нет", EVOCATION, {"spells": {"school": "chronurgy"}}, "бонус урона: школы 'chronurgy' нет"),
+        ("выбранное заклинание без выбора", EVOCATION, {"spells": {"choice": "cantrip"}},
+         "бонус урона (spells) ссылается на выбор 'cantrip', а выбора вида spell с таким id у умения нет"),
+        ("выбранное заклинание — выбор другого вида", BLESSED, {"spells": {"choice": "option"}},
+         "бонус урона (spells) ссылается на выбор 'option', а выбора вида spell с таким id у умения нет"),
+        ("условие по выбору, которого нет", BLESSED, {"when": {"choice": "order", "value": "cleric-potent-spellcasting"}},
+         "условие бонуса урона ссылается на выбор 'order', а выбора вида option с таким id у умения нет"),
+        ("условие по варианту чужого умения", BLESSED, {"when": {"choice": "option", "value": "druid-potent-spellcasting"}},
+         "условие бонуса урона: варианта 'druid-potent-spellcasting' нет среди ('cleric', 'blessed-strikes')"),
+        ("условие по варианту, которого нет", BLESSED, {"when": {"choice": "option", "value": "potent-strike"}},
+         "условие бонуса урона: варианта 'potent-strike' нет среди ('cleric', 'blessed-strikes')")):
+    base = choices.DAMAGE_BONUSES[key][0]
+    where = f"{'subclasses' if key == EVOCATION else 'classes'}/{key[0]}/{key[1]}"
+    eq(f"бонус урона: {label} — сборка падает",
+       errors_or_exception(DAMAGE_BONUSES=also("DAMAGE_BONUSES", key, [{**base, **patch}])), [f"{where}: {want}"])
+eq("бонус урона варианта по выбору, которого у варианта нет, роняет сборку",
+   rebuilt(OPTION_DAMAGE_BONUSES={"lessons-of-the-first-ones": AGONIZING}),
+   ["class-options/lessons-of-the-first-ones: бонус урона (spells) ссылается на выбор 'cantrip', а выбора вида spell "
+    "с таким id у умения нет"])
+eq("условие бонуса урона по выбору другого вида роняет сборку",
+   rebuilt(OPTION_DAMAGE_BONUSES={"agonizing-blast": [{**AGONIZING[0], "when": {"choice": "cantrip", "value": "x"}}]}),
+   ["class-options/agonizing-blast: условие бонуса урона ссылается на выбор 'cantrip', а выбора вида option с таким id "
+    "у умения нет"])
+eq("бонус урона варианта, которого нет, роняет сборку",
+   rebuilt(OPTION_DAMAGE_BONUSES={**choices.OPTION_DAMAGE_BONUSES, "potent-blast": AGONIZING}),
+   ["объявление без хозяина: class-options/potent-blast"])
 eq("бонус урона у умения без выбора damage-type роняет сборку",
    rebuilt(DAMAGE_BONUSES=also("DAMAGE_BONUSES", ("draconic-sorcery", "Draconic Resilience"), AFFINITY)),
    ["subclasses/draconic-sorcery/Draconic Resilience: бонус урона ссылается на выбор 'damage-type', "
@@ -734,6 +780,24 @@ eq("схема: живые умения с механикой приняты, б
     feature_ok({**affinity_en, "damage_bonuses": [{**AFFINITY[0], "rolls": "all"}]}),
     feature_ok({**affinity_en, "damage_bonuses": [{**AFFINITY[0], "damage_type": {"value": "fire"}}]})],
    [True, True, False, False, False, False, False])
+evocation_en = {**feature("en", "subclasses", "evoker", "Empowered Evocation")}
+evocation_en.pop("always_prepared")
+EVOKED = evocation_en["damage_bonuses"][0]
+eq("схема #508: живые бонусы приняты; пустой или чужой фильтр, level вне 0–9, when без value — нет",
+   [feature_ok(evocation_en), feature_ok(feature("en", "classes", "cleric", "Blessed Strikes")),
+    feature_ok({**evocation_en, "damage_bonuses": [{**EVOKED, "spells": {}}]}),
+    feature_ok({**evocation_en, "damage_bonuses": [{**EVOKED, "spells": {"ritual": True}}]}),
+    feature_ok({**evocation_en, "damage_bonuses": [{**EVOKED, "spells": {"school": "chronurgy"}}]}),
+    feature_ok({**evocation_en, "damage_bonuses": [{**EVOKED, "spells": {"level": 10}}]}),
+    feature_ok({**evocation_en, "damage_bonuses": [{**EVOKED, "when": {"choice": "option"}}]})],
+   [True, True, False, False, False, False, False])
+option_ok = jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid
+agonizing_en = by_slug("en", "class-options")["agonizing-blast"]
+eq("схема #508: вариант с бонусом принят, без damage_bonuses — нет",
+   [option_ok(agonizing_en), option_ok({k: v for k, v in agonizing_en.items() if k != "damage_bonuses"})], [True, False])
+spell_filter = CLASS_SCHEMA["properties"]["features"]["items"]["properties"]["damage_bonuses"]["items"]["properties"]
+eq("схема #508: ключи фильтра заклинаний = DAMAGE_SPELL_FILTERS",
+   sorted(spell_filter["spells"]["properties"]), sorted(choices.DAMAGE_SPELL_FILTERS))
 
 if failures:
     print(f"❌ choices ({len(failures)}):")
