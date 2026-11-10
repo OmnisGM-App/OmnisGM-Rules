@@ -1,0 +1,7 @@
+{
+  "repo": "OmnisGM-App/OmnisGM-Rules",
+  "e2eDir": "web/e2e",
+  "playwrightCwd": "web",
+  "portBlock": "rules",
+  "release": null
+}
