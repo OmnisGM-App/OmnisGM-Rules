@@ -7,6 +7,9 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.57 (2026-11-10, probe step 0): the run's lens reports (+ their write order), 08-triage.md, 80-validation*.md and 90-verdict.json are kept as
+# the `review-files` artifact (30 days, private repos only — Rules is public) — probe_replay.py reads per-lens candidates and the validator's verdicts from it;
+# the PER AGENT table of the transcript dump splits cache tokens into read and write (they are priced 0.1× and 1.25×).
 # v2.56 (2026-11-10, claude-plugins#45): a PR labelled `plugin-copy` gets no round either — sync-templates.yml sets
 # the label on its copy PRs, and the merge gate compares each copy with its template (merge_gate.py, "Template copies");
 # removing the label starts a round, as removing `gate/review-passed` does.
@@ -724,7 +727,7 @@ jobs:
           from collections import defaultdict
           msgs = json.load(open(sys.argv[1]))
           # v2.37: attribution per agent — Task dispatch id → label; agent messages carry parent_tool_use_id.
-          label, stat = {}, defaultdict(lambda: {"calls": 0, "denied": 0, "in": 0, "out": 0, "cache": 0})
+          label, stat = {}, defaultdict(lambda: {"calls": 0, "denied": 0, "in": 0, "out": 0, "cache_read": 0, "cache_write": 0})
           for m in msgs:
               if m.get("type") == "assistant":
                   for c in m.get("message", {}).get("content", []):
@@ -736,13 +739,15 @@ jobs:
               if t == "assistant":
                   u = m.get("message", {}).get("usage") or {}
                   stat[who]["in"] += int(u.get("input_tokens") or 0); stat[who]["out"] += int(u.get("output_tokens") or 0)
-                  stat[who]["cache"] += int(u.get("cache_read_input_tokens") or 0) + int(u.get("cache_creation_input_tokens") or 0)
+                  # v2.57: read and write apart — probe_replay.py parses this table (both the 5- and the 6-column form)
+                  stat[who]["cache_read"] += int(u.get("cache_read_input_tokens") or 0)
+                  stat[who]["cache_write"] += int(u.get("cache_creation_input_tokens") or 0)
                   stat[who]["calls"] += sum(1 for c in m.get("message", {}).get("content", []) if c.get("type") == "tool_use")
               elif t == "user":
                   stat[who]["denied"] += sum(1 for c in m.get("message", {}).get("content", []) if isinstance(c, dict) and c.get("type") == "tool_result" and c.get("is_error"))
-          print("=== PER AGENT: calls / denied / input / output / cache tokens")
-          for who, s in sorted(stat.items(), key=lambda kv: -(kv[1]["in"] + kv[1]["cache"])):
-              print(f"  {who:45s} {s['calls']:4d} {s['denied']:3d} {s['in']:9d} {s['out']:8d} {s['cache']:10d}")
+          print("=== PER AGENT: calls / denied / input / output / cache_read / cache_write tokens")
+          for who, s in sorted(stat.items(), key=lambda kv: -(kv[1]["in"] + kv[1]["cache_read"] + kv[1]["cache_write"])):
+              print(f"  {who:45s} {s['calls']:4d} {s['denied']:3d} {s['in']:9d} {s['out']:8d} {s['cache_read']:10d} {s['cache_write']:10d}")
           print("=== CHRONICLE")
           for m in msgs:
               t = m.get("type")
@@ -767,6 +772,37 @@ jobs:
                               body = " ".join(x.get("text", "") for x in body if isinstance(x, dict))
                           print(f"  !! [{who}] DENIED/ERROR: {str(body)[:300]}")
           PYEOF
+
+      - name: Record the report write order
+        if: always() && steps.prep.outputs.out != '' && github.event.repository.private == true
+        continue-on-error: true
+        shell: bash
+        env:
+          RUN_OUT: ${{ steps.prep.outputs.out }}
+        run: |
+          # newest first: a restarted lens leaves two 1?-<key>.md, the NN prefix does not say which is newer
+          cd "$RUN_OUT" && { ls -t 1?-*.md > reports-order.txt 2>/dev/null || true; }
+
+      # v2.57: the measurement files of the round outlive the run directory (cleaned in the next step) — probe_replay.py
+      # counts per lens the candidates (`<!-- FINDING -->` blocks of 1?-<key>.md) and what V made of them (80-validation*.md).
+      # Top level only: sandbox/ copies stay out. Never fails the round. PRIVATE repos only: the artifacts of a public repo
+      # (Rules) are downloadable by any signed-in GitHub user, and lens reports carry sandbox command output. The
+      # `repository` object is in the payload of all three events this workflow runs on (Resolve reads its default_branch).
+      - name: Keep the review files
+        if: always() && steps.prep.outputs.out != '' && github.event.repository.private == true
+        continue-on-error: true
+        uses: actions/upload-artifact@v7
+        with:
+          name: review-files
+          path: |
+            ${{ steps.prep.outputs.out }}/08-triage.md
+            ${{ steps.prep.outputs.out }}/1?-*.md
+            ${{ steps.prep.outputs.out }}/80-validation*.md
+            ${{ steps.prep.outputs.out }}/90-verdict.json
+            ${{ steps.prep.outputs.out }}/reports-order.txt
+          if-no-files-found: ignore
+          retention-days: 30
+          overwrite: true
 
       # v2.24: on a persistent self-hosted runner nobody deleted the agent sandboxes (~0.5 GB each,
       # node_modules inside) — 189 of them in two months, ENOSPC on both
