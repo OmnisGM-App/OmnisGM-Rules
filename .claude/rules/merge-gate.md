@@ -32,7 +32,9 @@ into the default branch. Such a PR needs no other label and gets no review round
 changed file is a MODIFIED copy of a claude-plugins template (`.claude/rules/*.md`, or a workflow copy:
 `merge-gate.yml`, `claude-review.yml`, `sync-recheck.yml`, `merge_gate.py`, `sync_recheck.py` and their tests). Each
 copy, at the head and in the merge with the base, must equal its template on claude-plugins master outside the repo's
-settings lines (`runs-on`, `CI_CHECK`, the Node version), and those lines must stay the base's. Otherwise the gate
+settings lines (`runs-on`, `CI_CHECK`, the Node version), and those lines must stay the base's: a job the template
+adds takes the line of the base's jobs with the same template line (the template's own when there are none), a job it
+drops takes its line along. Otherwise the gate
 blocks the PR with the reason and the way out: labels do not lift that block, and no round comes for it. The label
 only asks for the check, so it does not exempt anything else: on a PR with another file the gate says to remove it.
 A push to the default branch re-runs the gate of every open sync PR (`sync-recheck.yml`), so the merge it checks is
