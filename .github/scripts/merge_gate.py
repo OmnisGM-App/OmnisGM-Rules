@@ -38,8 +38,8 @@ changed file is a copy named by `template_of` (`.claude/rules/<name>.md` or a WO
 `modified` (an added copy is a decision for the repo, a rename hides a removal: ordinary PRs), and its text at the
 head and at GitHub's test merge commit (sync-recheck.yml re-runs the gate after the base moves) equals its template on
 the live master of TEMPLATES_REPO (claude-plugins, read with TEMPLATES_TOKEN — the org secret TEMPLATES_READ_TOKEN)
-outside the repo's settings lines (SETTING_LINE in a workflow copy), while those lines in the test merge equal the
-base's. The branch name and the label only ask for the check; the texts decide it. A PR that fails it is blocked
+outside the repo's settings lines (SETTING_LINE in a workflow copy), while those lines in the test merge are what
+`with_settings` makes of the template and the base's copy. The branch name and the label only ask for the check; the texts decide it. A PR that fails it is blocked
 with the reason and the way out, and no review round or matrix is awaited for it: claude-review.yml skips both.
 """
 from __future__ import annotations
@@ -120,13 +120,19 @@ def split_settings(path: str, text: str) -> tuple[list[str], dict[tuple[str, str
 
 def with_settings(path: str, template: str, copy: str) -> str:
     """The template with the copy's settings lines in their places, matched by key: what sync_templates.sh writes.
-    A template that adds or drops a settings line (a new job, a removed step) does not fit the copy: ValueError."""
+    A key only the copy has (a job or step the template dropped) goes. A key only the template has (a new job) takes
+    the copy's line of the template keys with the same template line when the copy agrees on them (a new
+    `runs-on: self-hosted` job runs where the repo's other self-hosted jobs run), else the template's line."""
     body, want = split_settings(path, template)
     _, have = split_settings(path, copy)
-    if sorted(want) != sorted(have):
-        raise ValueError(f"{path}: settings lines {sorted(have)} of the copy do not match {sorted(want)} of the template")
+
+    def line(key):
+        if key in have:
+            return have[key]
+        same = {have[k] for k in want if k in have and want[k] == want[key]}  # an equal line is the same setting
+        return same.pop() if len(same) == 1 else want[key]
     it = iter(want)  # dicts keep the template's order: the n-th mark is the n-th key
-    return "\n".join(have[next(it)] if l == SETTING_MARK else l for l in body)
+    return "\n".join(line(next(it)) if l == SETTING_MARK else l for l in body)
 
 
 def gh_json(*args: str, token: str | None = None):
@@ -218,7 +224,8 @@ class GitHub:
     def template_mismatches(self, files: list[str], head: str, merge: str,
                             base: str) -> tuple[list[str], list[str], list[str]]:
         """Changed copies that are not their template on TEMPLATES_REF outside the settings lines (at the head; at the
-        test merge commit only), and those whose settings lines in the test merge differ from the base's copy."""
+        test merge commit only), and those whose settings lines in the test merge are not what the sync makes of the
+        template and the base's copy (`with_settings`: the base's lines, a new key from the template)."""
         token = os.environ.get("TEMPLATES_TOKEN")
         at_head, at_merge, settings = [], [], []
         for f in files:
@@ -231,7 +238,7 @@ class GitHub:
             merged = self.file_text(self.repo, f, merge)
             if merged is None or split_settings(f, merged)[0] != body:
                 at_merge.append(f)
-            elif split_settings(f, merged)[1] != split_settings(f, self.file_text(self.repo, f, base) or "")[1]:
+            elif split_settings(f, merged)[1] != split_settings(f, with_settings(f, want, self.file_text(self.repo, f, base) or ""))[1]:
                 settings.append(f)
         return at_head, at_merge, settings
 

@@ -398,10 +398,36 @@ class Gate(unittest.TestCase):
         self.assertEqual(mg.split_settings("a.yml", out)[0], mg.split_settings("a.yml", tpl)[0])
         self.assertEqual(mg.split_settings("a.yml", out)[1], mg.split_settings("a.yml", copy)[1])
         self.assertEqual(mg.split_settings("a.md", tpl), (tpl.split("\n"), {}))  # only a workflow copy has settings
-        with self.assertRaises(ValueError):
-            mg.with_settings("a.yml", tpl, copy.replace("    runs-on: ubuntu-latest\n", ""))
-        with self.assertRaises(ValueError):
-            mg.with_settings("a.yml", tpl, copy.replace("node-version: 24", "runs-on: x"))
+
+    def test_a_settings_key_only_one_side_has(self):
+        # claude-plugins#23: claude-review.yml v2.60 adds the `publish` job, so the template has a `runs-on` key no copy has
+        tpl = "jobs:\n  a:\n    runs-on: self-hosted\n  b:\n    runs-on: self-hosted\n  n:\n    runs-on: self-hosted\n"
+        cases = [  # (copy, the line job n gets)
+            ("jobs:\n  a:\n    runs-on: ubuntu-latest\n  b:\n    runs-on: ubuntu-latest\n", "ubuntu-latest"),  # the repo's mapping
+            ("jobs:\n  a:\n    runs-on: self-hosted\n  b:\n    runs-on: self-hosted\n", "self-hosted"),
+            ("jobs:\n  a:\n    runs-on: ubuntu-latest\n  b:\n    runs-on: self-hosted\n", "self-hosted"),   # no agreement: the template's
+            # no agreement, and neither copy line is the template's: a set pick cannot pass by luck (hash order)
+            ("jobs:\n  a:\n    runs-on: ubuntu-latest\n  b:\n    runs-on: macos-latest\n", "self-hosted"),
+            ("jobs:\n  z:\n    runs-on: ubuntu-latest\n", "self-hosted"),  # no shared key at all: the template's
+        ]
+        for copy, want in cases:
+            with self.subTest(copy=copy):
+                out = mg.split_settings("w.yml", mg.with_settings("w.yml", tpl, copy))[1]
+                self.assertEqual(out[("n", "runs-on:", 0)], f"    runs-on: {want}")
+                self.assertEqual(sorted(out), sorted(mg.split_settings("w.yml", tpl)[1]))  # a key only the copy has goes
+        # the mapping reads the template LINE: a different template line (a comment) is another setting value
+        tpl2 = tpl.replace("  n:\n    runs-on: self-hosted\n", "  n:\n    runs-on: self-hosted   # x\n")
+        out = mg.with_settings("w.yml", tpl2, cases[0][0])
+        self.assertIn("  n:\n    runs-on: self-hosted   # x", out)
+        # a template line no copy key shares (a new setting in a new job) stays the template's
+        tpl3 = "  CI_CHECK: 'V'\njobs:\n  a:\n    runs-on: self-hosted\n  n:\n    node-version: 24\n"
+        out = mg.with_settings("w.yml", tpl3, "  CI_CHECK: 'X'\njobs:\n  a:\n    runs-on: ubuntu-latest\n")
+        self.assertIn("  n:\n    node-version: 24", out)
+        self.assertIn("  CI_CHECK: 'X'", out)
+        # a copy key the template dropped is gone, the rest keep the copy's lines
+        out = mg.with_settings("w.yml", "jobs:\n  a:\n    runs-on: self-hosted\n",
+                               "jobs:\n  a:\n    runs-on: ubuntu-latest\n  gone:\n    runs-on: ubuntu-latest\n")
+        self.assertEqual(out, "jobs:\n  a:\n    runs-on: ubuntu-latest\n")
 
     def test_settings_lines_stay_with_their_job_when_the_template_reorders_jobs(self):
         # review of #46, round 2: positional substitution moved `runs-on` of one job to another
@@ -415,8 +441,8 @@ class Gate(unittest.TestCase):
         self.assertNotEqual(mg.split_settings("w.yml", swapped)[1], mg.split_settings("w.yml", copy)[1])  # the gate sees a swap
         self.assertEqual(sorted(mg.split_settings("w.yml", "  CI_CHECK: x\njobs:\n  a:\n    runs-on: y\n    runs-on: z\n")[1]),
                          [("", "CI_CHECK:", 0), ("a", "runs-on:", 0), ("a", "runs-on:", 1)])
-        with self.assertRaises(ValueError):  # a job added with a settings line does not fit the copy
-            mg.with_settings("w.yml", tpl + "  c:\n    runs-on: self-hosted\n", copy)
+        # a job added with a settings line: the copy's a/b disagree on the template line `self-hosted` → the template's
+        self.assertTrue(mg.with_settings("w.yml", tpl + "  c:\n    runs-on: self-hosted\n", copy).endswith("  c:\n    runs-on: self-hosted\n"))
 
     def test_file_status_reads_every_page(self):
         gh = mg.GitHub("o/r", "1")
@@ -485,6 +511,16 @@ class Gate(unittest.TestCase):
             self.assertEqual(gh.template_mismatches([".claude/rules/a.md"], "h", "m", "t"), ([], [".claude/rules/a.md"], []))
             texts[("o/r", wf, "t")] = "x\n    runs-on: self-hosted\ny"  # the copy moves the repo off its runner
             self.assertEqual(gh.template_mismatches([wf], "h", "m", "t"), ([], [], [wf]))
+            # a job the template adds (claude-plugins#23): the merge must carry the sync's line for it, no other
+            texts[(T, "templates/workflows/merge-gate.yml", R)] = "jobs:\n  a:\n    runs-on: self-hosted\n  p:\n    runs-on: self-hosted\n"
+            texts[("o/r", wf, "t")] = "jobs:\n  a:\n    runs-on: ubuntu-latest\n  old:\n    runs-on: ubuntu-latest\n"
+            for p_line, bad in (("ubuntu-latest", []), ("self-hosted", [wf])):
+                merged = f"jobs:\n  a:\n    runs-on: ubuntu-latest\n  p:\n    runs-on: {p_line}\n"
+                texts[("o/r", wf, "h")] = texts[("o/r", wf, "m")] = merged
+                with self.subTest(p=p_line):
+                    self.assertEqual(gh.template_mismatches([wf], "h", "m", "t"), ([], [], bad))
+            texts[("o/r", wf, "h")] = texts[("o/r", wf, "m")] = "jobs:\n  a:\n    runs-on: self-hosted\n  p:\n    runs-on: ubuntu-latest\n"
+            self.assertEqual(gh.template_mismatches([wf], "h", "m", "t"), ([], [], [wf]))  # an old key still keeps the base's
             texts[("o/r", ".claude/rules/none.md", "h")] = None
             texts[(T, "templates/none.md", R)] = None  # missing on both sides is not "equal"
             self.assertEqual(gh.template_mismatches([".claude/rules/none.md"], "h", "m", "t"), ([".claude/rules/none.md"], [], []))

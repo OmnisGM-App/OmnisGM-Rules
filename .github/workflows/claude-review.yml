@@ -7,6 +7,13 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.60 (2026-11-10, claude-plugins#23): the agent's job token is read-only — `review` keeps read rights only (plus
+# `checks`/`statuses: read` for the live CI the lenses check, no `id-token`); the review and the journal are posted by a
+# new `publish` job (no checkout, no agent) from the `publish-inputs` artifact, which `finish` deletes; checkout keeps no
+# credential and the replay fetch passes the token for that one command; the label also waits for a published review.
+# The runner is reused across jobs and runs, so the jobs holding a write right (resolve, publish, finish) read nothing
+# an earlier session could plant in HOME or a HOME directory on PATH: gh is downloaded into a fresh directory and called
+# by absolute path with an empty config dir, curl runs with -q, python with -I, PATH drops HOME entries.
 # v2.59 (2026-11-10, security H1–H3): the previous review is the bot's own (Prepare reads REST reviews with
 # user.login/type, iter_state.py keeps github-actions[bot] only); the plugin hook denies gh writes in the session;
 # the marketplace clone drops the token from its remote right after cloning, and the Claude step no longer gets
@@ -169,8 +176,8 @@ jobs:
     # (it only cancels the group). v2.48: the event-level filter is here; draft / dependabot / base /
     # `gate/review-passed` / CI state are checked by the Resolve step against the live PR (workflow_run
     # carries no PR payload beyond the number). No agent in this job: it holds `checks: write` for the
-    # check run on the PR head (review of Table#1179). The `review` job still holds `pull-requests: write`
-    # for publishing — moving publication into a job without the agent is claude-plugins#23.
+    # check run on the PR head (review of Table#1179). Publication lives in the `publish` job, also without the
+    # agent (v2.60, claude-plugins#23): the agent's `review` job holds read rights only.
     if: >-
       github.event_name == 'workflow_dispatch' || (
       github.event_name == 'workflow_run' &&
@@ -192,26 +199,36 @@ jobs:
       checks: write
       actions: read   # v2.52: the resolve step reads the triggering CI run's job list (Rules#456 round 2)
     steps:
-      - name: Ensure gh CLI in PATH
-        shell: bash
+      - name: Install gh into a fresh directory
+        # v2.60: the runner is reused across jobs and runs (run 42897272145: resolve and finish on one runner), so HOME
+        # and PATH may hold what an earlier agent session planted. This job holds a write right: it reads neither —
+        # every step's bash by absolute path (the runner looks `bash` up on its own PATH), PATH without HOME entries
+        # for the commands of the next steps, `curl -q` (no ~/.curlrc), gh in a fresh directory called as "$GH_BIN"
+        # with an empty GH_CONFIG_DIR (no aliases or hosts from ~/.config/gh).
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
-          # self-hosted containers ship neither gh nor jq in PATH (run 39410099942: `gh: command not found`).
-          # Every download is `curl -f` as its own command and verified by running the binary.
-          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no builds for $(uname -m)"; exit 1;; esac
-          if ! command -v gh >/dev/null; then
-            v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
-            [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
-            curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
-            tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
-            echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
-            "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
-          fi
+          h=${HOME%/}; p=; IFS=: read -ra dirs <<<"$PATH"
+          for e in "${dirs[@]}"; do
+            case "$e" in /*) ;; *) continue ;; esac  # an empty or relative entry resolves against the cwd
+            if [ -n "$h" ]; then case "$e/" in "$h"/*) continue ;; esac; fi
+            p=${p:+$p:}$e
+          done
+          PATH=$p; echo "PATH=$p" >> "$GITHUB_ENV"
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
+          d=$(mktemp -d "$RUNNER_TEMP/gh.XXXXXX"); mkdir "$d/config"
+          v=$(curl -q -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+          curl -q -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$d/gh.tgz"
+          tar -xzf "$d/gh.tgz" -C "$d"
+          bin="$d/gh_${v}_linux_${a}/bin/gh"
+          GH_CONFIG_DIR="$d/config" "$bin" --version | head -1
+          { echo "GH_BIN=$bin"; echo "GH_CONFIG_DIR=$d/config"; } >> "$GITHUB_ENV"
 
       - name: Resolve PR (skip rules against the live PR)
         id: resolve
-        shell: bash
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
         env:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
@@ -226,7 +243,7 @@ jobs:
         run: |
           set -euo pipefail
           # REST, not `gh pr view`: the latter reports dependabot as `app/dependabot` (review of Table#1179).
-          read -r draft author base sha state labelled copy head < <(gh api "repos/$REPO/pulls/$PR" \
+          read -r draft author base sha state labelled copy head < <("$GH_BIN" api "repos/$REPO/pulls/$PR" \
             --jq '"\(.draft) \(.user.login) \(.base.ref) \(.head.sha) \(.state) \([.labels[].name] | index("gate/review-passed") != null) \([.labels[].name] | index("plugin-copy") != null) \(.head.ref)"')
           skip=""
           if [ -z "$DISPATCH" ]; then
@@ -245,14 +262,14 @@ jobs:
               if [ -n "$CI_RUN_ID" ] && [ "$CI_RUN_HEAD" = "$sha" ]; then
                 # The CI run that woke this workflow is on the live head: read the CI_CHECK job's own conclusion
                 # from that run's job list — it does not lag, and a skipped job stays `skipped`, not a green check.
-                if ! c=$(gh api -X GET "repos/$REPO/actions/runs/$CI_RUN_ID/jobs" -f per_page=100 \
+                if ! c=$("$GH_BIN" api -X GET "repos/$REPO/actions/runs/$CI_RUN_ID/jobs" -f per_page=100 \
                            --jq '[.jobs[] | select(.name == $ENV.CI_CHECK)] | last | .conclusion // "none"'); then err=1; c=none; fi
               else
                 # ready_for_review / unlabeled / a head that moved: the commit's check-runs list, with a backoff
                 # while the check is ABSENT only — a check that exists but is not completed ends the wait: its
                 # completion wakes a round by itself, and waiting here would race it (Table#1286 round 1).
                 for i in 1 2 3 4 5 6; do
-                  if line=$(gh api -X GET "repos/$REPO/commits/$sha/check-runs" -f check_name="$CI_CHECK" \
+                  if line=$("$GH_BIN" api -X GET "repos/$REPO/commits/$sha/check-runs" -f check_name="$CI_CHECK" \
                               --jq '[.check_runs[]] | sort_by(.started_at) | last | "\(.status // "none") \(.conclusion // "none")"'); then err=; else err=1; line="none none"; fi
                   st=${line%% *}; c=${line##* }
                   [ "$st" = "none" ] || { [ "$st" = "completed" ] || c=$st; break; }
@@ -273,14 +290,14 @@ jobs:
       - name: Open check run
         id: check
         if: steps.resolve.outputs.go == '1' && steps.resolve.outputs.open == '1'
-        shell: bash
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
         env:
           GH_TOKEN: ${{ github.token }}
           REPO: ${{ github.repository }}
           SHA: ${{ steps.resolve.outputs.sha }}
           RUN_URL: ${{ github.server_url }}/${{ github.repository }}/actions/runs/${{ github.run_id }}
         run: |
-          id=$(gh api -X POST "repos/$REPO/check-runs" -f name="Claude auto-review" -f head_sha="$SHA" -f status=in_progress \
+          id=$("$GH_BIN" api -X POST "repos/$REPO/check-runs" -f name="Claude auto-review" -f head_sha="$SHA" -f status=in_progress \
                  -f details_url="$RUN_URL" -f external_id="$GITHUB_RUN_ID" --jq .id) || { echo "::warning::check run not created"; exit 0; }
           echo "id=$id" >> "$GITHUB_OUTPUT"; echo "check run $id opened on $SHA"
 
@@ -295,7 +312,7 @@ jobs:
     timeout-minutes: 90
     outputs:
       replay: ${{ steps.prep.outputs.replay }}
-      published: ${{ steps.publish.outcome }}
+      publish_artifact: ${{ steps.publish_inputs.outputs['artifact-id'] }}
       medium: ${{ steps.verdict.outputs.medium }}
       remark: ${{ steps.verdict.outputs.remark }}
       headref: ${{ steps.prep.outputs.headref }}
@@ -305,12 +322,16 @@ jobs:
       prev_major: ${{ steps.verdict.outputs.prev_major }}
       superseded: ${{ steps.prep.outputs.superseded }}
     runs-on: ubuntu-latest   # GitHub-hosted stopped on billing for private repos (2026-10-20)
+    # v2.60 (claude-plugins#23): READ rights only — the agent runs in this job, and claude-code-action writes this
+    # token into the origin URL of the working copy. Writes live in `resolve` / `publish` / `finish`. No `id-token`:
+    # with `github_token` given the action takes no OIDC token ("Using provided GITHUB_TOKEN for authentication").
     permissions:
       contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
-      actions: read    # v2.48: no checks/actions write here — the agent runs in this job; those rights live in `resolve` / `finish`
+      pull-requests: read
+      issues: read
+      actions: read
+      checks: read     # statusCheckRollup / check-runs: the live CI of the head (_ci-header.md, v-validator.md)
+      statuses: read
       packages: read   # installing private @omnisgm-app/* from GitHub Packages (npm ci)
     env:
       NODE_AUTH_TOKEN: ${{ secrets.GITHUB_TOKEN }}   # v2.32: for npm ci in agent sandboxes
@@ -320,6 +341,8 @@ jobs:
         with:
           # Full history: the review checks anchors against the base branch (git diff base...head).
           fetch-depth: 0
+          # v2.60: no token left in the git config for the session; Prepare's one fetch passes it itself.
+          persist-credentials: false
 
       # Self-sufficiency on self-hosted: Node 22 (jsdom/undici require >=22)
       # and gh CLI (on self-hosted it is not in PATH). On ubuntu-latest both steps are
@@ -413,7 +436,10 @@ jobs:
             fi
             # v2.49: a failed fetch is fatal (`-e` does not fire on the left side of `&&`), and the merge takes
             # the resolved SHA itself — not `origin/<headref>` as checkout left it (review of Rules#441).
-            git fetch -q origin "$headsha" || { echo "::error::cannot fetch the resolved head $headsha"; exit 1; }
+            # v2.60: checkout persisted no credential — the token rides this one command (`-c`), not the git config.
+            auth="AUTHORIZATION: basic $(printf 'x-access-token:%s' "$GH_TOKEN" | base64 | tr -d '\n')"
+            git -c "http.https://github.com/.extraheader=$auth" fetch -q origin "$headsha" || { echo "::error::cannot fetch the resolved head $headsha"; exit 1; }
+            unset auth
             git update-ref "refs/remotes/origin/$headref" "$headsha"
             if [ "$merged" != "-" ]; then basesha=$(git rev-parse "$merged^"); else basesha=$(git rev-parse "origin/$baseref"); fi
             git update-ref refs/remotes/origin/replay-base "$basesha"
@@ -597,112 +623,24 @@ jobs:
             HEADREF=${{ steps.prep.outputs.headref }}
             REPO_DIR=${{ github.workspace }} OUT=${{ steps.prep.outputs.out }}
 
-      - name: Publish review
-        id: publish
-        if: always() && steps.prep.outputs.superseded != '1'
-        env:
-          RUN_OUT: ${{ steps.prep.outputs.out }}
-          GH_TOKEN: ${{ github.token }}
-          REPO: ${{ github.repository }}
-          PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
-          REPLAY: ${{ steps.prep.outputs.replay }}
-        shell: bash
-        run: |
-          python3 - <<'PY'
-          import json, os, re, subprocess, sys
-          rd = os.environ["RUN_OUT"]
-          # The review body is assembled DETERMINISTICALLY from 90-verdict.json — the model does not write the body
-          # and cannot append anything to it (the "too much text" saga v2.8/2.12/2.16 is closed by the form).
-          # The body strings below are Russian on purpose: the review posted to the PR is in Russian.
-          vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
-          if os.path.exists(vf):
-              v = json.load(open(vf))
-              head = str(v.get("head", ""))[:7]
-              c = v.get("counts") or {}
-              major, med, rem = int(c.get("major") or 0), int(c.get("medium") or 0), int(c.get("remark") or 0)
-              mode = v.get("mode", "pipeline")
-              total = major + med + rem
-              if total == 0:
-                  if mode == "fix-round":
-                      body = (f"Находок нет. Голова `{head}`, фикс-раунд после `{str(v.get('prev_head',''))[:7]}`: "
-                              f"закрыты все {v.get('prev_total', v.get('prev_closed', 0))} находок прошлого ревью.")
-                  elif mode == "single":
-                      body = f"Находок нет. Голова `{head}`, одиночное ревью."
-                  else:
-                      body = f"Находок нет. Голова `{head}`, агентов: {v.get('agents', 0)}."
-              else:
-                  def pl(n, one, few, many):
-                      n10, n100 = n % 10, n % 100
-                      return one if n10 == 1 and n100 != 11 else few if 2 <= n10 <= 4 and not 12 <= n100 <= 14 else many
-                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} {pl(med, 'среднее', 'средних', 'средних')}"] * (med > 0) + [f"{rem} {pl(rem, 'ремарка', 'ремарки', 'ремарок')}"] * (rem > 0)
-                  hdr = f"Голова `{head}`"
-                  if mode == "fix-round":
-                      hdr += f", фикс-раунд после `{str(v.get('prev_head',''))[:7]}`"
-                  elif mode == "single":
-                      hdr += ", одиночное ревью"
-                  else:
-                      hdr += f", агентов: {v.get('agents', 0)}"
-                      if v.get("triage_skips"):
-                          hdr += f" (триаж: {v['triage_skips']})"
-                  body = hdr + ". Находки: " + " / ".join(parts) + "."
-              # 90-body-findings.md is appended even with zero findings: it holds
-              # the caveat line of the single-pass degradation (ci-pipeline contract).
-              bff = f"{rd}/90-body-findings.md"
-              if os.path.exists(bff):
-                  body += "\n\n" + open(bff).read().strip()
-          elif os.path.exists(bf):
-              # Degradation fallback: the free-form body of a single pass under the old contract.
-              print("::warning::no 90-verdict.json — published the fallback 90-final-review.md (contract degradation)")
-              body = open(bf).read().strip()
-          else:
-              print("::error::Claude did not produce 90-verdict.json — review not published")
-              sys.exit(1)
-          try:
-              inl = json.load(open(f"{rd}/90-inline.json"))
-              assert isinstance(inl, list)
-          except Exception:
-              inl = []
-          # valid line numbers from the diff: RIGHT — the after-version, LEFT — the before-version
-          right, left, cur, oldp = {}, {}, None, None
-          for ln in open(f"{rd}/01-diff.patch", encoding="utf-8", errors="replace"):
-              m = re.match(r"--- a/(.*)", ln)
-              if m:
-                  oldp = m.group(1).strip(); continue
-              m = re.match(r"\+\+\+ (?:b/(.*)|(/dev/null))", ln)
-              if m:
-                  # deleted file: "+++ /dev/null" — the path is taken from "--- a/…"
-                  cur = (m.group(1) or oldp or "").strip(); right.setdefault(cur, set()); left.setdefault(cur, set()); continue
-              m = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", ln)
-              if m and cur:
-                  a, b = int(m.group(1)), int(m.group(2) or 1)
-                  c, d = int(m.group(3)), int(m.group(4) or 1)
-                  left[cur].update(range(a, a + b)); right[cur].update(range(c, c + d))
-          good, moved = [], []
-          for cm in inl:
-              p_, l_, side = cm.get("path"), cm.get("line"), (cm.get("side") or "RIGHT")
-              ok = (side == "RIGHT" and l_ in right.get(p_, ())) or (side == "LEFT" and l_ in left.get(p_, ()))
-              (good if ok else moved).append(cm)
-          def as_body_list(items):
-              return "\n".join(f"- `{c.get('path')}:{c.get('line')}` — {c.get('body','').strip()}" for c in items)
-          if moved:
-              body += "\n\n---\nНаходки вне диапазонов диффа:\n" + as_body_list(moved)
-          def post(payload):
-              open(f"{rd}/payload.json", "w").write(json.dumps(payload))
-              return subprocess.run(["gh", "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
-                                     "-X", "POST", "--input", f"{rd}/payload.json"], capture_output=True, text=True)
-          if os.environ.get("REPLAY"):
-              body = "🔁 Реплей-прогон (замер стоимости, workflow_dispatch) — не новый раунд ревью.\n\n" + body
-          payload = {"event": "COMMENT", "body": body}
-          if good:
-              payload["comments"] = [{"path": c["path"], "line": c["line"], "side": c.get("side", "RIGHT"), "body": c["body"]} for c in good]
-          r = post(payload)
-          if r.returncode and good:
-              print("::warning::POST with inlines failed, publishing everything in the body:", r.stderr[:500])
-              r = post({"event": "COMMENT", "body": body + "\n\n---\nИнлайны (fallback):\n" + as_body_list(good)})
-          if r.returncode:
-              print("::error::review publication failed:", r.stderr[:1000]); sys.exit(1)
-          print("review published")
-          PY
+      # v2.60: the files the `publish` job posts from (the agent's job has no write right). 1 day, and `finish` deletes
+      # it once the review is posted: in a public repo (Rules) any signed-in user can download an artifact.
+      - name: Upload publish inputs
+        id: publish_inputs
+        if: always() && steps.prep.outputs.out != '' && steps.prep.outputs.superseded != '1'
+        uses: actions/upload-artifact@v7
+        with:
+          name: publish-inputs
+          path: |
+            ${{ steps.prep.outputs.out }}/90-verdict.json
+            ${{ steps.prep.outputs.out }}/90-inline.json
+            ${{ steps.prep.outputs.out }}/90-body-findings.md
+            ${{ steps.prep.outputs.out }}/90-final-review.md
+            ${{ steps.prep.outputs.out }}/95-journal.md
+            ${{ steps.prep.outputs.out }}/01-diff.patch
+          if-no-files-found: warn
+          retention-days: 1
+          overwrite: true
 
       # v2.48: the verdict numbers for the `gate-label` job below (a separate job: it needs `actions: write`
       # and must not share it with the agent's job — review of Table#1179). A base-merge round carries the
@@ -727,32 +665,6 @@ jobs:
           prev_major=$(sed -n 's/.*prev_counts=\([0-9]*\)\/.*/\1/p' <<<"$iter")
           echo "major=$major" >> "$GITHUB_OUTPUT"; echo "iter_mode=$mode" >> "$GITHUB_OUTPUT"; echo "prev_major=$prev_major" >> "$GITHUB_OUTPUT"
           echo "major='$major' iter_mode='$mode' prev_major='$prev_major'"
-
-      - name: Post journal observation
-        if: always()
-        # The journal is non-critical: a GitHub failure on this step must not paint the job red (run 37520167275 —
-        # GraphQL "Something went wrong" after a successful review publication). Three attempts, then a warning.
-        continue-on-error: true
-        env:
-          RUN_OUT: ${{ steps.prep.outputs.out }}
-          GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
-        shell: bash
-        run: |
-          f="$RUN_OUT/95-journal.md"
-          [ -f "$f" ] || { echo "no observations"; exit 0; }
-          # Run marker: a GitHub error does not guarantee that addComment was not applied —
-          # before a retry we look for the marker in recent comments so as not to post a duplicate.
-          marker="<!-- run ${GITHUB_RUN_ID} -->"
-          printf '\n%s\n' "$marker" >> "$f"
-          posted() { gh api "repos/OmnisGM-App/claude-plugins/issues/1/comments?per_page=10&sort=created&direction=desc" --jq '.[].body' 2>/dev/null | grep -qF "$marker"; }
-          for i in 1 2 3; do
-            [ "$i" -gt 1 ] && posted && { echo "comment already posted (attempt $((i-1)))"; exit 0; }
-            gh issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$f" && exit 0
-            [ "$i" -lt 3 ] && { echo "attempt $i failed, pausing"; sleep $((i * 10)); }
-          done
-          echo "::group::Journal that could not be sent"; cat "$f"; echo "::endgroup::"
-          echo "::warning::journal not sent after 3 attempts — the text is in the log of this step"
-          exit 1
 
       - name: Dump execution transcript (debug)
         if: always()
@@ -855,6 +767,193 @@ jobs:
           [ -n "$RUN_OUT" ] && rm -rf "$RUN_OUT"
           rm -rf /tmp/wt /tmp/*-sandbox /tmp/*-src.tar /tmp/*-nm.tar
 
+  # v2.60 (claude-plugins#23): the publishing job — no checkout, no agent. Posts the review (body from 90-verdict.json,
+  # inlines from 90-inline.json) and the journal observation from the files the `review` job uploaded; the step
+  # scripts are the ones that ran inside `review` up to v2.59. A superseded round has nothing to post.
+  publish:
+    needs: [resolve, review]
+    if: always() && needs.resolve.outputs.go == '1' && needs.review.outputs.superseded != '1'
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    outputs:
+      published: ${{ steps.publish.outcome }}
+    permissions:
+      pull-requests: write
+      issues: write
+    steps:
+      - name: Install gh into a fresh directory
+        # v2.60: the runner is reused across jobs and runs (run 42897272145: resolve and finish on one runner), so HOME
+        # and PATH may hold what an earlier agent session planted. This job holds a write right: it reads neither —
+        # every step's bash by absolute path (the runner looks `bash` up on its own PATH), PATH without HOME entries
+        # for the commands of the next steps, `curl -q` (no ~/.curlrc), gh in a fresh directory called as "$GH_BIN"
+        # with an empty GH_CONFIG_DIR (no aliases or hosts from ~/.config/gh).
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          h=${HOME%/}; p=; IFS=: read -ra dirs <<<"$PATH"
+          for e in "${dirs[@]}"; do
+            case "$e" in /*) ;; *) continue ;; esac  # an empty or relative entry resolves against the cwd
+            if [ -n "$h" ]; then case "$e/" in "$h"/*) continue ;; esac; fi
+            p=${p:+$p:}$e
+          done
+          PATH=$p; echo "PATH=$p" >> "$GITHUB_ENV"
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
+          d=$(mktemp -d "$RUNNER_TEMP/gh.XXXXXX"); mkdir "$d/config"
+          v=$(curl -q -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+          curl -q -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$d/gh.tgz"
+          tar -xzf "$d/gh.tgz" -C "$d"
+          bin="$d/gh_${v}_linux_${a}/bin/gh"
+          GH_CONFIG_DIR="$d/config" "$bin" --version | head -1
+          { echo "GH_BIN=$bin"; echo "GH_CONFIG_DIR=$d/config"; } >> "$GITHUB_ENV"
+
+      # No artifact (Prepare died before OUT existed) fails this step: Publish is then `skipped`, and the check run
+      # says "publish: skipped".
+      - name: Download publish inputs
+        uses: actions/download-artifact@v7
+        with:
+          name: publish-inputs
+          path: ${{ runner.temp }}/publish-inputs
+
+      - name: Publish review
+        id: publish
+        env:
+          RUN_OUT: ${{ runner.temp }}/publish-inputs
+          GH_TOKEN: ${{ github.token }}
+          REPO: ${{ github.repository }}
+          PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
+          REPLAY: ${{ needs.review.outputs.replay }}
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
+        run: |
+          # -I: no user site (~/.local/lib/python3*/site-packages), no PYTHON* variables, no script dir on sys.path
+          python3 -I - <<'PY'
+          import json, os, re, subprocess, sys
+          rd = os.environ["RUN_OUT"]
+          # The review body is assembled DETERMINISTICALLY from 90-verdict.json — the model does not write the body
+          # and cannot append anything to it (the "too much text" saga v2.8/2.12/2.16 is closed by the form).
+          # The body strings below are Russian on purpose: the review posted to the PR is in Russian.
+          vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
+          if os.path.exists(vf):
+              v = json.load(open(vf))
+              head = str(v.get("head", ""))[:7]
+              c = v.get("counts") or {}
+              major, med, rem = int(c.get("major") or 0), int(c.get("medium") or 0), int(c.get("remark") or 0)
+              mode = v.get("mode", "pipeline")
+              total = major + med + rem
+              if total == 0:
+                  if mode == "fix-round":
+                      body = (f"Находок нет. Голова `{head}`, фикс-раунд после `{str(v.get('prev_head',''))[:7]}`: "
+                              f"закрыты все {v.get('prev_total', v.get('prev_closed', 0))} находок прошлого ревью.")
+                  elif mode == "single":
+                      body = f"Находок нет. Голова `{head}`, одиночное ревью."
+                  else:
+                      body = f"Находок нет. Голова `{head}`, агентов: {v.get('agents', 0)}."
+              else:
+                  def pl(n, one, few, many):
+                      n10, n100 = n % 10, n % 100
+                      return one if n10 == 1 and n100 != 11 else few if 2 <= n10 <= 4 and not 12 <= n100 <= 14 else many
+                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} {pl(med, 'среднее', 'средних', 'средних')}"] * (med > 0) + [f"{rem} {pl(rem, 'ремарка', 'ремарки', 'ремарок')}"] * (rem > 0)
+                  hdr = f"Голова `{head}`"
+                  if mode == "fix-round":
+                      hdr += f", фикс-раунд после `{str(v.get('prev_head',''))[:7]}`"
+                  elif mode == "single":
+                      hdr += ", одиночное ревью"
+                  else:
+                      hdr += f", агентов: {v.get('agents', 0)}"
+                      if v.get("triage_skips"):
+                          hdr += f" (триаж: {v['triage_skips']})"
+                  body = hdr + ". Находки: " + " / ".join(parts) + "."
+              # 90-body-findings.md is appended even with zero findings: it holds
+              # the caveat line of the single-pass degradation (ci-pipeline contract).
+              bff = f"{rd}/90-body-findings.md"
+              if os.path.exists(bff):
+                  body += "\n\n" + open(bff).read().strip()
+          elif os.path.exists(bf):
+              # Degradation fallback: the free-form body of a single pass under the old contract.
+              print("::warning::no 90-verdict.json — published the fallback 90-final-review.md (contract degradation)")
+              body = open(bf).read().strip()
+          else:
+              print("::error::Claude did not produce 90-verdict.json — review not published")
+              sys.exit(1)
+          try:
+              inl = json.load(open(f"{rd}/90-inline.json"))
+              assert isinstance(inl, list)
+          except Exception:
+              inl = []
+          # valid line numbers from the diff: RIGHT — the after-version, LEFT — the before-version
+          right, left, cur, oldp = {}, {}, None, None
+          for ln in open(f"{rd}/01-diff.patch", encoding="utf-8", errors="replace"):
+              m = re.match(r"--- a/(.*)", ln)
+              if m:
+                  oldp = m.group(1).strip(); continue
+              m = re.match(r"\+\+\+ (?:b/(.*)|(/dev/null))", ln)
+              if m:
+                  # deleted file: "+++ /dev/null" — the path is taken from "--- a/…"
+                  cur = (m.group(1) or oldp or "").strip(); right.setdefault(cur, set()); left.setdefault(cur, set()); continue
+              m = re.match(r"@@ -(\d+)(?:,(\d+))? \+(\d+)(?:,(\d+))? @@", ln)
+              if m and cur:
+                  a, b = int(m.group(1)), int(m.group(2) or 1)
+                  c, d = int(m.group(3)), int(m.group(4) or 1)
+                  left[cur].update(range(a, a + b)); right[cur].update(range(c, c + d))
+          good, moved = [], []
+          for cm in inl:
+              p_, l_, side = cm.get("path"), cm.get("line"), (cm.get("side") or "RIGHT")
+              ok = (side == "RIGHT" and l_ in right.get(p_, ())) or (side == "LEFT" and l_ in left.get(p_, ()))
+              (good if ok else moved).append(cm)
+          def as_body_list(items):
+              return "\n".join(f"- `{c.get('path')}:{c.get('line')}` — {c.get('body','').strip()}" for c in items)
+          if moved:
+              body += "\n\n---\nНаходки вне диапазонов диффа:\n" + as_body_list(moved)
+          def post(payload):
+              open(f"{rd}/payload.json", "w").write(json.dumps(payload))
+              return subprocess.run([os.environ["GH_BIN"], "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
+                                     "-X", "POST", "--input", f"{rd}/payload.json"], capture_output=True, text=True)
+          if os.environ.get("REPLAY"):
+              body = "🔁 Реплей-прогон (замер стоимости, workflow_dispatch) — не новый раунд ревью.\n\n" + body
+          payload = {"event": "COMMENT", "body": body}
+          if good:
+              payload["comments"] = [{"path": c["path"], "line": c["line"], "side": c.get("side", "RIGHT"), "body": c["body"]} for c in good]
+          r = post(payload)
+          if r.returncode and good:
+              print("::warning::POST with inlines failed, publishing everything in the body:", r.stderr[:500])
+              r = post({"event": "COMMENT", "body": body + "\n\n---\nИнлайны (fallback):\n" + as_body_list(good)})
+          if r.returncode:
+              print("::error::review publication failed:", r.stderr[:1000]); sys.exit(1)
+          print("review published")
+          PY
+
+      - name: Post journal observation
+        if: always()
+        # The journal is non-critical: a GitHub failure on this step must not paint the job red (run 37520167275 —
+        # GraphQL "Something went wrong" after a successful review publication). Three attempts, then a warning.
+        continue-on-error: true
+        env:
+          RUN_OUT: ${{ runner.temp }}/publish-inputs
+          GH_TOKEN: ${{ secrets.CLAUDE_PLUGINS_TOKEN || github.token }}
+          INPUTS: ${{ needs.review.outputs.publish_artifact }}
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
+        run: |
+          f="$RUN_OUT/95-journal.md"
+          [ -f "$f" ] || { echo "no observations"; exit 0; }
+          # Run marker: a GitHub error does not guarantee that addComment was not applied, and "Re-run failed jobs"
+          # runs this step again — before every attempt we look for the marker in recent comments (no duplicate).
+          # The marker names the uploaded inputs too: "Re-run all jobs" keeps the run id but runs a new session
+          # with new observations and a new artifact — that journal is posted, a re-run of this job alone is not.
+          # Known gap (claude-plugins#52): this query returns the OLDEST comments of #1, so the check does not see
+          # a recent marker yet and a duplicate is still possible.
+          marker="<!-- run ${GITHUB_RUN_ID} inputs ${INPUTS} -->"
+          printf '\n%s\n' "$marker" >> "$f"
+          posted() { "$GH_BIN" api "repos/OmnisGM-App/claude-plugins/issues/1/comments?per_page=10&sort=created&direction=desc" --jq '.[].body' 2>/dev/null | grep -qF "$marker"; }
+          for i in 1 2 3; do
+            posted && { echo "comment already posted (an earlier attempt or run attempt)"; exit 0; }
+            "$GH_BIN" issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$f" && exit 0
+            [ "$i" -lt 3 ] && { echo "attempt $i failed, pausing"; sleep $((i * 10)); }
+          done
+          echo "::group::Journal that could not be sent"; cat "$f"; echo "::endgroup::"
+          echo "::warning::journal not sent after 3 attempts — the text is in the log of this step"
+          exit 1
+
   # v2.48: the review gate label — 0 ❗ sets `gate/review-passed`, ❗ removes it; a replay or a
   # base-merge round (nothing re-checked) never touches it. Own job: `actions: write` for re-dispatching
   # merge-gate.yml (GITHUB_TOKEN label changes fire no `labeled` event) stays away from the agent's job.
@@ -862,9 +961,10 @@ jobs:
   # removes `gate/review-passed` (0 ❗ sets, ❗ removes; a replay or a base-merge round without a carried
   # verdict never touches it), then re-dispatches merge-gate.yml (GITHUB_TOKEN label changes fire no
   # `labeled` event). `actions: write` / `checks: write` stay away from the agent's job.
+  # v2.60: also deletes the `publish-inputs` artifact, and reads `published` from the `publish` job.
   finish:
     name: Review gate label
-    needs: [resolve, review]
+    needs: [resolve, review, publish]
     if: always() && needs.resolve.outputs.go == '1'
     runs-on: ubuntu-latest
     timeout-minutes: 10  # v2.51: the gate re-run loop has its own 420 s deadline below
@@ -885,24 +985,46 @@ jobs:
       ITER_MODE: ${{ needs.review.outputs.iter_mode }}
       PREV_MAJOR: ${{ needs.review.outputs.prev_major }}
       REPLAY: ${{ needs.review.outputs.replay }}
-      PUBLISHED: ${{ needs.review.outputs.published }}
+      PUBLISHED: ${{ needs.publish.outputs.published }}
+      PUBLISH_ARTIFACT: ${{ needs.review.outputs.publish_artifact }}
       REVIEW_RESULT: ${{ needs.review.result }}
       CHECK_ID: ${{ needs.resolve.outputs.check_id }}
       SUPERSEDED: ${{ needs.review.outputs.superseded }}
     steps:
-      - name: Ensure gh CLI in PATH
-        shell: bash
+      - name: Install gh into a fresh directory
+        # v2.60: the runner is reused across jobs and runs (run 42897272145: resolve and finish on one runner), so HOME
+        # and PATH may hold what an earlier agent session planted. This job holds a write right: it reads neither —
+        # every step's bash by absolute path (the runner looks `bash` up on its own PATH), PATH without HOME entries
+        # for the commands of the next steps, `curl -q` (no ~/.curlrc), gh in a fresh directory called as "$GH_BIN"
+        # with an empty GH_CONFIG_DIR (no aliases or hosts from ~/.config/gh).
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
         run: |
-          command -v gh >/dev/null && exit 0
+          h=${HOME%/}; p=; IFS=: read -ra dirs <<<"$PATH"
+          for e in "${dirs[@]}"; do
+            case "$e" in /*) ;; *) continue ;; esac  # an empty or relative entry resolves against the cwd
+            if [ -n "$h" ]; then case "$e/" in "$h"/*) continue ;; esac; fi
+            p=${p:+$p:}$e
+          done
+          PATH=$p; echo "PATH=$p" >> "$GITHUB_ENV"
           case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
-          v=$(curl -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          d=$(mktemp -d "$RUNNER_TEMP/gh.XXXXXX"); mkdir "$d/config"
+          v=$(curl -q -fsSL -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
           [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
-          curl -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
-          tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
-          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+          curl -q -fsSL "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$d/gh.tgz"
+          tar -xzf "$d/gh.tgz" -C "$d"
+          bin="$d/gh_${v}_linux_${a}/bin/gh"
+          GH_CONFIG_DIR="$d/config" "$bin" --version | head -1
+          { echo "GH_BIN=$bin"; echo "GH_CONFIG_DIR=$d/config"; } >> "$GITHUB_ENV"
+      # Any outcome but a posted review keeps it (1 day) for "Re-run failed jobs": publish + finish, not a new session.
+      - name: Delete publish inputs
+        if: env.PUBLISH_ARTIFACT != '' && env.PUBLISHED == 'success'
+        continue-on-error: true
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
+        run: |
+          "$GH_BIN" api -X DELETE "repos/$REPO/actions/artifacts/$PUBLISH_ARTIFACT" && echo "artifact $PUBLISH_ARTIFACT deleted"
       - name: Close check run
         if: env.CHECK_ID != ''
-        shell: bash
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
         run: |
           if [ "$REVIEW_RESULT" = "success" ] && [ "$SUPERSEDED" = "1" ]; then
             conclusion=neutral; title="superseded — the PR head moved on, its own round reviews it"; summary="See the run log."
@@ -916,12 +1038,13 @@ jobs:
             summary="Head \`${HEADSHA:0:7}\`, mode ${ITER_MODE:-pipeline}. The review itself is on the PR: https://github.com/$REPO/pull/$PR"
           fi
           [ -n "$REPLAY" ] && title="replay — $title"
-          gh api -X PATCH "repos/$REPO/check-runs/$CHECK_ID" -f status=completed -f conclusion="$conclusion" \
+          "$GH_BIN" api -X PATCH "repos/$REPO/check-runs/$CHECK_ID" -f status=completed -f conclusion="$conclusion" \
             -f "output[title]=$title" -f "output[summary]=$summary" --jq .id >/dev/null && echo "check run closed: $conclusion — $title" \
             || echo "::warning::check run $CHECK_ID not closed"
       - name: Set or remove gate/review-passed
-        if: env.REVIEW_RESULT == 'success' && env.REPLAY == '' && env.MAJOR != ''
-        shell: bash
+        # v2.60: a failed publish no longer fails the `review` job — PUBLISHED keeps an unposted verdict off the label
+        if: env.REVIEW_RESULT == 'success' && env.PUBLISHED == 'success' && env.REPLAY == '' && env.MAJOR != ''
+        shell: /usr/bin/bash --noprofile --norc -eo pipefail {0}
         run: |
           set -euo pipefail
           if [ "$ITER_MODE" = "base-merge" ]; then
@@ -930,17 +1053,17 @@ jobs:
             echo "base-merge round — using the carried verdict: $PREV_MAJOR ❗"; MAJOR=$PREV_MAJOR
           fi
           if [ "$MAJOR" = "0" ]; then
-            live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha)
+            live=$("$GH_BIN" api "repos/$REPO/pulls/$PR" --jq .head.sha)
             if [ "$live" != "$HEADSHA" ]; then echo "::notice::reviewed $HEADSHA, live head is $live — label not set, the next round decides"; exit 0; fi
-            gh label create gate/review-passed --repo "$REPO" --color 0E8A16 --description "claude-review: last round ended with 0 ❗ (set by the workflow)" --force >/dev/null
+            "$GH_BIN" label create gate/review-passed --repo "$REPO" --color 0E8A16 --description "claude-review: last round ended with 0 ❗ (set by the workflow)" --force >/dev/null
             # The gate verifies the label's actor from the events list, which lags: count OUR labeled events
             # over the whole list (--jq runs per page with --paginate) before and after, and wait for the increase.
             # per-page counts summed in bash: the container has no bc/awk guarantee (run 39438210805: `bc: command not found`)
             # A gh failure must be visible (a process substitution hides its exit code), but must not stop the
             # step before the label is applied: warn and skip the wait instead.
-            count() { local out s=0 n; out=$(gh api "repos/$REPO/issues/$PR/events" --paginate --jq '[.[] | select(.event == "labeled" and .label.name == "gate/review-passed" and .actor.login == "github-actions[bot]")] | length') || return 1; while read -r n; do s=$((s + n)); done <<<"$out"; echo "$s"; }
+            count() { local out s=0 n; out=$("$GH_BIN" api "repos/$REPO/issues/$PR/events" --paginate --jq '[.[] | select(.event == "labeled" and .label.name == "gate/review-passed" and .actor.login == "github-actions[bot]")] | length') || return 1; while read -r n; do s=$((s + n)); done <<<"$out"; echo "$s"; }
             before=$(count) || { echo "::warning::events list unreadable — label set without waiting for its event"; before=; }
-            gh pr edit "$PR" --repo "$REPO" --add-label gate/review-passed
+            "$GH_BIN" pr edit "$PR" --repo "$REPO" --add-label gate/review-passed
             echo "gate/review-passed set (0 ❗ on $HEADSHA)"
             if [ -n "$before" ]; then
               seen=
@@ -952,7 +1075,7 @@ jobs:
               [ -n "$seen" ] || echo "::warning::our labeled event did not show up within 30 s — the gate may need a re-run"
             fi
           else
-            if gh pr edit "$PR" --repo "$REPO" --remove-label gate/review-passed; then echo "gate/review-passed removed ($MAJOR ❗)"; else echo "$MAJOR ❗ — label was not set"; fi
+            if "$GH_BIN" pr edit "$PR" --repo "$REPO" --remove-label gate/review-passed; then echo "gate/review-passed removed ($MAJOR ❗)"; else echo "$MAJOR ❗ — label was not set"; fi
           fi
           # v2.50/v2.51: re-run the gate's own pull_request runs on this head (a dispatch run is attached to no PR —
           # Table#1251). The run may still be in progress (the labeled/unlabeled event of a moment ago): wait for it.
@@ -961,7 +1084,7 @@ jobs:
           # the live head's run of a moment ago may have read a label this round just removed and still be green
           # (Rules#447 round 4) — it is re-run and goes red.
           # A failed read must not fall back to $HEADSHA (that would be the stale-head replay again) — say so and stop.
-          live=$(gh api "repos/$REPO/pulls/$PR" --jq .head.sha) || { echo "::warning::live head unreadable — no gate re-run; toggle a label or push to re-evaluate the gate"; exit 0; }
+          live=$("$GH_BIN" api "repos/$REPO/pulls/$PR" --jq .head.sha) || { echo "::warning::live head unreadable — no gate re-run; toggle a label or push to re-evaluate the gate"; exit 0; }
           target=$live
           [ "$target" = "$HEADSHA" ] || echo "::notice::live head is $target, this round read $HEADSHA — re-running the live head's gate run"
           # v2.51: ALL pull_request runs of THIS PR's branch on the head, not the first listed one — an `opened`+`labeled`
@@ -980,7 +1103,7 @@ jobs:
           # After `gh run rerun` the run is still read as `completed` for a moment — wait for the attempt number to
           # grow, then (except for the last id) poll its status until it leaves `pending`; a `pending` that lasts
           # the whole wait is reported, not re-run behind (Rules#451, News#173, Table#1257).
-          ids=$(gh run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '[.[].databaseId] | sort | reverse | .[]') || ids=
+          ids=$("$GH_BIN" run list --repo "$REPO" --workflow merge-gate.yml --event pull_request --branch "$HEADREF" --commit "$target" --limit 10 --json databaseId --jq '[.[].databaseId] | sort | reverse | .[]') || ids=
           if [ -z "$ids" ]; then
             echo "::warning::no pull_request run of merge-gate.yml on $target ($HEADREF) — toggle a label or push to re-evaluate the gate"
           fi
@@ -990,7 +1113,7 @@ jobs:
           rerun_one() {  # $1 = run id, $2 = 'last' for the last id. 0: the new attempt exists and holds the gate's
             # group (for the last id: exists — nothing can queue behind it). 2: read as pending to the end. 1: anything else.
             local run_id=$1 is_last=${2:-} line st concl att0 att left poll_end wait_end held read_pending=  # `=`: set -u, the wait may never run
-            line=$(gh run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
+            line=$("$GH_BIN" run view "$run_id" --repo "$REPO" --json status,attempt --jq '"\(.status) \(.attempt)"') || line=
             st=${line%% *}; att0=${line##* }
             [ -n "$att0" ] || return 1
             # Still in progress (the labeled/unlabeled event of a moment ago): a rerun of a running run is refused and
@@ -998,18 +1121,18 @@ jobs:
             if [ "$st" != "completed" ]; then
               left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || return 1
               echo "gate run $run_id still in progress — waiting for it to finish before the re-run"
-              timeout "$(( left < 150 ? left : 150 ))" gh run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
+              timeout "$(( left < 150 ? left : 150 ))" "$GH_BIN" run watch "$run_id" --repo "$REPO" >/dev/null 2>&1 || true
             fi
             [ "$SECONDS" -lt "$deadline" ] || return 1
             # A rerun queued behind a `pending` run of this branch — own or outside (a label toggle, a push) —
             # cancels it; a `queued` run already holds the group and a rerun behind it only waits (Rules#451 round 3).
-            held=$(gh run list --repo "$REPO" --workflow merge-gate.yml --branch "$HEADREF" --limit 10 --json status --jq '[.[] | select(.status == "pending" or .status == "waiting" or .status == "requested")] | length') || held=1
+            held=$("$GH_BIN" run list --repo "$REPO" --workflow merge-gate.yml --branch "$HEADREF" --limit 10 --json status --jq '[.[] | select(.status == "pending" or .status == "waiting" or .status == "requested")] | length') || held=1
             [ "$held" = "0" ] || { echo "a gate run of $HEADREF is pending — not re-running $run_id behind it"; return 1; }
-            gh run rerun "$run_id" --repo "$REPO" || return 1
+            "$GH_BIN" run rerun "$run_id" --repo "$REPO" || return 1
             echo "merge gate run $run_id re-run on $target — waiting for the attempt"
             att=$att0; poll_end=$((SECONDS + 60))
             while [ "$SECONDS" -lt "$deadline" ] && [ "$SECONDS" -lt "$poll_end" ]; do
-              att=$(gh run view "$run_id" --repo "$REPO" --json attempt --jq .attempt) || att=$att0
+              att=$("$GH_BIN" run view "$run_id" --repo "$REPO" --json attempt --jq .attempt) || att=$att0
               [ "$att" != "$att0" ] && break
               sleep 5
             done
@@ -1025,7 +1148,7 @@ jobs:
             left=$((deadline - SECONDS)); [ "$left" -gt 0 ] || return 1
             wait_end=$((SECONDS + (left < 150 ? left : 150)))
             while [ "$SECONDS" -lt "$wait_end" ]; do
-              line=$(gh run view "$run_id" --repo "$REPO" --json status,conclusion --jq '"\(.status) \(.conclusion)"') || line="unknown "
+              line=$("$GH_BIN" run view "$run_id" --repo "$REPO" --json status,conclusion --jq '"\(.status) \(.conclusion)"') || line="unknown "
               st=${line%% *}; concl=${line#* }
               read_pending=; [ "$st" = pending ] && read_pending=1  # a real read, not the fallback
               [ "$st" = completed ] && [ "$concl" = cancelled ] && return 1  # the attempt was cancelled in the group
