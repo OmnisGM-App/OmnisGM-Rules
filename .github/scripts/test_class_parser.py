@@ -670,6 +670,10 @@ eq("правило без строки половинных заклинател
    "multiclass Spell Slots: 0 «half» lines")
 
 
+# Языки и бонусы урона пишет attach_choices (choices.py) — после разбора.
+NO_MECHANICS = {"languages": [], "damage_bonuses": []}
+
+
 def with_casters(data):
     errors = attach_caster_shares(data, {"srd52": SHARES})
     return errors + align_classes(data)
@@ -686,7 +690,7 @@ for lang in ("en", "ru"):
     eq(f"{lang}: живые классы проходят схему",
        [c["slug"] for c in cast[("srd52", lang, "classes")] if not jsonschema.Draft7Validator(CLASS_SCHEMA).is_valid(
            {**c, "choices": [], "multiclass": {**c["multiclass"], "choices": []},
-            "features": [{**f, "choices": []} for f in c["features"]]})], [])
+            "features": [{**f, "choices": [], **NO_MECHANICS} for f in c["features"]]})], [])
     eq(f"{lang}: в SRD 5.2.1 нет подкласса-заклинателя",
        [s["slug"] for s in cast[("srd52", lang, "subclasses")] if s["spellcasting"] is not None], [])
 
@@ -834,7 +838,7 @@ for lang in ("en", "ru"):
        {o["slug"]: o.get("attacks") for o in opts[("srd52", lang, "class-options")] if o.get("attacks")}, OPTION_ATTACKS)
     eq(f"{lang}: живые подклассы проходят схему",
        [s["slug"] for s in cast[("srd52", lang, "subclasses")] if not jsonschema.Draft7Validator(SUBCLASS_SCHEMA).is_valid(
-           {**s, "features": [{**f, "choices": [], "always_prepared": False} for f in s["features"]]})], [])
+           {**s, "features": [{**f, "choices": [], "always_prepared": False, **NO_MECHANICS} for f in s["features"]]})], [])
     eq(f"{lang}: живые варианты проходят схему",
        [o["slug"] for o in opts[("srd52", lang, "class-options")]
         if not jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid({**o, "choices": []})], [])
@@ -852,14 +856,14 @@ eq("перечисления схемы = ATTACK_KEYS / ARMOR_CLASS_GROUPS па�
    (list(ATTACK_KEYS), list(ATTACK_KEYS), list(ATTACK_KEYS), list(ARMOR_CLASS_GROUPS)))
 monk_ud = next(f for f in cast[("srd52", "en", "classes")] if f["slug"] == "monk")["features"][0]
 eq("схема: неизвестный key атак и неизвестная group КД отклонены",
-   [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid({**monk_ud, "choices": [], **patch})
+   [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid({**monk_ud, "choices": [], **NO_MECHANICS, **patch})
     for patch in ({}, {"attacks": {**EXTRA, "key": "flurry"}}, {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")],
                                                                              "group": "natural-armor"}},
                   {"attacks": {k: v for k, v in EXTRA.items() if k != "weapon"}})],
    [True, False, False, False])
 eq("схема: умение без attacks или armor_class, вариант без attacks отклонены",
    [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid(
-       {k: v for k, v in {**monk_ud, "choices": []}.items() if k != drop}) for drop in ("attacks", "armor_class")]
+       {k: v for k, v in {**monk_ud, "choices": [], **NO_MECHANICS}.items() if k != drop}) for drop in ("attacks", "armor_class")]
    + [jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid(
        {k: v for k, v in {**opts[("srd52", "en", "class-options")][0], "choices": []}.items() if k != "attacks"})],
    [False, False, False])
