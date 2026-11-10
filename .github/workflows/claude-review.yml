@@ -7,6 +7,9 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.56 (2026-11-10, claude-plugins#45): a PR labelled `plugin-copy` gets no round either — sync-templates.yml sets
+# the label on its copy PRs, and the merge gate compares each copy with its template (merge_gate.py, "Template copies");
+# removing the label starts a round, as removing `gate/review-passed` does.
 # v2.55 (2026-11-10, News#189): a failed fetch of the inline review threads prints a warning instead of being swallowed.
 # v2.54 (2026-11-08): a `sync/templates-*` branch gets no round — the merge gate compares those copies with the
 # claude-plugins templates blob by blob (merge_gate.py, "Template sync"); a round would review the template twice.
@@ -144,7 +147,7 @@ concurrency:
   # (its CI completion) cancels the round running on the previous head.
   # unlabeled of any OTHER label must not enter the group (it would cancel a running round and end
   # skipped): such runs get a group of their own.
-  group: claude-review-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}${{ github.event.action == 'unlabeled' && github.event.label.name != 'gate/review-passed' && format('-noop-{0}', github.run_id) || '' }}
+  group: claude-review-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}${{ github.event.action == 'unlabeled' && github.event.label.name != 'gate/review-passed' && github.event.label.name != 'plugin-copy' && format('-noop-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -164,7 +167,7 @@ jobs:
       github.event.workflow_run.pull_requests[0].number ) || (
       github.event_name == 'pull_request' && github.event.action == 'ready_for_review' ) || (
       github.event_name == 'pull_request' && github.event.action == 'unlabeled' &&
-      github.event.label.name == 'gate/review-passed' )
+      (github.event.label.name == 'gate/review-passed' || github.event.label.name == 'plugin-copy') )
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -211,14 +214,15 @@ jobs:
         run: |
           set -euo pipefail
           # REST, not `gh pr view`: the latter reports dependabot as `app/dependabot` (review of Table#1179).
-          read -r draft author base sha state labelled head < <(gh api "repos/$REPO/pulls/$PR" \
-            --jq '"\(.draft) \(.user.login) \(.base.ref) \(.head.sha) \(.state) \([.labels[].name] | index("gate/review-passed") != null) \(.head.ref)"')
+          read -r draft author base sha state labelled copy head < <(gh api "repos/$REPO/pulls/$PR" \
+            --jq '"\(.draft) \(.user.login) \(.base.ref) \(.head.sha) \(.state) \([.labels[].name] | index("gate/review-passed") != null) \([.labels[].name] | index("plugin-copy") != null) \(.head.ref)"')
           skip=""
           if [ -z "$DISPATCH" ]; then
             [ "$draft" = "false" ] || skip="draft"
             [ "$author" != "dependabot[bot]" ] || skip="dependabot"
             # template sync: the merge gate compares the copies with claude-plugins itself — no round (2026-11-08)
             [ "${head#sync/templates-}" = "$head" ] || skip="template sync (merge gate checks the copies)"
+            [ "$copy" = "false" ] || skip="plugin-copy (merge gate checks the copies)"
             [ "$base" = "$DEFAULT_BRANCH" ] || skip="base is not the default branch (stacked PR)"
             [ "$state" = "open" ] || skip="PR is not open"
             [ "$labelled" = "false" ] || skip="gate/review-passed is set — remove the label to request a round"

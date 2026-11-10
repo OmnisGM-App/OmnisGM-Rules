@@ -34,7 +34,7 @@ class Fake:
 
 
 class SyncFake(Fake):
-    """A sync-branch PR: `bad` is what template_mismatches returns (at the head, at the merge), `status` what
+    """A template-copy PR: `bad` is what template_mismatches returns (at the head, at the merge, settings), `status` what
     file_status returns, `unreadable` what templates_unreadable returns, `merge` the test merge when the pull has none."""
     def __init__(self, bad, status, unreadable=None, merge="m0"):
         super().__init__(); self.bad, self.status, self.unreadable, self.merge, self.asked = bad, status, unreadable, merge, []
@@ -42,8 +42,10 @@ class SyncFake(Fake):
         return self.unreadable
     def merge_commit(self, pull):
         return pull.get("merge_commit_sha") or self.merge
-    def template_mismatches(self, files, head, merge):
-        self.asked.append((tuple(files), head, merge)); return self.bad
+    def template_mismatches(self, files, head, merge, base):
+        self.asked.append((tuple(files), head, merge, base)); return self.bad
+    def merge_parent(self, sha):
+        return "parent-" + sha
     def file_status(self):
         return dict(self.status)
 
@@ -282,22 +284,23 @@ class Gate(unittest.TestCase):
 
     def test_template_sync_needs_no_labels_when_every_blob_matches(self):
         files = [".claude/rules/review-response.md", ".claude/rules/code-comments.md"]
-        Sync = lambda bad=([], []), **kw: SyncFake(bad, {f: "modified" for f in files}, **kw)
+        Sync = lambda bad=([], [], []), **kw: SyncFake(bad, {f: "modified" for f in files}, **kw)
         gh = Sync()
         _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
         self.assertEqual(fail, [])
-        self.assertEqual(gh.asked, [(tuple(files), "head1", "m0")])  # compared at the live head, all files
+        self.assertEqual(gh.asked, [(tuple(files), "head1", "m0", "parent-m0")])  # at the live head, all files, against the merge's own base
         gh = Sync()
         mg.evaluate(gh, pull(head="sync/templates-abc1234", merge="m1"), files, [], {})
-        self.assertEqual(gh.asked, [(tuple(files), "head1", "m1")])  # and in the test merge with the base
+        self.assertEqual(gh.asked, [(tuple(files), "head1", "m1", "parent-m1")])  # and in the test merge with the base
         _, fail, _ = mg.evaluate(Sync(), pull(["gate/matrix-not-needed"], head="sync/templates-abc1234"), files, [], {})
         self.assertEqual(fail, [])  # a matrix label set by habit does not break it
         _, fail, _ = mg.evaluate(Sync(), pull(["gate/matrix-passed", "gate/matrix-not-needed"], head="sync/templates-abc1234"),
                                  files, [], {"gate/matrix-passed": "head1"})
         self.assertTrue(any("exactly one of" in f and "found 2" in f for f in mg.split_outcome(fail)[1]), fail)
         out = "outside `sync/templates-*`"
-        cases = ((Sync(([files[0]], [])), ("differ from", "at the head —", out)),
-                 (Sync(([], [files[0]])), ("in the merge with the base", "run sync-templates.yml", out)),
+        cases = ((Sync(([files[0]], [], [])), ("differ from", "at the head —", out)),
+                 (Sync(([], [files[0]], [])), ("in the merge with the base", "run sync-templates.yml", out)),
+                 (Sync(([], [], [files[0]])), ("settings lines", "an ordinary PR", out)),
                  (Sync(merge=None), ("no test merge", "Re-run jobs", out)),
                  (Sync(unreadable="TEMPLATES_TOKEN cannot read x"), ("cannot read x",)))
         for gh, whys in cases:
@@ -312,7 +315,7 @@ class Gate(unittest.TestCase):
     def test_template_sync_exempts_only_modified_copies(self):
         files = [".claude/rules/a.md", ".claude/rules/b.md"]
         for status in ("added", "renamed", "removed", "copied", ""):
-            gh = SyncFake(([], []), {files[0]: "modified", files[1]: status})
+            gh = SyncFake(([], [], []), {files[0]: "modified", files[1]: status})
             _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
             waiting, errors = mg.split_outcome(fail)
             self.assertTrue(any("only modified copies" in e and ".claude/rules/b.md" in e and "outside `sync/templates-*`" in e
@@ -322,7 +325,7 @@ class Gate(unittest.TestCase):
 
     def test_template_sync_rejects_foreign_files_without_reading_blobs(self):
         class Never(Fake):
-            def template_mismatches(self, files, head, merge):
+            def template_mismatches(self, files, head, merge, base):
                 raise AssertionError("must not be asked")
             def merge_commit(self, pull):
                 raise AssertionError("must not be asked")
@@ -331,7 +334,8 @@ class Gate(unittest.TestCase):
             def file_status(self):
                 raise AssertionError("must not be asked")
         for files in ([".claude/rules/a.md", "src/a.ts"], [".claude/rules/sub/a.md"], [".claude/rules/a.txt"],
-                      [".github/workflows/merge-gate.yml"], [], [".claude/rules/review-response.md?x=.md"],
+                      [".github/workflows/ci.yml"], [".github/scripts/docs_only.py"], [".github/scripts/merge_gate.py", "package.json"],
+                      [], [".claude/rules/review-response.md?x=.md"],
                       [".claude/rules/a.md\n"], [".claude/rules/a&ref=x.md"], [".claude/rules/a%3F.md"],
                       [".claude/rules/.hidden.md"], ["x/.claude/rules/a.md"]):
             _, fail, _ = mg.evaluate(Never(), pull(head="sync/templates-abc1234"), files, [], {})
@@ -343,14 +347,76 @@ class Gate(unittest.TestCase):
 
     def test_template_sync_holds_only_into_the_default_branch(self):
         files = [".claude/rules/a.md"]
-        gh = SyncFake(([], []), {files[0]: "modified"})
+        gh = SyncFake(([], [], []), {files[0]: "modified"})
         _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234", base="master", default="dev"), files, [], {})
         waiting, errors = mg.split_outcome(fail)
         self.assertTrue(any("not the default branch `dev`" in e and "outside `sync/templates-*`" in e for e in errors), fail)
         self.assertEqual(gh.asked, [])
-        _, fail, _ = mg.evaluate(SyncFake(([], []), {files[0]: "modified"}), pull(head="sync/templates-abc1234", base="main", default="main"),
+        _, fail, _ = mg.evaluate(SyncFake(([], [], []), {files[0]: "modified"}), pull(head="sync/templates-abc1234", base="main", default="main"),
                                  files, [], {})
         self.assertEqual(fail, [])
+
+    def test_plugin_copy_label_asks_for_the_same_check_on_any_branch(self):
+        files = [".github/scripts/merge_gate.py", ".github/workflows/claude-review.yml", ".claude/rules/a.md"]
+        gh = SyncFake(([], [], []), {f: "modified" for f in files})
+        _, fail, _ = mg.evaluate(gh, pull(["plugin-copy"], head="ci/copies"), files, [], {})
+        self.assertEqual((fail, gh.asked), ([], [(tuple(files), "head1", "m0", "parent-m0")]))  # no review, no matrix label
+        for bad, why in ((([files[0]], [], []), "differ from"), (([], [], [files[1]]), "settings lines")):
+            _, fail, _ = mg.evaluate(SyncFake(bad, {f: "modified" for f in files}),
+                                     pull(["plugin-copy", "gate/review-passed"], head="ci/copies"), files, REVIEW_OK, {})
+            waiting, errors = mg.split_outcome(fail)
+            self.assertTrue(any(why in e and "`plugin-copy` PR:" in e and "Remove `plugin-copy`" in e for e in errors), fail)
+            self.assertEqual(waiting, [])  # blocked: the review label does not lift a failed copy check
+        _, fail, _ = mg.evaluate(gh, pull(["plugin-copy"], head="ci/copies"), files + ["package.json"], [], {})
+        self.assertTrue(any("`plugin-copy` is set but the PR changes 'package.json'" in e for e in mg.split_outcome(fail)[1]), fail)
+        _, fail, _ = mg.evaluate(gh, pull(["plugin-copy"], head="ci/copies", base="feat/x"), files, [], {})
+        self.assertTrue(any("`plugin-copy` PR into `feat/x`, not the default branch `dev`" in e for e in fail), fail)
+        _, fail, _ = mg.evaluate(SyncFake(([], [], []), {}), pull(head="ci/copies"), files, [], {})
+        self.assertTrue(any("waiting for `gate/review-passed`" in f for f in fail))  # no label, no sync branch: reviewed
+
+    def test_template_of_maps_rule_files_and_workflow_copies_only(self):
+        self.assertEqual(mg.template_of(".claude/rules/a.md"), "templates/a.md")
+        self.assertEqual(mg.template_of(".github/workflows/claude-review.yml"), ".github/workflows/claude-review.yml")
+        self.assertEqual(mg.template_of(".github/scripts/test_sync_recheck.py"), "templates/workflows/test_sync_recheck.py")
+        for f in (".github/workflows/ci.yml", ".claude/rules/sub/a.md", "templates/a.md", ".github/scripts/docs_only.py"):
+            self.assertIsNone(mg.template_of(f), f)
+        here = os.path.dirname(os.path.abspath(__file__))
+        root = os.path.join(here, "..", "..")
+        if os.path.isdir(os.path.join(root, "templates", "workflows")):  # in claude-plugins: every template exists
+            for t in mg.WORKFLOW_COPIES.values():
+                self.assertTrue(os.path.isfile(os.path.join(root, t)), t)
+
+    def test_settings_lines_are_kept_by_the_sync_and_masked_by_the_check(self):
+        node = "      # Self-sufficiency on self-hosted: Node {0} (x)\n      - name: Setup Node {0}\n"
+        tpl = ("jobs:\n  x:\n    runs-on: self-hosted   # note\n    env:\n  CI_CHECK: 'Validate'\n" + node.format(22)
+               + "          node-version: 22\nend\n")
+        copy = ("jobs:\n  x:\n    runs-on: ubuntu-latest\n    env:\n  CI_CHECK: 'Check & Build'\n" + node.format(24)
+                + "          node-version: 24\nold\n")
+        out = mg.with_settings("a.yml", tpl, copy)
+        self.assertEqual(out, "jobs:\n  x:\n    runs-on: ubuntu-latest\n    env:\n  CI_CHECK: 'Check & Build'\n" + node.format(24)
+                         + "          node-version: 24\nend\n")
+        self.assertEqual(mg.split_settings("a.yml", out)[0], mg.split_settings("a.yml", tpl)[0])
+        self.assertEqual(mg.split_settings("a.yml", out)[1], mg.split_settings("a.yml", copy)[1])
+        self.assertEqual(mg.split_settings("a.md", tpl), (tpl.split("\n"), {}))  # only a workflow copy has settings
+        with self.assertRaises(ValueError):
+            mg.with_settings("a.yml", tpl, copy.replace("    runs-on: ubuntu-latest\n", ""))
+        with self.assertRaises(ValueError):
+            mg.with_settings("a.yml", tpl, copy.replace("node-version: 24", "runs-on: x"))
+
+    def test_settings_lines_stay_with_their_job_when_the_template_reorders_jobs(self):
+        # review of #46, round 2: positional substitution moved `runs-on` of one job to another
+        copy = "on: push\njobs:\n  a:\n    runs-on: ubuntu-latest\n  b:\n    runs-on: self-hosted\n"
+        tpl = "on: push\njobs:\n  b:   # first now\n    runs-on: self-hosted\n    x: 1\n  a:\n    runs-on: self-hosted\n"
+        out = mg.with_settings("w.yml", tpl, copy)
+        self.assertEqual(out, "on: push\njobs:\n  b:   # first now\n    runs-on: self-hosted\n    x: 1\n  a:\n    runs-on: ubuntu-latest\n")
+        self.assertEqual(mg.split_settings("w.yml", out)[1], mg.split_settings("w.yml", copy)[1])
+        swapped = out.replace("    runs-on: self-hosted\n    x: 1\n  a:\n    runs-on: ubuntu-latest",
+                              "    runs-on: ubuntu-latest\n    x: 1\n  a:\n    runs-on: self-hosted")
+        self.assertNotEqual(mg.split_settings("w.yml", swapped)[1], mg.split_settings("w.yml", copy)[1])  # the gate sees a swap
+        self.assertEqual(sorted(mg.split_settings("w.yml", "  CI_CHECK: x\njobs:\n  a:\n    runs-on: y\n    runs-on: z\n")[1]),
+                         [("", "CI_CHECK:", 0), ("a", "runs-on:", 0), ("a", "runs-on:", 1)])
+        with self.assertRaises(ValueError):  # a job added with a settings line does not fit the copy
+            mg.with_settings("w.yml", tpl + "  c:\n    runs-on: self-hosted\n", copy)
 
     def test_file_status_reads_every_page(self):
         gh = mg.GitHub("o/r", "1")
@@ -383,44 +449,45 @@ class Gate(unittest.TestCase):
             mg.gh_json("repos/o/r/contents/x")
             self.assertIsNone(run.call_args.kwargs["env"])
 
-    def test_blob_sha_404_is_none_other_errors_raise_and_the_path_is_quoted(self):
+    def test_file_text_404_is_none_other_errors_raise_and_the_path_is_quoted(self):
         gh = mg.GitHub("o/r", "1")
-        with mock.patch.object(mg.subprocess, "run", return_value=mock.Mock(returncode=0, stdout='{"sha": "s1"}', stderr="")) as run:
-            self.assertEqual(gh.blob_sha("o/r", ".claude/rules/a b?.md", "h#1"), "s1")
+        ok = mock.Mock(returncode=0, stdout='{"content": "aGkK\\n"}', stderr="")
+        with mock.patch.object(mg.subprocess, "run", return_value=ok) as run:
+            self.assertEqual(gh.file_text("o/r", ".claude/rules/a b?.md", "h#1"), "hi\n")
             self.assertIn("contents/.claude/rules/a%20b%3F.md?ref=h%231", run.call_args.args[0][2])
         with mock.patch.object(mg.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="gh: Not Found (HTTP 404)")):
-            self.assertIsNone(gh.blob_sha("o/r", "x.md", "h"))
+            self.assertIsNone(gh.file_text("o/r", "x.md", "h"))
         with mock.patch.object(mg.subprocess, "run", return_value=mock.Mock(returncode=1, stdout="", stderr="HTTP 502: Bad Gateway")):
             with self.assertRaises(RuntimeError):
-                gh.blob_sha("o/r", "x.md", "h")
+                gh.file_text("o/r", "x.md", "h")
 
-    def test_template_mismatches_compares_blob_shas_with_the_template_repo(self):
+    def test_template_mismatches_compares_texts_with_the_template_repo(self):
         gh = mg.GitHub("o/r", "1")
-        blobs = {("o/r", ".claude/rules/a.md", "h"): "s1", ("o/r", ".claude/rules/b.md", "h"): "s2",
-                 ("o/r", ".claude/rules/gone.md", "h"): None,
-                 (mg.TEMPLATES_REPO, "templates/a.md", mg.TEMPLATES_REF): "s1",
-                 (mg.TEMPLATES_REPO, "templates/b.md", mg.TEMPLATES_REF): "other",
-                 (mg.TEMPLATES_REPO, "templates/gone.md", mg.TEMPLATES_REF): "s3"}
+        T, R = mg.TEMPLATES_REPO, mg.TEMPLATES_REF
+        wf = ".github/workflows/merge-gate.yml"
+        texts = {(T, "templates/a.md", R): "A", (T, "templates/b.md", R): "B", (T, "templates/gone.md", R): "G",
+                 (T, "templates/workflows/merge-gate.yml", R): "x\n    runs-on: self-hosted\ny",
+                 ("o/r", ".claude/rules/a.md", "h"): "A", ("o/r", ".claude/rules/b.md", "h"): "other",
+                 ("o/r", ".claude/rules/gone.md", "h"): None, ("o/r", wf, "h"): "x\n    runs-on: ubuntu-latest\ny",
+                 ("o/r", ".claude/rules/a.md", "m"): "A", ("o/r", wf, "m"): "x\n    runs-on: ubuntu-latest\ny",
+                 ("o/r", ".claude/rules/a.md", "t"): "old A", ("o/r", wf, "t"): "old\n    runs-on: ubuntu-latest\n"}
         tokens = []
-        def blob(repo, path, ref, token=None):
-            tokens.append((repo, token)); return blobs[(repo, path, ref)]
-        gh.blob_sha = blob
+        def text(repo, path, ref, token=None):
+            tokens.append((repo, token)); return texts[(repo, path, ref)]
+        gh.file_text = text
+        files = [".claude/rules/a.md", ".claude/rules/b.md", ".claude/rules/gone.md", wf]
         with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):
-            blobs.update({("o/r", ".claude/rules/a.md", "m"): "s1", ("o/r", ".claude/rules/b.md", "m"): "other",
-                          ("o/r", ".claude/rules/gone.md", "m"): "s3"})
-            self.assertEqual(gh.template_mismatches([".claude/rules/a.md", ".claude/rules/b.md", ".claude/rules/gone.md"], "h", "m"),
-                             ([".claude/rules/b.md", ".claude/rules/gone.md"], []))
-        self.assertTrue(all(t == "t" for r, t in tokens if r == mg.TEMPLATES_REPO))
-        self.assertTrue(all(t is None for r, t in tokens if r == "o/r"))  # the PR repo is read with the job's own token
-        blobs[("o/r", ".claude/rules/a.md", "m")] = "merged"  # the base changed the copy too: the squash would not be the template
-        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):
-            self.assertEqual(gh.template_mismatches([".claude/rules/a.md"], "h", "m"), ([], [".claude/rules/a.md"]))
-            blobs[("o/r", ".claude/rules/a.md", "m")] = "s1"
-            self.assertEqual(gh.template_mismatches([".claude/rules/a.md"], "h", "m"), ([], []))
-        blobs[("o/r", ".claude/rules/none.md", "h")] = None
-        blobs[(mg.TEMPLATES_REPO, "templates/none.md", mg.TEMPLATES_REF)] = None
-        with mock.patch.dict(os.environ, {"TEMPLATES_TOKEN": "t"}):  # missing on both sides is not "equal"
-            self.assertEqual(gh.template_mismatches([".claude/rules/none.md"], "h", "m"), ([".claude/rules/none.md"], []))
+            self.assertEqual(gh.template_mismatches(files, "h", "m", "t"),
+                             ([".claude/rules/b.md", ".claude/rules/gone.md"], [], []))  # the runner line is the repo's own
+            self.assertTrue(all(tok == "t" for r, tok in tokens if r == T))
+            self.assertTrue(all(tok is None for r, tok in tokens if r == "o/r"))  # the PR repo: the job's own token
+            texts[("o/r", ".claude/rules/a.md", "m")] = "merged"  # the base changed the copy too
+            self.assertEqual(gh.template_mismatches([".claude/rules/a.md"], "h", "m", "t"), ([], [".claude/rules/a.md"], []))
+            texts[("o/r", wf, "t")] = "x\n    runs-on: self-hosted\ny"  # the copy moves the repo off its runner
+            self.assertEqual(gh.template_mismatches([wf], "h", "m", "t"), ([], [], [wf]))
+            texts[("o/r", ".claude/rules/none.md", "h")] = None
+            texts[(T, "templates/none.md", R)] = None  # missing on both sides is not "equal"
+            self.assertEqual(gh.template_mismatches([".claude/rules/none.md"], "h", "m", "t"), ([".claude/rules/none.md"], [], []))
 
     def test_merge_commit_is_re_read_until_github_computes_it(self):
         gh = mg.GitHub("o/r", "1")
