@@ -717,6 +717,8 @@ for label, key, patch, want in (
         ("школа фильтра, которой нет", EVOCATION, {"spells": {"school": "chronurgy"}}, "бонус урона: школы 'chronurgy' нет"),
         ("выбранное заклинание без выбора", EVOCATION, {"spells": {"choice": "cantrip"}},
          "бонус урона (spells) ссылается на выбор 'cantrip', а выбора вида spell с таким id у умения нет"),
+        ("выбранное заклинание — выбор другого вида", BLESSED, {"spells": {"choice": "option"}},
+         "бонус урона (spells) ссылается на выбор 'option', а выбора вида spell с таким id у умения нет"),
         ("условие по выбору, которого нет", BLESSED, {"when": {"choice": "order", "value": "cleric-potent-spellcasting"}},
          "условие бонуса урона ссылается на выбор 'order', а выбора вида option с таким id у умения нет"),
         ("условие по варианту чужого умения", BLESSED, {"when": {"choice": "option", "value": "druid-potent-spellcasting"}},
@@ -731,6 +733,10 @@ eq("бонус урона варианта по выбору, которого �
    rebuilt(OPTION_DAMAGE_BONUSES={"lessons-of-the-first-ones": AGONIZING}),
    ["class-options/lessons-of-the-first-ones: бонус урона (spells) ссылается на выбор 'cantrip', а выбора вида spell "
     "с таким id у умения нет"])
+eq("условие бонуса урона по выбору другого вида роняет сборку",
+   rebuilt(OPTION_DAMAGE_BONUSES={"agonizing-blast": [{**AGONIZING[0], "when": {"choice": "cantrip", "value": "x"}}]}),
+   ["class-options/agonizing-blast: условие бонуса урона ссылается на выбор 'cantrip', а выбора вида option с таким id "
+    "у умения нет"])
 eq("бонус урона варианта, которого нет, роняет сборку",
    rebuilt(OPTION_DAMAGE_BONUSES={**choices.OPTION_DAMAGE_BONUSES, "potent-blast": AGONIZING}),
    ["объявление без хозяина: class-options/potent-blast"])
