@@ -117,7 +117,22 @@ Done after code and tests, before the PR body and the decision list. For every f
    a comment that became a lie from SOMEONE ELSE's edit in the same diff or from your edit on
    a neighbouring line contains no stop-words and grep does not catch it. A new block of code does not land
    between someone else's docblock and what it describes: after inserting, reread the neighbour above
-   and below.
+   and below. Mechanical check (5 PRs in 3 weeks left a function wedged under another's docblock) —
+   for every added declaration, walk up past the docblock and blank lines you added to the nearest UNCHANGED line;
+   a closing `*/` there belongs to someone else's docblock and is the finding (a removed line in between resets it, so
+   editing a documented signature is not flagged):
+   ```bash
+   git diff -U3 <base>...HEAD -- . ':(exclude)*.md' | awk '
+   /^\+\+\+ /{f=substr($0,7); next}
+   /^@@/{split($3,a,/[+,]/); n=a[2]-1; ctx=""; next}
+   /^-/{ctx=""; next}
+   /^\+/{n++; l=substr($0,2)
+     if (l ~ /^(export )?(default )?(async )?(function|const|let|class|type|interface|enum) /) { if (ctx ~ /\*\/[[:space:]]*$/) print f ":" n ": under a docblock that is not its own"; ctx="" }
+     else if (l !~ /^[[:space:]]*(\/\*\*|\*|$)/) ctx=""
+     next}
+   /^ /{n++; ctx=substr($0,2)}'
+   ```
+   (each hit is `file:line`; move your declaration above the old docblock or below the code it describes).
 
    Zero hits is the norm; a hit with the excuse "but it is true" is no excuse: the truth
    is held by a test or a gate — name it and remove the comment.

@@ -26,6 +26,14 @@ another head is removed, and so is `gate/snapshots-approved` when the PR's own b
 between that head and the live one. `gate/review-passed` counts only when the review workflow applied
 it — a hand-applied one is reported and ignored.
 
+**Template sync** (owner's decision 2026-11-08, instead of an admin bypass): a `sync/templates-*` PR opened by
+claude-plugins `sync-templates.yml` into the default branch needs no label at all and gets no review round — the
+gate itself checks that every changed file is a MODIFIED `.claude/rules/*.md` whose blob, at the head and in the
+merge with the base as of the gate's last run (a later change of the base does not re-run it), equals `templates/<name>.md` on claude-plugins master, and blocks the PR with the reason and
+the way out otherwise (labels do not lift that block, and no round comes for it). Never edit a copy on such a branch or push one by hand:
+change the template, the next sync run opens a new PR and closes the old one. Workflow copies (`merge-gate.yml`, `merge_gate.py`,
+`base_sync.sh`, `claude-review.yml`) and a template a repo does not carry yet go through an ordinary PR.
+
 ## Rules for an agent (Claude Code and anything acting with the owner's token)
 
 1. **Never set `gate/snapshots-approved`.** The token cannot tell the agent from the owner, so the
@@ -44,18 +52,19 @@ it — a hand-applied one is reported and ignored.
      reviewer's own line;
    - gate, review, CI, deploy or security logic changed (workflows, the gate script, access rules) in anything
      but a comment;
-   - a base merge had conflicts resolved by hand;
    - the diff since the labelled head is over ~50 lines of non-test, non-doc code beyond the recipes of the
      labelling round's findings (a guideline, not a gate).
    Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,
-   a rename with no logic change, a clean base merge, or fixes of the labelling round's findings exactly
+   a rename with no logic change, a base merge, or fixes of the labelling round's findings exactly
    as their threads describe them.
+   **A base merge never removes it** (owner's decision 2026-11-05, reaffirmed 2026-11-08): neither a clean
+   merge of the base nor one whose conflicts were resolved by hand; the base was reviewed in its own PRs.
    In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
    **What is not a reason to remove it** (owner's decision 2026-10-28, Table#1315: six removals in one
    night, every one for a medium finding of the round that had just set the label, and every one bought a
    round with new mediums): a medium or a remark of the round that set the label, fixed in this PR as the
    thread describes it — the reviewer's own recipe, in the files the finding names. Such fixes go into one
-   commit and are pushed with the label (`review-response.md` step 6). The label comes off when a fix goes
+   push, with the label kept (`review-response.md` step 6). The label comes off when a fix goes
    beyond its finding (a different approach, behaviour the thread did not ask for, more than ~50 lines
    beyond the recipes), when a recipe touches gate, review, CI, deploy or security logic (that bullet holds
    for recipe fixes too), for a ❗, or for new work the owner asked for in this PR.
@@ -66,6 +75,19 @@ it — a hand-applied one is reported and ignored.
    before the matrix (proposed by the agent, accepted by the owner, 2026-10-27): a rejected frame is re-shot and
    re-run, so a matrix taken before the owner's look is the same thrown-away machine time. Re-shooting the
    baselines the PR itself touches is part of the change, not of the matrix: `authoring-e2e.md` rule 6.
+   **The matrix runs on the current base** (owner, 2026-11-08): right before it, merge the live base branch
+   into the PR. If another PR into the same base will land by itself (auto-merge on, a matrix label, not
+   `DIRTY`), wait for it to land first, then merge the base and start the matrix: a matrix taken before that
+   merge is stale the moment the other PR lands. A PR armed before its own matrix is not waited for, so two
+   such PRs do not block each other; `--skip-automerge-wait` is only for a PR stuck with a matrix label (red
+   CI, a gate it will never pass), named in the PR body. A merge with conflicts stops the matrix until they are resolved by
+   hand. One command does all of it: `bash .github/scripts/base_sync.sh <PR#>` (refuses while an auto-merge
+   into the base is pending, merges and pushes the base, stops on a conflict; the matrix runs on the `head`
+   it prints; wait about a minute after a merge, `authoring-e2e.md` rule 8); in Table `matrix_run.sh` runs the
+   same step itself; in a repo that does not carry `.github/scripts/base_sync.sh` yet, the same steps by hand.
+   Not for a release
+   PR or a carried-over matrix (rule 3), whose matrix belongs to a head it already ran on, nor for
+   Dependabot, whose PRs carry `gate/matrix-not-needed`.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
    no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
