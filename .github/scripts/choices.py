@@ -6,10 +6,13 @@
 
 Выбор при применении (цель, форма области, эффект удара) не объявляется: он не хранится у персонажа.
 Стартовое снаряжение «A или B» остаётся текстом.
+Здесь же — механика умений, которую текст называет без выбора: фиксированные языки и бонусы урона (#501, #502).
 """
 
+import re
+
 from parsers.base import slugify
-from parsers.classes import ABILITY_CODES, SKILLS
+from parsers.classes import ABILITY_CODES, ARMOR_CLASS_GROUPS, ATTACK_KEYS, SKILLS
 from parsers.equipment import TOOL_TYPES
 
 ABILITIES = tuple(ABILITY_CODES.values())
@@ -212,6 +215,12 @@ SUBCLASS_FEATURES = {
     ("hunter", "Defensive Tactics"): [
         ch("option", "option", 1, res("class-options", **{"class": "ranger"}, feature="defensive-tactics"), "short-rest")],
 }
+
+# --- Механика умений классов и подклассов (#501, #502): (слаг класса или подкласса, EN-имя умения) → значение ---
+# Форма полей — в schemas.py у `_CLASS_FEATURE`; `attacks` и `armor_class` разбирает parsers/classes.py.
+FEATURE_LANGUAGES = {("druid", "Druidic"): ["druidic"], ("rogue", "Thieves' Cant"): ["thieves-cant"]}
+DAMAGE_BONUSES = {("draconic-sorcery", "Elemental Affinity"): [
+    {"ability": "cha", "applies_to": "spell", "rolls": "one", "damage_type": {"choice": "damage-type"}}]}
 
 # --- Виды: (слаг вида, EN-имя особенности) → выборы. Размер и наследие сборка объявляет сама ------
 SPECIES_TRAITS = {
@@ -475,6 +484,27 @@ def _check(choice, where, known, ids, errors):
         errors.append(f"{where}: подсказка — только слаг записи, получено {sorted(suggest)}")
 
 
+def _check_mechanics(record, where, known, errors):
+    """Ключи, группы, слаги языков и id выборов в механике умения или варианта разрешаются (#501–#503)."""
+    attacks, armor = record.get("attacks"), record.get("armor_class")
+    if attacks and attacks["key"] not in ATTACK_KEYS:
+        errors.append(f"{where}: ключ атак {attacks['key']!r} вне ATTACK_KEYS")
+    if armor and armor["group"] not in ARMOR_CLASS_GROUPS:
+        errors.append(f"{where}: группа КД {armor['group']!r} вне ARMOR_CLASS_GROUPS")
+    for slug in record.get("languages", []):
+        if slug not in known["lists"].get("languages", ()):
+            errors.append(f"{where}: языка {slug!r} нет в списке languages")
+    named = {slug for name, slug in known["language-names"].items()
+             if re.search(rf"\bYou know {re.escape(name)}\b", record["description_md"])}
+    if named != set(record.get("languages", named)):
+        errors.append(f"{where}: языки в тексте {sorted(named)} ≠ объявленным {record.get('languages')}")
+    damage_types = {c["id"] for c in record["choices"] if c["kind"] == "damage-type"}
+    for bonus in record.get("damage_bonuses", []):
+        if bonus["damage_type"]["choice"] not in damage_types:
+            errors.append(f"{where}: бонус урона ссылается на выбор {bonus['damage_type']['choice']!r}, "
+                          "а выбора вида damage-type с таким id у умения нет")
+
+
 def attach_choices(all_data: dict) -> list[str]:
     """Пишет `choices` классам и их умениям, подклассам, видам, их особенностям и наследиям, предысториям,
     чертам и вариантам умений. EN — из объявлений этого файла, RU — копией EN по слагу и позиции.
@@ -503,6 +533,8 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         "equipment-groups": {g["slug"] for g in en["equipment-groups"]},
         "equipment": {e["slug"] for e in en["equipment"]},
         "lists": {lst_["slug"]: {m["slug"] for m in lst_["members"]} for lst_ in en["choice-lists"]},
+        "language-names": {m["name"]: m["slug"] for lst_ in en["choice-lists"] if lst_["slug"] == "languages"
+                           for m in lst_["members"]},
     }
     used: set = set()
 
@@ -513,6 +545,13 @@ def _attach(all_data: dict, ver: str) -> list[str]:
             if choice["kind"] == "weapon-mastery":
                 choice["replace_count"] = _replace_count(owner, where, errors)
             _check(choice, where, known, ids, errors)
+
+    def mechanics(feature, key, where):
+        feature["languages"] = FEATURE_LANGUAGES.get(key, [])
+        feature["damage_bonuses"] = DAMAGE_BONUSES.get(key, [])
+        used.update((kind, key) for kind, table in (("languages", FEATURE_LANGUAGES), ("damage-bonus", DAMAGE_BONUSES))
+                    if key in table)
+        _check_mechanics(feature, where, known, errors)
 
     for cls in en["classes"]:
         slug = cls["slug"]
@@ -534,6 +573,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                         if k in CLASS_FEATURES and (k[1] != "{Class} Subclass" or name == f"{cls['name']} Subclass")), None)
             levels = [row["level"] for row in cls["progression"]["rows"] if name in row["features"]]
             put(feature, CLASS_FEATURES[key] if key else [], context, f"classes/{slug}/{name}", cls, levels)
+            mechanics(feature, (slug, name), f"classes/{slug}/{name}")
             if key:
                 used.add(("class-feature", key if key[0] == "*" else (slug, name)))
     for sub in en["subclasses"]:
@@ -543,6 +583,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
         for feature in sub["features"]:
             key = (sub["slug"], feature["name"])
             put(feature, SUBCLASS_FEATURES.get(key, []), context, f"subclasses/{sub['slug']}/{feature['name']}")
+            mechanics(feature, key, f"subclasses/{sub['slug']}/{feature['name']}")
             if key in SUBCLASS_FEATURES:
                 used.add(("subclass-feature", key))
             feature["always_prepared"] = key in ALWAYS_PREPARED_OWNERS
@@ -596,12 +637,14 @@ def _attach(all_data: dict, ver: str) -> list[str]:
             errors.append(f"backgrounds/{bg['slug']}: варианта черты {variant!r} нет среди выборов «{bg['feat']['slug']}»")
     for option in en["class-options"]:
         put(option, CLASS_OPTIONS.get(option["slug"], []), {}, f"class-options/{option['slug']}")
+        _check_mechanics(option, f"class-options/{option['slug']}", known, errors)
 
     declared = ({("class", k) for k in CLASSES} | {("multiclass", k) for k in MULTICLASS}
                 | {("class-feature", k) for k in CLASS_FEATURES}
                 | {("subclass-feature", k) for k in SUBCLASS_FEATURES} | {("species-trait", k) for k in SPECIES_TRAITS}
                 | {("always-prepared", k) for k in ALWAYS_PREPARED_OWNERS}
-                | {("lineage-grant", k) for k in LINEAGE_GRANT_CHOICES})
+                | {("lineage-grant", k) for k in LINEAGE_GRANT_CHOICES}
+                | {("languages", k) for k in FEATURE_LANGUAGES} | {("damage-bonus", k) for k in DAMAGE_BONUSES})
     for kind, key in sorted(declared - used, key=str):
         errors.append(f"объявление без хозяина: {kind} {key}")
     for name, table in (("backgrounds", BACKGROUNDS), ("feats", FEATS), ("class-options", CLASS_OPTIONS),
@@ -629,6 +672,7 @@ def _attach(all_data: dict, ver: str) -> list[str]:
                         spell["choice"] = pair["choice"]
             for item, pair in zip(entity[nested], origin[nested]) if nested else ():
                 item["choices"] = pair["choices"]
-                if "always_prepared" in pair:
-                    item["always_prepared"] = pair["always_prepared"]
+                for field in ("always_prepared", "languages", "damage_bonuses"):
+                    if field in pair:
+                        item[field] = pair[field]
     return errors

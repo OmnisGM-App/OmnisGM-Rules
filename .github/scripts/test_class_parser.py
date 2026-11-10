@@ -18,7 +18,7 @@ from generate_api import (align_class_options, align_classes, attach_caster_shar
                           disambiguate_option_slugs, inject_spell_subclasses, resolve_always_prepared,
                           slug_collisions)
 from parsers import parse_caster_shares, parse_class, parse_class_options, parse_spells, parse_subclasses  # noqa: E402
-from parsers.classes import CANTRIP_PREREQS, COST_UNITS  # noqa: E402
+from parsers.classes import ARMOR_CLASS_GROUPS, ATTACK_KEYS, CANTRIP_PREREQS, COST_UNITS  # noqa: E402
 from schemas import CLASS_OPTION_SCHEMA, CLASS_SCHEMA, SUBCLASS_SCHEMA  # noqa: E402
 
 failures = []
@@ -670,6 +670,10 @@ eq("правило без строки половинных заклинател
    "multiclass Spell Slots: 0 «half» lines")
 
 
+# Языки и бонусы урона пишет attach_choices (choices.py) — после разбора.
+NO_MECHANICS = {"languages": [], "damage_bonuses": []}
+
+
 def with_casters(data):
     errors = attach_caster_shares(data, {"srd52": SHARES})
     return errors + align_classes(data)
@@ -686,7 +690,7 @@ for lang in ("en", "ru"):
     eq(f"{lang}: живые классы проходят схему",
        [c["slug"] for c in cast[("srd52", lang, "classes")] if not jsonschema.Draft7Validator(CLASS_SCHEMA).is_valid(
            {**c, "choices": [], "multiclass": {**c["multiclass"], "choices": []},
-            "features": [{**f, "choices": []} for f in c["features"]]})], [])
+            "features": [{**f, "choices": [], **NO_MECHANICS} for f in c["features"]]})], [])
     eq(f"{lang}: в SRD 5.2.1 нет подкласса-заклинателя",
        [s["slug"] for s in cast[("srd52", lang, "subclasses")] if s["spellcasting"] is not None], [])
 
@@ -800,6 +804,123 @@ eq("три характеристики через запятую",
        PRIMAL, "Your Strength, Dexterity, and Constitution scores increase by 2, to a maximum of 22."), "en")[0]["features"]
         if f["name"] == "Primal Champion")["ability_increases"],
    [{"abilities": ["str", "dex", "con"], "amount": 2, "max": 22}])
+
+# --- Атаки за действие Attack и базовый КД с общим ключом (#503) -----------------------------
+EXTRA = {"key": "extra-attack", "count": 2, "weapon": None}
+ATTACKS = {("barbarian", "Extra Attack"): EXTRA, ("fighter", "Extra Attack"): EXTRA,
+           ("fighter", "Two Extra Attacks"): {**EXTRA, "count": 3},
+           ("fighter", "Three Extra Attacks"): {**EXTRA, "count": 4},
+           ("monk", "Extra Attack"): EXTRA, ("paladin", "Extra Attack"): EXTRA, ("ranger", "Extra Attack"): EXTRA}
+UNARMORED = {"group": "base-formula", "base": 10, "shield": True, "armor": False}
+ARMOR_CLASS = {("barbarian", "Unarmored Defense"): {**UNARMORED, "abilities": ["dex", "con"]},
+               ("monk", "Unarmored Defense"): {**UNARMORED, "abilities": ["dex", "wis"], "shield": False},
+               ("draconic-sorcery", "Draconic Resilience"): {**UNARMORED, "abilities": ["dex", "cha"]}}
+OPTION_ATTACKS = {"thirsting-blade": {**EXTRA, "weapon": "pact"}, "devouring-blade": {**EXTRA, "count": 3, "weapon": "pact"}}
+
+
+def en_named(pins):
+    """{позиция умения: значение} для EN — ключи pins по имени EN, чтобы RU сверялся с теми же позициями."""
+    out = {}
+    for res in ("classes", "subclasses"):
+        for e in cast[("srd52", "en", res)]:
+            for i, f in enumerate(e["features"]):
+                if (e["slug"], f["name"]) in pins:
+                    out[(e["slug"], i)] = pins[(e["slug"], f["name"])]
+    return out
+
+
+for lang in ("en", "ru"):
+    for field, pins in (("attacks", ATTACKS), ("armor_class", ARMOR_CLASS)):
+        eq(f"{lang}: {field} — ровно у умений SRD, на позициях EN",
+           {(e["slug"], i): f[field] for res in ("classes", "subclasses") for e in cast[("srd52", lang, res)]
+            for i, f in enumerate(e["features"]) if f.get(field) is not None}, en_named(pins))
+    eq(f"{lang}: attacks вариантов — Thirsting Blade и Devouring Blade, оружие договора",
+       {o["slug"]: o.get("attacks") for o in opts[("srd52", lang, "class-options")] if o.get("attacks")}, OPTION_ATTACKS)
+    eq(f"{lang}: живые подклассы проходят схему",
+       [s["slug"] for s in cast[("srd52", lang, "subclasses")] if not jsonschema.Draft7Validator(SUBCLASS_SCHEMA).is_valid(
+           {**s, "features": [{**f, "choices": [], "always_prepared": False, **NO_MECHANICS} for f in s["features"]]})], [])
+    eq(f"{lang}: живые варианты проходят схему",
+       [o["slug"] for o in opts[("srd52", lang, "class-options")]
+        if not jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid({**o, "choices": []})], [])
+eq("RU-умение и RU-вариант до выравнивания — без attacks и armor_class",
+   {k for res in ("classes", "subclasses") for e in pristine[("srd52", "ru", res)] for f in e["features"]
+    for k in ("attacks", "armor_class") if k in f}
+   | {"attacks" for o in opts_pristine[("srd52", "ru", "class-options")] if "attacks" in o}, set())
+
+feature_schema = SUBCLASS_SCHEMA["properties"]["features"]["items"]["properties"]
+eq("перечисления схемы = ATTACK_KEYS / ARMOR_CLASS_GROUPS парсера",
+   (feature_schema["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
+    CLASS_SCHEMA["properties"]["features"]["items"]["properties"]["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
+    CLASS_OPTION_SCHEMA["properties"]["attacks"]["anyOf"][1]["properties"]["key"].get("enum"),
+    feature_schema["armor_class"]["anyOf"][1]["properties"]["group"].get("enum")),
+   (list(ATTACK_KEYS), list(ATTACK_KEYS), list(ATTACK_KEYS), list(ARMOR_CLASS_GROUPS)))
+monk_ud = next(f for c in cast[("srd52", "en", "classes")] if c["slug"] == "monk" for f in c["features"]
+               if f["name"] == "Unarmored Defense")
+eq("схема: неизвестные key и group, значения вне границ отклонены",
+   [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid({**monk_ud, "choices": [], **NO_MECHANICS, **patch})
+    for patch in ({}, {"attacks": {**EXTRA, "key": "flurry"}}, {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")],
+                                                                             "group": "natural-armor"}},
+                  {"attacks": {k: v for k, v in EXTRA.items() if k != "weapon"}},
+                  {"attacks": {**EXTRA, "count": 1}},
+                  {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")], "abilities": []}},
+                  {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")], "abilities": ["dex", "dex"]}},
+                  {"armor_class": {**ARMOR_CLASS[("monk", "Unarmored Defense")], "base": -1}})],
+   [True, False, False, False, False, False, False, False])
+eq("схема: умение без attacks или armor_class, вариант без attacks отклонены",
+   [jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid(
+       {k: v for k, v in {**monk_ud, "choices": [], **NO_MECHANICS}.items() if k != drop}) for drop in ("attacks", "armor_class")]
+   + [jsonschema.Draft7Validator(CLASS_OPTION_SCHEMA).is_valid(
+       {k: v for k, v in {**opts[("srd52", "en", "class-options")][0], "choices": []}.items() if k != "attacks"})],
+   [False, False, False])
+
+def build_error(parse, lang, name, old, new):
+    text = read(lang, name)
+    if old not in text:
+        return f"нет фрагмента {old!r}"
+    try:
+        parse(text.replace(old, new), lang)
+    except Exception as err:
+        return str(err)
+    return None
+
+
+EXTRA_LINE = "You can attack twice instead of once whenever you take the Attack action on your turn."
+eq("атаки в незнакомой форме роняют сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", EXTRA_LINE,
+               "You can attack twice instead of once when you take the Magic action."),
+   "«Extra Attack»: attacks per Attack action in an unknown form")
+eq("два правила атак в одном умении роняют сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", EXTRA_LINE, EXTRA_LINE + " " + EXTRA_LINE.replace("twice", "three times")),
+   "«Extra Attack»: attacks per Attack action in an unknown form")
+BARB_UD = "your base Armor Class equals 10 plus your Dexterity and Constitution modifiers."
+eq("базовый КД в незнакомой форме роняет сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", "While you aren't wearing any armor, " + BARB_UD,
+               "While you are unarmored, " + BARB_UD),
+   "«Unarmored Defense»: a base Armor Class in an unknown form")
+eq("две формулы КД в одном умении роняют сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", "While you aren't wearing any armor, " + BARB_UD,
+               ("While you aren't wearing any armor, " + BARB_UD + " ") * 2),
+   "«Unarmored Defense»: a base Armor Class in an unknown form")
+eq("базовый КД с неизвестной характеристикой роняет сборку",
+   build_error(parse_class, "en", "01_Barbarian.md", BARB_UD, BARB_UD.replace("Constitution", "Luck")),
+   "«Unarmored Defense»: unknown ability in \"While you aren't wearing any armor, your base Armor Class equals 10 "
+   "plus your Dexterity and Luck modifiers. You can use a Shield and still gain this benefit.\"")
+eq("базовый КД: одна характеристика и иное основание",
+   next(f for f in parse_class(read("en", "01_Barbarian.md").replace(BARB_UD, "your base Armor Class equals 13 plus your "
+                                                                              "Dexterity modifier."), "en")[0]["features"]
+        if f["name"] == "Unarmored Defense")["armor_class"],
+   {**UNARMORED, "base": 13, "abilities": ["dex"]})
+
+
+eq("Devouring Blade над вариантом без Extra Attack роняет сборку",
+   build_error(parse_class_options, "en", "11_Warlock.md", "your Thirsting Blade invocation confers",
+               "your Misty Escape invocation confers"),
+   "«Devouring Blade»: raises the Extra Attack of «Misty Escape», which grants none")
+eq("вариант с базовым КД роняет сборку",
+   build_error(parse_class_options, "en", "11_Warlock.md", "You can see normally in Dim Light",
+               "While you aren't wearing armor, your base Armor Class equals 13 plus your Dexterity modifier. "
+               "You can see normally in Dim Light"),
+   "Warlock: option «Devil's Sight» sets a base Armor Class; class options carry no armor_class")
 
 if failures:
     print(f"❌ classes/subclasses/class-options ({len(failures)}):")

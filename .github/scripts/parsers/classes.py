@@ -115,11 +115,57 @@ def _ability_increases(feature: str, body: str) -> list[dict]:
     return out
 
 
+# Атаки за действие Attack и базовый КД (#503): один ключ на разные классы, правила мультикласса —
+# `src/dnd/srd-5.2/en/02_CharacterCreation.md` «Extra Attack» и «Unarmored Defense».
+ATTACK_KEYS = ("extra-attack",)
+ARMOR_CLASS_GROUPS = ("base-formula",)
+_ATTACK_COUNTS = {"twice": 2, "three times": 3, "four times": 4, "two": 2, "three": 3}
+_ATTACKS = re.compile(r"(?:You gain the Extra Attack feature for your (pact weapon) only\. With that feature, y|Y)"
+                      r"ou can attack (twice|three times|four times)(?: with the weapon)? instead of once "
+                      r"when(?:ever)? you take the Attack action on your turn\.")
+_ATTACKS_RAISED = re.compile(r"The Extra Attack of your (.+?) invocation confers (two|three) extra attacks rather than one\.")
+_ATTACKS_HINT = re.compile(r"(?i)\bextra attacks?\b|\binstead of once\b")
+_BASE_AC = re.compile(r"While you aren't wearing (?:any )?armor( or wielding a Shield)?, your base Armor Class equals "
+                      r"(\d+) plus your ((?:\w+, )*\w+(?:,? and \w+)?) modifiers?\."
+                      r"(?: You can use a Shield and still gain this benefit\.)?")
+_BASE_AC_HINT = re.compile(r"(?i)\bbase Armor Class\b|\bArmor Class equals\b")
+
+
+def _attacks(feature: str, body: str, options: dict | None = None) -> dict | None:
+    """`options` — варианты главы по имени: «The Extra Attack of your X invocation» берёт оружие у X."""
+    found = [{"key": ATTACK_KEYS[0], "count": _ATTACK_COUNTS[m.group(2)], "weapon": "pact" if m.group(1) else None}
+             for m in _ATTACKS.finditer(body)]
+    for m in _ATTACKS_RAISED.finditer(body):
+        base = (options or {}).get(m.group(1))
+        base_attacks = _attacks(m.group(1), base["description_md"], options) if base else None
+        if base_attacks is None:
+            raise ValueError(f"«{feature}»: raises the Extra Attack of «{m.group(1)}», which grants none")
+        found.append({**base_attacks, "count": 1 + _ATTACK_COUNTS[m.group(2)]})
+    if _ATTACKS_HINT.search(_ATTACKS_RAISED.sub("", _ATTACKS.sub("", body))) or len(found) > 1:
+        raise ValueError(f"«{feature}»: attacks per Attack action in an unknown form")
+    return found[0] if found else None
+
+
+def _armor_class(feature: str, body: str) -> dict | None:
+    found = []
+    for m in _BASE_AC.finditer(body):
+        names = re.split(r",? and |, ", m.group(3).lower())
+        if not set(names) <= set(ABILITY_CODES):
+            raise ValueError(f"«{feature}»: unknown ability in {m.group(0)!r}")
+        found.append({"group": ARMOR_CLASS_GROUPS[0], "base": int(m.group(2)), "abilities": [ABILITY_CODES[n] for n in names],
+                      "shield": m.group(1) is None, "armor": False})
+    if _BASE_AC_HINT.search(_BASE_AC.sub("", body)) or len(found) > 1:
+        raise ValueError(f"«{feature}»: a base Armor Class in an unknown form")
+    return found[0] if found else None
+
+
 def _features(lines: list[str], lang: str) -> list[dict]:
-    """`ability_increases` — коды из EN; у RU None до generate_api.align_classes."""
+    """`ability_increases`, `attacks`, `armor_class` — из EN; у RU до generate_api.align_classes первое None, двух других нет."""
     return [{"level": f["level"], "name": f["name"],
              "description_md": "\n".join(f["body"]).strip(),
-             "ability_increases": _ability_increases(f["name"], "\n".join(f["body"])) if lang == "en" else None}
+             "ability_increases": _ability_increases(f["name"], "\n".join(f["body"])) if lang == "en" else None,
+             **({"attacks": _attacks(f["name"], "\n".join(f["body"])),
+                 "armor_class": _armor_class(f["name"], "\n".join(f["body"]))} if lang == "en" else {})}
             for f in _feature_blocks(lines)]
 
 
@@ -711,5 +757,11 @@ def parse_class_options(text: str, lang: str) -> list[dict]:
     if not class_name:
         return []
     features = _feature_blocks(lines, lang)
-    return _section_options(lines, features, class_name, lang) + \
-        _inline_options(features, class_name, lang)
+    options = _section_options(lines, features, class_name, lang) + _inline_options(features, class_name, lang)
+    if lang == "en":
+        by_name = {o["name"]: o for o in options}
+        for o in options:
+            o["attacks"] = _attacks(o["name"], o["description_md"], by_name)
+            if _armor_class(o["name"], o["description_md"]):
+                raise ValueError(f"{class_name}: option «{o['name']}» sets a base Armor Class; class options carry no armor_class")
+    return options

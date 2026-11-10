@@ -18,7 +18,7 @@ sys.path.insert(0, str(SCRIPTS))
 import choices  # noqa: E402
 import jsonschema  # noqa: E402
 import config  # noqa: E402
-from schemas import _CHOICES  # noqa: E402
+from schemas import _CHOICES, CLASS_SCHEMA  # noqa: E402
 
 failures = []
 
@@ -495,8 +495,10 @@ def drop_list(key):
 
 
 eq("объявление называет список, которого нет в choice-lists, — сборка падает", [e for e in rebuilt(drop_list("languages"))
-   if "languages" in e], ["classes/ranger/Deft Explorer: списка 'languages' нет в choice-lists",
-                          "classes/rogue/Thieves' Cant: списка 'languages' нет в choice-lists"])
+   if "languages" in e], ["classes/druid/Druidic: языка 'druidic' нет в списке languages",
+                          "classes/ranger/Deft Explorer: списка 'languages' нет в choice-lists",
+                          "classes/rogue/Thieves' Cant: списка 'languages' нет в choice-lists",
+                          "classes/rogue/Thieves' Cant: языка 'thieves-cant' нет в списке languages"])
 eq("значение не из членов списка — сборка падает",
    rebuilt(SPECIES_TRAITS=also("SPECIES_TRAITS", ("elf", "Keen Senses"),
                                [choices.ch("skill", "skill", 1, choices.lst("sizes", ["colossal"]))])),
@@ -644,6 +646,94 @@ spell_data[("srd52", "ru", "spells")][0]["classes"] = ["Изобретатель
 eq("класс заклинания не найден по имени — сборка падает", slug_spell_refs(spell_data),
    [f"srd52/ru/spells/{spell_data[('srd52', 'ru', 'spells')][0]['slug']}: класс ['Изобретатель'] или школа "
     f"{spell_data[('srd52', 'ru', 'spells')][0]['school_slug']!r} не найдены"])
+
+# --- Механика умений: фиксированные языки (#502) и бонус урона по выбору (#501) ---------------------
+LANGS = {("classes", "druid", "Druidic"): ["druidic"], ("classes", "rogue", "Thieves' Cant"): ["thieves-cant"]}
+AFFINITY = [{"ability": "cha", "applies_to": "spell", "rolls": "one", "damage_type": {"choice": "damage-type"}}]
+
+
+def mechanic(lang, field):
+    return {(res, e["slug"], i): f[field] for res in ("classes", "subclasses") for e in live[("srd52", lang, res)]
+            for i, f in enumerate(e["features"]) if f.get(field)}
+
+
+en_index = {(res, e["slug"], f["name"]): i for res in ("classes", "subclasses") for e in live[("srd52", "en", res)]
+            for i, f in enumerate(e["features"])}
+for lang in ("en", "ru"):
+    eq(f"{lang}: languages — у Druidic и Thieves' Cant, на позициях EN", mechanic(lang, "languages"),
+       {(res, slug, en_index[(res, slug, name)]): value for (res, slug, name), value in LANGS.items()})
+    eq(f"{lang}: damage_bonuses — только у Elemental Affinity", mechanic(lang, "damage_bonuses"),
+       {("subclasses", "draconic-sorcery", en_index[("subclasses", "draconic-sorcery", "Elemental Affinity")]): AFFINITY})
+    cant = feature(lang, "classes", "rogue", en_index[("classes", "rogue", "Thieves' Cant")])
+    eq(f"{lang}: Thieves' Cant — фиксированный язык и выбор ещё одного",
+       (cant.get("languages"), [(c["kind"], c["count"], c["from"]) for c in cant["choices"]]),
+       (["thieves-cant"], [("language", 1, {"list": "languages", "values": None})]))
+    fiend = feature(lang, "subclasses", "fiend-patron", en_index[("subclasses", "fiend-patron", "Fiendish Resilience")])
+    eq(f"{lang}: Fiendish Resilience — выбор damage-type без бонуса урона",
+       ([c["kind"] for c in fiend["choices"]], fiend.get("damage_bonuses")), (["damage-type"], []))
+eq("слаги языков механики — члены списка languages",
+   {slug for value in LANGS.values() for slug in value}
+   <= {m["slug"] for lst_ in live[("srd52", "en", "choice-lists")] if lst_["slug"] == "languages" for m in lst_["members"]},
+   True)
+
+eq("язык вне списка languages роняет сборку",
+   rebuilt(FEATURE_LANGUAGES=also("FEATURE_LANGUAGES", ("rogue", "Thieves' Cant"), ["thieves-argot"])),
+   ["classes/rogue/Thieves' Cant: языка 'thieves-argot' нет в списке languages",
+    "classes/rogue/Thieves' Cant: языки в тексте ['thieves-cant'] ≠ объявленным ['thieves-argot']"])
+eq("язык объявлен, а в тексте его нет, — сборка падает",
+   rebuilt(FEATURE_LANGUAGES=also("FEATURE_LANGUAGES", ("rogue", "Thieves' Cant"), ["thieves-cant", "druidic"])),
+   ["classes/rogue/Thieves' Cant: языки в тексте ['thieves-cant'] ≠ объявленным ['thieves-cant', 'druidic']"])
+eq("язык в тексте без объявления роняет сборку",
+   rebuilt(FEATURE_LANGUAGES={k: v for k, v in choices.FEATURE_LANGUAGES.items() if k[0] != "druid"}),
+   ["classes/druid/Druidic: языки в тексте ['druidic'] ≠ объявленным []"])
+eq("объявление языка для умения, которого нет, роняет сборку",
+   rebuilt(FEATURE_LANGUAGES=also("FEATURE_LANGUAGES", ("rogue", "Thieves Cant"), ["thieves-cant"])),
+   ["объявление без хозяина: languages ('rogue', 'Thieves Cant')"])
+eq("бонус урона по выбору, которого у умения нет, роняет сборку",
+   rebuilt(DAMAGE_BONUSES=also("DAMAGE_BONUSES", ("draconic-sorcery", "Elemental Affinity"),
+                               [{**AFFINITY[0], "damage_type": {"choice": "element"}}])),
+   ["subclasses/draconic-sorcery/Elemental Affinity: бонус урона ссылается на выбор 'element', "
+    "а выбора вида damage-type с таким id у умения нет"])
+eq("бонус урона у умения без выбора damage-type роняет сборку",
+   rebuilt(DAMAGE_BONUSES=also("DAMAGE_BONUSES", ("draconic-sorcery", "Draconic Resilience"), AFFINITY)),
+   ["subclasses/draconic-sorcery/Draconic Resilience: бонус урона ссылается на выбор 'damage-type', "
+    "а выбора вида damage-type с таким id у умения нет"])
+
+
+def mutate_feature(res, slug, name, **fields):
+    def go(data):
+        next(f for e in data[("srd52", "en", res)] if e["slug"] == slug for f in e["features"] if f["name"] == name).update(fields)
+    return go
+
+
+eq("неизвестный ключ атак и группа КД роняют сборку",
+   rebuilt(mutate_feature("classes", "monk", "Unarmored Defense",
+                          attacks={"key": "flurry", "count": 2, "weapon": None},
+                          armor_class={"group": "natural-armor", "base": 13, "abilities": ["dex"], "shield": True,
+                                       "armor": False})),
+   ["classes/monk/Unarmored Defense: ключ атак 'flurry' вне ATTACK_KEYS",
+    "classes/monk/Unarmored Defense: группа КД 'natural-armor' вне ARMOR_CLASS_GROUPS"])
+
+
+def option_attacks(data):
+    next(o for o in data[("srd52", "en", "class-options")] if o["slug"] == "thirsting-blade")["attacks"]["key"] = "pact-strike"
+
+
+eq("неизвестный ключ атак у варианта роняет сборку", rebuilt(option_attacks),
+   ["class-options/thirsting-blade: ключ атак 'pact-strike' вне ATTACK_KEYS"])
+
+feature_ok = jsonschema.Draft7Validator(CLASS_SCHEMA["properties"]["features"]["items"]).is_valid
+cant_en = feature("en", "classes", "rogue", "Thieves' Cant")
+affinity_en = {**feature("en", "subclasses", "draconic-sorcery", "Elemental Affinity")}
+affinity_en.pop("always_prepared")
+eq("схема: живые умения с механикой приняты, без languages / damage_bonuses и с чужой формой бонуса — нет",
+   [feature_ok(cant_en), feature_ok(affinity_en),
+    feature_ok({k: v for k, v in cant_en.items() if k != "languages"}),
+    feature_ok({k: v for k, v in affinity_en.items() if k != "damage_bonuses"}),
+    feature_ok({**affinity_en, "damage_bonuses": [{**AFFINITY[0], "applies_to": "weapon"}]}),
+    feature_ok({**affinity_en, "damage_bonuses": [{**AFFINITY[0], "rolls": "all"}]}),
+    feature_ok({**affinity_en, "damage_bonuses": [{**AFFINITY[0], "damage_type": {"value": "fire"}}]})],
+   [True, True, False, False, False, False, False])
 
 if failures:
     print(f"❌ choices ({len(failures)}):")

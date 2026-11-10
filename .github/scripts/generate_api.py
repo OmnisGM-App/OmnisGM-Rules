@@ -561,6 +561,7 @@ def align_classes(all_data: dict) -> list[str]:
             r["slug"], r["name_en"] = e["slug"], e["name"]
             for rf, ef in zip(r["features"], e["features"]):
                 rf["ability_increases"] = ef["ability_increases"]
+                rf["attacks"], rf["armor_class"] = ef["attacks"], ef["armor_class"]
             if resource == "classes":
                 for rr, er in zip(r["always_prepared"], e["always_prepared"]):
                     rr["uses"] = er["uses"]
@@ -711,6 +712,7 @@ def align_class_options(all_data: dict) -> list[str]:
                 continue
             r["slug"], r["name_en"] = e["slug"], e["name"]
             r["class"], r["subclass"] = e["class"], e["subclass"]
+            r["attacks"] = e["attacks"]
             r["feature"]["key"] = e["feature"]["key"]
             if e["granted_by"]:
                 r["granted_by"]["key"] = e["granted_by"]["key"]

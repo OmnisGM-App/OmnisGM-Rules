@@ -610,7 +610,19 @@ FEAT_SCHEMA = {
 
 _ABILITY_CODE = {"type": "string", "enum": ["str", "dex", "con", "int", "wis", "cha"]}
 
-# Прибавка без выбора (#479): каждой из abilities — amount, но не выше max.
+# Механика умения класса и подкласса — машиночитаемые поля рядом с `choices`; коды из EN, у RU те же.
+# Поля обязательны: [] или null, когда механики нет. Неизвестный key, group, слаг
+# языка или id выбора роняют сборку (`_check_mechanics` в choices.py, перечисления — здесь).
+# - ability_increases (#479): каждой из abilities — amount, но не выше max.
+# - attacks (#503, и у варианта умения): атаки за действие Attack. Записи одного key не складываются:
+#   действует наибольший count среди записей, применимых к используемому оружию (weapon null — любое,
+#   "pact" — оружие договора).
+# - armor_class (#503): базовый КД base + модификаторы abilities; формулы одной group взаимоисключающие;
+#   shield / armor — действует ли со щитом / в доспехе.
+# - languages (#502): языки без выбора — слаги списка `languages` в choice-lists.
+# - damage_bonuses (#501): +модификатор ability к rolls бросков урона того, к чему applies_to, если тип
+#   урона — ответ на выбор damage_type.choice того же умения.
+# Перечисления key / group — ATTACK_KEYS / ARMOR_CLASS_GROUPS в parsers/classes.py, равенство держит test_class_parser.py.
 _ABILITY_INCREASES = {"type": "array", "items": {
     "type": "object",
     "properties": {
@@ -622,6 +634,45 @@ _ABILITY_INCREASES = {"type": "array", "items": {
     "additionalProperties": False,
 }}
 
+_FEATURE_ATTACKS = {"anyOf": [{"type": "null"}, {
+    "type": "object",
+    "properties": {
+        "key": {"type": "string", "enum": ["extra-attack"]},
+        "count": {"type": "integer", "minimum": 2},
+        "weapon": {"enum": [None, "pact"]},
+    },
+    "required": ["key", "count", "weapon"],
+    "additionalProperties": False,
+}]}
+
+_FEATURE_ARMOR_CLASS = {"anyOf": [{"type": "null"}, {
+    "type": "object",
+    "properties": {
+        "group": {"type": "string", "enum": ["base-formula"]},
+        "base": {"type": "integer", "minimum": 0},
+        "abilities": {"type": "array", "items": _ABILITY_CODE, "minItems": 1, "uniqueItems": True},
+        "shield": {"type": "boolean"},
+        "armor": {"type": "boolean"},
+    },
+    "required": ["group", "base", "abilities", "shield", "armor"],
+    "additionalProperties": False,
+}]}
+
+_FEATURE_LANGUAGES = {"type": "array", "items": {"type": "string", "minLength": 1}, "uniqueItems": True}
+
+_DAMAGE_BONUSES = {"type": "array", "items": {
+    "type": "object",
+    "properties": {
+        "ability": _ABILITY_CODE,
+        "applies_to": {"type": "string", "enum": ["spell"]},
+        "rolls": {"type": "string", "enum": ["one"]},
+        "damage_type": {"type": "object", "properties": {"choice": {"type": "string", "minLength": 1}},
+                        "required": ["choice"], "additionalProperties": False},
+    },
+    "required": ["ability", "applies_to", "rolls", "damage_type"],
+    "additionalProperties": False,
+}}
+
 _CLASS_FEATURE = {
     "type": "object",
     "properties": {
@@ -629,9 +680,14 @@ _CLASS_FEATURE = {
         "name": {"type": "string"},
         "description_md": {"type": "string"},
         "ability_increases": _ABILITY_INCREASES,
+        "attacks": _FEATURE_ATTACKS,
+        "armor_class": _FEATURE_ARMOR_CLASS,
+        "languages": _FEATURE_LANGUAGES,
+        "damage_bonuses": _DAMAGE_BONUSES,
         "choices": _CHOICES,
     },
-    "required": ["level", "name", "description_md", "ability_increases", "choices"],
+    "required": ["level", "name", "description_md", "ability_increases", "attacks", "armor_class", "languages",
+                 "damage_bonuses", "choices"],
     "additionalProperties": False,
 }
 
@@ -908,11 +964,12 @@ CLASS_OPTION_SCHEMA = {
         }]},
         "repeatable": {"type": "boolean"},
         "description_md": {"type": "string", "minLength": 1},
+        "attacks": _FEATURE_ATTACKS,
         "choices": _CHOICES,
         "image": {"type": "string", "format": "uri"},
     },
     "required": ["slug", "name", "name_en", "class", "subclass", "feature", "granted_by",
-                 "selection", "prerequisites", "cost", "repeatable", "description_md", "choices"],
+                 "selection", "prerequisites", "cost", "repeatable", "description_md", "attacks", "choices"],
     "additionalProperties": False,
 }
 
