@@ -11,7 +11,7 @@ import subprocess
 import sys
 import time
 
-from merge_gate import SYNC_PREFIX, gh_json
+from merge_gate import LABEL_COPY, SYNC_PREFIX, gh_json
 
 GATE_WORKFLOW = "merge-gate.yml"
 # A run that has not started reads the PR and its test merge live when it starts (merge_gate.merge_commit).
@@ -19,7 +19,9 @@ NOT_STARTED = {"queued", "pending", "waiting", "requested"}
 
 
 def sync_pulls(pulls: list[dict]) -> list[dict]:
-    return [p for p in pulls if p["head"]["ref"].startswith(SYNC_PREFIX)]
+    """The open PRs the merge gate exempts as template copies: a sync branch or the `plugin-copy` label."""
+    return [p for p in pulls if p["head"]["ref"].startswith(SYNC_PREFIX)
+            or LABEL_COPY in {l["name"] for l in p.get("labels") or []}]
 
 
 def latest_run(runs: list[dict]) -> dict | None:

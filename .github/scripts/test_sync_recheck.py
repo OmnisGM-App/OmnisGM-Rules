@@ -185,6 +185,12 @@ class Recheck(unittest.TestCase):
         self.assertEqual((rc, f.reran), (1, []))
         self.assertIn("#1: no Merge gate run on s1", out)
 
+    def test_a_plugin_copy_pr_on_any_branch_is_re_checked_too(self):
+        labelled = dict(pr(4, "ci/copies", "s4"), labels=[{"name": "plugin-copy"}])
+        f = Fake([labelled, dict(pr(5, "ci/other", "s5"), labels=[{"name": "area/ci"}])],
+                 {"s4": [run(40, "2026-11-10T09:00:00Z")], "s5": [run(50, "2026-11-10T09:00:00Z")]})
+        self.assertEqual((recheck(f)[0], f.reran), (0, [40]))
+
     def test_no_open_sync_pr_does_nothing(self):
         f = Fake([pr(2, "feat/sync/templates-x", "s2")], {"s2": [run(20, "2026-11-10T09:00:00Z")]})
         self.assertEqual((recheck(f)[0], f.reran), (0, []))

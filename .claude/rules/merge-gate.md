@@ -26,13 +26,19 @@ another head is removed, and so is `gate/snapshots-approved` when the PR's own b
 between that head and the live one. `gate/review-passed` counts only when the review workflow applied
 it — a hand-applied one is reported and ignored.
 
-**Template sync** (owner's decision 2026-11-08, instead of an admin bypass): a `sync/templates-*` PR opened by
-claude-plugins `sync-templates.yml` into the default branch needs no label at all and gets no review round — the
-gate itself checks that every changed file is a MODIFIED `.claude/rules/*.md` whose blob, at the head and in the
-merge with the base, equals `templates/<name>.md` on claude-plugins master, and blocks the PR with the reason and
-the way out otherwise (labels do not lift that block, and no round comes for it). A push to the default branch re-runs the gate of every open sync PR (`sync-recheck.yml`), so the merge it checks is the one with the live base. Never edit a copy on such a branch or push one by hand:
-change the template, the next sync run opens a new PR and closes the old one. Workflow copies (`merge-gate.yml`, `merge_gate.py`,
-`claude-review.yml`) and a template a repo does not carry yet go through an ordinary PR.
+**Template copies** (owner's decisions 2026-11-08 for rule files and 2026-11-10 for workflow copies, claude-plugins#45,
+instead of an admin bypass): claude-plugins `sync-templates.yml` opens a `sync/templates-*` PR labelled `plugin-copy`
+into the default branch. Such a PR needs no other label and gets no review round. The gate itself checks that every
+changed file is a MODIFIED copy of a claude-plugins template (`.claude/rules/*.md`, or a workflow copy:
+`merge-gate.yml`, `claude-review.yml`, `sync-recheck.yml`, `merge_gate.py`, `sync_recheck.py` and their tests). Each
+copy, at the head and in the merge with the base, must equal its template on claude-plugins master outside the repo's
+settings lines (`runs-on`, `CI_CHECK`, the Node version), and those lines must stay the base's. Otherwise the gate
+blocks the PR with the reason and the way out: labels do not lift that block, and no round comes for it. The label
+only asks for the check, so it does not exempt anything else: on a PR with another file the gate says to remove it.
+A push to the default branch re-runs the gate of every open sync PR (`sync-recheck.yml`), so the merge it checks is
+the one with the live base. Never edit a copy on such a branch or push one by hand: change the template, the next
+sync run opens a new PR and closes the old one. A template a repo does not carry yet, a change of its settings lines
+and the wiring of a new test file into its CI go through an ordinary PR.
 
 ## Rules for an agent (Claude Code and anything acting with the owner's token)
 
