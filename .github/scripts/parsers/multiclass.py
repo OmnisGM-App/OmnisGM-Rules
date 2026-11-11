@@ -3,7 +3,10 @@
 import re
 
 _PREREQUISITE = re.compile(r"you must have a score of at least (\d+) in the primary ability of the new class")
-_ROUNDING = re.compile(r"^- Half your levels \(round(?:ed)? (up|down)\) in the ", re.M)
+_ROUNDING = re.compile(r"half your levels \(round(?:ed)? (up|down)\) in the ", re.I)
+# SRD 5.1 has no single sentence: the per-class «Multiclassing Prerequisites» table carries the minimum as «Strength 13».
+_PREREQUISITE_TABLE = "Table: Multiclassing Prerequisites"
+_ORDINAL = re.compile(r"(?<=\d)(?:st|nd|rd|th)$")
 _TABLE_TITLE = "Table: Multiclass Spellcaster: Spell Slots per Spell Level"
 
 
@@ -12,6 +15,25 @@ def _one(pattern: re.Pattern, text: str, what: str) -> str:
     if len(found) != 1:
         raise ValueError(f"multiclass rules: {len(found)} matches for {what}")
     return found[0]
+
+
+def _prerequisite_score(text: str) -> int:
+    if _PREREQUISITE.search(text):
+        return int(_one(_PREREQUISITE, text, "the prerequisite score"))
+    lines = text.split("\n")
+    if lines.count(_PREREQUISITE_TABLE) != 1:
+        raise ValueError("multiclass rules: 0 matches for the prerequisite score")
+    scores = set()
+    for line in lines[lines.index(_PREREQUISITE_TABLE) + 1:]:
+        if line.strip() and not line.startswith("|"):
+            if scores:
+                break
+            continue
+        for cell in line.strip().strip("|").split("|")[1:]:
+            scores.update(re.findall(r"\b[A-Z][a-z]+ (\d+)\b", cell))
+    if len(scores) != 1:
+        raise ValueError(f"multiclass rules: prerequisite table minimums {sorted(scores)}")
+    return int(scores.pop())
 
 
 def _slot_table(text: str) -> list[dict]:
@@ -27,13 +49,14 @@ def _slot_table(text: str) -> list[dict]:
             break
         block.append([c.strip() for c in line.strip().strip("|").split("|")])
     header, rows = block[0] if block else [], block[2:]
-    if header != ["Level", *map(str, range(1, 10))]:
+    if [_ORDINAL.sub("", c) for c in header] != ["Level", *map(str, range(1, 10))]:
         raise ValueError(f"multiclass rules: slot table header {header!r}")
     out = []
     for cells in rows:
-        if len(cells) != 10 or not all(c == "—" or c.isdigit() for c in cells[1:]):
+        if len(cells) != 10 or not all(c in ("—", "-") or c.isdigit() for c in cells[1:]):
             raise ValueError(f"multiclass rules: slot table row {cells!r}")
-        out.append({"level": int(cells[0]), "spell_slots": [0 if c == "—" else int(c) for c in cells[1:]]})
+        out.append({"level": int(_ORDINAL.sub("", cells[0])),
+                    "spell_slots": [0 if c in ("—", "-") else int(c) for c in cells[1:]]})
     if [r["level"] for r in out] != list(range(1, 21)):
         raise ValueError(f"multiclass rules: slot table levels {[r['level'] for r in out]}")
     return out
@@ -44,7 +67,7 @@ def parse_multiclass_rules(text: str) -> dict:
 
     Raises ValueError when a rule is missing, repeated or in an unknown form."""
     return {
-        "prerequisite_score": int(_one(_PREREQUISITE, text, "the prerequisite score")),
+        "prerequisite_score": _prerequisite_score(text),
         "caster_level_rounding": _one(_ROUNDING, text, "the half-caster rounding"),
         "spell_slots": _slot_table(text),
     }
