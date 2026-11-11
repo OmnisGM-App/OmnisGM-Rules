@@ -1,7 +1,8 @@
 # Git hygiene in a shared clone — rules for the agent
 
-Copy of the template from OmnisGM-App/claude-plugins/templates/git-hygiene.md — edit there, roll out
-as copies. Every rule below has already destroyed work at least once. The clone is shared with the owner
+<!-- template: claude-plugins/templates/git-hygiene.md -->
+
+The clone is shared with the owner
 and with parallel sessions (worktrees under `.claude/worktrees/`), so a command that is harmless alone is
 not harmless here.
 
@@ -23,7 +24,7 @@ not harmless here.
    `git stash apply <sha>`, then drop the entry found by its tag. For a baseline comparison prefer a
    separate worktree from `origin/<base>` or `git diff > patch` + `git apply`.
 5. **No `git add -A` / `git add .`.** The repo's `.claude/` is tracked and other sessions keep their worktrees
-   under `.claude/worktrees/`; `-A` commits them as gitlinks (News#163, 2026-10-23). Add files by name from
+   under `.claude/worktrees/`; `-A` commits them as gitlinks. Add files by name from
    your diff and read `git status --short` before every commit. A gitlink that slipped in is removed with
    `git rm --cached` in a new commit, not an amend. Keep `.claude/worktrees/` in `.gitignore`.
 6. **A sandbox under `/tmp/` loses files overnight.** macOS purges long-untouched files from `/tmp/`, tracked

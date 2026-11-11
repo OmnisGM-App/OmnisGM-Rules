@@ -1,10 +1,6 @@
 # Server-side pieces: no open endpoints
 
-Copy of the template from OmnisGM-App/claude-plugins/templates/server-side.md — edit there, roll out
-as copies into repos with workers or functions (Table, News). Owner's decision 2026-10-05 (Table#149,
-#787): the only threat to the free quotas is a script eating them, and an open URL on our domain that
-sends mail is a mail cannon for someone else's inboxes. Revised 2026-10-29 (owner): the hard ban held while
-everything had to fit the free plan; an endpoint is now the owner's call, one endpoint at a time.
+<!-- template: claude-plugins/templates/server-side.md -->
 
 1. **No HTTP endpoint without the owner's word.** A Cloudflare Worker route, an HTTP or callable Cloud
    Function, any API path that takes a request from the public internet — even behind a Firebase ID token —

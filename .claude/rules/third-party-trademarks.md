@@ -1,8 +1,6 @@
 # Third-party games and their trademarks — rule for the author of text and code
 
-<!-- COPY of the single template: source of truth — OmnisGM-App/claude-plugins/templates/third-party-trademarks.md;
-     roll out edits as copies to the repos where texts about third-party systems are written (Table, Rules).
-     Owner decision 2026-10-10, Table#912. -->
+<!-- template: claude-plugins/templates/third-party-trademarks.md -->
 
 An open licence on an SRD covers the rules text, not the trademarks. CC BY 4.0 on SRD 5.1/5.2.1 grants no
 rights to "Dungeons & Dragons", "D&D" or the dragon ampersand. Other systems have their own licences and their own marks.

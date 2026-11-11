@@ -1,9 +1,9 @@
 # Merge gate: labels, who sets them, how to merge
 
-Copy of the template from OmnisGM-App/claude-plugins/templates/merge-gate.md — edit there, roll out
-as copies. The ruleset of the default branch requires the `Merge gate` check
-(`.github/workflows/merge-gate.yml`), which turns four `gate/*` labels into a merge condition
-(owner's decision 2026-10-20). This file says who may set each label and how a PR is merged.
+<!-- template: claude-plugins/templates/merge-gate.md -->
+
+The ruleset of the default branch requires the `Merge gate` check
+(`.github/workflows/merge-gate.yml`), which turns four `gate/*` labels into a merge condition. This file says who may set each label and how a PR is merged.
 
 ## The labels
 
@@ -15,10 +15,9 @@ as copies. The ruleset of the default branch requires the `Merge gate` check
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
-dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master`, the form of #1219 and
-earlier, needs `gate/review-passed` since 2026-10-23, and claude-review.yml skips a PR whose base is not the
+dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master` needs `gate/review-passed`, and claude-review.yml skips a PR whose base is not the
 default branch — such a PR gets its round only by `workflow_dispatch`; whether a `release/*`
-head is an empty commit whose parent is a `dev` commit is not checked yet, #1226); `gate/snapshots-approved` when
+head is an empty commit whose parent is a `dev` commit is not checked yet); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
 head they were applied on (the gate keeps a state comment on the PR): `gate/matrix-passed` applied on
@@ -26,21 +25,7 @@ another head is removed, and so is `gate/snapshots-approved` when the PR's own b
 between that head and the live one. `gate/review-passed` counts only when the review workflow applied
 it — a hand-applied one is reported and ignored.
 
-**Template copies** (owner's decisions 2026-11-08 for rule files and 2026-11-10 for workflow copies, claude-plugins#45,
-instead of an admin bypass): claude-plugins `sync-templates.yml` opens a `sync/templates-*` PR labelled `plugin-copy`
-into the default branch. Such a PR needs no other label and gets no review round. The gate itself checks that every
-changed file is a MODIFIED copy of a claude-plugins template (`.claude/rules/*.md`, or a workflow copy:
-`merge-gate.yml`, `claude-review.yml`, `sync-recheck.yml`, `merge_gate.py`, `sync_recheck.py` and their tests). Each
-copy, at the head and in the merge with the base, must equal its template on claude-plugins master outside the repo's
-settings lines (`runs-on`, `CI_CHECK`, the Node version), and those lines must stay the base's: a job the template
-adds takes the line of the base's jobs with the same template line (the template's own when there are none), a job it
-drops takes its line along. Otherwise the gate
-blocks the PR with the reason and the way out: labels do not lift that block, and no round comes for it. The label
-only asks for the check, so it does not exempt anything else: on a PR with another file the gate says to remove it.
-A push to the default branch re-runs the gate of every open sync PR (`sync-recheck.yml`), so the merge it checks is
-the one with the live base. Never edit a copy on such a branch or push one by hand: change the template, the next
-sync run opens a new PR and closes the old one. A template a repo does not carry yet, a change of its settings lines
-and the wiring of a new test file into its CI go through an ordinary PR.
+**Template copies.** A `sync/templates-*` PR (label `plugin-copy`, opened by claude-plugins `sync-templates.yml`) needs no other label and gets no review round; never edit or push to it — change the template in claude-plugins and the next sync replaces the PR. The gate blocks it, with the reason, when a changed file is not a MODIFIED copy of a template (`.claude/rules/*.md`, `merge-gate.yml`, `claude-review.yml`, `sync-recheck.yml`, `merge_gate.py`, `sync_recheck.py` and their tests) or differs from it outside the repo's settings lines (`runs-on`, `CI_CHECK`, the Node version); labels do not lift the block. A template a repo does not carry yet, a change of its settings lines and the wiring of a new test file into its CI go through an ordinary PR.
 
 ## Rules for an agent (Claude Code and anything acting with the owner's token)
 
@@ -50,7 +35,7 @@ and the wiring of a new test file into its CI go through an ordinary PR.
    same: it waits for a human.
 2. **Never set `gate/review-passed`** — the review workflow owns it. To ask for another round, remove
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
-   **When to remove it yourself** (owner's decision 2026-10-23, OmnisGM-App/OmnisGM-News#163): the label was earned by the head
+   **When to remove it yourself:** the label was earned by the head
    the clean round read; a push that changes behaviour after it would merge unreviewed. Remove the label
    BEFORE that push and say why in the round comment when at least one holds:
    - product code changes behaviour beyond what a finding of the labelling round names — a new branch,
@@ -65,25 +50,17 @@ and the wiring of a new test file into its CI go through an ordinary PR.
    Keep the label and push without a round when the push is only: tests, comments, docs, the PR body,
    a rename with no logic change, a base merge, or fixes of the labelling round's findings exactly
    as their threads describe them.
-   **A base merge never removes it** (owner's decision 2026-11-05, reaffirmed 2026-11-08): neither a clean
+   **A base merge never removes it:** neither a clean
    merge of the base nor one whose conflicts were resolved by hand; the base was reviewed in its own PRs.
    In doubt — remove: a wasted round costs minutes, an unreviewed change costs a release.
-   **What is not a reason to remove it** (owner's decision 2026-10-28, Table#1315: six removals in one
-   night, every one for a medium finding of the round that had just set the label, and every one bought a
-   round with new mediums): a medium or a remark of the round that set the label, fixed in this PR as the
-   thread describes it — the reviewer's own recipe, in the files the finding names. Such fixes go into one
-   push, with the label kept (`review-response.md` step 6). The label comes off when a fix goes
-   beyond its finding (a different approach, behaviour the thread did not ask for, more than ~50 lines
-   beyond the recipes), when a recipe touches gate, review, CI, deploy or security logic (that bullet holds
-   for recipe fixes too), for a ❗, or for new work the owner asked for in this PR.
+   **Not a reason to remove it:** a medium or a remark of the labelling round, fixed as its thread says in the files it names — one push, label kept (`review-response.md` step 6). Exceptions: the bullets above (the gate/review/CI/deploy/security bullet holds for recipe fixes too), a ❗, or new work the owner asked for in this PR.
 2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
    and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
-   an early matrix is machine time thrown away by the first fix commit (owner, 2026-10-19, Table#1146,
-   #1163). A PR with changed `*-snapshots/` baselines waits for the owner's `gate/snapshots-approved` as well
-   before the matrix (proposed by the agent, accepted by the owner, 2026-10-27): a rejected frame is re-shot and
+   an early matrix is machine time thrown away by the first fix commit. A PR with changed `*-snapshots/` baselines waits for the owner's `gate/snapshots-approved` as well
+   before the matrix: a rejected frame is re-shot and
    re-run, so a matrix taken before the owner's look is the same thrown-away machine time. Re-shooting the
    baselines the PR itself touches is part of the change, not of the matrix: `authoring-e2e.md` rule 6.
-   **The matrix runs on the current base** (owner, 2026-11-08): right before it, merge the live base branch
+   **The matrix runs on the current base:** right before it, merge the live base branch
    into the PR. If another PR into the same base will land by itself (auto-merge on, a matrix label, not
    `DIRTY`), wait for it to land first, then merge the base and start the matrix: a matrix taken before that
    merge is stale the moment the other PR lands. A PR armed before its own matrix is not waited for, so two
@@ -98,13 +75,12 @@ and the wiring of a new test file into its CI go through an ordinary PR.
    Dependabot, whose PRs carry `gate/matrix-not-needed`.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
-   no UI file is in the diff and the PR body says so. Two release-only exceptions (Table, owner's decision
-   2026-10-23), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
+   no UI file is in the diff and the PR body says so. Two release-only exceptions (Table), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
    last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
    on and nothing matrix-relevant landed after it (when that PR used the FIXME carry-over below, the release
    body names that PR's `<matrix head>`, not its final head); (b) a release cut as an empty commit on top of a `dev`
    head carries that head's matrix. The PR body names the head the matrix ran on and why it carries over.
-   A third carry-over, for flaky tests (proposed by the agent, accepted by the owner, 2026-10-27): the
+   A third carry-over, for flaky tests: the
    `// FIXME(#N)` lines of "Failed and flaky tests" are written after the run, so they land in a commit the
    matrix never saw. When `git diff <matrix head> <live head>` consists only of comment lines inside the repo's
    Playwright test directory (`tests/e2e/**` in Table, `web/e2e/**` in Rules, `e2e/**` in News — no spec logic,
@@ -120,14 +96,13 @@ and the wiring of a new test file into its CI go through an ordinary PR.
    recorded head) or an error of the gate run itself. A label event re-runs the job (the review workflow's
    label re-runs it through `gh run rerun`), so a waiting PR goes green once the label lands; a lagging events
    list is the one case for "Re-run jobs" on the gate run by hand. A waiting PR is a red run and mails a
-   failure on every push — the owner's decision of 2026-10-24, replacing the 2026-10-23 "no mail" that the API
-   check run bought. CI is not part of the gate — it is its own required check. The verdict is the status of
-   the job `Merge gate` itself (v3, 2026-10-24): an API check run lands in the oldest check suite of that SHA
-   and is hidden from the merge box as soon as the gate re-runs on a label (Table#1241) or the head is shared
-   with another branch (Table#1227); a `workflow_dispatch` run is attached to no PR and never counts (Table#1251).
+   failure on every push. CI is not part of the gate — it is its own required check. The verdict is the status of
+   the job `Merge gate` itself: an API check run lands in the oldest check suite of that SHA
+   and is hidden from the merge box as soon as the gate re-runs on a label or the head is shared
+   with another branch; a `workflow_dispatch` run is attached to no PR and never counts.
    The ruleset requires `Merge gate` (the job) next to the CI check.
 
-## Failed and flaky tests (owner's decision 2026-10-22)
+## Failed and flaky tests
 
 - **A failed test blocks the merge. No exceptions**, whether or not the test is in the diff. Fix it
   (or the run) and run the matrix again.
@@ -143,7 +118,7 @@ and the wiring of a new test file into its CI go through an ordinary PR.
 
 ## How to merge
 
-- **Who merges (owner's decisions 2026-10-21 and 2026-10-24).** The agent merges its own PR itself once it
+- **Who merges.** The agent merges its own PR itself once it
   is ready: CI and `Merge gate` green on the final head, `gate/review-passed` set by the workflow, an honest
   matrix label (the full matrix on this head, or `gate/matrix-not-needed` with the one-line reason in the
   body), every review thread answered and resolved, no round in flight. That covers PRs that edit the gate,
@@ -151,7 +126,7 @@ and the wiring of a new test file into its CI go through an ordinary PR.
   itself still STARTS on the owner's word — that is scheduling, not approval). The owner's hand is exactly one
   thing: `gate/snapshots-approved` on a PR with changed `*-snapshots/` baselines — a human looks at the frames
   and confirms them in GitHub; with that label on the final head the agent merges that PR too. In
-  `claude-plugins` the same readiness criteria apply (owner, 2026-10-19).
+  `claude-plugins` the same readiness criteria apply.
 - **A merge command, when the owner does give one, covers one PR**: the PR it was said about — not a stack
   whose order the reviewer suggested, not "the next one" after "merge and take the next task" (that permits
   starting the task, not merging its PR), not an "if it goes green — merge" from an earlier exchange. A PR
@@ -162,9 +137,9 @@ and the wiring of a new test file into its CI go through an ordinary PR.
   readiness): the checks do not know about threads. An admin merge bypasses the gate and is reserved
   for the owner's own hand in an emergency.
 - **A stacked PR (base is another PR's branch, not `dev`/`master`) is opened as a draft** and marked ready
-  only after the lower PR is merged and this one is retargeted (owner, 2026-10-14). Merge order of a stack:
+  only after the lower PR is merged and this one is retargeted. Merge order of a stack:
   `gh pr edit <upper> --base dev` FIRST, then `gh pr merge <lower> --delete-branch` — deleting the base
-  branch closes the upper PR instead of retargeting it (News#162→#163, 2026-10-23). If it did close:
+  branch closes the upper PR instead of retargeting it. If it did close:
   push the old SHA back to the base branch name, `gh pr reopen`, `gh pr edit --base`, delete the branch again.
 - **`master` is the only branch merged without squash** (Table: the release PR `release/YYYY-MM-DD` →
   `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
