@@ -99,9 +99,11 @@ Done after code and tests, before the PR body and the decision list. For every f
    - `comment-numbers.sh` (b): a number with a unit in a comment (px, ms, %, KB, мс, строк, раз…) — each needs an executable source (a constant, a mixin, `useMediaQuery`), otherwise the number lies.
    - `comment-test-rationale.sh` (c): a comment block above a test case, across a blank line and a decorator, for `it.each`/`test.describe`/`describe.skip` and `def test_`; `CASE_FNS` adds test-case function names (the default covers vitest/playwright and the Rules helpers `check`/`eq`/`recognizes`).
    - `comment-share.sh` (d): the share of comment lines in each changed source file (budget ≤10 %, `rules` ≤15 %) — counted, not estimated.
-   - `docblock-wedge.sh <base>` (e): prints `file:line: under a docblock that is not its own` for each added declaration (indented too) that, walking up past the docblock and blank lines you added to the nearest UNCHANGED line, meets someone else's closing `*/` (a removed line in between resets it, so editing a documented signature is not flagged) — move your declaration above the old docblock or below the code it describes.
+   - `docblock-wedge.sh <base>` (e): prints `file:line: under a docblock that is not its own` for each added declaration (indented too) that, walking up past the docblock, `//` lines and blank lines you added to the nearest UNCHANGED line, meets someone else's closing `*/` (a removed line in between resets it, so editing a documented signature is not flagged) — move your declaration above the old docblock or below the code it describes.
 
-   Plus one pass by eye over a ±20-line window around every hunk (`git diff -U20`):
+   Plus one pass by eye over a ±20-line window around every hunk (`git diff -U20`): each comment on an UNCHANGED line there
+   (docstrings, trailing `# …`, JSX `{/* */}` included) is held by a line of code or a test, or deleted; a locale key or
+   constant whose NAME states the old meaning is renamed with its text. The reason:
    a comment that became a lie from SOMEONE ELSE's edit in the same diff or from your edit on
    a neighbouring line contains no stop-words and grep does not catch it. A new block of code does not land
    between someone else's docblock and what it describes: after inserting, reread the neighbour above
