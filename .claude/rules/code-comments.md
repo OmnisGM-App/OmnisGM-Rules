@@ -1,15 +1,12 @@
 # Code comments: hard rules
 
-Copy of the template from OmnisGM-App/claude-plugins/templates/code-comments.md — edit there,
-roll out as copies. Since 2026-09-16 there is NO separate review lens for comments (owner
-decision, confirmed 2026-09-28: instead of a lens — a stricter author pass): comment
-cleanliness is the author's duty, the pass below is mandatory before every push. Review catches only comments that lie about behaviour or a contract, and
+<!-- template: claude-plugins/templates/code-comments.md -->
+
+There is NO separate review lens for comments: comment cleanliness is the author's duty, the pass below is
+mandatory before every push. Review catches only comments that lie about behaviour or a contract, and
 offers one thing — delete or fix the code, never add more text.
 
-Measurement 2026-09-16 (Table): code written by sessions over the last months carries 24–36%
-comment lines (`sheet domain` 24%, `shared/lib` 33%, the new map-pins slice 26%,
-`firestore.rules` 36%) versus 5% in the old `game-items`. Every extra phrase is a candidate
-review finding "the comment promises what the code does not hold", and that is how
+Every extra phrase is a candidate review finding "the comment promises what the code does not hold", and that is how
 endless fix rounds are born.
 
 ## What a comment may say
@@ -90,10 +87,9 @@ Done after code and tests, before the PR body and the decision list. For every f
    — usually a deletion, more rarely one line with a fact instead of a promise.
 6. **Budget**: a new or rewritten file has a comment-line share ≤10% (`rules`
    ≤15%) — count, do not estimate; above — cut to the threshold.
-7. **By grep, not by eye** (owner decision 2026-09-28; revised 2026-09-29: in one week,
-   62 review findings under this rule despite the mandatory step — the previous grep gave a false zero
-   on a single file without `-H`, ignored case, JSX comments, `it.each(`/`test.describe(`,
-   missed threshold numbers, quantifiers, PR links and the comment share in a new file). Over
+7. **By grep, not by eye** (a grep that gives a false zero is the usual miss: it must use `-H`
+   so a single file is named, ignore case, and cover JSX comments, `it.each(`/`test.describe(`,
+   threshold numbers, quantifiers, PR links and the comment share in a new file). Over
    the changed files run ALL five scripts of the omnisgm plugin's `scripts/checks/` (`CHECK <name> <base>` from the repo root, the launcher form of `authoring-pitfalls.md`;
    no output and exit 0 is clean, exit 1 prints `path:line:text`, exit 2 means the script itself broke — never a pass; the
    scripts pick a UTF-8 locale themselves, a bare `\b` over Cyrillic matches nothing in the POSIX one) and go through every
@@ -103,7 +99,7 @@ Done after code and tests, before the PR body and the decision list. For every f
    - `comment-numbers.sh` (b): a number with a unit in a comment (px, ms, %, KB, мс, строк, раз…) — each needs an executable source (a constant, a mixin, `useMediaQuery`), otherwise the number lies.
    - `comment-test-rationale.sh` (c): a comment block above a test case, across a blank line and a decorator, for `it.each`/`test.describe`/`describe.skip` and `def test_`; `CASE_FNS` adds test-case function names (the default covers vitest/playwright and the Rules helpers `check`/`eq`/`recognizes`).
    - `comment-share.sh` (d): the share of comment lines in each changed source file (budget ≤10 %, `rules` ≤15 %) — counted, not estimated.
-   - `docblock-wedge.sh <base>` (e): prints `file:line: under a docblock that is not its own` for each added declaration (indented too) that, walking up past the docblock and blank lines you added to the nearest UNCHANGED line, meets someone else's closing `*/` (a removed line in between resets it, so editing a documented signature is not flagged; 5 PRs in 3 weeks left a function wedged under another's docblock) — move your declaration above the old docblock or below the code it describes.
+   - `docblock-wedge.sh <base>` (e): prints `file:line: under a docblock that is not its own` for each added declaration (indented too) that, walking up past the docblock and blank lines you added to the nearest UNCHANGED line, meets someone else's closing `*/` (a removed line in between resets it, so editing a documented signature is not flagged) — move your declaration above the old docblock or below the code it describes.
 
    Plus one pass by eye over a ±20-line window around every hunk (`git diff -U20`):
    a comment that became a lie from SOMEONE ELSE's edit in the same diff or from your edit on

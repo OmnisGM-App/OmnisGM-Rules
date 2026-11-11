@@ -1,7 +1,6 @@
 # Firebase operations: hosting releases, new sites, reading a stand
 
-Copy of the template from OmnisGM-App/claude-plugins/templates/firebase-ops.md — edit there, roll out
-as copies into repos deployed to Firebase (Table, Rules, News).
+<!-- template: claude-plugins/templates/firebase-ops.md -->
 
 1. **`HTTP Error: 429 … exceeded the Hosting storage quota` on a deploy is the release store, not the diff.**
    Hosting keeps every past release until the site has a retention limit (console: Hosting → site → release
