@@ -90,6 +90,16 @@ eq("srd51: разные минимумы в таблице порогов рон
    str(_try(lambda: parse_multiclass_rules(MULTI51.replace("| Wizard    | Intelligence 13 ", "| Wizard    | Intelligence 15 ")))),
    "multiclass rules: prerequisite table minimums ['13', '15']")
 
+eq("srd51: строка порогов без числа роняет сборку",
+   str(_try(lambda: parse_multiclass_rules(MULTI51.replace("Intelligence 13 ", "Intelligence    ")))),
+   "multiclass rules: prerequisite row ['Wizard', 'Intelligence']")
+eq("srd51: сокращение вместо названия характеристики роняет сборку",
+   str(_try(lambda: parse_multiclass_rules(MULTI51.replace("Intelligence 13", "INT 15")))),
+   "multiclass rules: prerequisite row ['Wizard', 'INT 15']")
+eq("srd51: повторная таблица порогов называет реальное число",
+   str(_try(lambda: parse_multiclass_rules(MULTI51 + "\nTable: Multiclassing Prerequisites\n"))),
+   "multiclass rules: 2 «Table: Multiclassing Prerequisites» tables and no prerequisite sentence")
+
 # --- Отказы ------------------------------------------------------------------------------
 
 
@@ -110,7 +120,7 @@ eq("округление без скобки роняет сборку",
    "multiclass rules: 0 matches for the half-caster rounding")
 eq("порог другой формулировкой роняет сборку",
    rules_error("you must have a score of at least 13", "you need a score of 13"),
-   "multiclass rules: 0 matches for the prerequisite score")
+   "multiclass rules: 0 «Table: Multiclassing Prerequisites» tables and no prerequisite sentence")
 eq("порог берётся числом из текста",
    parse_multiclass_rules(CREATION.replace("a score of at least 13", "a score of at least 15"))["prerequisite_score"], 15)
 eq("переименованная таблица роняет сборку",

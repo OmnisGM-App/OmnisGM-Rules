@@ -21,16 +21,23 @@ def _prerequisite_score(text: str) -> int:
     if _PREREQUISITE.search(text):
         return int(_one(_PREREQUISITE, text, "the prerequisite score"))
     lines = text.split("\n")
-    if lines.count(_PREREQUISITE_TABLE) != 1:
-        raise ValueError("multiclass rules: 0 matches for the prerequisite score")
+    n = lines.count(_PREREQUISITE_TABLE)
+    if n != 1:
+        raise ValueError(f"multiclass rules: {n} «{_PREREQUISITE_TABLE}» tables and no prerequisite sentence")
+    start = lines.index(_PREREQUISITE_TABLE) + 1
+    while start < len(lines) and not lines[start].startswith("|"):
+        start += 1
+    block = []
+    for line in lines[start:]:
+        if not line.startswith("|"):
+            break
+        block.append([c.strip() for c in line.strip().strip("|").split("|")])
     scores = set()
-    for line in lines[lines.index(_PREREQUISITE_TABLE) + 1:]:
-        if line.strip() and not line.startswith("|"):
-            if scores:
-                break
-            continue
-        for cell in line.strip().strip("|").split("|")[1:]:
-            scores.update(re.findall(r"\b[A-Z][a-z]+ (\d+)\b", cell))
+    for cells in block[2:]:
+        found = re.findall(r"\b[A-Z][a-z]+ (\d+)\b", cells[-1])
+        if len(cells) != 2 or not found:
+            raise ValueError(f"multiclass rules: prerequisite row {cells!r}")
+        scores.update(found)
     if len(scores) != 1:
         raise ValueError(f"multiclass rules: prerequisite table minimums {sorted(scores)}")
     return int(scores.pop())
