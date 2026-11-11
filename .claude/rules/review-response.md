@@ -60,7 +60,7 @@ by round three or four, after that review was picking apart fix prose and promis
    bar for product code does not apply to gate tests; no "guards for the guards" are built.
    Anything disputable — a question to the owner in the thread, not a commit.
 8. **Do not argue with review in code.** Arguments — only in the thread, with a grep or a run.
-9. **A remark about an unreachable input is closed with a word, not a commit.** «Писателя у поля сегодня нет» (nothing writes this field today), «такой вход не производится» (no such input is produced) — a thread reply with a grep of the producer; no test or guard for a hypothetical input is written and no round is spawned (six such remarks in the week of 22–28.09, each one dragged a round). If review itself calls a finding a consequence of its own recipe from a previous round — that is the reviewer's self-correction; it goes into the decision list as the line «принято, ревью» (accepted, review), with no edit.
+9. **A remark about an unreachable input is closed with a word, not a commit.** «Писателя у поля сегодня нет» (nothing writes this field today), «такой вход не производится» (no such input is produced) — a thread reply with a grep of the producer; no test or guard for a hypothetical input is written and no round is spawned (six such remarks in the week of 22–28.09, each one dragged a round). This holds when the default for remarks is «чиню» (step 6) and for a medium too: a finding that review itself marks «вход сегодня не производится» (input not produced today) is answered with the producer grep or the corpus count of `authoring-pitfalls.md` rule 29, not with code (claude-plugins#60, #65: each such fix added parser code and the next round's findings). If review itself calls a finding a consequence of its own recipe from a previous round — that is the reviewer's self-correction; it goes into the decision list as the line «принято, ревью» (accepted, review), with no edit.
 
 ## Resolving threads
 
@@ -95,6 +95,6 @@ itself; a PR with changed baselines needs the owner's `gate/snapshots-approved` 
 `gate/review-passed` removed by the author for a fix that stays within what its thread names is the loop
 itself; the round it started is let finish: with 0 ❗ the label returns and step 6 applies, a ❗ goes by
 step 1. Also: three consecutive rounds without ❗ while the number of remarks does not decrease, or two
-consecutive rounds where all findings are about comments and the PR body. In that case do not push: list the remaining remarks by name in the
+consecutive rounds where all findings are about comments and the PR body, or two consecutive rounds without ❗ where all findings are new spellings of a parser's input or pins of branches that already work. In that case do not push: list the remaining remarks by name in the
 round comment, then take the matrix label and merge (`merge-gate.md`, "How to merge"). The owner's word is needed only where a remark
 raises a decision that `owner-decisions.md` reserves for them; further rounds — only on their word.
