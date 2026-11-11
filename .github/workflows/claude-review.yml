@@ -700,7 +700,7 @@ jobs:
               if m.get("type") == "assistant":
                   for c in m.get("message", {}).get("content", []):
                       if c.get("type") == "tool_use" and c.get("name") in ("Agent", "Task"):
-                          label[c.get("id")] = f"{(c.get('input') or {}).get('description', '?')} [{(c.get('input') or {}).get('model', '-')}]"
+                          label[c.get("id")] = f"{(c.get('input') or {}).get('description', '?')} [{(c.get('input') or {}).get('model') or (c.get('input') or {}).get('subagent_type', '-')}]"
           for m in msgs:
               who = label.get(m.get("parent_tool_use_id"), "main loop")
               t = m.get("type")
@@ -729,7 +729,7 @@ jobs:
                           inp = c.get("input", {})
                           if c.get("name") in ("Agent", "Task"):
                               # v2.29: the dispatch model is visible in the dump (model routing measurement)
-                              print(f"[{who}] TOOL {c.get('name')} model={inp.get('model', '-')} {inp.get('description', '')!r}: {str(inp.get('prompt', ''))[:120]!r}")
+                              print(f"[{who}] TOOL {c.get('name')} model={inp.get('model') or inp.get('subagent_type', '-')} {inp.get('description', '')!r}: {str(inp.get('prompt', ''))[:120]!r}")
                           else:
                               print(f"[{who}] TOOL {c.get('name')}: {json.dumps(inp, ensure_ascii=False)[:220]}")
               elif t == "user":
