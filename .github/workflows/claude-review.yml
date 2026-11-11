@@ -7,6 +7,10 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.63 (2026-11-11, token audit D2 arm, D5b, D17): `main_effort` input (high | medium, default high) sets the main loop's
+# `--effort` on a button run only; every PR-event round stays `high`, so the default is unchanged. It is an ARM for the
+# probe, not a switch: medium is selectable until a replay measures ❗ recall and $ per round. The wave and V are dispatched
+# synchronously (ci-pipeline.md, wait_reports.py stays as the fallback); step 5 reads the ❗ through majors.py.
 # v2.62 (2026-11-11, token audit D18, M7): `--disallowedTools "WebFetch,WebSearch,NotebookEdit"` — no review agent uses them;
 # their schemas ride in every agent's cached prompt prefix otherwise. Prepare retries the comments/reviews fetch (3 attempts)
 # and fails before the model starts when it cannot read them, instead of reviewing without the history.
@@ -161,6 +165,11 @@ on:
         description: 'Full pipeline even if the head is already reviewed'
         type: boolean
         default: false
+      main_effort:
+        description: 'Main loop effort (an arm for measurements; PR-event rounds always run high)'
+        type: choice
+        options: [high, medium]
+        default: high
 
 env:
   # The CI job name whose success a round waits for (ruleset's required check; per-repo value).
@@ -622,7 +631,7 @@ jobs:
           claude_args: |
             --max-turns 200
             --model claude-opus-5-5
-            --effort high
+            --effort ${{ inputs.main_effort || 'high' }}
             --add-dir /tmp
             --add-dir ${{ steps.prep.outputs.skill }}
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
