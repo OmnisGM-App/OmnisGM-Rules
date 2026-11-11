@@ -7,6 +7,9 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.62 (2026-11-11, token audit D18, M7): `--disallowedTools "WebFetch,WebSearch,NotebookEdit"` — no review agent uses them;
+# their schemas ride in every agent's cached prompt prefix otherwise. Prepare retries the comments/reviews fetch (3 attempts)
+# and fails before the model starts when it cannot read them, instead of reviewing without the history.
 # v2.61 (2026-11-11, claude-plugins#52): the journal's run-marker check reads comments `since` 2 days ago, paginated, into a
 # variable — the per-issue endpoint ignores sort/direction, so the old query never saw a recent marker.
 # v2.60 (2026-11-10, claude-plugins#23): the agent's job token is read-only — `review` keeps read rights only (plus
@@ -465,7 +468,19 @@ jobs:
           mkdir -p "$OUT"; echo "out=$OUT" >> "$GITHUB_OUTPUT"; echo "run directory: $OUT"
           gh pr view "$PR" --repo "$REPO" --json number,title,body,baseRefName,headRefOid,additions,deletions,changedFiles --jq '"# PR #\(.number): \(.title)\n\nhead: \(.headRefOid) | base: \(.baseRefName) | +\(.additions) -\(.deletions) | files: \(.changedFiles)\n\n\(.body)"' > $OUT/00-pr.md
           git diff "origin/${BASE}...HEAD" > $OUT/01-diff.patch
-          gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- comment \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- review \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > $OUT/02-pr-comments.md || true
+          # v2.62 (token audit M7): the comments/reviews fetch retries (a transient API error used to leave an EMPTY file
+          # behind `|| true` — the round then ran without the history: answered findings re-posted, «не чиню» unseen,
+          # a full pipeline instead of a fix round). Three attempts, then the step fails BEFORE any model spend: a re-run is cheap.
+          fetched=""
+          for delay in ${COMMENTS_RETRY_DELAYS:-0 5 15}; do
+            sleep "$delay"
+            if gh pr view "$PR" --repo "$REPO" --json comments,reviews --jq '([.comments[] | "--- comment \(.author.login) \(.createdAt)\n\(.body)\n"] + [.reviews[] | select(.body != "") | "--- review \(.author.login) \(.state) \(.submittedAt)\n\(.body)\n"]) | join("\n")' > $OUT/02-pr-comments.md; then
+              fetched=1; break
+            fi
+            echo "::warning::PR comments/reviews not fetched (attempt after ${delay}s), retrying"
+          done
+          [ -n "$fetched" ] || { echo "::error::cannot read the comments and reviews of PR #$PR after 3 attempts — a round without the history would re-post answered findings; re-run the workflow"; exit 1; }
+          # end v2.62 fetch
           # v2.53: inline review threads too, in fetch_pr.sh's format — CI publishes findings inline and authors answer
           # there; without them the "grep 02-pr-comments.md for «не чиню»" rule (_header.md) sees nothing (review of #33).
           gh api "repos/$REPO/pulls/$PR/comments" --paginate \
@@ -611,6 +626,7 @@ jobs:
             --add-dir /tmp
             --add-dir ${{ steps.prep.outputs.skill }}
             --allowedTools "Task,Read,Write,Edit,Glob,Grep,Bash(echo:*),Bash(sed:*),Bash(awk:*),Bash(cut:*),Bash(git:*),Bash(gh pr:*),Bash(gh api:*),Bash(gh issue view:*),Bash(grep:*),Bash(rg:*),Bash(cat:*),Bash(ls:*),Bash(head:*),Bash(tail:*),Bash(wc:*),Bash(python3:*),Bash(diff:*),Bash(sort:*),Bash(uniq:*),Bash(find:*),Bash(npm run:*),Bash(npx vitest:*),Bash(npx tsc:*),Bash(node:*),Bash(mkdir:*),Bash(cp:*),Bash(tar:*)"
+            --disallowedTools "WebFetch,WebSearch,NotebookEdit"
           prompt: |
             You are the MAIN LOOP of the multi-agent CI review of a PR. Skill directory:
             ${{ steps.prep.outputs.skill }}. In your FIRST message issue these Reads together (one message):
