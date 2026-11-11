@@ -94,45 +94,22 @@ Done after code and tests, before the PR body and the decision list. For every f
    62 review findings under this rule despite the mandatory step — the previous grep gave a false zero
    on a single file without `-H`, ignored case, JSX comments, `it.each(`/`test.describe(`,
    missed threshold numbers, quantifiers, PR links and the comment share in a new file). Over
-   the changed files run ALL four commands and go through every hit — remove it or
-   state in the decision line why it is not a violation:
+   the changed files run ALL five scripts of the omnisgm plugin's `scripts/checks/` (`CHECK <name> <base>` from the repo root, the launcher form of `authoring-pitfalls.md`;
+   no output and exit 0 is clean, exit 1 prints `path:line:text`, exit 2 means the script itself broke — never a pass; the
+   scripts pick a UTF-8 locale themselves, a bare `\b` over Cyrillic matches nothing in the POSIX one) and go through every
+   hit — remove it or state in the decision line why it is not a violation:
 
-   ```bash
-   F=$(git diff --name-only --diff-filter=d <base>...HEAD | grep -vE '\.(png|jpg|webp|svg|lock)$')   # excluding deleted files; commands verified on mawk/gawk/BSD awk and under C.UTF-8
-   # the exit code is checked INSIDE xargs (outside you see xargs' code): clean → 0, grep error → non-zero code and the error text
-   # CASE_FNS — test-case function names for (c); the default covers vitest/playwright and Rules helpers (check/eq/recognizes): an extra name does not produce a false zero
-   # (a) forbidden classes 2–4 and 8 + quantifiers + references to PR/review — case-insensitive, JSX comments too
-   RE_A='^[[:space:]]*(//|#|\*|/\*|<!--|\{/\*).*(ревью|раунд|раньше было|поправлен|в отличие от прежн|после правк|исправлен[оа] по|единственн|гарантир|не может произойти|тест сторожит|ловит (tsc|гейт)|\bвсегда\b|\bникогда\b|\bвсе[хм]?\b|\bкажд(ый|ая|ое|ого)\b|\bтолько\b|\breview\b|\bround\b|previously|used to|\bonly\b|\bevery\b|\balways\b|\bnever\b|PR #|#[0-9]{2,4}\b.*(ревью|review))'
-   echo "$F" | xargs sh -c 'grep -HinE "$0" "$@" || [ $? -eq 1 ]' "$RE_A"
-   # (b) numbers with units in comments — each must have an executable source (constant, mixin, useMediaQuery), otherwise the number lies
-   RE_B='^[[:space:]]*(//|#|\*|/\*|\{/\*|<!--).*[0-9]+([.,][0-9]+)?[[:space:]]*((px|ms|s|%|KB|MB)|(мс|КБ|мин|сек|строк|тест|файл|сценари)[[:alpha:]]*|раз(а|ов)?)([^[:alnum:]]|$)'
-   echo "$F" | xargs sh -c 'grep -HnE "$0" "$@" || [ $? -eq 1 ]' "$RE_B"
-   # (c) test rationale as a block above the case, including across a blank line and for it.each/test.describe/describe.skip
-   echo "$F" | grep -E '(\.(test|spec)\.[jt]sx?|/test_[^/]+\.(mjs|py))$' | xargs -r awk -v C="${CASE_FNS:-it|test|describe|check|eq|recognizes}" 'BEGIN{n=0; re="^[[:space:]]*((" C ")(\\.[a-zA-Z]+)*(\\(|`)|def test_)"} /^[[:space:]]*(\/\/|\/\*|\*|#)/{n++; next} /^[[:space:]]*$/{next} $0 ~ re {if(n) print FILENAME":"FNR; n=0; next} {n=0}'
-   # (d) share of comment lines in each new/rewritten file (budget ≤10 %, rules ≤15 %) — counted, not estimated
-   for f in $(echo "$F" | grep -E '\.(ts|tsx|mts|mjs|js|py|astro|scss|rules)$'); do awk -v f="$f" '/^[[:space:]]*(\/\/|\*|\/\*|\{\/\*|#[^!]|<!--)/{c++} END{if(NR>40 && c*10>NR) printf "%s: %d/%d строк = %d%%\n", f, c, NR, c*100/NR}' "$f"; done
-   ```
+   - `comment-stopwords.sh` (a): forbidden classes 2–4 and 8, quantifiers, references to a PR or a review — case-insensitive, JSX comments too.
+   - `comment-numbers.sh` (b): a number with a unit in a comment (px, ms, %, KB, мс, строк, раз…) — each needs an executable source (a constant, a mixin, `useMediaQuery`), otherwise the number lies.
+   - `comment-test-rationale.sh` (c): a comment block above a test case, across a blank line and a decorator, for `it.each`/`test.describe`/`describe.skip` and `def test_`; `CASE_FNS` adds test-case function names (the default covers vitest/playwright and the Rules helpers `check`/`eq`/`recognizes`).
+   - `comment-share.sh` (d): the share of comment lines in each changed source file (budget ≤10 %, `rules` ≤15 %) — counted, not estimated.
+   - `docblock-wedge.sh <base>` (e): prints `file:line: under a docblock that is not its own` for each added declaration (indented too) that, walking up past the docblock and blank lines you added to the nearest UNCHANGED line, meets someone else's closing `*/` (a removed line in between resets it, so editing a documented signature is not flagged; 5 PRs in 3 weeks left a function wedged under another's docblock) — move your declaration above the old docblock or below the code it describes.
 
    Plus one pass by eye over a ±20-line window around every hunk (`git diff -U20`):
    a comment that became a lie from SOMEONE ELSE's edit in the same diff or from your edit on
    a neighbouring line contains no stop-words and grep does not catch it. A new block of code does not land
    between someone else's docblock and what it describes: after inserting, reread the neighbour above
-   and below. Mechanical check (5 PRs in 3 weeks left a function wedged under another's docblock) —
-   for every added declaration, walk up past the docblock and blank lines you added to the nearest UNCHANGED line;
-   a closing `*/` there belongs to someone else's docblock and is the finding (a removed line in between resets it, so
-   editing a documented signature is not flagged):
-   ```bash
-   git diff -U3 <base>...HEAD -- . ':(exclude)*.md' | awk '
-   /^\+\+\+ /{f=substr($0,7); next}
-   /^@@/{split($3,a,/[+,]/); n=a[2]-1; ctx=""; next}
-   /^-/{ctx=""; next}
-   /^\+/{n++; l=substr($0,2)
-     if (l ~ /^(export )?(default )?(async )?(function|const|let|class|type|interface|enum) /) { if (ctx ~ /\*\/[[:space:]]*$/) print f ":" n ": under a docblock that is not its own"; ctx="" }
-     else if (l !~ /^[[:space:]]*(\/\*\*|\*|$)/) ctx=""
-     next}
-   /^ /{n++; ctx=substr($0,2)}'
-   ```
-   (each hit is `file:line`; move your declaration above the old docblock or below the code it describes).
+   and below.
 
    Zero hits is the norm; a hit with the excuse "but it is true" is no excuse: the truth
    is held by a test or a gate — name it and remove the comment.
