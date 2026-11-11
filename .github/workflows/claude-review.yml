@@ -7,6 +7,8 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.61 (2026-11-11, claude-plugins#52): the journal's run-marker check reads comments `since` 2 days ago, paginated, into a
+# variable — the per-issue endpoint ignores sort/direction, so the old query never saw a recent marker.
 # v2.60 (2026-11-10, claude-plugins#23): the agent's job token is read-only — `review` keeps read rights only (plus
 # `checks`/`statuses: read` for the live CI the lenses check, no `id-token`); the review and the journal are posted by a
 # new `publish` job (no checkout, no agent) from the `publish-inputs` artifact, which `finish` deletes; checkout keeps no
@@ -940,11 +942,13 @@ jobs:
           # runs this step again — before every attempt we look for the marker in recent comments (no duplicate).
           # The marker names the uploaded inputs too: "Re-run all jobs" keeps the run id but runs a new session
           # with new observations and a new artifact — that journal is posted, a re-run of this job alone is not.
-          # Known gap (claude-plugins#52): this query returns the OLDEST comments of #1, so the check does not see
-          # a recent marker yet and a duplicate is still possible.
+          # The per-issue comments endpoint ignores sort/direction and lists the OLDEST comments first, so the check reads
+          # everything created since `since` (2 days; the artifact lives 1 day), paginated, into a variable (a `| grep -q`
+          # under pipefail turns a match into "not posted": SIGPIPE kills gh) (claude-plugins#52).
+          since=$(date -u -d '2 days ago' +%Y-%m-%dT%H:%M:%SZ)
           marker="<!-- run ${GITHUB_RUN_ID} inputs ${INPUTS} -->"
           printf '\n%s\n' "$marker" >> "$f"
-          posted() { "$GH_BIN" api "repos/OmnisGM-App/claude-plugins/issues/1/comments?per_page=10&sort=created&direction=desc" --jq '.[].body' 2>/dev/null | grep -qF "$marker"; }
+          posted() { local b; b=$("$GH_BIN" api "repos/OmnisGM-App/claude-plugins/issues/1/comments?since=$since&per_page=100" --paginate --jq '.[].body' 2>/dev/null) || return 1; grep -qF "$marker" <<<"$b"; }
           for i in 1 2 3; do
             posted && { echo "comment already posted (an earlier attempt or run attempt)"; exit 0; }
             "$GH_BIN" issue comment 1 --repo OmnisGM-App/claude-plugins --body-file "$f" && exit 0
