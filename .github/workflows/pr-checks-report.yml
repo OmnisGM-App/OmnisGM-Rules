@@ -1,0 +1,60 @@
+name: PR checks report
+
+# A COPY of the shared template: source of truth — OmnisGM-App/claude-plugins
+# templates/workflows/pr-checks-report.yml (+ merge_gate.py, run_pr_checks.py, ci_lint.py → .github/scripts/); edit there,
+# roll out as copies. Per-repo knob is `runs-on` only.
+#
+# The PR checks report (claude-plugins#57, run_pr_checks.py: closes-with-open-items, unanswered bot threads, hygiene, ci-lint)
+# as a job summary, nothing else: no status, no label, no comment, read-only token. It is a workflow of its own on purpose
+# (claude-plugins#71): inside merge-gate.yml it held that workflow's `merge-gate-<PR>` concurrency group, so the verdict of the
+# next event waited for the previous report, and `rerun_one` / sync_recheck.py waited with it. Here the group is
+# `pr-checks-<PR>` with cancel-in-progress: a new head makes the running report stale, and a superseded report loses nothing
+# (authoring-workflows 4: every event this workflow listens to is one that supersedes). No label events: the checks read
+# nothing a label changes. Not a required context — the ruleset never names this job.
+
+on:
+  pull_request:
+    types: [opened, reopened, ready_for_review, synchronize]
+
+concurrency:
+  group: pr-checks-${{ github.event.pull_request.number }}
+  cancel-in-progress: true
+
+jobs:
+  report:
+    name: PR checks report   # NOT a required context: the report goes to the job summary and changes no status
+    runs-on: ubuntu-latest
+    timeout-minutes: 12      # > the gh bootstrap (180 s) + four check groups of 120 s each, run one by one
+    permissions:
+      pull-requests: read
+      issues: read
+      contents: read
+    env:
+      GH_TOKEN: ${{ github.token }}
+      REPO: ${{ github.repository }}
+      PR: ${{ github.event.pull_request.number }}
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          sparse-checkout: .github/scripts
+      - name: Ensure gh CLI in PATH
+        shell: bash
+        run: |
+          # self-hosted containers do not ship gh (run 39410099942: `gh: command not found`).
+          command -v gh >/dev/null && exit 0
+          v=$(curl -fsSL --max-time 60 -H "Authorization: Bearer $GH_TOKEN" https://api.github.com/repos/cli/cli/releases/latest | sed -n 's/.*"tag_name": *"v\([^"]*\)".*/\1/p' | head -1)
+          [ -n "$v" ] || { echo "::error::could not resolve the gh release"; exit 1; }
+          case "$(uname -m)" in x86_64) a=amd64;; aarch64|arm64) a=arm64;; *) echo "no gh build for $(uname -m)"; exit 1;; esac
+          curl -fsSL --max-time 120 "https://github.com/cli/cli/releases/download/v${v}/gh_${v}_linux_${a}.tar.gz" -o "$RUNNER_TEMP/gh.tgz"
+          tar -xzf "$RUNNER_TEMP/gh.tgz" -C "$RUNNER_TEMP"
+          echo "$RUNNER_TEMP/gh_${v}_linux_${a}/bin" >> "$GITHUB_PATH"
+          "$RUNNER_TEMP/gh_${v}_linux_${a}/bin/gh" --version | head -1
+      - name: PR checks report
+        shell: bash
+        run: |
+          # an older merge_gate.py copy ignores the flag and computes the verdict with a read-only token (exit 1, 403)
+          if ! grep -q -- '--pr-checks-report' .github/scripts/merge_gate.py; then
+            echo "### PR checks: merge_gate.py here predates the report — merge the pending sync/templates PR first" >> "$GITHUB_STEP_SUMMARY"
+            exit 0
+          fi
+          python3 .github/scripts/merge_gate.py --pr-checks-report

@@ -1,7 +1,13 @@
 """Tests for merge_gate: evaluate (table), the job verdict of run()/main(), the workflow contract.
 Run: python3 .github/scripts/test_merge_gate.py (in a repo copy) / python3 templates/workflows/test_merge_gate.py."""
+import contextlib
 import io
 import os
+import re
+import shutil
+import subprocess
+import sys
+import tempfile
 import unittest
 from unittest import mock
 
@@ -68,6 +74,11 @@ class Recorder(Fake):
     def remove_label(self, name): self.removed.append(name)
 
 
+def touch(path):
+    with open(path, "w") as fh:
+        fh.write("# stub\n")
+
+
 def verdict(gh, call):
     """Runs `call` with the summary on stdout captured; returns (exit code, captured stdout)."""
     with mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": "", "REPO": "o/r", "PR": "1"}), \
@@ -119,6 +130,139 @@ class JobVerdict(unittest.TestCase):
         with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), self.assertRaises(OSError):
             verdict(gh, mg.main)
 
+    def test_pr_checks_report_never_changes_the_verdict(self):
+        d = tempfile.mkdtemp(prefix="gate-report-")
+        try:
+            script = os.path.join(d, "run_pr_checks.py")
+            summary = os.path.join(d, "summary.md")
+            touch(script)
+            touch(os.path.join(d, "ci_lint.py"))
+            calls, kws = [], []
+
+            def ok(cmd, **kw):
+                if calls:   # each finished group is already in the summary: a cancelled job keeps it
+                    self.assertIn("**closes** x", read())
+                calls.append(cmd)
+                kws.append(kw)
+                found = "### PR checks (report only)\n- **closes** x\n" if cmd[cmd.index("--only") + 1] == "closes" else mg.PR_CHECKS_NOTHING
+                return subprocess.CompletedProcess(cmd, 0, stdout=found, stderr="")
+
+            def read():
+                with open(summary) as fh:
+                    return fh.read()
+
+            env = {"GITHUB_STEP_SUMMARY": summary, "REPO": "o/r", "PR": "7"}
+            with mock.patch.dict(os.environ, env):
+                mg.pr_checks_report(script, ok)
+                self.assertEqual([c[c.index("--only") + 1] for c in calls], list(mg.PR_CHECKS_GROUPS))   # one process per group
+                for c, kw in zip(calls, kws):
+                    self.assertEqual(c[c.index("--repo") + 1], "o/r")
+                    self.assertEqual(c[c.index("--pr") + 1], "7")
+                    self.assertIn("--report", c)
+                    self.assertNotIn("--markdown", c)              # run_pr_checks prints plain text; the gate fences it
+                    self.assertEqual(kw["timeout"], mg.PR_CHECKS_TIMEOUT)   # a hung gh must not hold the job
+                got = read()
+                self.assertIn("**closes** x", got)
+                self.assertNotIn(mg.PR_CHECKS_NOTHING, got)        # the groups that found nothing add no line
+                self.assertTrue(got.startswith("```\n") and got.rstrip().endswith("```"))   # plain text is fenced
+                # every group empty: one line, not four
+                open(summary, "w").close()
+                mg.pr_checks_report(script, lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=mg.PR_CHECKS_NOTHING + "\n", stderr=""))
+                self.assertEqual(read(), mg.PR_CHECKS_NOTHING + "\n")
+                # the script is missing: nothing runs and the summary says the gap
+                calls.clear()
+                open(summary, "w").close()
+                mg.pr_checks_report(os.path.join(d, "absent.py"), ok)
+                self.assertIn("not rolled out in this repo", read())
+                open(summary, "w").close()
+                # one copy of the two: run_pr_checks.py imports ci_lint at load time, so the line says "not rolled out", not an ImportError
+                os.remove(os.path.join(d, "ci_lint.py"))
+                mg.pr_checks_report(script, ok)
+                self.assertIn("not rolled out in this repo", read())
+                self.assertEqual(calls, [])
+                touch(os.path.join(d, "ci_lint.py"))
+                # a crash, a timeout and a non-zero exit are reported in the summary, never raised
+                def boom(cmd, **kw): raise subprocess.TimeoutExpired(cmd, 120)
+                def bad(cmd, **kw): return subprocess.CompletedProcess(cmd, 2, stdout="", stderr="gh: no token")
+                for fn, needle in ((boom, "TimeoutExpired"), (bad, "exit 2")):
+                    open(summary, "w").close()
+                    mg.pr_checks_report(script, fn)
+                    self.assertIn(needle, read())
+                # a hang of ONE group keeps the findings of the others (the point of one process per group)
+                def one_hangs(cmd, **kw):
+                    if cmd[cmd.index("--only") + 1] == "bot-threads":
+                        raise subprocess.TimeoutExpired(cmd, 120)
+                    return ok(cmd, **kw)
+                open(summary, "w").close()
+                mg.pr_checks_report(script, one_hangs)
+                got = read()
+                self.assertIn("**closes** x", got)
+                self.assertIn("[bot-threads] did not run: TimeoutExpired", got)
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_the_fence_is_longer_than_any_backtick_run_in_the_foreign_text(self):
+        d = tempfile.mkdtemp(prefix="gate-report-")
+        try:
+            script = os.path.join(d, "run_pr_checks.py")
+            touch(script)
+            touch(os.path.join(d, "ci_lint.py"))
+            summary = os.path.join(d, "summary.md")
+            hostile = "[bot-threads] 1 thread(s)\n  - a.py:3 ```suggestion\n  - b ````` c"   # a bot comment / checklist item with fences
+            run = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout=hostile if "bot-threads" in cmd else mg.PR_CHECKS_NOTHING, stderr="")
+            with mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": summary, "REPO": "o/r", "PR": "7"}):
+                mg.pr_checks_report(script, run)
+            with open(summary) as fh:
+                lines = fh.read().rstrip("\n").split("\n")
+            self.assertEqual(lines[0], "`" * 6)                      # longest run inside is 5
+            self.assertEqual(lines[-1], lines[0])
+            self.assertEqual(lines[1:-1], hostile.split("\n"))
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_an_unwritable_summary_does_not_raise(self):
+        d = tempfile.mkdtemp(prefix="gate-report-")
+        try:
+            script = os.path.join(d, "run_pr_checks.py")
+            touch(script)
+            touch(os.path.join(d, "ci_lint.py"))
+            ok = lambda cmd, **kw: subprocess.CompletedProcess(cmd, 0, stdout="x", stderr="")
+            env = {"GITHUB_STEP_SUMMARY": os.path.join(d, "no-such-dir", "summary.md"), "REPO": "o/r", "PR": "7"}
+            with mock.patch.dict(os.environ, env):
+                for target in (script, os.path.join(d, "absent.py")):   # the script runs / not rolled out: the write fails either way
+                    with contextlib.redirect_stdout(io.StringIO()) as out:   # the warning is the contract, not noise on the CI log
+                        mg.pr_checks_report(target, ok)
+                    self.assertIn("::warning::PR checks report failed", out.getvalue())
+        finally:
+            shutil.rmtree(d, ignore_errors=True)
+
+    def test_the_verdict_run_does_not_run_the_report_and_the_report_run_does_not_evaluate(self):
+        # the report is a workflow of its own (pr-checks-report.yml): the verdict job's status never waits for it
+        calls = []
+        gh = Recorder(pull())  # waiting -> 1
+        with mock.patch.object(mg, "GitHub", lambda repo, pr: gh), mock.patch.object(mg, "pr_checks_report", lambda: calls.append("report")):
+            self.assertEqual(verdict(gh, mg.main)[0], 1)
+            self.assertEqual(calls, [])
+        calls.clear()
+        with mock.patch.object(mg, "GitHub", side_effect=AssertionError("the report run must not read the gate state")), \
+                mock.patch.object(mg, "pr_checks_report", lambda: calls.append("report")):
+            self.assertEqual(mg.main(["--pr-checks-report"]), 0)    # exit 0 always: it is not a verdict
+        self.assertEqual(calls, ["report"])
+
+    def test_the_production_invocation_reads_the_flag_from_sys_argv(self):
+        # the workflow runs `python3 .github/scripts/merge_gate.py --pr-checks-report`: main() with argv=None, the flag from sys.argv
+        calls = []
+        with mock.patch.object(sys, "argv", ["merge_gate.py", "--pr-checks-report"]), \
+                mock.patch.object(mg, "GitHub", side_effect=AssertionError("the report run must not read the gate state")), \
+                mock.patch.object(mg, "pr_checks_report", lambda: calls.append("report")):
+            self.assertEqual(mg.main(), 0)
+        self.assertEqual(calls, ["report"])
+
+    def test_the_checks_scripts_are_workflow_copies(self):
+        self.assertEqual(mg.template_of(".github/scripts/run_pr_checks.py"), "plugins/omnisgm/scripts/checks/run_pr_checks.py")
+        self.assertEqual(mg.template_of(".github/scripts/ci_lint.py"), "plugins/omnisgm/scripts/checks/ci_lint.py")
+        self.assertEqual(mg.template_of(".github/workflows/pr-checks-report.yml"), "templates/workflows/pr-checks-report.yml")
+
     def test_nothing_is_written_through_the_check_runs_api(self):
         with open(mg.__file__) as f:
             src = f.read()
@@ -126,30 +270,120 @@ class JobVerdict(unittest.TestCase):
         self.assertFalse(hasattr(mg.GitHub, "open_check"))
 
 
+class CallerArgv(unittest.TestCase):
+    def test_argv_is_accepted_by_run_pr_checks_parser(self):
+        """The argv merge_gate builds must parse under run_pr_checks.py's argparse: an unknown flag is exit 2 there."""
+        import importlib.util
+        here = os.path.dirname(os.path.abspath(__file__))
+        path = next((p for p in (os.path.join(here, "..", "..", "plugins", "omnisgm", "scripts", "checks", "run_pr_checks.py"),
+                                 os.path.join(here, "run_pr_checks.py")) if os.path.isfile(p)), None)
+        if path is None:
+            self.skipTest("run_pr_checks.py is not next to this repo copy")
+        spec = importlib.util.spec_from_file_location("run_pr_checks_under_test", path)
+        mod = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(mod)
+
+        calls = []
+        d = tempfile.mkdtemp(prefix="gate-argv-")
+        try:
+            script = os.path.join(d, "run_pr_checks.py")
+            touch(script)
+            touch(os.path.join(d, mg.PR_CHECKS_LIB))
+            env = {"GITHUB_STEP_SUMMARY": os.path.join(d, "s.md"), "REPO": "o/r", "PR": "7"}
+            with mock.patch.dict(os.environ, env):
+                mg.pr_checks_report(script, lambda cmd, **kw: calls.append(cmd) or subprocess.CompletedProcess(cmd, 0, stdout="", stderr=""))
+        finally:
+            shutil.rmtree(d)
+        self.assertEqual(len(calls), len(mg.PR_CHECKS_GROUPS))
+        self.assertEqual(set().union(*(mod.GROUPS.get(g, (g,)) for g in mg.PR_CHECKS_GROUPS)), set(mod.ALL))   # no check left out
+        self.assertLessEqual(mod.FILES_TIMEOUT + 2 * mod.GH_TIMEOUT, mg.PR_CHECKS_TIMEOUT)   # hygiene's worst case: the files list once, a read per other check
+        for argv in (c[2:] for c in calls):   # [python, script, *argv]
+            reached = []
+
+            def stop(*a, **kw):
+                reached.append(a)
+                raise RuntimeError("no network in this test")
+
+            with self.subTest(argv=argv), contextlib.redirect_stdout(io.StringIO()):
+                try:
+                    code = mod.main(argv, gh=stop)
+                except SystemExit as e:
+                    self.fail(f"run_pr_checks.py rejected merge_gate's argv {argv} (exit {e.code})")
+                self.assertEqual(code, 0)       # --report: exit 0 once the argv is accepted; 2 = parsed but never reached a check
+                self.assertTrue(reached, f"{argv} parsed but no check reached gh")   # the checks catch the stop themselves
+
+
 class WorkflowContract(unittest.TestCase):
     """merge-gate.yml next to this file: the job IS the required context — nothing else reports a verdict."""
 
-    def test_the_job_is_named_merge_gate_and_only_runs_the_script(self):
-        here = os.path.dirname(os.path.abspath(__file__))
-        for candidate in (os.path.join(here, "merge-gate.yml"), os.path.join(here, "..", "workflows", "merge-gate.yml")):
+    def _text(self, name="merge-gate.yml", here=None, optional_in_copy=False):
+        here = here or os.path.dirname(os.path.abspath(__file__))
+        for candidate in (os.path.join(here, name), os.path.join(here, "..", "workflows", name)):
             if os.path.exists(candidate):
                 with open(candidate) as f:
-                    text = f.read()
-                break
-        else:
-            self.fail("merge-gate.yml not found next to the script or in ../workflows")
-        jobs = text.split("\njobs:\n", 1)[1]  # the job's own `name:` (4 spaces), not the workflow's on line 1
-        self.assertEqual([l.split("#")[0].rstrip() for l in jobs.splitlines() if l.startswith("    name: ")],
-                         ["    name: Merge gate"])  # the ruleset's required context (authoring-workflows 12b)
+                    return f.read()
+        # A repo copy (.github/scripts) may run this test before the sync PR that adds the workflow is merged:
+        # a skip there, a failure in templates/workflows, where a renamed workflow must not turn the only check into a skip.
+        if optional_in_copy and os.path.basename(os.path.normpath(here)) == "scripts":
+            self.skipTest(f"{name} is not rolled out in this repo yet")
+        self.fail(f"{name} not found next to the script or in ../workflows")
+
+    @staticmethod
+    def _types(text):
         on = text.split("\non:\n", 1)[1].split("\n\n", 1)[0]
         types = [l.split("#")[0].strip() for l in on.splitlines() if l.strip().startswith("types:")]
-        self.assertEqual(len(types), 1)
-        items = {x.strip() for x in types[0].split("[", 1)[1].split("]", 1)[0].split(",")}
-        self.assertLessEqual({"labeled", "unlabeled", "synchronize"}, items)  # a label event re-runs the job; "labeled" is not a substring test (News#171)
+        assert len(types) == 1, types
+        return on, {x.strip() for x in types[0].split("[", 1)[1].split("]", 1)[0].split(",")}   # a set: "labeled" is not in "unlabeled"
+
+    def test_a_missing_report_workflow_skips_in_a_copy_and_fails_in_the_template(self):
+        d = tempfile.mkdtemp(prefix="gate-copy-")
+        try:
+            copy, tmpl = os.path.join(d, ".github", "scripts"), os.path.join(d, "templates", "workflows")
+            os.makedirs(copy)
+            os.makedirs(tmpl)
+            with self.assertRaises(unittest.SkipTest):
+                self._text("pr-checks-report.yml", here=copy, optional_in_copy=True)
+            with self.assertRaises(self.failureException):
+                self._text("pr-checks-report.yml", here=tmpl, optional_in_copy=True)
+            with self.assertRaises(self.failureException):
+                self._text("merge-gate.yml", here=copy)                  # the verdict's own workflow is never optional
+        finally:
+            shutil.rmtree(d)
+
+    def test_the_job_is_named_merge_gate_and_only_runs_the_script(self):
+        text = self._text()
+        jobs = text.split("\njobs:\n", 1)[1]  # the job's own `name:` (4 spaces), not the workflow's on line 1
+        self.assertEqual([l.split("#")[0].rstrip() for l in jobs.splitlines() if l.startswith("    name: ")],
+                         ["    name: Merge gate"])  # the ruleset's required context (authoring-workflows 12b); the report is another workflow
+        on, types = self._types(text)
+        self.assertLessEqual({"opened", "reopened", "ready_for_review", "synchronize", "labeled", "unlabeled"}, types)
         self.assertNotIn("workflow_dispatch", on)  # a dispatch run is attached to no PR: never a verdict (Table#1251)
         self.assertNotIn("--fail", text)
         self.assertNotIn("checks: write", text)
         self.assertEqual(text.count("run: python3 .github/scripts/merge_gate.py"), 1)
+        self.assertNotIn("--pr-checks-report", text)   # no report job in the verdict's workflow: it would hold `merge-gate-<PR>`
+
+    def test_the_report_is_a_workflow_of_its_own_with_its_own_group(self):
+        text, gate = self._text("pr-checks-report.yml", optional_in_copy=True), self._text()
+        group = lambda s: re.search(r"\nconcurrency:\n  group: (.+)\n  cancel-in-progress: (\w+)", s).groups()
+        self.assertNotEqual(group(text)[0], group(gate)[0])               # the verdict's group is never held by a report
+        self.assertEqual(group(text), ("pr-checks-${{ github.event.pull_request.number }}", "true"))
+        on, types = self._types(text)
+        self.assertEqual(types, {"opened", "reopened", "ready_for_review", "synchronize"})   # no label events: a label changes nothing the checks read
+        self.assertNotIn("workflow_dispatch", on)
+        jobs = text.split("\njobs:\n", 1)[1]
+        self.assertEqual([l.split("#")[0].rstrip() for l in jobs.splitlines() if l.startswith("    name: ")], ["    name: PR checks report"])
+        self.assertIn("grep -q -- '--pr-checks-report' .github/scripts/merge_gate.py", jobs)   # an old copy would compute the verdict
+        self.assertLess(jobs.index("grep -q -- '--pr-checks-report'"), jobs.index("python3 .github/scripts/merge_gate.py --pr-checks-report"))
+        self.assertIn("python3 .github/scripts/merge_gate.py --pr-checks-report", jobs)
+        self.assertNotIn("name: Merge gate", jobs)                        # not the required context's name
+        self.assertNotIn("needs:", jobs)
+        minutes = int(re.search(r"\n    timeout-minutes: (\d+)", jobs).group(1))
+        self.assertGreater(minutes * 60, len(mg.PR_CHECKS_GROUPS) * mg.PR_CHECKS_TIMEOUT + 180)   # the groups + the gh bootstrap
+        perms = re.search(r"\n    permissions:\n((?:      \S.*\n)+)", jobs)
+        self.assertIsNotNone(perms)                                       # no block = the repo's default token rights
+        self.assertEqual(sorted(l.split("#")[0].strip() for l in perms.group(1).splitlines()),
+                         ["contents: read", "issues: read", "pull-requests: read"])   # a report reads
 
 
 class Gate(unittest.TestCase):
@@ -313,15 +547,44 @@ class Gate(unittest.TestCase):
                 self.assertEqual(waiting, [], (why, labels))  # no review round or matrix is promised: none would come
 
     def test_template_sync_exempts_only_modified_copies(self):
-        files = [".claude/rules/a.md", ".claude/rules/b.md"]
-        for status in ("added", "renamed", "removed", "copied", ""):
-            gh = SyncFake(([], [], []), {files[0]: "modified", files[1]: status})
+        wf = ".github/workflows/sync-recheck.yml"
+        cases = [(".claude/rules/b.md", st) for st in ("added", "renamed", "removed", "copied", "")]
+        cases += [(wf, st) for st in ("renamed", "removed", "copied", "")]  # a workflow copy: only `added` joins `modified`
+        for path, status in cases:
+            files = [".claude/rules/a.md", path]
+            gh = SyncFake(([], [], []), {files[0]: "modified", path: status})
             _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
             waiting, errors = mg.split_outcome(fail)
-            self.assertTrue(any("only modified copies" in e and ".claude/rules/b.md" in e and "outside `sync/templates-*`" in e
-                                for e in errors), (status, fail))
+            self.assertTrue(any("only modified copies, and added workflow copies" in e and path in e
+                                and "outside `sync/templates-*`" in e for e in errors), (path, status, fail))
             self.assertEqual(waiting, [], status)
             self.assertEqual(gh.asked, [], status)  # blobs are not even compared
+
+    def test_template_sync_exempts_an_added_workflow_copy(self):
+        for path in sorted(mg.WORKFLOW_COPIES):
+            files = [".claude/rules/a.md", path]
+            gh = SyncFake(([], [], []), {files[0]: "modified", path: "added"})
+            _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
+            self.assertEqual(fail, [], path)
+            self.assertEqual([a[0] for a in gh.asked], [tuple(files)], path)  # its text is still compared
+            gh = SyncFake(([], [], [path]), {files[0]: "modified", path: "added"})  # settings unlike the repo's gate
+            _, fail, _ = mg.evaluate(gh, pull(head="sync/templates-abc1234"), files, [], {})
+            self.assertTrue(fail, path)
+
+    def test_new_copy_takes_the_settings_lines_of_the_repos_gate(self):
+        tpl = ("jobs:\n  a:\n    runs-on: self-hosted   # note\n  b:\n    runs-on: self-hosted\n"
+               "      - uses: actions/setup-node@v4\n        with:\n          node-version: 22\nend\n")
+        donor = "jobs:\n  g:\n    runs-on: ubuntu-latest\n  h:\n    runs-on: ubuntu-latest\n"
+        self.assertEqual(mg.new_copy("a.yml", tpl, donor),
+                         tpl.replace("self-hosted   # note", "ubuntu-latest").replace("runs-on: self-hosted", "runs-on: ubuntu-latest"))
+        for other in ("jobs:\n  g:\n    runs-on: ubuntu-latest\n  h:\n    runs-on: self-hosted\n",  # two texts: no choice
+                      "", None, "jobs:\n  g:\n    steps: []\n"):  # no gate, no runs-on line
+            with self.subTest(donor=other):
+                self.assertEqual(mg.new_copy("a.yml", tpl, other), tpl)
+        donor24 = donor + "          node-version: 24\n"
+        self.assertIn("          node-version: 24\n", mg.new_copy("a.yml", tpl, donor24))  # each setting by its own name
+        self.assertNotIn("node-version: 22", mg.new_copy("a.yml", tpl, donor24))
+        self.assertEqual(mg.new_copy("a.py", "    runs-on: self-hosted\n", donor), "    runs-on: self-hosted\n")  # a script
 
     def test_template_sync_rejects_foreign_files_without_reading_blobs(self):
         class Never(Fake):
@@ -521,6 +784,28 @@ class Gate(unittest.TestCase):
                     self.assertEqual(gh.template_mismatches([wf], "h", "m", "t"), ([], [], bad))
             texts[("o/r", wf, "h")] = texts[("o/r", wf, "m")] = "jobs:\n  a:\n    runs-on: self-hosted\n  p:\n    runs-on: ubuntu-latest\n"
             self.assertEqual(gh.template_mismatches([wf], "h", "m", "t"), ([], [], [wf]))  # an old key still keeps the base's
+            # an added copy (claude-plugins#71): no copy at the base, the settings come from the base's merge-gate.yml
+            rc = ".github/workflows/sync-recheck.yml"
+            texts[(T, "templates/workflows/sync-recheck.yml", R)] = "jobs:\n  r:\n    runs-on: self-hosted\n"
+            texts[("o/r", rc, "t")] = None
+            texts[("o/r", wf, "t")] = "jobs:\n  a:\n    runs-on: ubuntu-latest\n"
+            for line, bad in (("ubuntu-latest", []), ("self-hosted", [rc])):
+                texts[("o/r", rc, "h")] = texts[("o/r", rc, "m")] = f"jobs:\n  r:\n    runs-on: {line}\n"
+                with self.subTest(added=line):
+                    self.assertEqual(gh.template_mismatches([rc], "h", "m", "t"), ([], [], bad))
+            texts[("o/r", wf, "t")] = None  # no gate at the base: the template's lines
+            texts[("o/r", rc, "h")] = texts[("o/r", rc, "m")] = "jobs:\n  r:\n    runs-on: ubuntu-latest\n"
+            self.assertEqual(gh.template_mismatches([rc], "h", "m", "t"), ([], [], [rc]))
+            texts[("o/r", rc, "h")] = texts[("o/r", rc, "m")] = "jobs:\n  r:\n    runs-on: self-hosted\n"
+            self.assertEqual(gh.template_mismatches([rc], "h", "m", "t"), ([], [], []))
+            # a copy the base carries keeps its OWN line, not the gate's: Rules' merge-gate.yml runs on ubuntu-latest,
+            # its sync-recheck.yml on self-hosted (the claude-review.yml of Table/Rules/News is the real case: CI_CHECK)
+            texts[("o/r", wf, "t")] = "jobs:\n  a:\n    runs-on: ubuntu-latest\n"
+            texts[("o/r", rc, "t")] = "old\njobs:\n  r:\n    runs-on: self-hosted\n"
+            for line, bad in (("self-hosted", []), ("ubuntu-latest", [rc])):
+                texts[("o/r", rc, "h")] = texts[("o/r", rc, "m")] = f"jobs:\n  r:\n    runs-on: {line}\n"
+                with self.subTest(carried=line):
+                    self.assertEqual(gh.template_mismatches([rc], "h", "m", "t"), ([], [], bad))
             texts[("o/r", ".claude/rules/none.md", "h")] = None
             texts[(T, "templates/none.md", R)] = None  # missing on both sides is not "equal"
             self.assertEqual(gh.template_mismatches([".claude/rules/none.md"], "h", "m", "t"), ([".claude/rules/none.md"], [], []))
