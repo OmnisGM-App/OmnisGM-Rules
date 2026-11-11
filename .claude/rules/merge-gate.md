@@ -25,7 +25,12 @@ another head is removed, and so is `gate/snapshots-approved` when the PR's own b
 between that head and the live one. `gate/review-passed` counts only when the review workflow applied
 it — a hand-applied one is reported and ignored.
 
-**Template copies.** A `sync/templates-*` PR (label `plugin-copy`, opened by claude-plugins `sync-templates.yml`) needs no other label and gets no review round; never edit or push to it — change the template in claude-plugins and the next sync replaces the PR. The gate blocks it, with the reason, when a changed file is not a MODIFIED copy of a template (`.claude/rules/*.md`, `merge-gate.yml`, `claude-review.yml`, `sync-recheck.yml`, `merge_gate.py`, `sync_recheck.py` and their tests) or differs from it outside the repo's settings lines (`runs-on`, `CI_CHECK`, the Node version); labels do not lift the block. A template a repo does not carry yet, a change of its settings lines and the wiring of a new test file into its CI go through an ordinary PR.
+**Template copies.** A `sync/templates-*` PR (label `plugin-copy`, opened by claude-plugins `sync-templates.yml`) needs no other label and gets no review round; never edit or push to it — change the template in claude-plugins and the next sync replaces the PR. The gate blocks it, with the reason, when a changed file is not a MODIFIED copy of a template (`.claude/rules/*.md` or a path of `WORKFLOW_COPIES` in `merge_gate.py`; the sync also ADDS a missing workflow copy, with the settings lines of the repo's `merge-gate.yml`) or differs from it outside the repo's settings lines (`runs-on`, `CI_CHECK`, the Node version); labels do not lift the block. A rule template a repo does not carry yet, a change of its settings lines and the wiring of a new test file into its CI go through an ordinary PR.
+
+**PR checks report** (claude-plugins#71): `pr-checks-report.yml`, not required, its own group `pr-checks-<PR>`, no label events,
+so the verdict never waits for it. It runs `run_pr_checks.py` once per check group and writes the findings to the job summary;
+it never changes a status. A repo without the script copies gets «PR checks: not rolled out in this repo». Before the push:
+`CHECK pr --local --base <base> --repo <R> --pr <N>`.
 
 ## Rules for an agent (Claude Code and anything acting with the owner's token)
 
@@ -145,8 +150,7 @@ it — a hand-applied one is reported and ignored.
   `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
   is kept); everything else — squash.
   A repo without a release branch (Rules, News) squashes every PR.
-- **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its
-  own version of the check, so the gate cannot vouch for it. It is merged under the ordinary readiness
+- **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its own version of the check, so the gate cannot vouch for it. It is merged under the ordinary readiness
   criteria above (the agent itself) — the author reads its own diff with the knowledge that the gate's
   verdict on it is self-reported.
 - A green check on an old head is not a green check: after a push wait for CI and the gate on the

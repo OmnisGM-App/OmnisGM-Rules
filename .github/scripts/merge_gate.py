@@ -35,7 +35,9 @@ Template copies (owner's decisions 2026-11-08 for rule files, 2026-11-10 for wor
 from a `sync/templates-*` branch or labelled `plugin-copy` (sync-templates.yml sets both) needs neither
 `gate/review-passed` nor a matrix label when it targets the default branch and the gate itself confirms that every
 changed file is a copy named by `template_of` (`.claude/rules/<name>.md` or a WORKFLOW_COPIES path), its status is
-`modified` (an added copy is a decision for the repo, a rename hides a removal: ordinary PRs), and its text at the
+`modified`, or `added` for a WORKFLOW_COPIES path (sync-templates adds a workflow copy the repo does not carry yet, with
+the settings lines of the repo's own merge-gate.yml, `new_copy`; a new rule file stays a decision for the repo and a
+rename hides a removal: ordinary PRs), and its text at the
 head and at GitHub's test merge commit (sync-recheck.yml re-runs the gate after the base moves) equals its template on
 the live master of TEMPLATES_REPO (claude-plugins, read with TEMPLATES_TOKEN — the org secret TEMPLATES_READ_TOKEN)
 outside the repo's settings lines (SETTING_LINE in a workflow copy), while those lines in the test merge are what
@@ -68,6 +70,11 @@ WORKFLOW_COPIES = {
     ".github/scripts/test_merge_gate.py": "templates/workflows/test_merge_gate.py",
     ".github/scripts/sync_recheck.py": "templates/workflows/sync_recheck.py",
     ".github/scripts/test_sync_recheck.py": "templates/workflows/test_sync_recheck.py",
+    # the PR checks report (claude-plugins#57, #71): its own workflow, run by merge_gate.py --pr-checks-report, over the two machine-gate
+    # scripts (their tests stay in claude-plugins)
+    ".github/workflows/pr-checks-report.yml": "templates/workflows/pr-checks-report.yml",
+    ".github/scripts/run_pr_checks.py": "plugins/omnisgm/scripts/checks/run_pr_checks.py",
+    ".github/scripts/ci_lint.py": "plugins/omnisgm/scripts/checks/ci_lint.py",
 }
 # the repo's own settings in a workflow copy (runner, CI check name, Node version): a sync keeps them, the gate
 # compares them with the base's copy instead of the template
@@ -133,6 +140,26 @@ def with_settings(path: str, template: str, copy: str) -> str:
         return same.pop() if len(same) == 1 else want[key]
     it = iter(want)  # dicts keep the template's order: the n-th mark is the n-th key
     return "\n".join(line(next(it)) if l == SETTING_MARK else l for l in body)
+
+
+SETTINGS_DONOR = ".github/workflows/merge-gate.yml"   # where a copy the repo does not carry yet takes its settings lines
+
+
+def new_copy(path: str, template: str, donor: str | None) -> str:
+    """A workflow copy the repo does not carry yet, as sync_templates.sh adds it: the template, each settings line of it
+    replaced by the line of the same setting in the repo's merge-gate.yml (`donor`) when that file has exactly one such
+    line text (Rules runs its gate jobs on `ubuntu-latest`); otherwise, and for a script, the template's line."""
+    if not path.endswith(".yml"):
+        return template
+    by_name: dict[str, set[str]] = {}
+    for (_, name, _), l in split_settings(SETTINGS_DONOR, donor or "")[1].items():
+        by_name.setdefault(name, set()).add(l.strip())
+    out = []
+    for l in template.split("\n"):
+        m = SETTING_LINE.match(l)
+        own = by_name.get(m.group(1), set()) if m else set()
+        out.append(l[: len(l) - len(l.lstrip())] + next(iter(own)) if len(own) == 1 else l)
+    return "\n".join(out)
 
 
 def gh_json(*args: str, token: str | None = None):
@@ -238,8 +265,12 @@ class GitHub:
             merged = self.file_text(self.repo, f, merge)
             if merged is None or split_settings(f, merged)[0] != body:
                 at_merge.append(f)
-            elif split_settings(f, merged)[1] != split_settings(f, with_settings(f, want, self.file_text(self.repo, f, base) or ""))[1]:
-                settings.append(f)
+            else:
+                old = self.file_text(self.repo, f, base)
+                sync = (with_settings(f, want, old) if old is not None   # an added copy: the settings of the repo's gate
+                        else new_copy(f, want, self.file_text(self.repo, SETTINGS_DONOR, base)))
+                if split_settings(f, merged)[1] != split_settings(f, sync)[1]:
+                    settings.append(f)
         return at_head, at_merge, settings
 
     def merge_parent(self, sha: str) -> str | None:
@@ -377,9 +408,10 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         elif not files or foreign:
             fail.append(f"{claim} {', '.join(map(repr, foreign[:5])) or 'nothing'} — only copies of claude-plugins "
                         "templates (`.claude/rules/*.md` and the workflow copies) are exempt." + way_out)
-        elif (not_mod := sorted(f"{f} ({st or '?'})" for f, st in gh.file_status().items() if st != "modified")):
-            # an added copy is a decision for the repo (an ordinary PR); a rename hides the removal of its source
-            fail.append(f"{tag}: {', '.join(not_mod[:5])} — only modified copies are exempt." + way_out)
+        elif (not_mod := sorted(f"{f} ({st or '?'})" for f, st in gh.file_status().items()
+                                if not (st == "modified" or (st == "added" and f in WORKFLOW_COPIES)))):
+            # a new rule file is a decision for the repo (an ordinary PR); a rename hides the removal of its source
+            fail.append(f"{tag}: {', '.join(not_mod[:5])} — only modified copies, and added workflow copies, are exempt." + way_out)
         elif (why := gh.templates_unreadable()):
             fail.append(f"{tag}: {why}")
         elif not (merge := gh.merge_commit(pull)):
@@ -421,7 +453,73 @@ def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
     return waiting, errors
 
 
-def main() -> int:
+PR_CHECKS = "run_pr_checks.py"
+PR_CHECKS_LIB = "ci_lint.py"   # run_pr_checks.py imports it at load time: a repo with one of the two copies cannot run the report
+NOT_ROLLED_OUT = ("### PR checks: not rolled out in this repo\n\n`.github/scripts/run_pr_checks.py` and `.github/scripts/ci_lint.py` are not both here, "
+                  "so the report did not run. The next sync-templates PR adds both (from claude-plugins `plugins/omnisgm/scripts/checks/`) "
+                  "in a repo that carries `.github/scripts/merge_gate.py`.")
+# One run_pr_checks.py process per group, not one for all: the script prints once, after its last check, so one hang under a single
+# outer timeout would throw away the findings of the checks that did finish. Its `gh` calls time out after GH_TIMEOUT (30 s), well
+# inside PR_CHECKS_TIMEOUT, so a hung call is that check's `skipped` line and the group still prints; each group's part goes to the
+# summary as soon as it ends, so a cancelled job keeps what finished.
+PR_CHECKS_GROUPS = ("closes", "bot-threads", "hygiene", "ci-lint")
+PR_CHECKS_NOTHING = "PR checks: nothing found."   # run_pr_checks.render() for an empty result
+PR_CHECKS_TIMEOUT = 120
+
+
+def pr_checks_report(script: str | None = None, run_cmd=subprocess.run) -> None:
+    """REPORT, not a gate (owner's decision 2026-11-11, claude-plugins#57: turning it into a failure waits for the false-positive
+    rate): run the PR machine gates (closes-with-open-items, unanswered bot threads, hygiene, ci-lint) and put what they find in the
+    step summary. Runs from `pr-checks-report.yml`, a workflow of its own (claude-plugins#71: inside merge-gate.yml it held the
+    verdict's concurrency group), so no verdict ever waits for it. Never raises. A repo that lacks either of the two copies
+    (before the sync adds them) gets a visible line instead of a silent skip."""
+    try:
+        _pr_checks_report(script, run_cmd)
+    except Exception as e:  # noqa: BLE001 - a report must not fail the job, not even through an unwritable summary
+        print(f"::warning::PR checks report failed: {type(e).__name__}: {str(e)[:200]}")
+
+
+def _fence(text: str) -> str:
+    """A code fence longer than any backtick run in `text` (bot comments and issue checklist items are foreign text)."""
+    longest = max((len(m) for m in re.findall(r"`+", text)), default=0)
+    ticks = "`" * max(3, longest + 1)
+    return f"{ticks}\n{text}\n{ticks}"
+
+
+def _pr_checks_report(script, run_cmd) -> None:
+    script = script or os.path.join(os.path.dirname(os.path.abspath(__file__)), PR_CHECKS)
+    if not (os.path.isfile(script) and os.path.isfile(os.path.join(os.path.dirname(script), PR_CHECKS_LIB))):
+        _summary_write(NOT_ROLLED_OUT)
+        return
+    found = False
+    for group in PR_CHECKS_GROUPS:
+        try:
+            r = run_cmd([sys.executable, script, "--repo", os.environ["REPO"], "--pr", os.environ["PR"], "--only", group, "--report"],
+                        capture_output=True, text=True, timeout=PR_CHECKS_TIMEOUT)
+            out = (r.stdout or "").strip() if r.returncode == 0 else f"[{group}] did not run (exit {r.returncode}): {(r.stderr or '')[-300:].strip()}"
+        except Exception as e:  # noqa: BLE001 - one group's hang or crash is that group's line; the others keep their findings
+            out = f"[{group}] did not run: {type(e).__name__}: {str(e)[:200]}"
+        if out and out != PR_CHECKS_NOTHING:
+            _summary_write(_fence(out))
+            found = True
+    if not found:
+        _summary_write(PR_CHECKS_NOTHING)
+
+
+def _summary_write(text: str) -> None:
+    summary = os.environ.get("GITHUB_STEP_SUMMARY")
+    out = open(summary, "a") if summary else sys.stdout
+    print(text, file=out)
+    if summary:
+        out.close()
+
+
+def main(argv: list[str] | None = None) -> int:
+    """`merge_gate.py` evaluates the labels (the verdict job); `merge_gate.py --pr-checks-report` writes the PR checks report
+    (its own workflow, never a verdict: exit 0 always)."""
+    if "--pr-checks-report" in (sys.argv[1:] if argv is None else argv):
+        pr_checks_report()
+        return 0
     gh = GitHub(os.environ["REPO"], os.environ["PR"])
     return run(gh, gh.pull())
 
