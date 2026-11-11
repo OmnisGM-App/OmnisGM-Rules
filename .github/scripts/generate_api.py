@@ -1132,7 +1132,7 @@ def main():
         resolve_cross_refs(all_data)
         disambiguate_option_slugs(all_data)
         shares = {}
-        for ver, path in getattr(cfg, "MULTICLASS_RULES", {}).items():
+        for ver, path in getattr(cfg, "CASTER_SHARE_RULES", {}).items():
             shares[ver] = parse_caster_shares((src_root / path).read_text(encoding="utf-8"))
             for lang in ("en", "ru"):
                 if (ver, lang, "classes") in sources_map:

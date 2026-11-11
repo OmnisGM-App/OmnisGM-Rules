@@ -25,13 +25,21 @@ def eq(name, got, want):
         failures.append(f"{name}: получили {got!r}, ждали {want!r}")
 
 
+def _try(fn):
+    try:
+        fn()
+    except Exception as err:
+        return err
+    return None
+
+
 SRC = ROOT / "src/dnd"
 CREATION = (SRC / "srd-5.2/en/02_CharacterCreation.md").read_text(encoding="utf-8")
 valid = jsonschema.Draft7Validator(SYSTEM_SCHEMA).is_valid
 
 # Конфигурация-фикстура: флаг, который владелец поставит в config.COMPENDIUM, тест не роняет.
 def dnd_cfg(compendium):
-    return types.SimpleNamespace(**{k: getattr(config, k) for k in ("SYSTEM", "VERSION_NAMES", "MULTICLASS_RULES")},
+    return types.SimpleNamespace(**{k: getattr(config, k) for k in ("SYSTEM", "VERSION_NAMES", "MULTICLASS_RULES", "CASTER_SHARE_RULES")},
                                  COMPENDIUM=compendium)
 
 
@@ -60,10 +68,37 @@ eq("схема: неизвестное значение флага отклон�
 
 # --- Версии без главы правил мультикласса ------------------------------------------------
 srd51 = system_descriptor(dnd_cfg({}), "srd51", SRC)
-eq("srd51: правил мультикласса пока нет (#461)", (srd51["multiclass"], valid(srd51)), (None, True))
 dh = system_descriptor(config_daggerheart, "srd10", ROOT / "src/daggerheart")
 eq("daggerheart: описатель без мультикласса", (dh["system"], dh["multiclass"], valid(dh)),
    ("daggerheart", None, True))
+
+# --- SRD 5.1: глава Multiclassing (#461) -------------------------------------------------
+MULTI51 = (SRC / "srd-5.1/en/07_Multiclassing.md").read_text(encoding="utf-8")
+rules51 = srd51["multiclass"] or {"prerequisite_score": None, "caster_level_rounding": None,
+                                  "spell_slots": [{"level": None, "spell_slots": None}] * 20}
+eq("srd51: порог характеристики (все 12 строк таблицы — 13)", rules51["prerequisite_score"], 13)
+eq("srd51: округление — вниз", rules51["caster_level_rounding"], "down")
+eq("srd51: уровни таблицы ячеек", [r["level"] for r in rules51["spell_slots"]], list(range(1, 21)))
+eq("srd51: ячейки уровней 1, 5, 11, 17, 18, 20",
+   [rules51["spell_slots"][n - 1]["spell_slots"] for n in (1, 5, 11, 17, 18, 20)],
+   [[2, 0, 0, 0, 0, 0, 0, 0, 0], [4, 3, 2, 0, 0, 0, 0, 0, 0], [4, 3, 3, 3, 2, 1, 0, 0, 0],
+    [4, 3, 3, 3, 2, 1, 1, 1, 1], [4, 3, 3, 3, 3, 1, 1, 1, 1], [4, 3, 3, 3, 3, 2, 2, 1, 1]])
+eq("srd51: ячейки совпадают с таблицей SRD 5.2 (одна и та же таблица)",
+   rules51["spell_slots"], rules["spell_slots"])
+eq("srd51: описатель проходит схему", valid(srd51), True)
+eq("srd51: разные минимумы в таблице порогов роняют сборку",
+   str(_try(lambda: parse_multiclass_rules(MULTI51.replace("| Wizard    | Intelligence 13 ", "| Wizard    | Intelligence 15 ")))),
+   "multiclass rules: prerequisite table minimums ['13', '15']")
+
+eq("srd51: строка порогов без числа роняет сборку",
+   str(_try(lambda: parse_multiclass_rules(MULTI51.replace("Intelligence 13 ", "Intelligence    ")))),
+   "multiclass rules: prerequisite row ['Wizard', 'Intelligence']")
+eq("srd51: сокращение вместо названия характеристики роняет сборку",
+   str(_try(lambda: parse_multiclass_rules(MULTI51.replace("Intelligence 13", "INT 15")))),
+   "multiclass rules: prerequisite row ['Wizard', 'INT 15']")
+eq("srd51: повторная таблица порогов называет реальное число",
+   str(_try(lambda: parse_multiclass_rules(MULTI51 + "\nTable: Multiclassing Prerequisites\n"))),
+   "multiclass rules: 2 «Table: Multiclassing Prerequisites» tables and no prerequisite sentence")
 
 # --- Отказы ------------------------------------------------------------------------------
 
@@ -85,7 +120,7 @@ eq("округление без скобки роняет сборку",
    "multiclass rules: 0 matches for the half-caster rounding")
 eq("порог другой формулировкой роняет сборку",
    rules_error("you must have a score of at least 13", "you need a score of 13"),
-   "multiclass rules: 0 matches for the prerequisite score")
+   "multiclass rules: 0 «Table: Multiclassing Prerequisites» tables and no prerequisite sentence")
 eq("порог берётся числом из текста",
    parse_multiclass_rules(CREATION.replace("a score of at least 13", "a score of at least 15"))["prerequisite_score"], 15)
 eq("переименованная таблица роняет сборку",

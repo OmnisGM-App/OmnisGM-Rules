@@ -75,7 +75,10 @@ SOURCES += [
 ]
 
 # Глава с правилами мультикласса: доли заклинателей (#477) и описатель системы (#481).
-MULTICLASS_RULES = {"srd52": "srd-5.2/en/02_CharacterCreation.md"}
+MULTICLASS_RULES = {"srd52": "srd-5.2/en/02_CharacterCreation.md",
+                    "srd51": "srd-5.1/en/07_Multiclassing.md"}
+# Доли заклинателей (#477) — только там, где глава даёт их списком «Spell Slots» (у SRD 5.1 доли — в прозе, пункт #461 отдельный).
+CASTER_SHARE_RULES = {"srd52": MULTICLASS_RULES["srd52"]}
 
 # Языки и подписи членов списков выбора (#482) — из таблиц глав; заголовки таблиц EN и RU парны по строкам.
 _LIST_TABLES = {
