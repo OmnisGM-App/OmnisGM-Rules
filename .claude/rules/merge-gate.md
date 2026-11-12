@@ -11,7 +11,7 @@ The ruleset of the default branch requires the `Merge gate` check
 |---|---|---|---|
 | `gate/snapshots-approved` | the owner has looked at every changed screenshot baseline in the PR | **the owner only, by hand** | the gate once the PR's own baselines differ from the approved head; the owner |
 | `gate/matrix-passed` | the full Playwright matrix is green on the current head (`EXIT=0`, numbers in the PR body) | the agent or the owner, after the run on that head, with the head already pushed | the gate once the head differs from the one it was applied on |
-| `gate/matrix-not-needed` | the diff does not touch UI; the PR body says so in one line | the agent or the owner | whoever adds UI to the diff |
+| `gate/matrix-not-needed` | the diff does not touch UI; the PR body or the gate's summary says so | the agent, the owner, or the gate per `.github/matrix-free-paths` | whoever adds UI; the gate drops its own |
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
@@ -80,7 +80,7 @@ it never changes a status. A repo without the script copies gets «PR checks: no
    Dependabot, whose PRs carry `gate/matrix-not-needed`.
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
-   no UI file is in the diff and the PR body says so. Two release-only exceptions (Table), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
+   no UI file is in the diff and the PR body (or the gate's summary) says so. Two release-only exceptions (Table), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
    last feature PR counts for the `dev` head when that PR's head contained the `dev` it was squash-merged
    on and nothing matrix-relevant landed after it (when that PR used the FIXME carry-over below, the release
    body names that PR's `<matrix head>`, not its final head); (b) a release cut as an empty commit on top of a `dev`
@@ -126,7 +126,7 @@ it never changes a status. A repo without the script copies gets «PR checks: no
 - **Who merges.** The agent merges its own PR itself once it
   is ready: CI and `Merge gate` green on the final head, `gate/review-passed` set by the workflow, an honest
   matrix label (the full matrix on this head, or `gate/matrix-not-needed` with the one-line reason in the
-  body), every review thread answered and resolved, no round in flight. That covers PRs that edit the gate,
+  body or the gate's summary), every review thread answered and resolved, no round in flight. That covers PRs that edit the gate,
   the review workflow or the rules, and the release PR once the release skill's checklist holds (the release
   itself still STARTS on the owner's word — that is scheduling, not approval). The owner's hand is exactly one
   thing: `gate/snapshots-approved` on a PR with changed `*-snapshots/` baselines — a human looks at the frames
