@@ -539,6 +539,20 @@ def _subclass_shape(s: dict) -> tuple:
             [(r["level"], len(r["spells"])) for r in s["always_prepared"]])
 
 
+def _proficiency_split_errors(ver: str, ru: dict, en: dict) -> list[str]:
+    """Категории доспехов и оружия RU читаются из RU-текста; здесь они обязаны совпасть с EN (#531):
+    `categories` и наличие `other` в proficiencies и multiclass. Расхождение называет класс."""
+    out = []
+    for owner in ("proficiencies", "multiclass"):
+        for kind in ("armor", "weapons"):
+            r, e = ru[owner][kind], en[owner][kind]
+            if r["categories"] != e["categories"] or bool(r["other"]) != bool(e["other"]):
+                out.append(f"{ver}/classes: {owner}.{kind} RU «{ru['name']}» "
+                           f"{r['categories']} / other {r['other']!r} ≠ EN «{en['name']}» "
+                           f"{e['categories']} / other {e['other']!r}")
+    return out
+
+
 def align_classes(all_data: dict) -> list[str]:
     """RU-классам и подклассам — слаг, name_en и языко-инвариантные коды из EN по позиции.
 
@@ -558,6 +572,11 @@ def align_classes(all_data: dict) -> list[str]:
             if shape(r) != shape(e):
                 errors.append(f"{ver}/{resource}: структура RU «{r['name']}» ≠ EN «{e['name']}»")
                 continue
+            if resource == "classes":
+                split = _proficiency_split_errors(ver, r, e)
+                if split:
+                    errors.extend(split)
+                    continue
             r["slug"], r["name_en"] = e["slug"], e["name"]
             for rf, ef in zip(r["features"], e["features"]):
                 rf["ability_increases"] = ef["ability_increases"]
@@ -582,11 +601,7 @@ def align_classes(all_data: dict) -> list[str]:
             r["primary_ability"]["abilities"] = e["primary_ability"]["abilities"]
             r["primary_ability"]["require"] = e["primary_ability"]["require"]
             r["saving_throws"] = e["saving_throws"]
-            for kind in ("armor", "weapons"):
-                r["proficiencies"][kind]["categories"] = e["proficiencies"][kind]["categories"]
             r["proficiencies"]["skills"]["options"] = e["proficiencies"]["skills"]["options"]
-            for kind in ("armor", "weapons"):
-                r["multiclass"][kind]["categories"] = e["multiclass"][kind]["categories"]
             for owner in ("proficiencies", "multiclass"):
                 if e[owner]["tools"]:
                     r[owner]["tools"]["slug"] = e[owner]["tools"]["slug"]

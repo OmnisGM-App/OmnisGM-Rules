@@ -1,7 +1,8 @@
 """Parser for D&D SRD 5.2 class chapters (03_Classes/*.md): classes and subclasses (#365).
 
-Language-invariant codes (abilities, skills, armor, spellcasting, progression column keys) are
-read from EN only; RU entities carry None there (progression values as a list in column order)
+Language-invariant codes (abilities, skills, spellcasting, progression column keys) are
+read from EN only; armor and weapon `categories` and `other` are read from the text of each language
+(generate_api.align_classes checks RU against EN); RU entities carry None there (progression values as a list in column order)
 until generate_api.align_classes copies them by position.
 """
 
@@ -14,7 +15,6 @@ ABILITY_CODES = {"strength": "str", "dexterity": "dex", "constitution": "con",
 SKILLS = {"Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History",
           "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception",
           "Performance", "Persuasion", "Religion", "Sleight of Hand", "Stealth", "Survival"}
-ARMOR_CATEGORIES = ("light", "medium", "heavy", "shield")
 
 _TRAIT_KEYS = {
     "Primary Ability": "primary_ability", "Основная характеристика": "primary_ability",
@@ -254,21 +254,65 @@ def _skills(text: str, lang: str) -> dict:
     return out
 
 
-def _armor(text: str, lang: str) -> dict:
-    if lang != "en":
-        return {"text": text, "categories": None}
-    lower = text.lower()
-    return {"text": text, "categories": [c for c in ARMOR_CATEGORIES if c in lower]}
+# Категории доспехов: слово текста → код. Словарь закрыт: слово вне него роняет сборку (#531).
+_ARMOR_WORDS = {
+    "en": (("light", r"light"), ("medium", r"medium"), ("heavy", r"heavy"), ("shield", r"shields?")),
+    "ru": (("light", r"лёгк\w+"), ("medium", r"средн\w+"), ("heavy", r"тяжёл\w+"), ("shield", r"щит\w*")),
+}
+# Служебные слова вокруг категорий: «training with Light armor», «Нет», «а также».
+_ARMOR_FILLER = {"en": r"armor|and|none|training|proficiency|with",
+                 "ru": r"доспех\w*|и|а|также|нет|владение"}
 
 
-def _weapons(text: str, lang: str) -> dict:
-    """categories — categories granted whole: Monk's «Martial weapons that have…» is not one."""
-    if lang != "en":
-        return {"text": text, "categories": None}
-    cats = ["simple"] if "Simple" in text else []
-    if re.search(r"Martial weapons(?! that)", text):
-        cats.append("martial")
-    return {"text": text, "categories": cats}
+def _armor(text: str, lang: str, name: str) -> dict:
+    """categories — категории доспехов из текста обоих языков; other — остаток, не покрытый ими.
+
+    У доспехов остатка нет («Light and Medium armor and Shields» покрыт целиком): слово вне
+    `_ARMOR_WORDS` и `_ARMOR_FILLER` роняет сборку, а не уходит молча в `other`.
+    """
+    rest = text.lower()
+    cats = []
+    for code, word in _ARMOR_WORDS[lang]:
+        if re.search(rf"\b{word}\b", rest):
+            cats.append(code)
+            rest = re.sub(rf"\b{word}\b", " ", rest)
+    rest = re.sub(rf"\b(?:{_ARMOR_FILLER[lang]})\b", " ", rest)
+    if left := re.findall(r"\w+", rest):
+        raise ValueError(f"{name}: unknown armor proficiency fragment {' '.join(left)!r} in {text!r}")
+    return {"text": text, "categories": cats, "other": ""}
+
+
+# Оружие: фрагмент текста → категория целиком (simple / martial) либо "other" — частичное владение.
+# Словарь закрыт: незнакомый фрагмент роняет сборку (#531).
+_WEAPON_FRAGMENTS = {
+    "en": ((r"^(?:proficiency with )?Simple(?: weapons)?$", "simple"),
+           (r"^(?:proficiency with )?Martial(?: weapons)?$", "martial"),
+           (r"^Martial weapons that have the [A-Z]\w*(?: or [A-Z]\w*)* property$", "other")),
+    "ru": ((r"^(?:владение простым оружием|[Пп]ростое(?: оружие)?)$", "simple"),
+           (r"^(?:владение воинским оружием|[Вв]оинское(?: оружие)?)$", "martial"),
+           (r"^воинское оружие со свойством [А-ЯЁ]\w*(?: или [А-ЯЁ]\w*)*$", "other")),
+}
+# «Simple and Martial weapons» и «Простое оружие и воинское оружие со свойством…»: «and» между фрагментами.
+_WEAPON_SPLIT = {"en": r"\s+and\s+", "ru": r"\s+и\s+"}
+
+
+def _weapons(text: str, lang: str, name: str) -> dict:
+    """categories — категории целиком; other — фрагмент, который они не покрывают («Martial weapons that
+    have the Light property» у монаха), "" когда категории покрывают весь текст. Тот же разбор для EN и RU."""
+    cats, other = [], ""
+    for fragment in re.split(_WEAPON_SPLIT[lang], text.strip()):
+        if not fragment:
+            continue
+        kind = next((k for pattern, k in _WEAPON_FRAGMENTS[lang] if re.match(pattern, fragment)), None)
+        if kind is None:
+            raise ValueError(f"{name}: unknown weapon proficiency fragment {fragment!r} in {text!r}")
+        if kind == "other":
+            if other:
+                raise ValueError(f"{name}: second partial weapon fragment {fragment!r} in {text!r}")
+            other = fragment
+        else:
+            cats.append(kind)
+    return {"text": text, "categories": [c for c in ("simple", "martial") if c in cats], "other": other}
 
 
 _MULTICLASS_HEADING = {"en": "As a Multiclass Character", "ru": "Как мультиклассовый персонаж"}
@@ -328,8 +372,8 @@ def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> d
     elif not re.fullmatch(_MULTICLASS_BARE[lang], line):
         raise ValueError(f"{name}: unknown multiclass line: {line!r}")
     en = lang == "en"
-    armor = _armor(found.get("armor", ""), lang)
-    if en and "armor" in found and not armor["categories"]:
+    armor = _armor(found.get("armor", ""), lang, name)
+    if "armor" in found and not armor["categories"]:
         raise ValueError(f"{name}: no armor category in {found['armor']!r}")
     skills = None
     if "skills" in found:
@@ -340,8 +384,7 @@ def _multiclass(lines: list[str], lang: str, name: str, class_skills: dict) -> d
             raise ValueError(f"{name}: multiclass skill from the class list, but the class has none")
     return {
         "armor": armor,
-        "weapons": {"text": found.get("weapons", ""),
-                    "categories": (["martial"] if "weapons" in found else []) if en else None},
+        "weapons": _weapons(found.get("weapons", ""), lang, name),
         "tools": _tool(found["tools"], lang) if "tools" in found else None,
         "skills": skills,
     }
@@ -498,8 +541,8 @@ def parse_class(text: str, lang: str) -> list[dict]:
                                        if en else None},
         "saving_throws": _abilities(traits["saving_throws"]) if en else None,
         "proficiencies": {
-            "armor": _armor(traits["armor"], lang),
-            "weapons": _weapons(traits["weapons"], lang),
+            "armor": _armor(traits["armor"], lang, name),
+            "weapons": _weapons(traits["weapons"], lang, name),
             "tools": _tool(traits["tools"], lang) if "tools" in traits else None,
             "skills": skills,
         },

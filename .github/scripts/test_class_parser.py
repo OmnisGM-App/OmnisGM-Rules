@@ -6,6 +6,7 @@
 Запуск: python3 .github/scripts/test_class_parser.py
 """
 import copy
+import re
 import sys
 from pathlib import Path
 
@@ -18,8 +19,8 @@ from generate_api import (align_class_options, align_classes, attach_caster_shar
                           disambiguate_option_slugs, inject_spell_subclasses, resolve_always_prepared,
                           slug_collisions)
 from parsers import parse_caster_shares, parse_class, parse_class_options, parse_spells, parse_subclasses  # noqa: E402
-from parsers.classes import ARMOR_CLASS_GROUPS, ATTACK_KEYS, CANTRIP_PREREQS, COST_UNITS  # noqa: E402
-from schemas import CLASS_OPTION_SCHEMA, CLASS_SCHEMA, SUBCLASS_SCHEMA  # noqa: E402
+from parsers.classes import _weapons, ARMOR_CLASS_GROUPS, ATTACK_KEYS, CANTRIP_PREREQS, COST_UNITS  # noqa: E402
+from schemas import _PROF_ARMOR, _PROF_WEAPONS, CLASS_OPTION_SCHEMA, CLASS_SCHEMA, SUBCLASS_SCHEMA  # noqa: E402
 
 failures = []
 
@@ -631,7 +632,116 @@ eq("RU: строка без двоеточия с владением роняе�
    "Волшебник: unknown multiclass line: ")
 eq("доспехи без известной категории роняют сборку",
    multiclass_error("en", "11_Warlock.md", "training with Light armor.", "training with Spiked armor."),
-   "Warlock: no armor category in 'training with Spiked armor'")
+   "Warlock: unknown armor proficiency fragment 'spiked' in 'training with Spiked armor'")
+eq("доспехи без категории роняют сборку своей причиной",
+   multiclass_error("en", "11_Warlock.md", "training with Light armor.", "training with armor."),
+   "Warlock: no armor category in 'training with armor'")
+# --- Категории и other владений доспехами и оружием (#531) -----------------------------
+# класс: (other у proficiencies.weapons EN, у RU); во всех остальных 3 объектах other == "".
+PARTIAL_WEAPONS = {
+    "monk": ("Martial weapons that have the Light property", "воинское оружие со свойством Лёгкое"),
+    "rogue": ("Martial weapons that have the Finesse or Light property",
+              "воинское оружие со свойством Фехтовальное или Лёгкое"),
+}
+# класс: (категории доспехов, категории оружия) в proficiencies
+STARTING = {
+    "barbarian": (["light", "medium", "shield"], ["simple", "martial"]),
+    "bard": (["light"], ["simple"]),
+    "cleric": (["light", "medium", "shield"], ["simple"]),
+    "druid": (["light", "shield"], ["simple"]),
+    "fighter": (["light", "medium", "heavy", "shield"], ["simple", "martial"]),
+    "monk": ([], ["simple"]),
+    "paladin": (["light", "medium", "heavy", "shield"], ["simple", "martial"]),
+    "ranger": (["light", "medium", "shield"], ["simple", "martial"]),
+    "rogue": (["light"], ["simple"]),
+    "sorcerer": ([], ["simple"]),
+    "warlock": (["light"], ["simple"]),
+    "wizard": ([], ["simple"]),
+}
+by_lang = {lang: {c["slug"]: c for c in live[("srd52", lang, "classes")]} for lang in ("en", "ru")}
+eq("12 классов в обоих языках", (sorted(by_lang["en"]), sorted(by_lang["ru"])), (sorted(STARTING),) * 2)
+for slug in STARTING:
+    for i, lang in enumerate(("en", "ru")):
+        c = by_lang[lang][slug]
+        for owner in ("proficiencies", "multiclass"):
+            for kind in ("armor", "weapons"):
+                obj = c[owner][kind]
+                tag = f"{lang}/{slug}/{owner}.{kind}"
+                eq(f"{tag}: категории как у EN", obj["categories"], by_lang["en"][slug][owner][kind]["categories"])
+                want = PARTIAL_WEAPONS[slug][i] if slug in PARTIAL_WEAPONS and (owner, kind) == ("proficiencies", "weapons") else ""
+                eq(f"{tag}: other", obj["other"], want)
+                eq(f"{tag}: other — часть text", obj["other"] in obj["text"], True)
+                if lang == "ru":
+                    eq(f"{tag}: other без латиницы", re.search("[A-Za-z]", obj["other"]), None)
+        eq(f"{lang}/{slug}: категории владений класса",
+           (c["proficiencies"]["armor"]["categories"], c["proficiencies"]["weapons"]["categories"]), STARTING[slug])
+eq("other у RU-монаха — из RU-записи, не из EN",
+   by_lang["ru"]["monk"]["proficiencies"]["weapons"]["other"] != by_lang["en"]["monk"]["proficiencies"]["weapons"]["other"], True)
+eq("RU жрец: «Лёгкие и Средние доспехи, щиты» покрыто целиком",
+   by_lang["ru"]["cleric"]["proficiencies"]["armor"]["other"], "")
+# text не тронут: старые клиенты Table читают его.
+eq("text: монах EN", by_lang["en"]["monk"]["proficiencies"]["weapons"]["text"],
+   "Simple weapons and Martial weapons that have the Light property")
+eq("text: монах RU", by_lang["ru"]["monk"]["proficiencies"]["weapons"]["text"],
+   "Простое оружие и воинское оружие со свойством Лёгкое")
+for lang in ("en", "ru"):
+    for c in live[("srd52", lang, "classes")]:
+        for owner in ("proficiencies", "multiclass"):
+            jsonschema.validate(c[owner]["armor"], _PROF_ARMOR)
+            jsonschema.validate(c[owner]["weapons"], _PROF_WEAPONS)
+
+
+def proficiency_split_errors(mutate):
+    data = copy.deepcopy(pristine)
+    en_slugs = [c["slug"] for c in data[("srd52", "en", "classes")]]
+    mutate(data[("srd52", "ru", "classes")][en_slugs.index("monk")])
+    return [e for e in align_classes(data) if "RU «Монах»" in e]
+
+
+eq("RU-класс с другими категориями оружия — ошибка сборки с именем класса",
+   [e.split(" RU ")[0] for e in proficiency_split_errors(
+       lambda c: c["proficiencies"]["weapons"].update(categories=["simple", "martial"]))],
+   ["srd52/classes: proficiencies.weapons"])
+eq("RU-класс с другими категориями доспехов в multiclass — ошибка сборки",
+   len(proficiency_split_errors(lambda c: c["multiclass"]["armor"].update(categories=["shield"]))), 1)
+eq("RU-класс с другими категориями multiclass.weapons — ошибка сборки",
+   len(proficiency_split_errors(lambda c: c["multiclass"]["weapons"].update(categories=["martial"]))), 1)
+eq("RU-класс с другими категориями proficiencies.armor — ошибка сборки",
+   len(proficiency_split_errors(lambda c: c["proficiencies"]["armor"].update(categories=["light"]))), 1)
+eq("RU-класс без other при непустом EN other — ошибка сборки",
+   len(proficiency_split_errors(lambda c: c["proficiencies"]["weapons"].update(other=""))), 1)
+eq("RU-класс с other при пустом EN other — ошибка сборки",
+   len(proficiency_split_errors(lambda c: c["multiclass"]["weapons"].update(other="воинское оружие со свойством Лёгкое"))), 1)
+bad = copy.deepcopy(pristine)
+bad[("srd52", "en", "classes")].pop()
+eq("класс без EN-пары — ошибка числа записей", any("classes: EN" in e for e in align_classes(bad)), True)
+
+eq("категории оружия идут в порядке simple, martial при любом порядке в тексте",
+   (_weapons("Martial weapons and Simple weapons", "en", "X")["categories"],
+    _weapons("воинское оружие и простое оружие", "ru", "X")["categories"]),
+   (["simple", "martial"], ["simple", "martial"]))
+eq("EN: незнакомый фрагмент оружия роняет сборку",
+   multiclass_error("en", "06_Monk.md", "Simple weapons and Martial weapons that have the Light property",
+                    "Simple weapons and Firearms"),
+   "Monk: unknown weapon proficiency fragment 'Firearms' in 'Simple weapons and Firearms'")
+eq("RU: незнакомый фрагмент оружия роняет сборку",
+   multiclass_error("ru", "06_Monk.md", "Простое оружие и воинское оружие со свойством Лёгкое",
+                    "Простое оружие и огнестрельное оружие"),
+   "Монах: unknown weapon proficiency fragment 'огнестрельное оружие' in 'Простое оружие и огнестрельное оружие'")
+eq("два частичных фрагмента оружия роняют сборку",
+   multiclass_error("en", "06_Monk.md", "Martial weapons that have the Light property",
+                    "Martial weapons that have the Light property and Martial weapons that have the Reach property"),
+   "Monk: second partial weapon fragment 'Martial weapons that have the Reach property' in "
+   "'Simple weapons and Martial weapons that have the Light property and Martial weapons that have the Reach property'")
+eq("EN: незнакомое слово в доспехах роняет сборку",
+   multiclass_error("en", "05_Fighter.md", "Light, Medium, and Heavy armor and Shields",
+                    "Light, Medium, and Heavy armor and Shields except Plate"),
+   "Fighter: unknown armor proficiency fragment 'except plate' in 'Light, Medium, and Heavy armor and Shields except Plate'")
+eq("RU: незнакомое слово в доспехах роняет сборку",
+   multiclass_error("ru", "05_Fighter.md", "Лёгкие, Средние и Тяжёлые доспехи, щиты",
+                    "Лёгкие, Средние и Тяжёлые доспехи, щиты, кроме латных"),
+   "Воин: unknown armor proficiency fragment 'кроме латных' in 'Лёгкие, Средние и Тяжёлые доспехи, щиты, кроме латных'")
+
 eq("класс без раздела мультикласса роняет сборку",
    multiclass_error("en", "12_Wizard.md", "#### As a Multiclass Character", "#### As a Second Class"),
    "Wizard: no «As a Multiclass Character» line")
