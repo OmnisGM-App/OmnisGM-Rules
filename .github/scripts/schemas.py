@@ -713,18 +713,21 @@ _PROF_ARMOR = {
         "text": {"type": "string"},
         "categories": {"type": "array", "items": {
             "type": "string", "enum": ["light", "medium", "heavy", "shield"]}},
+        "other": {"type": "string"},
     },
-    "required": ["text", "categories"],
+    "required": ["text", "categories", "other"],
     "additionalProperties": False,
 }
-# categories — категории целиком; частичное владение («воинское со свойством Лёгкое») остаётся в text.
+# categories — категории целиком; other — часть text, не покрытая категориями («воинское со свойством
+# Лёгкое»), на языке записи; "" когда категории покрывают весь text. У доспехов other всегда "".
 _PROF_WEAPONS = {
     "type": "object",
     "properties": {
         "text": {"type": "string"},
         "categories": {"type": "array", "items": {"type": "string", "enum": ["simple", "martial"]}},
+        "other": {"type": "string"},
     },
-    "required": ["text", "categories"],
+    "required": ["text", "categories", "other"],
     "additionalProperties": False,
 }
 # slug — названный инструмент из `equipment`; null — инструмент на выбор, его объявление в `choices` владельца.
