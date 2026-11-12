@@ -1,0 +1,6 @@
+# Paths whose changes need no Playwright matrix: the gate (merge_gate.py) sets gate/matrix-not-needed when every
+# touched path fully matches one line. One Python regex per line, read at the PR's base. claude-plugins#75.
+\.claude/.*
+\.github/.*
+documentation/.*
+[^/]+\.md
