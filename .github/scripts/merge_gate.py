@@ -189,14 +189,22 @@ class GitHub:
     def pull(self) -> dict:
         return gh_json(f"repos/{self.repo}/pulls/{self.pr}")
 
+    def _files(self) -> list[dict]:
+        """`pulls/{pr}/files`, read once per run (the head does not move under a run; GitHub caps the list at 3000)."""
+        if getattr(self, "_pages", None) is None:
+            self._pages = [f for page in gh_json(f"repos/{self.repo}/pulls/{self.pr}/files", "--paginate") for f in page]
+        return self._pages
+
     def files(self) -> list[str]:
-        pages = gh_json(f"repos/{self.repo}/pulls/{self.pr}/files", "--paginate")
-        return [f["filename"] for page in pages for f in page]
+        return [f["filename"] for f in self._files()]
+
+    def touched_paths(self) -> list[str]:
+        """Every path the PR touches: each file's name and, for a rename, the name it had (a move out of `src/` is a change there)."""
+        return [p for f in self._files() for p in (f["filename"], f.get("previous_filename")) if p]
 
     def file_status(self) -> dict[str, str]:
         """{filename: status} of the PR's files (added / modified / removed / renamed …) — the sync exemption needs it."""
-        pages = gh_json(f"repos/{self.repo}/pulls/{self.pr}/files", "--paginate")
-        return {f["filename"]: f.get("status", "") for page in pages for f in page}
+        return {f["filename"]: f.get("status", "") for f in self._files()}
 
     def events(self) -> list[dict]:
         pages = gh_json(f"repos/{self.repo}/issues/{self.pr}/events", "--paginate")
@@ -308,15 +316,19 @@ class GitHub:
                     return c["id"], parse_state(body)
         return None, {}
 
-    def write_state(self, comment_id: int | None, state: dict) -> None:
+    def write_state(self, comment_id: int | None, state: dict) -> int | None:
+        """Writes the state comment; returns its id (a new one when it is created)."""
         body = render_state(state)
         if comment_id is None:
-            gh_json(f"repos/{self.repo}/issues/{self.pr}/comments", "-X", "POST", "-f", f"body={body}")
-        else:
-            gh_json(f"repos/{self.repo}/issues/comments/{comment_id}", "-X", "PATCH", "-f", f"body={body}")
+            return gh_json(f"repos/{self.repo}/issues/{self.pr}/comments", "-X", "POST", "-f", f"body={body}").get("id")
+        gh_json(f"repos/{self.repo}/issues/comments/{comment_id}", "-X", "PATCH", "-f", f"body={body}")
+        return comment_id
 
     def remove_label(self, name: str) -> None:
         subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--remove-label", name], check=True)
+
+    def add_label(self, name: str) -> None:
+        subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--add-label", name], check=True)
 
 
 def parse_state(body: str) -> dict:
@@ -335,6 +347,103 @@ def last_labeled_actor(events: list[dict], name: str) -> str | None:
     acts = [(e["created_at"], (e.get("actor") or {}).get("login", "")) for e in events
             if e.get("event") == "labeled" and (e.get("label") or {}).get("name") == name]
     return max(acts)[1] if acts else None
+
+
+MATRIX_FREE = ".github/matrix-free-paths"   # per repo, not a template copy: one regex per line, `#` starts a comment
+AUTO_NA = "auto:" + LABEL_MATRIX_NA          # state key: the gate applied the label itself (a hand-set one is never touched)
+FILES_CAP = 3000                             # `pulls/{pr}/files` lists at most this many
+
+
+def matrix_free(paths: list[str], spec: str | None) -> bool:
+    """True when the repo lists its matrix-free paths and every touched path fully matches one of them. A `#` at the
+    start of a line or after whitespace starts a comment; a BOM is dropped."""
+    lines = [re.split(r"(?:^|\s)#", l, maxsplit=1)[0].strip() for l in (spec or "").lstrip("\ufeff").splitlines()]
+    pats = [re.compile(l) for l in lines if l]
+    return bool(pats) and bool(paths) and all(any(p.fullmatch(f) for p in pats) for f in paths)
+
+
+def gate_set_label(gh: GitHub, events: list[dict], name: str) -> bool:
+    """Whether `name`, on the PR now, is the workflow's own, read from the timeline (not the run's payload: a re-run
+    replays its original `labeled` event long after the label changed hands). The LAST labeled/unlabeled event of the
+    label decides: the workflow's `labeled` makes it the gate's, a person's or an agent's `labeled` makes it theirs.
+    Anything else (no event, `unlabeled` last while the label is on the PR, a person's `labeled` that may hide a newer
+    one) means the list lags: it is re-read like for `gate/review-passed`. When the re-reads run out, the doubt goes to
+    the gate, which takes its label back (red), never to a person (a label nobody would ever remove)."""
+    def last(evs: list[dict]) -> tuple[str, str] | None:
+        # events of one second keep their order by id, not by the event's name or the actor's login
+        acts = [((e["created_at"], e.get("id", 0)), e["event"], (e.get("actor") or {}).get("login", "")) for e in evs
+                if e.get("event") in ("labeled", "unlabeled") and (e.get("label") or {}).get("name") == name]
+        return max(acts, key=lambda a: a[0])[1:] if acts else None
+    gates = ("labeled", WORKFLOW_ACTOR)
+    got = last(events)
+    for _ in range(5):
+        if got == gates or not hasattr(gh, "events_again"):
+            break
+        got = last(gh.events_again())
+    return got is None or got[0] == "unlabeled" or got[1] == WORKFLOW_ACTOR
+
+
+def auto_matrix(gh: GitHub, pull: dict, files: list[str], paths: list[str], events: list[dict], state: dict,
+                comment_id: int | None, event: str = "", event_label: str = "",
+                event_head: str = "") -> tuple[dict, int | None, bool, str | None]:
+    """Sets `gate/matrix-not-needed` itself when every path the PR touches is in MATRIX_FREE, read at the PR's BASE
+    (a PR cannot widen its own list), and removes the label it set once the diff leaves the list, the list cannot be
+    read for a new head, or a `gate/matrix-passed` bound to this head replaces it; a label a person or an agent set is
+    theirs (its last `labeled` event is not the workflow's). Labels the gate applies with GITHUB_TOKEN start no workflow
+    run, so `pull` is updated in place for this run's verdict. Returns (new state, state comment id, whether the state
+    was already written, a line for the summary or None)."""
+    labels = {l["name"] for l in pull.get("labels", [])}
+    state, head = dict(state), pull["head"]["sha"]
+    if pull["head"]["ref"].startswith(SYNC_PREFIX) or LABEL_COPY in labels:
+        return state, comment_id, False, None  # template copies need no matrix label at all
+    auto = (state.get(AUTO_NA) is not None and LABEL_MATRIX_NA in labels
+            and gate_set_label(gh, events, LABEL_MATRIX_NA))
+    if not auto:
+        state.pop(AUTO_NA, None)
+    if LABEL_MATRIX_NA in labels and not auto:
+        return state, comment_id, False, None
+    matrix_ok = False
+    if LABEL_MATRIX_OK in labels:  # bound the way evaluate() binds it
+        bound = (event_head or head) if (event == "labeled" and event_label == LABEL_MATRIX_OK) else state.get(LABEL_MATRIX_OK)
+        if bound is None:
+            return state, comment_id, False, None  # its `labeled` run has not recorded a head yet: that run decides
+        matrix_ok = bound == head
+    free, note = False, None
+    if matrix_ok:
+        if auto:
+            note = f"`{LABEL_MATRIX_NA}` removed by the gate: `{LABEL_MATRIX_OK}` holds on this head."
+    elif len(files) >= FILES_CAP or pull.get("changed_files", len(files)) != len(files):
+        note = f"`{MATRIX_FREE}` not applied: GitHub lists {len(files)} of {pull.get('changed_files')} changed files."
+    else:
+        base = (pull.get("base") or {}).get("sha")
+        try:
+            if not base:
+                raise ValueError("the PR has no base sha")
+            free = matrix_free(paths, gh.file_text(gh.repo, MATRIX_FREE, base))
+        except (RuntimeError, ValueError, TypeError, KeyError, re.error) as e:
+            # the list is a convenience: an API hiccup or a bad file never turns the gate red by itself; the gate's
+            # label survives it only on the head it was decided for (a re-run), a new head waits for a matrix label
+            note = f"`{MATRIX_FREE}` not applied ({type(e).__name__}: {str(e)[:120]}) — set the matrix label by hand."
+            if not auto or state.get(AUTO_NA) == head:
+                return state, comment_id, False, note
+    if free and not auto:
+        state[AUTO_NA] = head
+        # the record goes first: a failure after it leaves a record without its label, which the next run drops;
+        # a label without its record would pass for a hand-set one and never be removed
+        comment_id = gh.write_state(comment_id, state)
+        gh.add_label(LABEL_MATRIX_NA)
+        pull["labels"] = pull.get("labels", []) + [{"name": LABEL_MATRIX_NA}]
+        return state, comment_id, True, (f"`{LABEL_MATRIX_NA}` set by the gate: all {len(paths)} touched path(s) match "
+                                         f"`{MATRIX_FREE}` of the base.")
+    if auto and not free:
+        gh.remove_label(LABEL_MATRIX_NA)  # the label goes first, the record with this run's state
+        pull["labels"] = [l for l in pull.get("labels", []) if l["name"] != LABEL_MATRIX_NA]
+        state.pop(AUTO_NA, None)
+        return state, comment_id, False, note or (f"`{LABEL_MATRIX_NA}` removed by the gate: the diff now touches paths "
+                                                  f"outside `{MATRIX_FREE}`.")
+    if auto:
+        state[AUTO_NA] = head
+    return state, comment_id, False, note
 
 
 def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state: dict,
@@ -527,10 +636,15 @@ def main(argv: list[str] | None = None) -> int:
 def run(gh: GitHub, pull: dict) -> int:
     """0 when every label holds on the live head, 1 otherwise; an API error propagates (the job is red with it)."""
     env = os.environ.get
+    event, event_label = env("EVENT", ""), env("EVENT_LABEL", "")
     comment_id, state = gh.state()
-    remove, fail, new_state = evaluate(gh, pull, gh.files(), gh.events(), state,
-                                       event=env("EVENT", ""), event_label=env("EVENT_LABEL", ""),
-                                       event_head=env("EVENT_HEAD_SHA", ""))
+    files, events, event_head = gh.files(), gh.events(), env("EVENT_HEAD_SHA", "")
+    auto_state, comment_id, saved, auto_note = auto_matrix(gh, pull, files, gh.touched_paths(), events, state, comment_id,
+                                                           event=event, event_label=event_label, event_head=event_head)
+    if saved:
+        state = auto_state  # already in the state comment
+    remove, fail, new_state = evaluate(gh, pull, files, events, auto_state, event=event, event_label=event_label,
+                                       event_head=event_head)
     for name in remove:
         gh.remove_label(name)
         print(f"::notice::removed {name} — it was applied on another head")
@@ -538,6 +652,9 @@ def run(gh: GitHub, pull: dict) -> int:
         gh.write_state(comment_id, new_state)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     out = open(summary, "a") if summary else sys.stdout
+    if auto_note:
+        print(f"::notice::{auto_note}")
+        print(auto_note + "\n", file=out)
     waiting, errors = split_outcome(fail)
     for f in errors:
         print(f"::error::{f}")

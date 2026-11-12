@@ -19,7 +19,7 @@ SNAP = "tests/e2e/a.spec.ts-snapshots/x.png"
 
 def pull(labels=(), head="feat/x", base="dev", author="Nemo", sha="head1", default="dev", merge=None):
     return {"labels": [{"name": l} for l in labels], "head": {"ref": head, "sha": sha},
-            "base": {"ref": base, "repo": {"default_branch": default}}, "user": {"login": author}, "merge_commit_sha": merge}
+            "base": {"ref": base, "sha": "base1", "repo": {"default_branch": default}}, "user": {"login": author}, "merge_commit_sha": merge}
 
 
 def labeled(name, actor=BOT, at="2026-10-20T10:00:00Z"):
@@ -61,7 +61,7 @@ class Recorder(Fake):
     def __init__(self, pull, events=(), state=None, boom=None):
         super().__init__()
         self._pull, self._events, self._state, self.boom = pull, list(events), dict(state or {}), boom
-        self.removed, self.written = [], []
+        self.removed, self.written, self.calls = [], [], []
 
     def pull(self): return self._pull
     def state(self):
@@ -70,8 +70,18 @@ class Recorder(Fake):
     def files(self): return ["src/a.ts"]
     def events(self): return self._events
     def events_again(self): return self._events
-    def write_state(self, comment_id, state): self.written.append(state)
+    def write_state(self, comment_id, state):
+        self.written.append(state)
+        self.calls.append("write")
+        return comment_id or 7
     def remove_label(self, name): self.removed.append(name)
+    repo, matrix_free_list, added = "o/r", None, ()
+    def touched_paths(self): return self.files()
+    def file_text(self, repo, path, ref, token=None):
+        return self.matrix_free_list if (repo, path) == ("o/r", mg.MATRIX_FREE) else None
+    def add_label(self, name):
+        self.added = (*self.added, name)
+        self.calls.append("add")
 
 
 def touch(path):
@@ -268,6 +278,252 @@ class JobVerdict(unittest.TestCase):
             src = f.read()
         self.assertNotIn("check-runs", src)
         self.assertFalse(hasattr(mg.GitHub, "open_check"))
+
+
+class AutoMatrixLabel(unittest.TestCase):
+    """The gate sets `gate/matrix-not-needed` itself when every touched path is in `.github/matrix-free-paths` of the base."""
+    LIST = "# docs and units\n" + r"[^/]+\.md" + "\n" + r"src/.*\.test\.ts" + "\n"
+
+    def gate(self, labels=(), files=("README.md",), listed=LIST, state=None, head="feat/x", renamed=(), base_sha="b1",
+             env=None, changed=None, na_actor=BOT):
+        p = pull(labels, head=head)
+        p["base"]["sha"] = base_sha
+        if changed is not None:
+            p["changed_files"] = changed
+        na = [labeled("gate/matrix-not-needed", actor=na_actor)] if "gate/matrix-not-needed" in labels else []
+        gh = Recorder(p, events=REVIEW_OK + na, state=state)
+        gh.matrix_free_list = listed
+        gh.files = lambda: list(files)
+        gh.touched_paths = lambda: [*files, *renamed]
+        seen = []
+        real = gh.file_text
+        gh.file_text = lambda repo, path, ref, token=None: (seen.append(ref), real(repo, path, ref))[1]
+        with mock.patch.dict(os.environ, env or {}):
+            code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        return gh, code, out, seen
+
+    def test_no_list_changes_nothing(self):
+        gh, code, out, _ = self.gate(["gate/review-passed"], listed=None)
+        self.assertEqual((gh.added, gh.removed, code), ((), [], 1))
+        self.assertNotIn("set by the gate", out)
+
+    def test_all_paths_listed_sets_the_label_and_counts_it(self):
+        gh, code, out, seen = self.gate(["gate/review-passed"], files=("README.md", "src/a.test.ts"))
+        self.assertEqual(gh.added, ("gate/matrix-not-needed",))
+        self.assertEqual(seen, ["b1"])  # read at the base: a PR cannot widen its own list
+        self.assertEqual(gh.written, [{mg.AUTO_NA: "head1"}])  # once, into the comment it created
+        self.assertIn("set by the gate: all 2 touched path(s)", out)
+        self.assertEqual(code, 0)
+
+    def test_one_path_outside_sets_nothing(self):
+        gh, code, _, _ = self.gate(["gate/review-passed"], files=("README.md", "src/a.ts"))
+        self.assertEqual((gh.added, code), ((), 1))
+
+    def test_a_path_is_matched_whole_not_as_a_prefix(self):
+        gh, _, _, _ = self.gate(files=("docs/README.md",))  # `[^/]+\.md` is the root only
+        self.assertEqual(gh.added, ())
+
+    def test_a_rename_from_outside_sets_nothing(self):
+        gh, _, _, _ = self.gate(files=("README.md",), renamed=("src/app.ts",))
+        self.assertEqual(gh.added, ())
+
+    def test_an_empty_diff_sets_nothing(self):
+        gh, _, _, _ = self.gate(files=())
+        self.assertEqual(gh.added, ())
+
+    def test_a_list_of_comments_only_sets_nothing(self):
+        gh, _, _, _ = self.gate(listed="# nothing yet\n\n")
+        self.assertEqual(gh.added, ())
+
+    def test_its_own_label_is_removed_when_the_diff_leaves_the_list(self):
+        gh, code, out, _ = self.gate(["gate/matrix-not-needed", "gate/review-passed"], files=("src/a.ts",),
+                                     state={mg.AUTO_NA: "head0"})
+        self.assertEqual(gh.removed, ["gate/matrix-not-needed"])
+        self.assertEqual(gh.written[-1], {})
+        self.assertIn("removed by the gate", out)
+        self.assertEqual(code, 1)
+
+    def test_its_own_label_is_kept_and_rebound_while_the_diff_stays_listed(self):
+        gh, code, _, _ = self.gate(["gate/matrix-not-needed", "gate/review-passed"], state={mg.AUTO_NA: "head0"})
+        self.assertEqual((gh.added, gh.removed, code), ((), [], 0))
+        self.assertEqual(gh.written[-1], {mg.AUTO_NA: "head1"})
+
+    def test_a_hand_set_label_is_never_touched(self):
+        gh, code, _, _ = self.gate(["gate/matrix-not-needed", "gate/review-passed"], files=("src/a.ts",))
+        self.assertEqual((gh.added, gh.removed, code), ((), [], 0))
+
+    def test_a_record_without_its_label_is_dropped_and_the_label_comes_back(self):
+        gh, _, _, _ = self.gate(state={mg.AUTO_NA: "head0"})  # someone removed the gate's label: the list still decides
+        self.assertEqual(gh.added, ("gate/matrix-not-needed",))
+
+    def test_a_green_matrix_supersedes_the_gates_label(self):
+        gh, code, _, _ = self.gate(["gate/matrix-passed", "gate/matrix-not-needed", "gate/review-passed"],
+                                   state={"gate/matrix-passed": "head1", mg.AUTO_NA: "head0"})
+        self.assertEqual(gh.removed, ["gate/matrix-not-needed"])
+        self.assertEqual(code, 0)
+        gh, _, out, _ = self.gate(["gate/matrix-passed"], state={"gate/matrix-passed": "head1"})
+        self.assertEqual(gh.added, ())
+        self.assertNotIn("removed by the gate", out)  # nothing of the gate's was there to remove
+
+    def test_template_copies_are_left_alone(self):
+        gh, _, _, _ = self.gate(head="sync/templates-1")
+        self.assertEqual(gh.added, ())
+        gh, _, _, _ = self.gate(["plugin-copy"])
+        self.assertEqual(gh.added, ())
+
+    def test_a_bad_list_or_an_api_error_is_a_note_not_a_red_gate(self):
+        gh, code, out, _ = self.gate(["gate/review-passed"], listed="src/(\n")
+        self.assertEqual((gh.added, code), ((), 1))
+        self.assertIn("unterminated subpattern", out)
+        def boom(*a, **k): raise RuntimeError("gh api 502")
+        for bound, removed, want in (("head1", [], 0), ("head0", ["gate/matrix-not-needed"], 1)):
+            gh = Recorder(pull(["gate/matrix-not-needed", "gate/review-passed"]), state={mg.AUTO_NA: bound},
+                          events=REVIEW_OK + [labeled("gate/matrix-not-needed")])
+            gh.file_text, gh.files = boom, (lambda: ["src/App.tsx"])
+            code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+            self.assertIn("not applied (RuntimeError: gh api 502)", out)
+            # a re-run of the head it was decided for keeps the gate's label; a new head gets no decision and waits
+            self.assertEqual((gh.removed, code), (removed, want))
+
+
+    def test_the_record_is_written_before_the_label(self):
+        p = pull(["gate/matrix-passed", "gate/review-passed"])  # matrix-passed of an older head: evaluate removes it
+        gh = Recorder(p, events=REVIEW_OK, state={"gate/matrix-passed": "head0"})
+        gh.matrix_free_list, gh.files = self.LIST, (lambda: ["README.md"])
+        def down(name): raise RuntimeError("gh pr edit: HTTP 502")
+        gh.remove_label = down  # an API call after the label fails the run
+        with self.assertRaises(RuntimeError), mock.patch.dict(os.environ, {"GITHUB_STEP_SUMMARY": ""}):
+            mg.run(gh, gh.pull())
+        self.assertEqual((gh.calls, gh.written), (["write", "add"], [{"gate/matrix-passed": "head0", mg.AUTO_NA: "head1"}]))
+        # the next push brings UI: the gate still knows the label is its own and takes it back
+        nxt, code, _, _ = self.gate(["gate/matrix-not-needed", "gate/review-passed"], files=("src/App.tsx",),
+                                    state={mg.AUTO_NA: gh.written[-1][mg.AUTO_NA]})
+        self.assertEqual((nxt.removed, code), (["gate/matrix-not-needed"], 1))
+
+    def test_a_matrix_label_of_an_older_head_does_not_block_the_gates_label(self):
+        gh, code, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed"], state={"gate/matrix-passed": "head0"})
+        self.assertEqual((gh.added, gh.removed, code), (("gate/matrix-not-needed",), ["gate/matrix-passed"], 0))
+
+    def test_a_matrix_label_applied_in_this_event_supersedes(self):
+        gh, _, out, _ = self.gate(["gate/matrix-passed", "gate/matrix-not-needed"], state={mg.AUTO_NA: "head0"},
+                                  env={"EVENT": "labeled", "EVENT_LABEL": "gate/matrix-passed"})
+        self.assertEqual(gh.removed, ["gate/matrix-not-needed"])
+        self.assertIn("`gate/matrix-passed` holds on this head", out)
+
+    def test_a_label_applied_by_hand_over_an_old_record_is_theirs(self):
+        gh, _, _, _ = self.gate(["gate/matrix-not-needed"], files=("src/a.ts",), state={mg.AUTO_NA: "head0"},
+                                na_actor="Nemo")
+        self.assertEqual((gh.removed, gh.written), ([], [{}]))  # the stale record is dropped, the label kept
+
+    def test_a_replayed_hand_labeled_event_does_not_disown_the_gates_label(self):
+        # a re-run replays a person's old `labeled` payload; the timeline says the label on the PR is the gate's
+        gh, code, _, _ = self.gate(["gate/matrix-not-needed", "gate/review-passed"], files=("src/App.tsx",),
+                                   state={mg.AUTO_NA: "head1"}, env={"EVENT": "labeled", "EVENT_LABEL": "gate/matrix-not-needed"})
+        self.assertEqual((gh.removed, code), (["gate/matrix-not-needed"], 1))
+
+    def test_a_lagging_timeline_is_read_again(self):
+        p = pull(["gate/matrix-not-needed"])
+        gh = Recorder(p, events=[labeled("gate/matrix-not-needed", actor="Nemo")], state={mg.AUTO_NA: "head0"})
+        gh.files = lambda: ["src/App.tsx"]
+        later = [labeled("gate/matrix-not-needed", actor="Nemo", at="2026-10-20T09:00:00Z"), labeled("gate/matrix-not-needed")]
+        reads = iter([gh._events, gh._events, later])  # the gate's event shows up only on the third re-read
+        gh.events_again = lambda: next(reads, later)
+        verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(gh.removed, ["gate/matrix-not-needed"])
+
+    def test_an_unlabeled_last_is_read_again_before_the_label_is_taken(self):
+        # a person removed the gate's label and applied it again; the list does not show their `labeled` yet
+        un = {**labeled("gate/matrix-not-needed", actor="Nemo", at="2026-10-20T11:00:00Z"), "event": "unlabeled"}
+        p = pull(["gate/matrix-not-needed", "gate/review-passed"])
+        gh = Recorder(p, events=REVIEW_OK + [labeled("gate/matrix-not-needed"), un], state={mg.AUTO_NA: "head0"})
+        gh.files = lambda: ["src/App.tsx"]
+        gh.events_again = lambda: gh._events + [labeled("gate/matrix-not-needed", actor="Nemo", at="2026-10-20T11:00:05Z")]
+        code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {}, 0))
+
+    def test_events_of_one_second_keep_their_order_by_id(self):
+        at = "2026-10-20T11:00:00Z"
+        un = {**labeled("gate/matrix-not-needed", actor="Nemo", at=at), "event": "unlabeled", "id": 1}
+        again = {**labeled("gate/matrix-not-needed", actor="Nemo", at=at), "id": 2}
+        gh, code = self.ui_push_over_record([labeled("gate/matrix-not-needed", at="2026-10-20T09:00:00Z"), again, un])
+        self.assertEqual((gh.removed, code), ([], 0))  # the person's `labeled` (id 2) is the last one
+
+    def ui_push_over_record(self, na_events):
+        p = pull(["gate/matrix-not-needed", "gate/review-passed"])
+        gh = Recorder(p, events=REVIEW_OK + na_events, state={mg.AUTO_NA: "head0"})
+        gh.files = lambda: ["src/App.tsx"]
+        code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        return gh, code
+
+    def test_a_timeline_without_the_gates_event_yet_still_counts_it_as_the_gates(self):
+        gh, code = self.ui_push_over_record([])  # the run right after the one that applied it: the list lags
+        self.assertEqual((gh.removed, code), (["gate/matrix-not-needed"], 1))
+
+    def test_an_unlabeled_last_means_the_newer_labeled_is_the_gates(self):
+        nemo = "Nemo"
+        un = {**labeled("gate/matrix-not-needed", actor=nemo, at="2026-10-20T11:00:00Z"), "event": "unlabeled"}
+        gh, code = self.ui_push_over_record([labeled("gate/matrix-not-needed", actor=nemo), un])
+        self.assertEqual((gh.removed, code), (["gate/matrix-not-needed"], 1))
+
+    def test_a_person_labeling_after_the_gate_owns_the_label(self):
+        gh, code = self.ui_push_over_record([labeled("gate/matrix-not-needed", at="2026-10-20T09:00:00Z"),
+                                             labeled("gate/matrix-not-needed", actor="Nemo")])
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {}, 0))
+
+    def test_a_matrix_label_without_a_recorded_head_waits_for_its_own_run(self):
+        # the swap from matrix_run.sh: the `unlabeled` run may come before the `labeled` one
+        gh, _, _, _ = self.gate(["gate/matrix-passed"])
+        self.assertEqual((gh.added, gh.removed), ((), []))
+
+    def test_a_matrix_label_applied_on_an_older_head_does_not_take_the_gates_label(self):
+        gh, _, out, _ = self.gate(["gate/matrix-passed", "gate/matrix-not-needed"], state={mg.AUTO_NA: "head0"},
+                                  env={"EVENT": "labeled", "EVENT_LABEL": "gate/matrix-passed", "EVENT_HEAD_SHA": "head0"})
+        self.assertEqual(gh.removed, ["gate/matrix-passed"])  # evaluate drops the stale one, the gate keeps its own
+        self.assertNotIn("holds on this head", out)
+
+    def test_an_incomplete_file_list_sets_nothing_and_takes_back_its_own(self):
+        gh, _, out, _ = self.gate(changed=3001)
+        self.assertEqual(gh.added, ())
+        self.assertIn("GitHub lists 1 of 3001 changed files", out)
+        gh, _, _, _ = self.gate(["gate/matrix-not-needed"], changed=2, state={mg.AUTO_NA: "head0"})
+        self.assertEqual(gh.removed, ["gate/matrix-not-needed"])
+        gh, _, _, _ = self.gate(files=[f"{i}.md" for i in range(mg.FILES_CAP)], changed=mg.FILES_CAP)
+        self.assertEqual(gh.added, ())
+        gh, _, _, _ = self.gate(files=[f"{i}.md" for i in range(mg.FILES_CAP - 1)], changed=mg.FILES_CAP - 1)
+        self.assertEqual(gh.added, ("gate/matrix-not-needed",))
+
+    def test_trailing_comments_and_a_bom_are_not_part_of_a_pattern(self):
+        gh, _, _, _ = self.gate(listed="\ufeff" + r"[^/]+\.md  # docs" + "\n" + r"x#y" + "\n")
+        self.assertEqual(gh.added, ("gate/matrix-not-needed",))
+        self.assertTrue(mg.matrix_free(["x#y"], r"x#y"))  # a `#` inside a pattern stays
+
+    def test_no_base_sha_or_an_odd_file_is_a_note(self):
+        _, _, out, seen = self.gate(base_sha="")
+        self.assertEqual(seen, [])  # never read at the default branch instead
+        self.assertIn("ValueError: the PR has no base sha", out)
+        for err in (TypeError("list indices"), UnicodeDecodeError("utf-8", b"\xff", 0, 1, "bad"), KeyError("content")):
+            gh = Recorder(pull(["gate/review-passed"]), events=REVIEW_OK)
+            gh.file_text = lambda *a, err=err, **k: (_ for _ in ()).throw(err)
+            code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+            self.assertIn(f"not applied ({type(err).__name__}", out)
+
+
+class GitHubFiles(unittest.TestCase):
+    """The real `pulls/{pr}/files` readers."""
+
+    def test_one_read_serves_names_renames_and_statuses(self):
+        pages = [[{"filename": "README.md", "previous_filename": "src/app.ts", "status": "renamed"}, {"filename": "b.md"}]]
+        with mock.patch.object(mg, "gh_json", return_value=pages) as api:
+            gh = mg.GitHub("o/r", "1")
+            self.assertEqual(gh.touched_paths(), ["README.md", "src/app.ts", "b.md"])
+            self.assertEqual(gh.files(), ["README.md", "b.md"])
+            self.assertEqual(gh.file_status(), {"README.md": "renamed", "b.md": ""})
+        self.assertEqual(api.call_count, 1)
+
+    def test_write_state_returns_the_comment_id(self):
+        with mock.patch.object(mg, "gh_json", return_value={"id": 9}):
+            self.assertEqual(mg.GitHub("o/r", "1").write_state(None, {"a": "b"}), 9)
+            self.assertEqual(mg.GitHub("o/r", "1").write_state(5, {"a": "b"}), 5)
 
 
 class CallerArgv(unittest.TestCase):

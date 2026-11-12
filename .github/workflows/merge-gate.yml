@@ -20,7 +20,7 @@ name: Merge gate
 #   gate/snapshots-approved — required when the PR changes screenshot baselines;
 #                             set by a HUMAN (the owner) only, never by an agent.
 #   gate/matrix-passed      — the full Playwright matrix is green on the current head;
-#   gate/matrix-not-needed  — the diff does not touch UI (say so in the PR body);
+#   gate/matrix-not-needed  — the diff does not touch UI (say so in the PR body; the gate sets it per .github/matrix-free-paths);
 #                             exactly one of the two matrix labels is required.
 #   gate/review-passed      — set by claude-review.yml when a round ends with 0 ❗.
 # Head-bound labels are bound to a HEAD SHA: the run of the `labeled` event records the head from its
