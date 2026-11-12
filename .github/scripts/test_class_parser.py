@@ -668,7 +668,7 @@ for slug in STARTING:
                 obj = c[owner][kind]
                 tag = f"{lang}/{slug}/{owner}.{kind}"
                 eq(f"{tag}: категории как у EN", obj["categories"], by_lang["en"][slug][owner][kind]["categories"])
-                want = PARTIAL_WEAPONS[slug][i] if (slug in PARTIAL_WEAPONS and owner, kind) == ("proficiencies", "weapons") else ""
+                want = PARTIAL_WEAPONS[slug][i] if slug in PARTIAL_WEAPONS and (owner, kind) == ("proficiencies", "weapons") else ""
                 eq(f"{tag}: other", obj["other"], want)
                 eq(f"{tag}: other — часть text", obj["other"] in obj["text"], True)
                 if lang == "ru":

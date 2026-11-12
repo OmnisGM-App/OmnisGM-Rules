@@ -15,7 +15,6 @@ ABILITY_CODES = {"strength": "str", "dexterity": "dex", "constitution": "con",
 SKILLS = {"Acrobatics", "Animal Handling", "Arcana", "Athletics", "Deception", "History",
           "Insight", "Intimidation", "Investigation", "Medicine", "Nature", "Perception",
           "Performance", "Persuasion", "Religion", "Sleight of Hand", "Stealth", "Survival"}
-ARMOR_CATEGORIES = ("light", "medium", "heavy", "shield")
 
 _TRAIT_KEYS = {
     "Primary Ability": "primary_ability", "Основная характеристика": "primary_ability",
