@@ -15,21 +15,19 @@ The ruleset of the default branch requires the `Merge gate` check
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
-dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master` needs `gate/review-passed`, and claude-review.yml skips a PR whose base is not the
-default branch — such a PR gets its round only by `workflow_dispatch`; whether a `release/*`
+dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master` needs `gate/review-passed`; whether a `release/*`
 head is an empty commit whose parent is a `dev` commit is not checked yet); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
 head they were applied on (the gate keeps a state comment on the PR): `gate/matrix-passed` applied on
 another head is removed, and so is `gate/snapshots-approved` when the PR's own baselines differ
-between that head and the live one. `gate/review-passed` counts only when the review workflow applied
+between that head and the live one — unless the live head has the tree the label was given on: then both stay, re-bound. `gate/review-passed` counts only when the review workflow applied
 it — a hand-applied one is reported and ignored.
 
 **Template copies.** A `sync/templates-*` PR (label `plugin-copy`, opened by claude-plugins `sync-templates.yml`) needs no other label and gets no review round; never edit or push to it — change the template in claude-plugins and the next sync replaces the PR. The gate blocks it, with the reason, when a changed file is not a MODIFIED copy of a template (`.claude/rules/*.md` or a path of `WORKFLOW_COPIES` in `merge_gate.py`; the sync also ADDS a missing workflow copy, with the settings lines of the repo's `merge-gate.yml`) or differs from it outside the repo's settings lines (`runs-on`, `CI_CHECK`, the Node version); labels do not lift the block. A rule template a repo does not carry yet, a change of its settings lines and the wiring of a new test file into its CI go through an ordinary PR.
 
-**PR checks report** (claude-plugins#71): `pr-checks-report.yml`, not required, its own group `pr-checks-<PR>`, no label events,
-so the verdict never waits for it. It runs `run_pr_checks.py` once per check group and writes the findings to the job summary;
-it never changes a status. A repo without the script copies gets «PR checks: not rolled out in this repo». Before the push:
+**PR checks report:** `pr-checks-report.yml`, not required, its own group `pr-checks-<PR>`, no label events,
+so the verdict never waits for it. It runs `run_pr_checks.py` once per check group and writes the findings to the job summary, never a status. A repo without the script copies gets «PR checks: not rolled out in this repo». Before the push:
 `CHECK pr --local --base <base> --repo <R> --pr <N>`.
 
 ## Rules for an agent (Claude Code and anything acting with the owner's token)
@@ -74,10 +72,8 @@ it never changes a status. A repo without the script copies gets «PR checks: no
    hand. The skill `omnisgm-matrix` of the omnisgm plugin does it as the first step of the matrix (refuses while an
    auto-merge into the base is pending, merges and pushes the base, stops on a conflict; after a merge start it
    again in about a minute, `authoring-e2e.md` rule 8); `matrix_run.sh <PR#> --sync-only` is the base sync alone.
-   In a repo without `.claude/matrix.json` yet, the same steps by hand.
-   Not for a release
-   PR or a carried-over matrix (rule 3), whose matrix belongs to a head it already ran on, nor for
-   Dependabot, whose PRs carry `gate/matrix-not-needed`.
+   Without `.claude/matrix.json` yet, the same steps by hand.
+   Not for a release PR or a carried-over matrix (rule 3), nor for Dependabot (`gate/matrix-not-needed`).
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
    no UI file is in the diff and the PR body (or the gate's summary) says so. Two release-only exceptions (Table), both because the labelled head has the very TREE the matrix ran on: (a) the matrix of the
@@ -90,7 +86,7 @@ it never changes a status. A repo without the script copies gets «PR checks: no
    matrix never saw. When `git diff <matrix head> <live head>` consists only of comment lines inside the repo's
    Playwright test directory (`tests/e2e/**` in Table, `web/e2e/**` in Rules, `e2e/**` in News — no spec logic,
    no baseline, no product file), the matrix of `<matrix head>` counts for the
-   live head; the PR body names both SHAs. Anything else in that diff means a new matrix. The whole step —
+   live head; the PR body names both SHAs. Anything else in that diff means a new matrix. A fourth: a lower PR of a stack, its head an ancestor of the matrix head (`--stack`, "Stacked PRs"). The whole step —
    preconditions, run, numbers, label, carry-over — is the skill `omnisgm-matrix` of the omnisgm plugin
    (`matrix_run.sh <PR#> [--carry <matrix head>]`, configured by the repo's `.claude/matrix.json`), not hand-run commands.
 4. The gate is a status check, not a reviewer: a green gate is the condition, "How to merge" below says who
@@ -141,17 +137,10 @@ it never changes a status. A repo without the script copies gets «PR checks: no
   every review thread is answered and resolved and no round is running (`review-response.md`, merge
   readiness): the checks do not know about threads. An admin merge bypasses the gate and is reserved
   for the owner's own hand in an emergency.
-- **A stacked PR (base is another PR's branch, not `dev`/`master`) is opened as a draft** and marked ready
-  only after the lower PR is merged and this one is retargeted. Merge order of a stack:
-  `gh pr edit <upper> --base dev` FIRST, then `gh pr merge <lower> --delete-branch` — deleting the base
-  branch closes the upper PR instead of retargeting it. If it did close:
-  push the old SHA back to the base branch name, `gh pr reopen`, `gh pr edit --base`, delete the branch again.
+- **Stacked PRs.** A slice that does not ship alone goes as a GitHub stack (the `gh stack` CLI extension), never hand-made chained branches. Open the PRs in turn, bottom up; each is reviewed and gated like a PR into the default branch. One matrix runs on the top PR and `matrix_run.sh <top> --stack` copies it to every lower PR. Merge the stack only whole, with `gh stack merge <top> --yes --squash`; never `gh pr merge` a PR whose base is not the default branch. A retarget or rebase that only drops commits already in the base keeps `gate/review-passed` (`git range-diff`, named in the PR body).
 - **`master` is the only branch merged without squash** (Table: the release PR `release/YYYY-MM-DD` →
   `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
   is kept); everything else — squash.
   A repo without a release branch (Rules, News) squashes every PR.
-- **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its own version of the check, so the gate cannot vouch for it. It is merged under the ordinary readiness
-  criteria above (the agent itself) — the author reads its own diff with the knowledge that the gate's
-  verdict on it is self-reported.
-- A green check on an old head is not a green check: after a push wait for CI and the gate on the
-  new head before merging.
+- **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its own version of the check, so the gate's verdict on it is self-reported: it is merged under the ordinary readiness criteria (the agent itself), the author reading its own diff with that in mind.
+- A green check on an old head is not one: after a push wait for CI and the gate on the new head before merging.

@@ -26,7 +26,12 @@ dates are the author's clock, event lists lag, queued runs get superseded). The 
 event records the head from its payload in a state comment on the PR; every later run compares that
 head with the live one: `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` when the
 PR's own `*-snapshots/` files differ between the two heads (a base merge with foreign baselines re-binds
-it). A label without a recorded head is reported, never guessed — fail-closed: if the `labeled` run
+it). Each entry is `{"sha": head, "tree": the head's tree}` (an old entry that is a bare sha string reads as
+`{"sha": s, "tree": None}`): when the head moved but its TREE equals the recorded one (a retarget or a rebase that only
+drops commits already in the base, the stacked-PR case), both labels are kept and the sha is re-bound — the code
+the matrix ran on, and the baselines the owner looked at, are byte-for-byte the same; an unknown tree (an old entry,
+a failed read) never counts as equal, so the old rules apply. The base of the PR does not matter to any of this: a PR
+into another PR's branch (a stack) is held to the same labels as a PR into the default branch. A label without a recorded head is reported, never guessed — fail-closed: if the `labeled` run
 itself was superseded in the concurrency queue, the label has to be removed and re-applied.
 `gate/review-passed` counts only when its latest `labeled` event was made by github-actions[bot] (the
 review workflow), not by a hand; the events list can lag behind the label, so it is re-read with a backoff.
@@ -306,7 +311,7 @@ class GitHub:
             pull = self.pull()
 
     def state(self) -> tuple[int | None, dict]:
-        """The gate's state comment on the PR: {label: head sha}."""
+        """The gate's state comment on the PR: {label: {"sha", "tree"}} (plus the gate's own markers)."""
         pages = gh_json(f"repos/{self.repo}/issues/{self.pr}/comments", "--paginate")
         for page in pages:
             for c in page:
@@ -324,6 +329,16 @@ class GitHub:
         gh_json(f"repos/{self.repo}/issues/comments/{comment_id}", "-X", "PATCH", "-f", f"body={body}")
         return comment_id
 
+    def tree(self, sha: str) -> str | None:
+        """The tree of a commit; None when the commit is gone (404/422: the caller then treats the tree as unknown). Any
+        other error (5xx, rate limit, network) propagates: the run goes red and the labels stay, as in `compare_files`."""
+        try:
+            return gh_json(f"repos/{self.repo}/git/commits/{sha}").get("tree", {}).get("sha")
+        except RuntimeError as e:
+            if "HTTP 404" in str(e) or "HTTP 422" in str(e):
+                return None
+            raise
+
     def remove_label(self, name: str) -> None:
         subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--remove-label", name], check=True)
 
@@ -331,11 +346,34 @@ class GitHub:
         subprocess.run(["gh", "pr", "edit", self.pr, "--repo", self.repo, "--add-label", name], check=True)
 
 
+def bound_entry(value) -> dict | None:
+    """A head-bound label's state entry as {"sha", "tree"}: the old form was the bare sha string (tree unknown)."""
+    if isinstance(value, dict):
+        return {"sha": value.get("sha"), "tree": value.get("tree")}
+    if isinstance(value, str):
+        return {"sha": value, "tree": None}
+    return None
+
+
+def normalize_state(state: dict) -> dict:
+    """Head-bound entries (matrix-passed, snapshots-approved) as dicts; every other key (the gate's own markers) as is."""
+    out = dict(state)
+    for name in (LABEL_MATRIX_OK, LABEL_SNAP):
+        if name in out:
+            entry = bound_entry(out[name])
+            if entry is None:
+                del out[name]
+            else:
+                out[name] = entry
+    return out
+
+
 def parse_state(body: str) -> dict:
     try:
-        return json.loads(body[len(STATE_MARK):body.index(STATE_END)])
+        parsed = json.loads(body[len(STATE_MARK):body.index(STATE_END)])
     except (ValueError, KeyError):
         return {}
+    return normalize_state(parsed) if isinstance(parsed, dict) else {}
 
 
 def render_state(state: dict) -> str:
@@ -404,10 +442,14 @@ def auto_matrix(gh: GitHub, pull: dict, files: list[str], paths: list[str], even
         return state, comment_id, False, None
     matrix_ok = False
     if LABEL_MATRIX_OK in labels:  # bound the way evaluate() binds it
-        bound = (event_head or head) if (event == "labeled" and event_label == LABEL_MATRIX_OK) else state.get(LABEL_MATRIX_OK)
-        if bound is None:
+        seen = event_head or head  # a `labeled` run binds the payload head with its tree, as evaluate() records it
+        entry = {"sha": seen, "tree": gh.tree(seen) if seen != head else None} \
+            if (event == "labeled" and event_label == LABEL_MATRIX_OK) \
+            else (bound_entry(state.get(LABEL_MATRIX_OK)) or {"sha": None, "tree": None})
+        if entry["sha"] is None:
             return state, comment_id, False, None  # its `labeled` run has not recorded a head yet: that run decides
-        matrix_ok = bound == head
+        # same tree on a moved head holds the label in evaluate() too, so it holds here (no second matrix label)
+        matrix_ok = entry["sha"] == head or (entry["tree"] is not None and gh.tree(head) == entry["tree"])
     free, note = False, None
     if matrix_ok:
         if auto:
@@ -454,7 +496,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
     head_ref, head = pull["head"]["ref"], pull["head"]["sha"]
     base_ref, author = pull["base"]["ref"], pull["user"]["login"]
     pr_snaps = {f for f in files if SNAPSHOT_RE.search(f)}
-    state = dict(state)
+    state = normalize_state(state)
     remove: list[str] = []
     fail: list[str] = []
 
@@ -463,20 +505,25 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             state.pop(name, None)
             continue
         if event == "labeled" and event_label == name:
-            state[name] = event_head or head  # the head the person saw when applying it
-        bound = state.get(name)
-        if bound is None:
+            seen = event_head or head  # the head the person saw when applying it, and the tree of THAT head
+            state[name] = {"sha": seen, "tree": gh.tree(seen)}
+        entry = state.get(name)
+        if entry is None or entry["sha"] is None:
             fail.append(f"`{name}` is set but no head is recorded for it (its `labeled` run was skipped or superseded) — "
                         "remove and re-apply the label.")
-        elif bound != head:
-            if name == LABEL_MATRIX_OK:
+        elif entry["sha"] != head:
+            # same tree = the very files the matrix ran on / the owner looked at (a retarget or a rebase that only drops
+            # commits already in the base); an unknown tree (None) is never equal to anything
+            if entry["tree"] is not None and gh.tree(head) == entry["tree"]:
+                state[name] = {"sha": head, "tree": entry["tree"]}
+            elif name == LABEL_MATRIX_OK:
                 remove.append(name)
             else:
-                changed = gh.compare_files(bound, head)
+                changed = gh.compare_files(entry["sha"], head)
                 if changed is None or pr_snaps.intersection(changed) or not pr_snaps:
                     remove.append(name)
                 else:
-                    state[name] = head  # only foreign files (a base merge) between the two heads — still approved
+                    state[name] = {"sha": head, "tree": gh.tree(head)}  # only foreign files (a base merge) — still approved
     for name in remove:
         state.pop(name, None)
     labels -= set(remove)
@@ -550,8 +597,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
                     f"found {n_matrix}.")
     if not bot and not release and not copy_pr and not review_ok and not any(LABEL_REVIEW in f for f in fail):
         fail.append(f"{WAIT}waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
-                    "it runs after CI on every push while the label is absent (removing the label starts a round too); "
-                    "a PR whose base is not the default branch gets a round only by workflow_dispatch.")
+                    "it runs after CI on every push of a non-draft PR while the label is absent (removing the label starts a round too).")
     return remove, fail, state
 
 

@@ -78,7 +78,7 @@ The readiness conditions and who merges are `merge-gate.md`, "How to merge" (CI 
 every thread answered and resolved, no round in flight). Two additions: the author replies to and resolves the
 threads of the CI auto-review themselves, per "Resolving threads" above — they are not left for the owner; the only
 threads that may stay open are those where the decision is the owner's, listed by name in the round comment. A merge
-cancels the running auto-review: wait for it to post and close its threads first.
+cancels the running auto-review: wait for it to post and close its threads first. A stack is merged whole (`merge-gate.md`).
 
 ## Sign of a loop — stop
 

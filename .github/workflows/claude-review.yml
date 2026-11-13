@@ -7,6 +7,11 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.64 (2026-11-13, stacked PRs): a PR whose base is another PR's branch is reviewed like a PR into the default branch —
+# the `resolve` skip on the PR's base and its DEFAULT_BRANCH env are gone. Drafts stay skipped.
+# The review diff already used the PR's own base (`origin/${BASE}...HEAD`, the RECALC block), so a stacked PR is read
+# against its lower PR, not against the default branch. The round starts after the repo's `CI` run completes: a repo's
+# ci.yml must run `pull_request` for any base (no `branches:` filter).
 # v2.63 (2026-11-11, token audit D2 arm, D5b, D17): `main_effort` input (high | medium, default high) sets the main loop's
 # `--effort` on a button run only; every PR-event round stays `high`, so the default is unchanged. It is an ARM for the
 # probe, not a switch: medium is selectable until a replay measures ❗ recall and $ per round. The wave and V are dispatched
@@ -185,9 +190,9 @@ concurrency:
 
 jobs:
   resolve:
-    # Review only PRs into the default branch (dev/master/main — each repo has its own): a stacked PR
-    # waits for a push after the base retarget. Drafts and dependabot — skip. closed is not reviewed
-    # (it only cancels the group). v2.48: the event-level filter is here; draft / dependabot / base /
+    # Review PRs into any base (a stacked PR is reviewed against its lower PR's branch, like a PR into the
+    # default branch; v2.64). Drafts and dependabot — skip. closed is not reviewed
+    # (it only cancels the group). v2.48: the event-level filter is here; draft / dependabot /
     # `gate/review-passed` / CI state are checked by the Resolve step against the live PR (workflow_run
     # carries no PR payload beyond the number). No agent in this job: it holds `checks: write` for the
     # check run on the PR head (review of Table#1179). Publication lives in the `publish` job, also without the
@@ -247,7 +252,6 @@ jobs:
           GH_TOKEN: ${{ github.token }}
           PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
           REPO: ${{ github.repository }}
-          DEFAULT_BRANCH: ${{ github.event.repository.default_branch }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
           # v2.52: the triggering CI run's id and head — its own job list does not lag, while the check-runs list
           # of a commit can lag the workflow_run event by more than a few seconds (Table#1283: 'none' 14 s after
@@ -266,7 +270,8 @@ jobs:
             # template sync: the merge gate compares the copies with claude-plugins itself — no round (2026-11-08)
             [ "${head#sync/templates-}" = "$head" ] || skip="template sync (merge gate checks the copies)"
             [ "$copy" = "false" ] || skip="plugin-copy (merge gate checks the copies)"
-            [ "$base" = "$DEFAULT_BRANCH" ] || skip="base is not the default branch (stacked PR)"
+            # a release PR (release/* into master) is exempt from gate/review-passed, as in merge_gate.py; dev -> master is not
+            [ "$base" != "master" ] || [ "${head#release/}" = "$head" ] || skip="release PR (exempt from gate/review-passed)"
             [ "$state" = "open" ] || skip="PR is not open"
             [ "$labelled" = "false" ] || skip="gate/review-passed is set — remove the label to request a round"
             # ready_for_review / unlabeled: CI did not re-run — require a green CI_CHECK on the head
@@ -317,9 +322,8 @@ jobs:
 
 
   review:
-    # Review only PRs into the default branch (dev/master/main — each repo has its own): a stacked PR
-    # waits for a push after the base retarget. Drafts and dependabot — skip. closed is not reviewed
-    # (it only cancels the group).
+    # Review PRs into any base (a stacked PR is reviewed against its lower PR's branch, like a PR into the
+    # default branch; v2.64). Drafts and dependabot — skip. closed is not reviewed (it only cancels the group).
     # v2.48: the event filter and the live-PR checks live in the `resolve` job; this job runs only on go=1.
     needs: resolve
     if: needs.resolve.outputs.go == '1'
@@ -764,7 +768,7 @@ jobs:
       # counts per lens the candidates (`<!-- FINDING -->` blocks of 1?-<key>.md) and what V made of them (80-validation*.md).
       # Top level only: sandbox/ copies stay out. Never fails the round. PRIVATE repos only: the artifacts of a public repo
       # (Rules) are downloadable by any signed-in GitHub user, and lens reports carry sandbox command output. The
-      # `repository` object is in the payload of all three events this workflow runs on (Resolve reads its default_branch).
+      # `repository` object is in the payload of all three events this workflow runs on.
       - name: Keep the review files
         if: always() && steps.prep.outputs.out != '' && github.event.repository.private == true
         continue-on-error: true
