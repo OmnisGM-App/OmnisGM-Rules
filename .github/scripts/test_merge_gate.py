@@ -30,9 +30,14 @@ REVIEW_OK = [labeled("gate/review-passed")]
 
 
 class Fake:
-    def __init__(self, compare=()):
+    def __init__(self, compare=(), trees=None):
         self.compare = None if compare is None else list(compare)
         self.compared = []
+        self.trees, self.tree_reads = dict(trees or {}), []
+
+    def tree(self, sha):
+        self.tree_reads.append(sha)
+        return self.trees.get(sha)
 
     def compare_files(self, base, head):
         self.compared.append((base, head))
@@ -365,6 +370,27 @@ class AutoMatrixLabel(unittest.TestCase):
         self.assertEqual(gh.added, ())
         self.assertNotIn("removed by the gate", out)  # nothing of the gate's was there to remove
 
+    def test_a_matrix_label_held_by_its_tree_is_not_doubled_by_the_gates_label(self):
+        # a stacked PR rebased onto the same files: evaluate() keeps matrix-passed by tree, so the list must not add a
+        # second matrix label (two of them are a red contradiction)
+        with mock.patch.object(Recorder, "tree", lambda self, sha: "t1", create=True):
+            gh, code, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed"],
+                                       state={"gate/matrix-passed": {"sha": "head0", "tree": "t1"}})
+        self.assertEqual((gh.added, gh.removed, code), ((), [], 0))
+
+    def test_a_matrix_label_whose_labeled_run_sees_a_moved_head_with_the_same_tree_is_not_doubled(self):
+        # the owner labels head0, the head moves to head1 (same tree) before the `labeled` run: evaluate() keeps the
+        # label by tree, so the list must not add a second matrix label in that run either
+        env = {"EVENT": "labeled", "EVENT_LABEL": "gate/matrix-passed", "EVENT_HEAD_SHA": "head0"}
+        with mock.patch.object(Recorder, "tree", lambda self, sha: "t1", create=True):
+            gh, code, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed"], env=env)
+        self.assertEqual((gh.added, gh.removed, code), ((), [], 0))
+        # a different tree is a moved head: the label goes and the list decides
+        trees = {"head0": "t0"}
+        with mock.patch.object(Recorder, "tree", lambda self, sha: trees.get(sha, "t1"), create=True):
+            gh, _, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed"], env=env)
+        self.assertEqual(gh.removed, ["gate/matrix-passed"])
+
     def test_template_copies_are_left_alone(self):
         gh, _, _, _ = self.gate(head="sync/templates-1")
         self.assertEqual(gh.added, ())
@@ -647,13 +673,13 @@ class Gate(unittest.TestCase):
         rm, fail, st = mg.evaluate(Fake(), pull(["gate/matrix-passed", "gate/review-passed"]), ["src/a.ts"], REVIEW_OK,
                                    {"gate/matrix-passed": "head1"})
         self.assertEqual((rm, fail), ([], []))
-        self.assertEqual(st, {"gate/matrix-passed": "head1"})
+        self.assertEqual(st, {"gate/matrix-passed": {"sha": "head1", "tree": None}})  # an old string entry reads as tree None
 
     def test_labeled_event_records_the_payload_head(self):
         rm, fail, st = mg.evaluate(Fake(), pull(["gate/matrix-passed", "gate/review-passed"]), ["src/a.ts"], REVIEW_OK, {},
                                    event="labeled", event_label="gate/matrix-passed", event_head="head1")
         self.assertEqual((rm, fail), ([], []))
-        self.assertEqual(st["gate/matrix-passed"], "head1")
+        self.assertEqual(st["gate/matrix-passed"]["sha"], "head1")
 
     def test_label_applied_on_an_older_head_than_the_live_one_is_removed(self):
         # the push happened between the labeling and its run: payload head ≠ live head
@@ -688,12 +714,12 @@ class Gate(unittest.TestCase):
         self.assertIn("human", fail[0])
 
     def test_snapshot_approval_survives_a_base_merge_with_foreign_baselines_and_rebinds(self):
-        fake = Fake(compare=["tests/e2e/other.spec.ts-snapshots/y.png", "src/b.ts"])  # came from dev
+        fake = Fake(compare=["tests/e2e/other.spec.ts-snapshots/y.png", "src/b.ts"], trees={"head1": "t1"})  # came from dev
         rm, fail, st = mg.evaluate(fake, pull(["gate/snapshots-approved", "gate/matrix-not-needed", "gate/review-passed"]),
                                    [SNAP], REVIEW_OK, {"gate/snapshots-approved": "head0"})
         self.assertEqual((rm, fail), ([], []))
         self.assertEqual(fake.compared, [("head0", "head1")])
-        self.assertEqual(st["gate/snapshots-approved"], "head1")
+        self.assertEqual(st["gate/snapshots-approved"], {"sha": "head1", "tree": "t1"})  # re-bound WITH the live tree
 
     def test_snapshot_approval_dies_when_own_baselines_differ_between_the_heads(self):
         fake = Fake(compare=[SNAP])
@@ -738,7 +764,7 @@ class Gate(unittest.TestCase):
         comments = [[{"id": 1, "user": {"login": "Nemo"}, "body": mg.render_state({"gate/matrix-passed": "forged"})},
                      {"id": 2, "user": {"login": mg.WORKFLOW_ACTOR}, "body": mg.render_state({"gate/matrix-passed": "real"})}]]
         with um.patch.object(mg, "gh_json", return_value=comments):
-            self.assertEqual(mg.GitHub("r", "1").state(), (2, {"gate/matrix-passed": "real"}))
+            self.assertEqual(mg.GitHub("r", "1").state(), (2, {"gate/matrix-passed": {"sha": "real", "tree": None}}))
 
     def test_compare_unknown_is_conservative(self):
         rm, _, _ = mg.evaluate(Fake(compare=None), pull(["gate/snapshots-approved"]), [SNAP], [],
@@ -1113,14 +1139,170 @@ class Gate(unittest.TestCase):
         self.assertFalse(any(f.startswith(mg.WAIT) for f in mg.split_outcome(fail)[0]))
 
     def test_state_round_trips_through_the_comment_body(self):
-        st = {"gate/matrix-passed": "abc", "gate/snapshots-approved": "def"}
+        st = {"gate/matrix-passed": {"sha": "abc", "tree": "t1"}, "gate/snapshots-approved": {"sha": "def", "tree": None}}
         self.assertEqual(mg.parse_state(mg.render_state(st)), st)
+        old = {"gate/matrix-passed": "abc", mg.AUTO_NA: "h"}  # the string form of before the tree binding; other keys stay as they are
+        self.assertEqual(mg.parse_state(mg.render_state(old)),
+                         {"gate/matrix-passed": {"sha": "abc", "tree": None}, mg.AUTO_NA: "h"})
         self.assertEqual(mg.parse_state("<!-- merge-gate-state garbage -->"), {})
 
     def test_unlabeled_drops_the_state_entry(self):
         _, _, st = mg.evaluate(Fake(), pull(["gate/matrix-not-needed", "gate/review-passed"]), ["src/a.ts"], REVIEW_OK,
                                {"gate/matrix-passed": "head1"}, event="unlabeled", event_label="gate/matrix-passed")
         self.assertEqual(st, {})
+
+
+class StackedPrs(unittest.TestCase):
+    """Stacked PRs (a base that is another PR's branch) and the tree binding of the head-bound labels."""
+    M, S, R = "gate/matrix-passed", "gate/snapshots-approved", "gate/review-passed"
+
+    def test_a_lower_pr_with_its_label_on_its_own_head_stays_green(self):  # (1)
+        rm, fail, _ = mg.evaluate(Fake(), pull([self.M, self.R], base="feat/lower-base", default="dev"), ["src/a.ts"],
+                                  REVIEW_OK, {self.M: {"sha": "head1", "tree": "t1"}})
+        self.assertEqual((rm, fail), ([], []))
+
+    def test_head_moved_with_the_same_tree_keeps_and_rebinds_both_labels(self):  # (2)
+        for name in (self.M, self.S):
+            fake = Fake(trees={"head1": "t1"})
+            rm, fail, st = mg.evaluate(fake, pull([name, "gate/matrix-not-needed", self.R] if name == self.S else [name, self.R]),
+                                       [SNAP] if name == self.S else ["src/a.ts"], REVIEW_OK,
+                                       {name: {"sha": "head0", "tree": "t1"}})
+            self.assertEqual((rm, fail, st[name]), ([], [], {"sha": "head1", "tree": "t1"}), name)
+            self.assertEqual(fake.compared, [], name)  # no file compare is needed when the trees are equal
+
+    def test_head_moved_with_another_tree_removes_the_label(self):  # (3)
+        rm, _, st = mg.evaluate(Fake(trees={"head1": "t2"}), pull([self.M]), ["src/a.ts"], [],
+                                {self.M: {"sha": "head0", "tree": "t1"}})
+        self.assertEqual(rm, [self.M])
+        self.assertNotIn(self.M, st)
+
+    def test_an_old_string_entry_has_no_tree_and_none_never_equals_none(self):  # (4)
+        # the live head's tree cannot be read either: None == None must not keep the label
+        for name in (self.M, self.S):
+            fake = Fake(compare=None)
+            labels = [name] if name == self.M else [name, "gate/matrix-not-needed"]
+            rm, _, st = mg.evaluate(fake, pull(labels), [SNAP], [], {name: "head0"})
+            self.assertEqual(rm, [name], name)
+            self.assertNotIn(name, st)
+            self.assertEqual(fake.tree_reads, [], name)  # an unknown tree is not even looked up for the live head
+        rm, _, _ = mg.evaluate(Fake(trees={}), pull([self.M]), ["src/a.ts"], [], {self.M: {"sha": "head0", "tree": None}})
+        self.assertEqual(rm, [self.M])
+
+    def test_the_labeled_event_records_the_tree_of_the_event_head_not_the_live_one(self):  # (5)
+        # applied on head0 (tree A), live head is head1 (tree B): the recorded tree is A, so the label does not survive
+        fake = Fake(trees={"head0": "A", "head1": "B"})
+        rm, _, st = mg.evaluate(fake, pull([self.M, self.R]), ["src/a.ts"], REVIEW_OK, {},
+                                event="labeled", event_label=self.M, event_head="head0")
+        self.assertEqual(rm, [self.M])
+        self.assertEqual(fake.tree_reads[0], "head0")
+        # applied on the live head: the entry carries the live head's tree
+        _, _, st = mg.evaluate(fake, pull([self.M, self.R]), ["src/a.ts"], REVIEW_OK, {}, event="labeled", event_label=self.M,
+                               event_head="head1")
+        self.assertEqual(st[self.M], {"sha": "head1", "tree": "B"})
+
+    def test_snapshots_approved_is_kept_on_an_equal_tree_even_when_compare_is_unknown(self):  # (6)
+        rm, fail, st = mg.evaluate(Fake(compare=None, trees={"head1": "t1"}),
+                                   pull([self.S, "gate/matrix-not-needed", self.R]), [SNAP], REVIEW_OK,
+                                   {self.S: {"sha": "head0", "tree": "t1"}})
+        self.assertEqual((rm, fail, st[self.S]), ([], [], {"sha": "head1", "tree": "t1"}))
+
+    def test_the_messages_no_longer_mention_workflow_dispatch_or_the_default_branch(self):  # (7)
+        _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], base="feat/lower"), ["src/a.ts"], [], {})
+        text = " ".join(fail)
+        self.assertIn("gate/review-passed", text)
+        self.assertNotIn("workflow_dispatch", text)
+        self.assertNotIn("default branch", text)
+
+    def test_a_stacked_pr_without_the_review_label_waits_it_is_not_an_error(self):  # (8)
+        _, fail, _ = mg.evaluate(Fake(), pull(["gate/matrix-not-needed"], base="feat/lower", default="dev"), ["src/a.ts"], [], {})
+        waiting, errors = mg.split_outcome(fail)
+        self.assertEqual(errors, [])
+        self.assertEqual(len(waiting), 1)
+        self.assertTrue(waiting[0].startswith("waiting for `gate/review-passed`"))
+        gh = Recorder(pull(["gate/matrix-not-needed"], base="feat/lower"))
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(code, 1)
+        self.assertIn("::error::waiting: waiting for `gate/review-passed`", out)
+        self.assertNotIn("## Merge gate: blocked", out)
+
+    def test_github_tree_reads_the_commit_and_an_unreadable_one_is_none(self):
+        with mock.patch.object(mg, "gh_json", return_value={"sha": "c", "tree": {"sha": "t9"}}) as call:
+            self.assertEqual(mg.GitHub("o/r", "1").tree("c"), "t9")
+        call.assert_called_once_with("repos/o/r/git/commits/c")
+        with mock.patch.object(mg, "gh_json", side_effect=RuntimeError("HTTP 404")):
+            self.assertIsNone(mg.GitHub("o/r", "1").tree("c"))
+
+    def test_the_run_binds_the_tree_and_keeps_the_label_through_a_retarget(self):
+        gh = Recorder(pull([self.M, self.R], base="dev", sha="head2"), events=REVIEW_OK,
+                      state={self.M: {"sha": "head1", "tree": "t1"}})
+        gh.tree = lambda sha: {"head2": "t1"}.get(sha)
+        code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual((code, gh.removed, gh.written), (0, [], [{self.M: {"sha": "head2", "tree": "t1"}}]))
+
+    def test_github_tree_swallows_only_a_missing_commit_and_other_errors_propagate(self):
+        for err, ok in (("HTTP 404", True), ("HTTP 422", True), ("HTTP 502", False), ("rate limit exceeded", False)):
+            with mock.patch.object(mg, "gh_json", side_effect=RuntimeError(err)):
+                if ok:
+                    self.assertIsNone(mg.GitHub("o/r", "1").tree("c"), err)
+                else:
+                    with self.assertRaises(RuntimeError, msg=err):
+                        mg.GitHub("o/r", "1").tree("c")
+
+    def test_a_tree_read_error_turns_the_run_red_and_keeps_the_label(self):
+        gh = Recorder(pull([self.M, self.R], sha="head2"), events=REVIEW_OK, state={self.M: {"sha": "head1", "tree": "t1"}})
+        def boom(sha): raise RuntimeError("HTTP 502")
+        gh.tree = boom
+        with self.assertRaises(RuntimeError):
+            verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual((gh.removed, gh.written), ([], []))
+
+    def test_a_malformed_state_comment_is_no_state_and_a_malformed_entry_no_head(self):
+        self.assertEqual(mg.parse_state(mg.render_state([1])), {})  # valid JSON, not an object
+        self.assertEqual(mg.parse_state(mg.render_state("x")), {})
+        for bad in (None, {"tree": "t"}, 7):
+            rm, fail, _ = mg.evaluate(Fake(), pull([self.M, self.R]), ["src/a.ts"], REVIEW_OK, {self.M: bad})
+            self.assertEqual(rm, [], bad)
+            self.assertEqual(len(fail), 1, bad)
+            self.assertIn("no head is recorded", fail[0], bad)
+
+    def test_the_resolve_release_skip_holds_for_release_into_master_only(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.normpath(os.path.join(here, "..", "..", ".github", "workflows", "claude-review.yml"))
+        if not os.path.exists(path):
+            self.skipTest("a repo copy: claude-review.yml is checked in claude-plugins")
+        line = next(l.strip() for l in open(path) if 'skip="release PR' in l)
+        def skipped(base, head):
+            out = subprocess.run(["bash", "-c", f'skip=""; base="{base}"; head="{head}"; {line}; echo "$skip"'],
+                                 capture_output=True, text=True, check=True).stdout.strip()
+            return out
+        self.assertEqual(skipped("master", "release/2026-11-13"), "release PR (exempt from gate/review-passed)")
+        self.assertEqual(skipped("master", "dev"), "")            # dev -> master gets a round
+        self.assertEqual(skipped("feat/lower", "release/x"), "")  # a release-looking head into another base is an ordinary PR
+        self.assertEqual(skipped("dev", "feat/x"), "")
+
+    def test_the_review_workflow_does_not_skip_a_stacked_pr(self):
+        here = os.path.dirname(os.path.abspath(__file__))
+        path = os.path.normpath(os.path.join(here, "..", "..", ".github", "workflows", "claude-review.yml"))
+        if not os.path.exists(path):
+            self.skipTest("a repo copy: claude-review.yml is checked in claude-plugins")
+        text = open(path).read()
+        self.assertNotIn("base is not the default branch", text)
+        # the Resolve step: no default-branch input, and exactly this set of skip reasons (a skip on the base would add one)
+        start = text.index("      - name: Resolve PR")
+        step = text[start:text.index("\n      - name:", start + 10)]
+        self.assertNotIn("DEFAULT_BRANCH", step)
+        self.assertNotIn("default_branch", step)
+        self.assertEqual(set(re.findall(r'skip="([^"]*)"', step)), {
+            "", "draft", "dependabot", "template sync (merge gate checks the copies)",
+            "plugin-copy (merge gate checks the copies)", "release PR (exempt from gate/review-passed)", "PR is not open",
+            "gate/review-passed is set — remove the label to request a round",
+            "CI check '$CI_CHECK' on the head is '$c', not success"})
+        self.assertIn('[ "$draft" = "false" ] || skip="draft"', step)  # a draft still gets no round
+        # the base may only matter together with a release head (merge_gate.py: base master + release/*); never alone
+        for line in step.splitlines():
+            if 'skip=' in line and '$base' in line:
+                self.assertIn('release/', line)
+                self.assertIn('"$base" != "master"', line)
 
 
 if __name__ == "__main__":
