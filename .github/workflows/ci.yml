@@ -1,10 +1,9 @@
 name: CI
 
-# Лёгкая проверка на PR в main: типы (astro check) + прод-сборка. E2E (Playwright) в CI
+# Лёгкая проверка на PR в любую базу (и в стек PR: фильтра branches нет): типы (astro check) + прод-сборка. E2E (Playwright) в CI
 # НЕ гоняем — они тяжёлые/нестабильные на раннере; запускаются локально: npm run test:e2e.
 on:
   pull_request:
-    branches: [main]
 
 permissions:
   contents: read
