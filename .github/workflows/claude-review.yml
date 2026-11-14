@@ -842,7 +842,7 @@ jobs:
       # No artifact (Prepare died before OUT existed) fails this step: Publish is then `skipped`, and the check run
       # says "publish: skipped".
       - name: Download publish inputs
-        uses: actions/download-artifact@v7
+        uses: actions/download-artifact@v8
         with:
           name: publish-inputs
           path: ${{ runner.temp }}/publish-inputs
