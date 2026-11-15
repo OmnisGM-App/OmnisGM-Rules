@@ -22,17 +22,27 @@ workflow re-runs on a label the newer run supersedes that suite in the merge box
 same way. The job's own status lives in its own run and is never hidden.
 
 Head-bound labels are bound to a HEAD SHA, not to a time (review of Table#1179, 3 rounds: committer
-dates are the author's clock, event lists lag, queued runs get superseded). The run of the `labeled`
+dates are the author's clock, event lists lag, queued runs get superseded; no committer date is compared anywhere). The run of the `labeled`
 event records the head from its payload in a state comment on the PR; every later run compares that
-head with the live one: `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` when the
-PR's own `*-snapshots/` files differ between the two heads (a base merge with foreign baselines re-binds
-it). Each entry is `{"sha": head, "tree": the head's tree}` (an old entry that is a bare sha string reads as
+head with the live one: `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` only when the
+PR's OWN commits since the bound head touched a `*-snapshots/` path (`GitHub.own_paths`: a base merge's baselines do not
+count, a conflict resolution in a baseline does; a push that leaves the baselines alone keeps the approval and re-binds
+it; history that cannot be compared removes it as before; an API error keeps it and the run waits). Each entry is `{"sha": head, "tree": the head's tree}` (an old entry that is a bare sha string reads as
 `{"sha": s, "tree": None}`): when the head moved but its TREE equals the recorded one (a retarget or a rebase that only
 drops commits already in the base, the stacked-PR case), both labels are kept and the sha is re-bound — the code
 the matrix ran on, and the baselines the owner looked at, are byte-for-byte the same; an unknown tree (an old entry,
 a failed read) never counts as equal, so the old rules apply. The base of the PR does not matter to any of this: a PR
-into another PR's branch (a stack) is held to the same labels as a PR into the default branch. A label without a recorded head is reported, never guessed — fail-closed: if the `labeled` run
-itself was superseded in the concurrency queue, the label has to be removed and re-applied.
+into another PR's branch (a stack) is held to the same labels as a PR into the default branch. A `gate/matrix-passed` without a recorded head is reported, never guessed — fail-closed: if its `labeled` run
+itself was superseded in the concurrency queue, the label has to be removed and re-applied. A `gate/snapshots-approved`
+without a record (#91, Table#1759) is bound like a hand-set `gate/matrix-not-needed` (`timeline_bound`): to the last
+`committed` event of the timeline that GitHub had seen strictly before its last `labeled` event — the server's times on both sides:
+the earliest check suite of the commit on the PR's branch (made by the push) against the event's `created_at`; then checked as above.
+No commit seen that early, or a force-push at or after the label, removes the approval (a notice with the reason); an unreadable or
+lagging timeline, unreadable check suites or a live head with no suite yet keep it and turn the run red (waiting).
+`gate/snapshots-review-needed` (#91; LABEL_SNAP_REVIEW) is the gate's own marker: on while the PR changes `*-snapshots/` files,
+is not a release and has no `gate/snapshots-approved` (also right after the gate removed it), off otherwise. It is only a navigation aid for the
+owner (to find PRs whose screenshots await a look) and strictly informational: never a failure, a WAIT or a block (the "waiting for
+`gate/snapshots-approved`" line is the gate's); a failure to add or remove it is a notice only.
 `gate/review-passed` counts only when its latest `labeled` event was made by github-actions[bot] (the
 review workflow), not by a hand; the events list can lag behind the label, so it is re-read with a backoff.
 
@@ -60,6 +70,7 @@ import subprocess
 import sys
 
 LABEL_SNAP = os.environ.get("LABEL_SNAP", "gate/snapshots-approved")
+LABEL_SNAP_REVIEW = os.environ.get("LABEL_SNAP_REVIEW", "gate/snapshots-review-needed")
 LABEL_MATRIX_OK = os.environ.get("LABEL_MATRIX_OK", "gate/matrix-passed")
 LABEL_MATRIX_NA = os.environ.get("LABEL_MATRIX_NA", "gate/matrix-not-needed")
 LABEL_REVIEW = os.environ.get("LABEL_REVIEW", "gate/review-passed")
@@ -220,21 +231,6 @@ class GitHub:
         time.sleep(4)
         return self.events()
 
-    def compare_files(self, base: str, head: str) -> list[str] | None:
-        try:
-            pages = gh_json(f"repos/{self.repo}/compare/{base}...{head}", "--paginate")
-        except RuntimeError as e:
-            if "HTTP 404" in str(e) or "HTTP 422" in str(e):
-                return None  # base gone (force-push) — caller treats as "everything changed"
-            raise  # 5xx / rate limit / network: the run goes red, the labels stay
-        # compare is three-dot (merge-base...head): when the head went BACK (force-push to an ancestor
-        # or a sibling) the list is empty or partial although the tree differs — only a plain fast-forward
-        # (`ahead`) or the same commit (`identical`) describes the real difference.
-        if pages[0].get("status") not in ("ahead", "identical"):
-            return None
-        files = [f["filename"] for page in pages for f in page.get("files", [])]
-        return None if len(files) >= 300 else files  # compare lists at most 300 files — unknown beyond
-
     def own_paths(self, bound: str, head: str, base_ref: str) -> list[str] | None:
         """The paths the PR's OWN commits touched between `bound` and `head`; None when that cannot be told (the head is not
         a descendant of `bound`; COMPARE_CAP or more own commits, FILES_CAP or more files in one commit, COMPARE_CAP or more
@@ -305,6 +301,14 @@ class GitHub:
                         mine.discard(f["filename"])  # the base's own edit of the file, merged cleanly
             out |= mine
         return sorted(out)
+
+    def first_seen(self, sha: str, ref: str) -> str | None:
+        """When GitHub first saw a commit as a pushed head OF THE BRANCH `ref`: the earliest `created_at` of its check suites
+        with `head_branch == ref` (the server's clock, a suite is created by the push; one made by a push of the same sha to
+        another branch is not this PR's push); None when it has none (a commit in the middle of a push has no suite of its own)."""
+        pages = gh_json(f"repos/{self.repo}/commits/{sha}/check-suites", "--paginate")
+        return min((c["created_at"] for page in pages for c in page.get("check_suites", [])
+                    if c.get("created_at") and c.get("head_branch") == ref), default=None)
 
     def timeline(self) -> list[dict]:
         """The PR's timeline events (labeled, committed, head_ref_force_pushed …)."""
@@ -406,7 +410,7 @@ class GitHub:
 
     def tree(self, sha: str) -> str | None:
         """The tree of a commit; None when the commit is gone (404/422: the caller then treats the tree as unknown). Any
-        other error (5xx, rate limit, network) propagates: the run goes red and the labels stay, as in `compare_files`."""
+        other error (5xx, rate limit, network) propagates: the run goes red and the labels stay, as in `own_paths`."""
         try:
             return gh_json(f"repos/{self.repo}/git/commits/{sha}").get("tree", {}).get("sha")
         except RuntimeError as e:
@@ -464,7 +468,7 @@ def last_labeled_actor(events: list[dict], name: str) -> str | None:
 
 MATRIX_FREE = ".github/matrix-free-paths"   # per repo, not a template copy: one regex per line, `#` starts a comment
 AUTO_NA = "auto:" + LABEL_MATRIX_NA          # state key: the gate applied the label itself (a hand-set one is only watched: hand_matrix)
-HAND_NA = "hand:" + LABEL_MATRIX_NA          # state key: the head a hand-set label is bound to (its `labeled` run; with no record, the last commit of the timeline dated at or before its `labeled`)
+HAND_NA = "hand:" + LABEL_MATRIX_NA          # state key: the head a hand-set label is bound to (its `labeled` run; with no record, the last commit of the timeline pushed before its `labeled`, see timeline_bound)
 COMPARE_CAP = 250                            # own_paths: unknown at this many own commits, or at this many files in a merge's diff against its base parent (FILES_CAP: in one commit)
 FILES_CAP = 3000                             # `pulls/{pr}/files` lists at most this many; `commits/{sha}` too (own_paths: unknown at this many files in one commit)
 
@@ -498,12 +502,50 @@ def gate_set_label(gh: GitHub, events: list[dict], name: str) -> bool:
     return got is None or got[0] == "unlabeled" or got[1] == WORKFLOW_ACTOR
 
 
+def timeline_bound(gh: GitHub, label: str, ref: str, head: str) -> tuple[str | None, str | None, str | None]:
+    """The head a head-bound label with no record was set on: the last `committed` event of the timeline (timeline order) that
+    GitHub had seen as a push to the PR's branch `ref` strictly before the label's last `labeled` event, both on the SERVER's
+    clock — `first_seen` of the commit (its earliest check suite of that branch, created by the push) against the `created_at`
+    of the event (never a commit's own date: that is the author's clock, and a commit made before the label but pushed after
+    it must not read as the head the owner saw; a suite of another branch is not this PR's push). Walks the commits from the
+    newest; one without a suite of its own (the middle of a push) is passed over, except the live `head` itself, which cannot be
+    timed yet. Returns (sha, None, None); (None, why, None) when it cannot be told yet (timeline or check suites unreadable,
+    the `labeled` event not on the timeline, the live head has no suite yet: the caller waits, never guesses); (None, None, why)
+    when the label has to go: a `head_ref_force_pushed` at or after the label, or after the candidate's own push (a rebase's suite and its force-push event share a time: not after) (the history it
+    saw was rewritten), or no commit was seen that early."""
+    try:
+        events = gh.timeline()
+    except (RuntimeError, ValueError) as e:  # ValueError: a body that is not JSON
+        return None, f"timeline unreadable, {type(e).__name__}: {str(e)[:120]}", None
+    at = max((e.get("created_at", "") for e in events if e.get("event") == "labeled"
+              and (e.get("label") or {}).get("name") == label), default="")
+    if not at:
+        return None, "its `labeled` event is not on the timeline yet", None
+    fps = [e.get("created_at", "") for e in events if e.get("event") == "head_ref_force_pushed"]
+    if any(f >= at for f in fps):
+        return None, None, "the branch was force-pushed after the label, so the head it was set on is unknown"
+    for sha in [e["sha"] for e in events if e.get("event") == "committed" and e.get("sha")][::-1]:
+        try:
+            seen = gh.first_seen(sha, ref)
+        except (RuntimeError, ValueError, TypeError, KeyError) as e:
+            return None, f"check suites of {sha[:7]} unreadable, {type(e).__name__}: {str(e)[:120]}", None
+        if seen is None:
+            if sha == head:
+                return None, f"{sha[:7]} has no check suite yet, so the time it was pushed is unknown", None
+            continue  # the middle of a push: pushed with a newer commit that has a suite, never the head anyone saw
+        if seen < at:
+            if any(seen < f for f in fps):  # reset after it was pushed (and the sha pushed again): not what the owner looked at
+                return None, None, f"the branch was force-pushed after {sha[:7]} was pushed, so the head it was set on is unknown"
+            return sha, None, None
+    return None, None, "no commit on the timeline is as old as the label, so the head it was set on is unknown"
+
+
 def hand_matrix(gh: GitHub, pull: dict, state: dict, comment_id: int | None, event: str, event_label: str,
                 event_head: str) -> tuple[dict, int | None, bool, str | None]:
     """A `gate/matrix-not-needed` a person or an agent set (#89): bound to the head it was set on (HAND_NA in the state
     comment: the payload head of its `labeled` run; with no record — a superseded `labeled` run, a label from before
-    the record — the sha of the last `committed` event of the timeline dated at or before the label's last `labeled`
-    event (a date tie goes to the later event of the timeline), then the usual check from there; no commit that old, or a lagging timeline: the head is not checked, the run
+    the record — the last commit of the timeline that GitHub had seen before the label's last `labeled` event (server times,
+    branch suites, timeline_bound), then the usual check from there; no such commit, or a force-push after the label, removes it; a lagging timeline or unreadable check suites: the head is not checked, the run
     is red (waiting) until it can be). On a new head the label is removed when the PR's own commits since the bound head
     touched a path outside MATRIX_FREE (read at the base, own_paths leaves out what a merge of the base brought), the paths
     named in the note; when they touched only listed paths the label stays and is bound to the new head. Unreadable list
@@ -522,22 +564,12 @@ def hand_matrix(gh: GitHub, pull: dict, state: dict, comment_id: int | None, eve
         state.pop(HAND_NA, None)
         return state, comment_id, False, f"`{LABEL_MATRIX_NA}` (set by hand) removed by the gate: {why}. Run the matrix or set it again."
     if not isinstance(bound, str) or not bound:
-        # no record: the commit the label was set on is the last `committed` event dated at or before its `labeled` (the
-        # events carry the commit's own date: a commit made before the label and pushed after reads as before it)
-        try:
-            events = gh.timeline()
-        except (RuntimeError, ValueError) as e:  # ValueError: a body that is not JSON
-            return waiting(f"timeline unreadable, {type(e).__name__}: {str(e)[:120]}")
-        at = max((e.get("created_at", "") for e in events if e.get("event") == "labeled"
-                  and (e.get("label") or {}).get("name") == LABEL_MATRIX_NA), default="")
-        if not at:
-            return waiting("its `labeled` event is not on the timeline yet")
-        # a rebase writes many commits in one second: a date tie goes to the later event of the timeline, never to the sha
-        olds = [((e.get("committer") or {}).get("date") or "", i, e["sha"]) for i, e in enumerate(events)
-                if e.get("event") == "committed" and e.get("sha") and ((e.get("committer") or {}).get("date") or "") <= at]
-        if not olds:
-            return removed("no commit on the timeline is as old as the label, so the head it was set on is unknown")
-        bound = state[HAND_NA] = max(olds)[2]
+        bound, why, gone = timeline_bound(gh, LABEL_MATRIX_NA, pull["head"]["ref"], head)
+        if why:
+            return waiting(why)
+        if gone:
+            return removed(gone)
+        state[HAND_NA] = bound
     if bound == head:
         return state, comment_id, False, None
     base = pull.get("base") or {}
@@ -638,6 +670,18 @@ def auto_matrix(gh: GitHub, pull: dict, files: list[str], paths: list[str], even
     return state, comment_id, False, note
 
 
+def is_release(pull: dict) -> bool:
+    """`release/*` -> `master`; dev -> master is not a release since 2026-10-23."""
+    return pull["base"]["ref"] == "master" and pull["head"]["ref"].startswith("release/")
+
+
+def awaited_snapshots(pull: dict, files: list[str]) -> int:
+    """How many screenshot baselines of the PR wait for the owner's `gate/snapshots-approved`: those the PR changes, none for a
+    release (approved in the feature PRs). The one place of this rule: the WAIT line of evaluate() and the label
+    `gate/snapshots-review-needed` both read it."""
+    return 0 if is_release(pull) else sum(1 for f in files if SNAPSHOT_RE.search(f))
+
+
 def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state: dict,
              event: str = "", event_label: str = "",
              event_head: str = "") -> tuple[list[str], list[str], dict]:
@@ -645,7 +689,6 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
     labels = {l["name"] for l in pull.get("labels", [])}
     head_ref, head = pull["head"]["ref"], pull["head"]["sha"]
     base_ref, author = pull["base"]["ref"], pull["user"]["login"]
-    pr_snaps = {f for f in files if SNAPSHOT_RE.search(f)}
     state = normalize_state(state)
     remove: list[str] = []
     fail: list[str] = []
@@ -658,22 +701,53 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             seen = event_head or head  # the head the person saw when applying it, and the tree of THAT head
             state[name] = {"sha": seen, "tree": gh.tree(seen)}
         entry = state.get(name)
+        if (entry is None or entry["sha"] is None) and name == LABEL_SNAP:
+            # no record (its `labeled` run was superseded): bound from the timeline like a hand-set matrix label, then checked
+            bound, why, gone = timeline_bound(gh, name, head_ref, head)
+            if why:
+                fail.append(f"{WAIT}`{name}` not re-checked on this head ({why}) — re-run the gate.")
+                continue
+            if gone:
+                print(f"::notice::`{name}` removed by the gate: {gone}. The owner sets it again.")
+                remove.append(name)
+                continue
+            try:
+                entry = {"sha": bound, "tree": gh.tree(bound)}
+            except (RuntimeError, ValueError, TypeError, KeyError) as e:
+                fail.append(f"{WAIT}`{name}` not re-checked on this head ({type(e).__name__}: {str(e)[:120]}) — re-run the gate.")
+                continue
         if entry is None or entry["sha"] is None:
             fail.append(f"`{name}` is set but no head is recorded for it (its `labeled` run was skipped or superseded) — "
                         "remove and re-apply the label.")
         elif entry["sha"] != head:
-            # same tree = the very files the matrix ran on / the owner looked at (a retarget or a rebase that only drops
-            # commits already in the base); an unknown tree (None) is never equal to anything
-            if entry["tree"] is not None and gh.tree(head) == entry["tree"]:
-                state[name] = {"sha": head, "tree": entry["tree"]}
-            elif name == LABEL_MATRIX_OK:
-                remove.append(name)
-            else:
-                changed = gh.compare_files(entry["sha"], head)
-                if changed is None or pr_snaps.intersection(changed) or not pr_snaps:
+            try:
+                # same tree = the very files the matrix ran on / the owner looked at (a retarget or a rebase that only drops
+                # commits already in the base); an unknown tree (None) is never equal to anything
+                if entry["tree"] is not None and gh.tree(head) == entry["tree"]:
+                    state[name] = {"sha": head, "tree": entry["tree"]}
+                elif name == LABEL_MATRIX_OK:
+                    print(f"::notice::`{name}` removed by the gate: it was applied on {entry['sha'][:7]}, the live head is {head[:7]}.")
                     remove.append(name)
                 else:
-                    state[name] = {"sha": head, "tree": gh.tree(head)}  # only foreign files (a base merge) — still approved
+                    # the approval covers the PR's own baselines: it goes only when the PR's OWN commits since the bound head
+                    # touched a `*-snapshots/` path (a base merge's baselines are not the PR's); history not comparable: goes
+                    own = gh.own_paths(entry["sha"], head, base_ref)
+                    if own is None:
+                        print(f"::notice::`{name}` removed by the gate: the commits since {entry['sha'][:7]} cannot be compared "
+                              "(history rewritten, or too many commits or files to list). The owner sets it again.")
+                        remove.append(name)
+                    elif (hit := [f for f in own if SNAPSHOT_RE.search(f)]):
+                        print(f"::notice::`{name}` removed by the gate: the PR's own commits since {entry['sha'][:7]} changed "
+                              f"baselines: {', '.join(map(repr, hit[:5]))}{f' and {len(hit) - 5} more' if len(hit) > 5 else ''}. The owner looks again.")
+                        remove.append(name)
+                    else:
+                        state[name] = {"sha": head, "tree": gh.tree(head)}
+            except (RuntimeError, ValueError, TypeError, KeyError) as e:  # an API error: the label and its binding stay, red
+                if name == LABEL_MATRIX_OK:
+                    raise
+                fail.append(f"{WAIT}`{name}` not re-checked on this head ({type(e).__name__}: {str(e)[:120]}) — re-run the gate.")
+        elif entry != state.get(name):
+            state[name] = entry  # bound from the timeline to the live head
     for name in remove:
         state.pop(name, None)
     labels -= set(remove)
@@ -694,7 +768,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")
 
-    release = base_ref == "master" and head_ref.startswith("release/")  # dev -> master is not a release since 2026-10-23
+    release = is_release(pull)
     bot = author in BOT_LOGINS
     sync_branch = head_ref.startswith(SYNC_PREFIX)
     copy_pr = sync_branch or LABEL_COPY in labels
@@ -736,8 +810,8 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             if settings:
                 fail.append(f"{tag}: {', '.join(settings[:5])} change the repo's settings lines (runs-on, CI_CHECK, the "
                             "Node version) — a copy keeps the base's; change them in an ordinary PR." + way_out)
-    nsnap = len(pr_snaps)
-    if nsnap and not release and LABEL_SNAP not in labels:
+    nsnap = awaited_snapshots(pull, files)
+    if nsnap and LABEL_SNAP not in labels:
         fail.append(f"{WAIT}{nsnap} screenshot baseline(s) changed in this PR — waiting for `{LABEL_SNAP}`. "
                     "Only a human (the owner) sets it after looking at the new images; an agent never does.")
     n_matrix = (LABEL_MATRIX_OK in labels) + (LABEL_MATRIX_NA in labels)
@@ -749,6 +823,22 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         fail.append(f"{WAIT}waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
                     "it runs after CI on every push of a non-draft PR while the label is absent (removing the label starts a round too).")
     return remove, fail, state
+
+
+def snap_review_label(gh: GitHub, pull: dict, files: list[str], removed: list[str]) -> None:
+    """`gate/snapshots-review-needed` (#91): on while the PR changes `*-snapshots/` files, is not a release and has no
+    `gate/snapshots-approved` (`removed` — the labels evaluate() took off in this run — counts as absent), off otherwise. It
+    only says "the owner has to look"; the failure is the WAIT line of evaluate(). A label the repo does not have makes the
+    add fail: a notice, never a crash (nor a red run). Labels written with GITHUB_TOKEN fire no event, so this cannot loop."""
+    labels = {l["name"] for l in pull.get("labels", [])} - set(removed)
+    want = awaited_snapshots(pull, files) > 0 and LABEL_SNAP not in labels
+    have = LABEL_SNAP_REVIEW in labels
+    if want == have:
+        return
+    try:
+        (gh.add_label if want else gh.remove_label)(LABEL_SNAP_REVIEW)
+    except subprocess.CalledProcessError as e:  # e.g. the label does not exist in this repo
+        print(f"::notice::`{LABEL_SNAP_REVIEW}` not {'added' if want else 'removed'} (exit {e.returncode}) — does the label exist in this repo?")
 
 
 def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
@@ -843,7 +933,8 @@ def run(gh: GitHub, pull: dict) -> int:
                                        event_head=event_head)
     for name in remove:
         gh.remove_label(name)
-        print(f"::notice::removed {name} — it was applied on another head")
+        print(f"::notice::removed {name} by the gate")
+    snap_review_label(gh, pull, files, remove)
     if new_state != state or (comment_id is None and new_state):
         gh.write_state(comment_id, new_state)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")

@@ -16,7 +16,7 @@ name: Merge gate
 # OLDEST check suite of the app on that SHA, and a later run of the same workflow (the `labeled` one)
 # supersedes that suite in the merge box together with the verdict inside it — "Merge gate — Expected,
 # waiting" on Table#1241 with a green record in the API; a shared head (Table#1227) hid it the same way.
-# Four `gate/*` labels, who sets them and the merge method: `.claude/rules/merge-gate.md` (same template family).
+# The `gate/*` labels, who sets them and the merge method: `.claude/rules/merge-gate.md` (same template family).
 #   gate/snapshots-approved — required when the PR changes screenshot baselines;
 #                             set by a HUMAN (the owner) only, never by an agent.
 #   gate/matrix-passed      — the full Playwright matrix is green on the current head;
@@ -25,10 +25,12 @@ name: Merge gate
 #   gate/review-passed      — set by claude-review.yml when a round ends with 0 ❗.
 # Head-bound labels are bound to a HEAD SHA: the run of the `labeled` event records the head from its
 # payload in a state comment on the PR (`<!-- merge-gate-state … -->`), and every later run compares
-# it with the live head — `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` when
-# the PR's own baselines differ between the two heads (a base merge with foreign baselines re-binds
-# it). No clocks, no committer dates (3 review rounds). Fail-closed: a label whose `labeled` run was
-# superseded in the queue has no recorded head and is reported until removed and re-applied.
+# it with the live head — `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` only when
+# the PR's own commits since the bound head touched a baseline (a base merge with foreign baselines, or a
+# push that leaves the baselines alone, re-binds it; #91). `gate/snapshots-review-needed` is the gate's own
+# marker for "baselines wait for the owner's look" (never a failure by itself). Fail-closed: a
+# `gate/matrix-passed` whose `labeled` run was superseded in the queue has no recorded head and is reported
+# until removed and re-applied; an approval without a record is bound from the timeline (merge_gate.py).
 # `gate/review-passed` counts only when applied by github-actions[bot] (the review workflow) and survives
 # a push on purpose: it is the receipt of a 0 ❗ round, and a round costs ~$6 (review-response.md).
 # Exemptions: dependabot PRs are not reviewed (the matrix label comes from dependabot.yml); release
@@ -64,6 +66,7 @@ jobs:
       pull-requests: write
       issues: write      # the state comment
       contents: read
+      checks: read       # commits/{sha}/check-suites: when GitHub first saw a commit (timeline_bound, #91)
     env:
       GH_TOKEN: ${{ github.token }}
       REPO: ${{ github.repository }}

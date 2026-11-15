@@ -45,18 +45,24 @@ class Fake:
         if isinstance(self.own, Exception): raise self.own
         return None if self.own is None else list(self.own)
 
-    def __init__(self, compare=(), trees=None):
-        self.compare = None if compare is None else list(compare)
-        self.compared = []
+    seen = {}      # sha -> when GitHub first saw it (None: no check suite, an Exception: raised); by default the commit's own date in timeline_events
+
+    def first_seen(self, sha, ref):
+        self.seen_ref = ref
+        got = self.seen[sha] if sha in self.seen else next(
+            ((e.get("committer") or {}).get("date") for e in self.timeline_events if isinstance(e, dict) and e.get("sha") == sha), None)
+        if isinstance(got, Exception): raise got
+        return got.get(ref) if isinstance(got, dict) else got  # a dict: the first push per branch
+
+    def __init__(self, trees=None, own=()):
+        self.own = own
         self.trees, self.tree_reads = dict(trees or {}), []
 
     def tree(self, sha):
         self.tree_reads.append(sha)
-        return self.trees.get(sha)
-
-    def compare_files(self, base, head):
-        self.compared.append((base, head))
-        return self.compare
+        got = self.trees.get(sha)
+        if isinstance(got, Exception): raise got
+        return got
 
 
 class SyncFake(Fake):
@@ -670,10 +676,11 @@ class HandMatrixLabel(unittest.TestCase):
         verdict(gh, lambda: mg.run(gh, gh.pull()))
         self.assertEqual(gh.removed, [self.NA])
 
-    def no_record(self, timeline, author="Nemo", own=("src/a.ts",)):
+    def no_record(self, timeline, author="Nemo", own=("src/a.ts",), seen=None):
         p = pull([self.NA, "gate/review-passed"], sha="head2", author=author)
         gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="Nemo")], state={})
         gh.matrix_free_list, gh.own, gh.timeline_events = self.LIST, own, timeline
+        gh.seen = seen or {}
         code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
         return gh, code, out
 
@@ -693,10 +700,10 @@ class HandMatrixLabel(unittest.TestCase):
         gh, code, _ = self.no_record(tl, own=[])  # a merge of the base: own_paths leaves its files out
         self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head2"}, 0))
 
-    def test_the_commit_of_the_label_is_the_last_one_dated_at_or_before_it(self):
+    def test_the_commit_of_the_label_is_the_last_one_seen_before_it(self):
         tl = [self.commit("old", "08:00:00"), self.commit("same", "10:00:00"), self.LABELED, self.commit("late", "10:00:01")]
         gh, _, _ = self.no_record(tl)
-        self.assertEqual(gh.owned[0], "same")  # the same second counts as before
+        self.assertEqual(gh.owned[0], "old")  # the same second counts as after: the owner cannot have looked at it
         gh, _, _ = self.no_record([self.LABELED, self.commit("old", "08:00:00"), {"event": "committed", "committer": {"date": "2026-10-20T09:59:00Z"}}])
         self.assertEqual(gh.owned[0], "old")  # an event without a sha cannot be a bound head
         # a later `labeled` of ANOTHER label does not move the label's time
@@ -720,9 +727,88 @@ class HandMatrixLabel(unittest.TestCase):
         gh, _, _ = self.no_record([self.LABELED, self.commit("zzz-parent", "09:00:00"), self.commit("aaa-head", "09:00:00")])
         self.assertEqual(gh.owned[0], "aaa-head")
 
-    def test_the_latest_date_wins_over_the_timeline_order(self):
-        gh, _, _ = self.no_record([self.LABELED, self.commit("newer", "09:30:00"), self.commit("older", "09:00:00")])
-        self.assertEqual(gh.owned[0], "newer")  # events out of date order: the date decides first
+    def test_the_server_clock_decides_not_the_commits_own_date(self):  # F1: made before the label, pushed after it
+        tl = [self.LABELED, self.commit("c0", "09:00:00"), self.commit("c1", "09:30:00")]  # c1 is dated BEFORE the label
+        seen = {"c0": "2026-10-20T09:01:00Z", "c1": "2026-10-20T10:20:00Z"}  # but GitHub saw it after the label
+        gh, code, out = self.no_record(tl, own=["src/a.ts"], seen=seen)
+        self.assertEqual((gh.owned[0], gh.removed, code), ("c0", [self.NA], 1))  # bound to what the owner saw: c0
+        self.assertIn("'src/a.ts'", out)
+
+    def test_a_commit_in_the_middle_of_a_push_is_never_the_bound_head(self):
+        tl = [self.LABELED, self.commit("c0", "09:00:00"), self.commit("mid", "09:10:00"), self.commit("tip", "09:20:00")]
+        late, early = "2026-10-20T10:20:00Z", "2026-10-20T09:21:00Z"
+        gh, _, _ = self.no_record(tl, seen={"c0": "2026-10-20T09:01:00Z", "mid": None, "tip": late})
+        self.assertEqual(gh.owned[0], "c0")  # the push (mid, tip) came after the label: both are after it
+        gh, _, _ = self.no_record(tl, seen={"c0": "2026-10-20T09:01:00Z", "mid": None, "tip": early})
+        self.assertEqual(gh.owned[0], "tip")
+
+    def test_the_live_head_without_a_check_suite_waits(self):
+        tl = [self.LABELED, self.commit("c0", "09:00:00"), self.commit("head2", "09:30:00")]
+        gh, code, out = self.no_record(tl, seen={"head2": None})
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))
+        self.assertIn("head2 has no check suite yet", out)
+        self.assertTrue(all(mg.HAND_NA not in w for w in gh.written))
+
+    def test_a_commit_without_a_suite_that_is_not_the_head_is_passed_over(self):  # the thread: [labeled, head1, tip, mid] in one second
+        tl = [self.LABELED, self.commit("c0", "09:00:00"), self.commit("head2", "09:30:00"), self.commit("mid", "09:30:00")]
+        gh, code, _ = self.no_record(tl, seen={"head2": "2026-10-20T10:20:00Z", "mid": None})
+        self.assertEqual((gh.owned[0], code), ("c0", 1))
+
+    def test_a_suite_of_another_branch_is_not_the_push_of_this_pr(self):
+        tl = [self.LABELED, self.commit("c0", "09:00:00"), self.commit("c1", "09:30:00")]
+        seen = {"c0": "2026-10-20T09:01:00Z", "c1": {"b-other": "2026-10-20T09:30:00Z", "feat/x": "2026-10-20T10:20:00Z"}}
+        gh, code, out = self.no_record(tl, own=["src/a.ts"], seen=seen)
+        self.assertEqual((gh.owned[0], gh.removed, gh.seen_ref, code), ("c0", [self.NA], "feat/x", 1))
+
+    FP = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T09:40:00Z"}
+
+    def test_a_force_push_before_the_label_after_the_commit_was_pushed_removes_it(self):  # the thread: W, X(baseline), reset to W, label on W
+        tl = [self.commit("w", "09:00:00"), self.commit("head2", "09:30:00"), self.FP, self.LABELED]
+        gh, code, out = self.no_record(tl, own=[])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], None, 1))
+        self.assertIn("force-pushed after head2 was pushed", out)
+        tl = [self.commit("w", "09:00:00"), self.commit("x", "09:30:00"), self.FP, self.LABELED, self.commit("head2", "10:31:00")]
+        gh, code, out = self.no_record(tl, own=[])  # a later non-baseline commit on top does not hide it
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], None, 1))
+        self.assertIn("force-pushed after x was pushed", out)
+
+    def test_a_rebase_whose_suite_shares_the_second_of_its_force_push_is_kept(self):
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T09:40:00Z"}
+        gh, code, _ = self.no_record([self.commit("w", "09:00:00"), fp, self.commit("r", "09:40:00"), self.LABELED], own=[],
+                                     seen={"w": "2026-10-20T09:00:10Z", "r": "2026-10-20T09:40:00Z"})
+        self.assertEqual((gh.removed, gh.owned[0], code), ([], "r", 0))
+
+    def test_a_force_push_in_the_second_of_the_label_counts_as_after_it(self):
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T10:00:00Z"}
+        gh, code, out = self.no_record([self.commit("c0", "09:00:00"), self.LABELED, fp], own=[])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], None, 1))
+        self.assertIn("force-pushed after the label", out)
+
+    def test_a_force_push_after_the_label_removes_it(self):
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T10:01:00Z"}
+        gh, code, out = self.no_record([self.LABELED, self.commit("c0", "09:00:00"), fp, self.commit("c1", "10:01:00")],
+                                       seen={"c1": "2026-10-20T10:01:00Z"})
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], None, 1))
+        self.assertIn("force-pushed after the label", out)
+        fp0 = {**fp, "created_at": "2026-10-20T08:00:00Z"}
+        gh, code, _ = self.no_record([fp0, self.LABELED, self.commit("c0", "09:00:00")], own=["README.md"])
+        self.assertEqual((gh.removed, gh.owned[0], code), ([], "c0", 0))
+
+    def test_unreadable_check_suites_wait(self):
+        gh, code, out = self.no_record([self.LABELED, self.commit("c0", "09:00:00")], seen={"c0": RuntimeError("HTTP 502")})
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))
+        self.assertIn("check suites of c0 unreadable, RuntimeError: HTTP 502", out)
+
+    def test_the_real_first_seen_is_the_earliest_check_suite(self):
+        gh = mg.GitHub("o/r", "1")
+        pages = [{"check_suites": [{"created_at": "2026-10-20T10:00:00Z", "head_branch": "feat/x"}]},
+                 {"check_suites": [{"created_at": "2026-10-20T09:00:00Z", "head_branch": "feat/x"}, {},
+                                   {"created_at": "2026-10-20T08:00:00Z", "head_branch": "other"}]}]  # another branch's suite does not count
+        with mock.patch.object(mg, "gh_json", return_value=pages) as call:
+            self.assertEqual(gh.first_seen("abc", "feat/x"), "2026-10-20T09:00:00Z")
+        self.assertEqual(call.call_args.args, ("repos/o/r/commits/abc/check-suites", "--paginate"))
+        with mock.patch.object(mg, "gh_json", return_value=[{"check_suites": []}]):
+            self.assertIsNone(gh.first_seen("abc", "feat/x"))
 
     def test_a_lagging_timeline_without_the_labeled_event_waits(self):
         gh, code, out = self.no_record([self.commit("c0", "09:00:00")])
@@ -1070,6 +1156,7 @@ class WorkflowContract(unittest.TestCase):
         self.assertNotIn("workflow_dispatch", on)  # a dispatch run is attached to no PR: never a verdict (Table#1251)
         self.assertNotIn("--fail", text)
         self.assertNotIn("checks: write", text)
+        self.assertIn("      checks: read", text)  # first_seen reads commits/{sha}/check-suites: a 403 would wait forever
         self.assertEqual(text.count("run: python3 .github/scripts/merge_gate.py"), 1)
         self.assertNotIn("--pr-checks-report", text)   # no report job in the verdict's workflow: it would hold `merge-gate-<PR>`
 
@@ -1142,29 +1229,20 @@ class Gate(unittest.TestCase):
         self.assertIn("human", fail[0])
 
     def test_snapshot_approval_survives_a_base_merge_with_foreign_baselines_and_rebinds(self):
-        fake = Fake(compare=["tests/e2e/other.spec.ts-snapshots/y.png", "src/b.ts"], trees={"head1": "t1"})  # came from dev
+        fake = Fake(own=[], trees={"head1": "t1"})  # came from dev: own_paths leaves the base's files out
         rm, fail, st = mg.evaluate(fake, pull(["gate/snapshots-approved", "gate/matrix-not-needed", "gate/review-passed"]),
                                    [SNAP], REVIEW_OK, {"gate/snapshots-approved": "head0"})
         self.assertEqual((rm, fail), ([], []))
-        self.assertEqual(fake.compared, [("head0", "head1")])
+        self.assertEqual(fake.owned, ("head0", "head1", "dev"))
         self.assertEqual(st["gate/snapshots-approved"], {"sha": "head1", "tree": "t1"})  # re-bound WITH the live tree
 
     def test_snapshot_approval_dies_when_own_baselines_differ_between_the_heads(self):
-        fake = Fake(compare=[SNAP])
+        fake = Fake(own=[SNAP])
         rm, fail, st = mg.evaluate(fake, pull(["gate/snapshots-approved", "gate/matrix-not-needed", "gate/review-passed"]),
                                    [SNAP], REVIEW_OK, {"gate/snapshots-approved": "head0"})
         self.assertEqual(rm, ["gate/snapshots-approved"])
         self.assertEqual(len(fail), 1)
         self.assertNotIn("gate/snapshots-approved", st)
-
-    def test_compare_status_behind_or_diverged_is_unknown(self):
-        # force-push back to an ancestor: three-dot compare lists no files although the tree differs
-        import unittest.mock as um
-        for status in ("behind", "diverged"):
-            with um.patch.object(mg, "gh_json", return_value=[{"status": status, "files": []}]):
-                self.assertIsNone(mg.GitHub("r", "1").compare_files("bound", "head"), status)
-        with um.patch.object(mg, "gh_json", return_value=[{"status": "ahead", "files": [{"filename": "a"}]}]):
-            self.assertEqual(mg.GitHub("r", "1").compare_files("bound", "head"), ["a"])
 
     def test_review_label_event_lag_is_retried(self):
         class Lagging(Fake):
@@ -1195,7 +1273,7 @@ class Gate(unittest.TestCase):
             self.assertEqual(mg.GitHub("r", "1").state(), (2, {"gate/matrix-passed": {"sha": "real", "tree": None}}))
 
     def test_compare_unknown_is_conservative(self):
-        rm, _, _ = mg.evaluate(Fake(compare=None), pull(["gate/snapshots-approved"]), [SNAP], [],
+        rm, _, _ = mg.evaluate(Fake(own=None), pull(["gate/snapshots-approved"]), [SNAP], [],
                                {"gate/snapshots-approved": "head0"})
         self.assertEqual(rm, ["gate/snapshots-approved"])
 
@@ -1580,6 +1658,243 @@ class Gate(unittest.TestCase):
         self.assertEqual(st, {})
 
 
+class SnapshotApproval(unittest.TestCase):
+    """#91: `gate/snapshots-approved` survives commits that leave the PR's own baselines alone (bound from the timeline when
+    its `labeled` run left no record) and `gate/snapshots-review-needed` says the owner has to look."""
+    S, RN, M = "gate/snapshots-approved", "gate/snapshots-review-needed", "gate/matrix-passed"
+    LABELED = {"event": "labeled", "label": {"name": "gate/snapshots-approved"}, "created_at": "2026-10-20T10:00:00Z"}
+    TIMELINE = [LABELED, {"event": "committed", "sha": "head1", "committer": {"date": "2026-10-20T09:00:00Z"}}]
+    BASE = {"gate/matrix-passed": {"sha": "head2", "tree": None}}
+
+    class Rec(Recorder):
+        snaps, add_error, remove_error = [SNAP], None, None
+        def files(self): return list(self.snaps)
+        def add_label(self, name):
+            if self.add_error: raise self.add_error
+            super().add_label(name)
+        def remove_label(self, name):
+            if self.remove_error and name == "gate/snapshots-review-needed": raise self.remove_error
+            super().remove_label(name)
+
+    def gate(self, labels, state=None, own=("src/a.ts",), timeline=TIMELINE, snaps=(SNAP,), head="head2", base="dev",
+             head_ref="feat/x", add_error=None, remove_error=None, seen=None, trees=None):
+        p = pull(labels, sha=head, base=base, head=head_ref)
+        gh = self.Rec(p, events=REVIEW_OK + [labeled(self.S, actor="Nemo")], state={**self.BASE, **(state or {})})
+        gh.own, gh.timeline_events, gh.snaps, gh.add_error, gh.remove_error = own, timeline, list(snaps), add_error, remove_error
+        gh.seen, gh.trees = seen or {}, dict(trees or {})
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        return gh, code, out
+
+    ON = ["gate/snapshots-approved", "gate/matrix-passed", "gate/review-passed"]
+
+    def test_no_record_and_a_push_without_baselines_keeps_it_and_rebinds(self):
+        gh, code, _ = self.gate(self.ON)
+        self.assertEqual((gh.removed, gh.added, code), ([], (), 0))
+        self.assertEqual(gh.owned, ("head1", "head2", "dev"))  # bound to the last commit dated at or before the label
+        self.assertEqual(gh.written[-1][self.S], {"sha": "head2", "tree": None})
+
+    def test_no_record_and_an_own_baseline_change_removes_it(self):
+        gh, code, _ = self.gate(self.ON, own=[SNAP])
+        self.assertEqual((gh.removed, gh.added, code), ([self.S], (self.RN,), 1))  # and the owner is asked to look again
+        self.assertNotIn(self.S, gh.written[-1])
+
+    def test_a_recorded_head_and_an_own_baseline_change_removes_it(self):
+        gh, code, out = self.gate(self.ON, state={self.S: {"sha": "head1", "tree": None}}, own=["src/a.ts", SNAP])
+        self.assertEqual((gh.removed, gh.added, gh.owned, code), ([self.S], (self.RN,), ("head1", "head2", "dev"), 1))
+        self.assertIn("::notice::removed gate/snapshots-approved by the gate", out)  # neutral: the reason is printed where it is decided
+        self.assertIn("::notice::`gate/snapshots-approved` removed by the gate: the PR's own commits since head1 changed baselines: "
+                      "'tests/e2e/a.spec.ts-snapshots/x.png'.", out)
+        self.assertNotIn("applied on another head", out)
+
+    def test_a_recorded_head_and_a_push_without_baselines_keeps_it(self):
+        gh, code, _ = self.gate(self.ON, state={self.S: {"sha": "head1", "tree": None}})
+        self.assertEqual((gh.removed, gh.added, code, gh.written[-1][self.S]["sha"]), ([], (), 0, "head2"))
+
+    def test_a_base_merge_that_brought_baselines_keeps_it(self):
+        for state in ({self.S: {"sha": "head1", "tree": None}}, {}):
+            gh, code, _ = self.gate(self.ON, state=state, own=[])  # own_paths leaves out what the base brought
+            self.assertEqual((gh.removed, gh.added, code), ([], (), 0))
+
+    def test_history_that_cannot_be_compared_removes_it(self):
+        for state in ({self.S: {"sha": "head1", "tree": None}}, {}):
+            gh, code, out = self.gate(self.ON, state=state, own=None)
+            self.assertEqual((gh.removed, gh.added, code), ([self.S], (self.RN,), 1))
+            self.assertIn("the commits since head1 cannot be compared", out)
+
+    def test_a_matrix_label_of_another_head_says_which_heads_in_the_log(self):
+        gh, code, out = self.gate(self.ON, state={self.M: {"sha": "headOld", "tree": None}, self.S: {"sha": "head2", "tree": None}})
+        self.assertEqual((gh.removed, code), ([self.M], 1))
+        self.assertIn("::notice::`gate/matrix-passed` removed by the gate: it was applied on headOld, the live head is head2.", out)
+
+    def test_an_approval_stays_when_the_pr_has_no_baselines_left(self):
+        gh, code, _ = self.gate(self.ON, snaps=["src/a.ts"], state={self.S: {"sha": "head1", "tree": None}}, own=["src/a.ts"])
+        self.assertEqual((gh.removed, code, gh.written[-1][self.S]["sha"]), ([], 0, "head2"))
+
+    def test_other_exceptions_of_the_bound_head_checks_wait_too(self):
+        gh, code, out = self.gate(self.ON, state={self.S: {"sha": "head1", "tree": None}}, own=ValueError("not json"))
+        self.assertEqual((gh.removed, code), ([], 1))
+        self.assertIn("not re-checked on this head (ValueError: not json)", out)
+        gh, code, out = self.gate(self.ON, trees={"head1": ValueError("not json")})
+        self.assertEqual((gh.removed, code), ([], 1))
+        self.assertIn("not re-checked on this head (ValueError: not json)", out)
+        gh, code, out = self.gate(self.ON, seen={"head1": KeyError("check_suites")})
+        self.assertEqual(code, 1)
+        self.assertIn("check suites of head1 unreadable, KeyError", out)
+
+    def test_a_rebase_whose_suite_shares_the_second_of_its_force_push_is_kept(self):  # the candidate is the commit the force-push made
+        c = lambda sha, at: {"event": "committed", "sha": sha, "committer": {"date": f"2026-10-20T{at}Z"}}
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T09:40:00Z"}
+        gh, code, _ = self.gate(self.ON, head="r", state={self.M: {"sha": "r", "tree": None}}, own=[],
+                                timeline=[c("w", "09:00:00"), fp, c("r", "09:40:00"), self.LABELED],
+                                seen={"w": "2026-10-20T09:00:10Z", "r": "2026-10-20T09:40:00Z"})
+        self.assertEqual((gh.removed, gh.written[-1][self.S]["sha"], code), ([], "r", 0))
+
+    def test_an_api_error_keeps_it_and_waits(self):
+        for state in ({self.S: {"sha": "head1", "tree": None}}, {}):
+            gh, code, out = self.gate(self.ON, state=state, own=RuntimeError("HTTP 502"))
+            self.assertEqual((gh.removed, gh.added, code), ([], (), 1))
+            self.assertIn("waiting: `gate/snapshots-approved` not re-checked on this head (RuntimeError: HTTP 502)", out)
+            self.assertEqual(gh.written[-1].get(self.S, {}).get("sha"), "head1" if state else None)  # not re-bound
+
+    def test_no_record_and_a_lagging_or_unreadable_timeline_waits_with_the_label_kept(self):
+        for tl, why in (([self.TIMELINE[1]],"`labeled` event is not on the timeline yet"), (RuntimeError("HTTP 502"), "timeline unreadable")):
+            gh, code, out = self.gate(self.ON, timeline=tl)
+            self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))
+            self.assertIn(why, out)
+            self.assertNotIn(self.S, gh.written[-1] if gh.written else {})
+
+    def test_no_record_and_no_commit_as_old_as_the_label_removes_it_with_a_note(self):
+        gh, code, out = self.gate(self.ON, timeline=[self.LABELED, {"event": "committed", "sha": "late",
+                                                                    "committer": {"date": "2026-10-20T10:05:00Z"}}])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.S], None, 1))
+        self.assertIn("::notice::`gate/snapshots-approved` removed by the gate: no commit on the timeline is as old as the label", out)
+
+    def test_a_commit_made_before_the_label_but_pushed_after_it_is_not_the_head_the_owner_saw(self):  # F1
+        tl = [self.LABELED, {"event": "committed", "sha": "head1", "committer": {"date": "2026-10-20T09:00:00Z"}},
+              {"event": "committed", "sha": "head1b", "committer": {"date": "2026-10-20T09:30:00Z"}}]  # head1b dated before the label
+        seen = {"head1": "2026-10-20T09:01:00Z", "head1b": "2026-10-20T10:20:00Z"}  # GitHub saw it after the label
+        gh, code, _ = self.gate(self.ON, timeline=tl, seen=seen, own=[SNAP])  # its baseline change must not ride on the approval
+        self.assertEqual((gh.owned[0], gh.removed, code), ("head1", [self.S], 1))
+
+    def test_no_record_and_the_live_head_without_a_check_suite_waits(self):
+        tl = [*self.TIMELINE, {"event": "committed", "sha": "head2", "committer": {"date": "2026-10-20T09:30:00Z"}}]
+        gh, code, out = self.gate(self.ON, timeline=tl, seen={"head2": None})
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))
+        self.assertIn("head2 has no check suite yet", out)
+
+    def test_a_commit_without_a_suite_that_is_not_the_head_is_passed_over(self):  # the thread's timeline
+        tl = [*self.TIMELINE, {"event": "committed", "sha": "head2", "committer": {"date": "2026-10-20T09:30:00Z"}},
+              {"event": "committed", "sha": "mid", "committer": {"date": "2026-10-20T09:30:00Z"}}]
+        gh, code, _ = self.gate(self.ON, timeline=tl, seen={"head2": "2026-10-20T10:20:00Z", "mid": None}, own=[SNAP])
+        self.assertEqual((gh.owned[0], gh.removed, code), ("head1", [self.S], 1))
+
+    def test_a_suite_of_another_branch_does_not_make_a_commit_seen(self):  # a stack: B1 was pushed to branch b before the label
+        tl = [self.LABELED, {"event": "committed", "sha": "head1", "committer": {"date": "2026-10-20T09:00:00Z"}},
+              {"event": "committed", "sha": "head2", "committer": {"date": "2026-10-20T09:30:00Z"}}]
+        seen = {"head1": "2026-10-20T09:01:00Z", "head2": {"b": "2026-10-20T09:30:00Z", "feat/x": "2026-10-20T10:01:00Z"}}
+        gh, code, _ = self.gate(self.ON, timeline=tl, seen=seen, own=[SNAP])
+        self.assertEqual((gh.owned[0], gh.removed, gh.seen_ref, code), ("head1", [self.S], "feat/x", 1))
+
+    def test_a_force_push_before_the_label_after_the_commit_was_pushed_removes_it(self):  # the thread: W, X(baseline), reset to W, label on W
+        c = lambda sha, at: {"event": "committed", "sha": sha, "committer": {"date": f"2026-10-20T{at}Z"}}
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T09:40:00Z"}
+        seen = {"w": "2026-10-20T09:00:10Z", "head2": "2026-10-20T09:30:00Z"}
+        gh, code, out = self.gate(self.ON, timeline=[c("w", "09:00:00"), c("head2", "09:30:00"), fp, self.LABELED], seen=seen, own=[SNAP])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.S], None, 1))
+        self.assertIn("force-pushed after head2 was pushed", out)
+        gh, code, out = self.gate(self.ON, head="z", state={self.M: {"sha": "z", "tree": None}}, own=[],
+                                  timeline=[c("w", "09:00:00"), c("head2", "09:30:00"), fp, self.LABELED, c("z", "10:31:00")],
+                                  seen={**seen, "z": "2026-10-20T10:31:00Z"})  # a later non-baseline commit on top does not hide it
+        self.assertEqual((gh.removed, gh.owned, code), ([self.S], None, 1))
+        self.assertIn("force-pushed after head2 was pushed", out)
+
+    def test_a_force_push_in_the_second_of_the_label_counts_as_after_it(self):
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T10:00:00Z"}
+        gh, code, out = self.gate(self.ON, timeline=[self.TIMELINE[1], self.LABELED, fp], seen={"head1": "2026-10-20T09:00:10Z"}, own=[])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.S], None, 1))
+        self.assertIn("force-pushed after the label", out)
+
+    def test_an_unreadable_tree_of_the_bound_head_waits_with_the_label_kept(self):
+        gh, code, out = self.gate(self.ON, trees={"head1": RuntimeError("HTTP 502")})
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))
+        self.assertIn("not re-checked on this head (RuntimeError: HTTP 502)", out)
+
+    def test_check_suites_that_are_not_json_wait(self):
+        gh, code, out = self.gate(self.ON, seen={"head1": ValueError("not json")})
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))
+        self.assertIn("check suites of head1 unreadable, ValueError: not json", out)
+
+    def test_a_force_push_after_the_label_removes_a_recordless_approval(self):
+        fp = {"event": "head_ref_force_pushed", "created_at": "2026-10-20T10:01:00Z"}
+        gh, code, out = self.gate(self.ON, timeline=[*self.TIMELINE, fp], own=[])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.S], None, 1))
+        self.assertIn("force-pushed after the label", out)
+
+    def test_a_suite_in_the_second_of_the_label_counts_as_after_it(self):
+        gh, _, _ = self.gate(self.ON, seen={"head1": "2026-10-20T10:00:00Z"}, own=[])
+        self.assertEqual((gh.removed, gh.owned), ([self.S], None))  # nothing seen strictly before the label: removed
+
+    def test_bound_to_the_live_head_from_the_timeline_is_recorded_without_a_walk(self):
+        gh, code, _ = self.gate(self.ON, head="head1", state={self.M: {"sha": "head1", "tree": None}}, own=[SNAP])
+        self.assertEqual((gh.removed, gh.owned, code, gh.written[-1][self.S]["sha"]), ([], None, 0, "head1"))
+
+    def test_the_same_tree_after_a_recordless_binding_keeps_and_rebinds_with_the_tree(self):
+        gh, code, _ = self.gate(self.ON, own=[SNAP], trees={"head1": "t1", "head2": "t1"})
+        self.assertEqual((gh.removed, gh.owned, code, gh.written[-1][self.S]), ([], None, 0, {"sha": "head2", "tree": "t1"}))
+
+    def test_review_needed_is_added_while_baselines_wait_for_the_approval(self):
+        gh, code, out = self.gate(["gate/matrix-passed", "gate/review-passed"])
+        self.assertEqual((gh.added, gh.removed, code), ((self.RN,), [], 1))
+        self.assertIn("waiting for `gate/snapshots-approved`", out)  # the WAIT line stays the only failure
+
+    def test_review_needed_is_left_on_while_it_is_still_wanted(self):
+        gh, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed", self.RN])
+        self.assertEqual((gh.added, gh.removed), ((), []))  # a `labeled`/`unlabeled` re-run writes nothing: no loop
+
+    def test_review_needed_goes_when_the_approval_is_on(self):
+        gh, code, _ = self.gate(self.ON + [self.RN], state={self.S: {"sha": "head2", "tree": None}})
+        self.assertEqual((gh.removed, gh.added, code), ([self.RN], (), 0))
+
+    def test_review_needed_goes_when_the_pr_no_longer_changes_baselines(self):
+        gh, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed", self.RN], snaps=["src/a.ts"])
+        self.assertEqual((gh.removed, gh.added), ([self.RN], ()))
+        gh, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed"], snaps=["src/a.ts"])
+        self.assertEqual((gh.removed, gh.added), ([], ()))
+
+    def test_a_release_pr_gets_no_review_needed(self):
+        gh, _, _ = self.gate(["gate/matrix-passed"], base="master", head_ref="release/2026-11-15")
+        self.assertEqual(gh.added, ())
+
+    def test_only_a_release_branch_into_master_is_a_release(self):
+        for base, head_ref in (("master", "feat/x"), ("dev", "release/2026-11-15")):
+            gh, _, _ = self.gate(["gate/matrix-passed", "gate/review-passed"], base=base, head_ref=head_ref)
+            self.assertEqual(gh.added, (self.RN,), (base, head_ref))
+
+    def test_the_wait_line_and_the_label_share_one_rule(self):
+        pl = pull(base="master", head="release/x")
+        self.assertEqual((mg.awaited_snapshots(pl, [SNAP, "src/a.ts"]), mg.awaited_snapshots(pull(), [SNAP, "src/a.ts"])), (0, 1))
+        _, fail, _ = mg.evaluate(Fake(), pl, [SNAP], [], {})
+        self.assertFalse(any("screenshot baseline" in f for f in fail))
+
+    def test_a_label_the_repo_does_not_have_is_a_notice_not_a_crash(self):
+        err = subprocess.CalledProcessError(1, ["gh", "pr", "edit"])
+        gh, code, out = self.gate(["gate/matrix-passed", "gate/review-passed"], add_error=err)
+        self.assertEqual(code, 1)  # still only the WAIT line
+        self.assertIn("::notice::`gate/snapshots-review-needed` not added", out)
+        gh, code, out = self.gate(self.ON + [self.RN], state={self.S: {"sha": "head2", "tree": None}}, remove_error=err)
+        self.assertEqual(code, 0)
+        self.assertIn("::notice::`gate/snapshots-review-needed` not removed", out)
+
+    def test_the_label_name_has_an_env_override(self):
+        import importlib
+        self.addCleanup(importlib.reload, mg)  # the module goes back to its default constants, whatever happens below
+        with mock.patch.dict(os.environ, {"LABEL_SNAP_REVIEW": "x/look"}):
+            self.assertEqual(importlib.reload(mg).LABEL_SNAP_REVIEW, "x/look")
+            gh = self.Rec(pull(["gate/matrix-passed"]))
+            mg.snap_review_label(gh, gh.pull(), [SNAP], [])
+            self.assertEqual(gh.added, ("x/look",))  # the function reads the constant, not a literal
+
+
 class StackedPrs(unittest.TestCase):
     """Stacked PRs (a base that is another PR's branch) and the tree binding of the head-bound labels."""
     M, S, R = "gate/matrix-passed", "gate/snapshots-approved", "gate/review-passed"
@@ -1596,7 +1911,7 @@ class StackedPrs(unittest.TestCase):
                                        [SNAP] if name == self.S else ["src/a.ts"], REVIEW_OK,
                                        {name: {"sha": "head0", "tree": "t1"}})
             self.assertEqual((rm, fail, st[name]), ([], [], {"sha": "head1", "tree": "t1"}), name)
-            self.assertEqual(fake.compared, [], name)  # no file compare is needed when the trees are equal
+            self.assertIsNone(fake.owned, name)  # no own_paths walk is needed when the trees are equal
 
     def test_head_moved_with_another_tree_removes_the_label(self):  # (3)
         rm, _, st = mg.evaluate(Fake(trees={"head1": "t2"}), pull([self.M]), ["src/a.ts"], [],
@@ -1607,7 +1922,7 @@ class StackedPrs(unittest.TestCase):
     def test_an_old_string_entry_has_no_tree_and_none_never_equals_none(self):  # (4)
         # the live head's tree cannot be read either: None == None must not keep the label
         for name in (self.M, self.S):
-            fake = Fake(compare=None)
+            fake = Fake(own=None)
             labels = [name] if name == self.M else [name, "gate/matrix-not-needed"]
             rm, _, st = mg.evaluate(fake, pull(labels), [SNAP], [], {name: "head0"})
             self.assertEqual(rm, [name], name)
@@ -1629,7 +1944,7 @@ class StackedPrs(unittest.TestCase):
         self.assertEqual(st[self.M], {"sha": "head1", "tree": "B"})
 
     def test_snapshots_approved_is_kept_on_an_equal_tree_even_when_compare_is_unknown(self):  # (6)
-        rm, fail, st = mg.evaluate(Fake(compare=None, trees={"head1": "t1"}),
+        rm, fail, st = mg.evaluate(Fake(own=None, trees={"head1": "t1"}),
                                    pull([self.S, "gate/matrix-not-needed", self.R]), [SNAP], REVIEW_OK,
                                    {self.S: {"sha": "head0", "tree": "t1"}})
         self.assertEqual((rm, fail, st[self.S]), ([], [], {"sha": "head1", "tree": "t1"}))
