@@ -30,6 +30,21 @@ REVIEW_OK = [labeled("gate/review-passed")]
 
 
 class Fake:
+    own = ()       # what own_paths returns (None: cannot be told, an Exception: raised)
+    owned = None   # the last (bound, head, base_ref) asked
+    # what timeline() returns (an Exception: raised): by default the label set by a person after the PR's first commit
+    timeline_events = ({"event": "labeled", "label": {"name": "gate/matrix-not-needed"}, "created_at": "2026-10-20T10:00:00Z"},
+                       {"event": "committed", "sha": "head1", "committer": {"date": "2026-10-20T09:00:00Z"}})
+
+    def timeline(self):
+        if isinstance(self.timeline_events, Exception): raise self.timeline_events
+        return list(self.timeline_events)
+
+    def own_paths(self, bound, head, base_ref):
+        self.owned = (bound, head, base_ref)
+        if isinstance(self.own, Exception): raise self.own
+        return None if self.own is None else list(self.own)
+
     def __init__(self, compare=(), trees=None):
         self.compare = None if compare is None else list(compare)
         self.compared = []
@@ -439,7 +454,7 @@ class AutoMatrixLabel(unittest.TestCase):
     def test_a_label_applied_by_hand_over_an_old_record_is_theirs(self):
         gh, _, _, _ = self.gate(["gate/matrix-not-needed"], files=("src/a.ts",), state={mg.AUTO_NA: "head0"},
                                 na_actor="Nemo")
-        self.assertEqual((gh.removed, gh.written), ([], [{}]))  # the stale record is dropped, the label kept
+        self.assertEqual((gh.removed, gh.written), ([], [{mg.HAND_NA: "head1"}]))  # the gate's record is dropped, the label kept and bound
 
     def test_a_replayed_hand_labeled_event_does_not_disown_the_gates_label(self):
         # a re-run replays a person's old `labeled` payload; the timeline says the label on the PR is the gate's
@@ -465,7 +480,7 @@ class AutoMatrixLabel(unittest.TestCase):
         gh.files = lambda: ["src/App.tsx"]
         gh.events_again = lambda: gh._events + [labeled("gate/matrix-not-needed", actor="Nemo", at="2026-10-20T11:00:05Z")]
         code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
-        self.assertEqual((gh.removed, gh.written[-1], code), ([], {}, 0))
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head1"}, 0))
 
     def test_events_of_one_second_keep_their_order_by_id(self):
         at = "2026-10-20T11:00:00Z"
@@ -494,7 +509,7 @@ class AutoMatrixLabel(unittest.TestCase):
     def test_a_person_labeling_after_the_gate_owns_the_label(self):
         gh, code = self.ui_push_over_record([labeled("gate/matrix-not-needed", at="2026-10-20T09:00:00Z"),
                                              labeled("gate/matrix-not-needed", actor="Nemo")])
-        self.assertEqual((gh.removed, gh.written[-1], code), ([], {}, 0))
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head1"}, 0))
 
     def test_a_matrix_label_without_a_recorded_head_waits_for_its_own_run(self):
         # the swap from matrix_run.sh: the `unlabeled` run may come before the `labeled` one
@@ -532,6 +547,419 @@ class AutoMatrixLabel(unittest.TestCase):
             gh.file_text = lambda *a, err=err, **k: (_ for _ in ()).throw(err)
             code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
             self.assertIn(f"not applied ({type(err).__name__}", out)
+
+
+class HandMatrixLabel(unittest.TestCase):
+    """#89: a hand-set `gate/matrix-not-needed` is bound to its head and watched; the gate's own label is not (above)."""
+    NA = "gate/matrix-not-needed"
+    LIST = r"[^/]+\.md" + "\n"
+
+    def gate(self, state=None, own=(), env=None, listed=LIST, head="head2", events=None, labels=None):
+        p = pull(labels or [self.NA, "gate/review-passed"], sha=head)
+        p["base"]["ref"] = "dev"
+        gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="Nemo")] if events is None else events, state=state)
+        gh.matrix_free_list, gh.own = listed, own
+        with mock.patch.dict(os.environ, env or {}):
+            code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        return gh, code, out
+
+    def test_it_is_bound_to_the_payload_head_on_its_labeled_event(self):
+        gh, code, _ = self.gate(env={"EVENT": "labeled", "EVENT_LABEL": self.NA, "EVENT_HEAD_SHA": "head1"},
+                                state={mg.HAND_NA: "older"}, own=["src/a.ts"])
+        self.assertEqual(gh.removed, [self.NA])  # the stale record "older" was replaced by head1, and own_paths was asked from there
+        self.assertEqual(gh.owned, ("head1", "head2", "dev"))  # bound to what the person saw, then checked against the live head
+
+    def test_it_is_bound_to_the_live_head_on_a_labeled_run_of_that_head(self):
+        gh, code, _ = self.gate(head="head1", env={"EVENT": "labeled", "EVENT_LABEL": self.NA})
+        self.assertEqual((gh.written[-1], gh.removed, code), ({mg.HAND_NA: "head1"}, [], 0))
+
+    def test_a_push_outside_the_list_removes_it_and_names_the_paths(self):
+        gh, code, out = self.gate(state={mg.HAND_NA: "head1"}, own=["README.md", "package.json", "src/a.ts"])
+        self.assertEqual((gh.removed, code), ([self.NA], 1))
+        self.assertEqual(gh.owned, ("head1", "head2", "dev"))
+        self.assertIn("removed by the gate", out)
+        self.assertIn("'package.json', 'src/a.ts'", out)
+        self.assertNotIn("'README.md'", out)
+        self.assertNotIn(mg.HAND_NA, gh.written[-1])
+
+    def test_a_push_inside_the_list_keeps_it_and_rebinds(self):
+        gh, code, _ = self.gate(state={mg.HAND_NA: "head1"}, own=["README.md", "CHANGES.md"])
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head2"}, 0))
+
+    def test_a_base_merge_without_own_paths_keeps_it(self):
+        gh, code, _ = self.gate(state={mg.HAND_NA: "head1"}, own=[])  # own_paths leaves out what the base brought
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head2"}, 0))
+
+    def test_an_unknown_bound_head_is_taken_from_the_timeline_then_checked(self):
+        for state in (None, {}, {mg.HAND_NA: ""}, {mg.HAND_NA: None}):
+            gh, code, _ = self.gate(state=state, own=["README.md"])
+            self.assertEqual((gh.removed, gh.written[-1], gh.owned, code), ([], {mg.HAND_NA: "head2"}, ("head1", "head2", "dev"), 0))
+
+    def test_the_same_head_is_not_compared(self):
+        gh, code, _ = self.gate(state={mg.HAND_NA: "head2"}, own=["src/a.ts"])
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 0))
+        self.assertTrue(all(w == {mg.HAND_NA: "head2"} for w in gh.written))  # nothing new to record
+
+    def test_the_gates_own_label_keeps_its_rule_and_leaves_no_hand_record(self):
+        gh, code, _ = self.gate(state={mg.AUTO_NA: "head1", mg.HAND_NA: "head0"}, own=[], events=REVIEW_OK + [labeled(self.NA)])
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], None, 1))  # the diff (src/a.ts) left the list: removed as before
+        self.assertEqual(gh.written[-1], {})
+
+    def test_a_person_label_over_the_gates_one_is_hand_set_from_then_on(self):
+        gh, code, _ = self.gate(state={mg.AUTO_NA: "head1"}, own=["src/a.ts"])
+        self.assertEqual(gh.removed, [self.NA])  # the gate's record is dropped; the label is checked from the timeline's commit
+
+    def test_the_record_goes_with_the_label(self):
+        gh, _, _ = self.gate(state={mg.HAND_NA: "head1"}, labels=["gate/review-passed"])
+        self.assertNotIn(mg.HAND_NA, gh.written[-1] if gh.written else {})
+        self.assertEqual(gh.written[-1], {})
+
+    def test_an_unreadable_list_or_an_api_error_keeps_it_with_a_note(self):
+        gh, code, out = self.gate(state={mg.HAND_NA: "head1"}, own=RuntimeError("gh api 502"))
+        self.assertEqual((gh.removed, code), ([], 1))  # red (waiting): the head is not checked
+        self.assertIn("(set by hand) not re-checked on this head (RuntimeError: gh api 502) — re-run the gate.", out)
+        self.assertIn("Merge gate: waiting", out)
+        self.assertTrue(all(w == {mg.HAND_NA: "head1"} for w in gh.written))  # still bound to head1
+        for err in (ValueError("Expecting value: line 1 column 1 (char 0)"), TypeError("x"), KeyError("sha")):
+            gh, code, out = self.gate(state={mg.HAND_NA: "head1"}, own=err)  # a non-JSON body, an odd answer
+            self.assertEqual((gh.removed, code), ([], 1))
+            self.assertIn(f"not re-checked on this head ({type(err).__name__}", out)
+            self.assertIn("— re-run the gate.", out)
+        gh, code, out = self.gate(state={mg.HAND_NA: "head1"}, own=["src/a.ts"], listed="src/(\n")
+        self.assertEqual((gh.removed, code), ([], 1))
+        self.assertIn("unreadable", out)
+        self.assertIn("fix `.github/matrix-free-paths` on the base, or set the label again on this head", out)
+        self.assertNotIn("re-run the gate", out)
+        self.assertTrue(all(w == {mg.HAND_NA: "head1"} for w in gh.written))
+
+    def test_a_history_that_cannot_be_listed_removes_it(self):
+        gh, code, out = self.gate(state={mg.HAND_NA: "head1"}, own=None)
+        self.assertEqual((gh.removed, code), ([self.NA], 1))
+        self.assertIn("cannot be compared", out)
+        self.assertIn(f"{mg.COMPARE_CAP} or more own commits", out)
+        self.assertIn(f"{mg.FILES_CAP} or more files in one commit", out)
+        self.assertIn(f"{mg.COMPARE_CAP} or more files in a merge's diff against the base, or a part of it is unreadable", out)
+
+    def test_the_removal_names_five_paths_and_counts_the_rest(self):
+        gh, _, out = self.gate(state={mg.HAND_NA: "head1"}, own=[f"src/{i}.ts" for i in range(7)])
+        self.assertEqual(gh.removed, [self.NA])
+        self.assertIn("'src/4.ts' and 2 more", out)
+        self.assertNotIn("'src/5.ts'", out)
+
+    def test_no_list_at_the_base_means_nothing_is_free(self):
+        gh, _, out = self.gate(state={mg.HAND_NA: "head1"}, own=["README.md"], listed=None)
+        self.assertEqual(gh.removed, [self.NA])
+        self.assertIn("`.github/matrix-free-paths` is missing at the base", out)
+        gh, _, out = self.gate(state={mg.HAND_NA: "head1"}, own=["src/a.ts"])
+        self.assertNotIn("is missing", out)
+
+    def test_a_rebase_onto_the_same_tree_keeps_it_and_rebinds(self):
+        p = pull([self.NA, "gate/review-passed"], sha="head2")
+        gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="Nemo")], state={mg.HAND_NA: "head1"})
+        gh.matrix_free_list, gh.own = self.LIST, ["src/a.ts"]
+        gh.trees = {"head1": "t1", "head2": "t1"}
+        code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual((gh.removed, gh.owned, gh.written[-1], code), ([], None, {mg.HAND_NA: "head2"}, 0))
+        gh.trees = {"head1": "t1", "head2": "t2"}  # another tree: compared
+        gh._state = {mg.HAND_NA: "head1"}
+        verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(gh.removed, [self.NA])
+        gh = Recorder(pull([self.NA, "gate/review-passed"], sha="head2"), events=REVIEW_OK + [labeled(self.NA, actor="Nemo")],
+                      state={mg.HAND_NA: "head1"})
+        gh.matrix_free_list, gh.own, gh.trees = self.LIST, ["src/a.ts"], {}  # unknown trees never equal
+        verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(gh.removed, [self.NA])
+
+    def no_record(self, timeline, author="Nemo", own=("src/a.ts",)):
+        p = pull([self.NA, "gate/review-passed"], sha="head2", author=author)
+        gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="Nemo")], state={})
+        gh.matrix_free_list, gh.own, gh.timeline_events = self.LIST, own, timeline
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        return gh, code, out
+
+    LABELED = {"event": "labeled", "label": {"name": "gate/matrix-not-needed"}, "created_at": "2026-10-20T10:00:00Z"}
+
+    @staticmethod
+    def commit(sha, at):
+        return {"event": "committed", "sha": sha, "committer": {"date": f"2026-10-20T{at}Z"}}
+
+    def test_a_label_without_a_record_is_checked_from_the_commit_it_was_set_on(self):
+        tl = [self.LABELED, self.commit("c0", "09:00:00"), self.commit("c1", "10:05:00")]
+        gh, code, out = self.no_record(tl, own=["src/a.ts"])  # a push to src/ after the label
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], ("c0", "head2", "dev"), 1))
+        self.assertIn("'src/a.ts'", out)
+        gh, code, _ = self.no_record(tl, own=["README.md"])  # a docs push
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head2"}, 0))
+        gh, code, _ = self.no_record(tl, own=[])  # a merge of the base: own_paths leaves its files out
+        self.assertEqual((gh.removed, gh.written[-1], code), ([], {mg.HAND_NA: "head2"}, 0))
+
+    def test_the_commit_of_the_label_is_the_last_one_dated_at_or_before_it(self):
+        tl = [self.commit("old", "08:00:00"), self.commit("same", "10:00:00"), self.LABELED, self.commit("late", "10:00:01")]
+        gh, _, _ = self.no_record(tl)
+        self.assertEqual(gh.owned[0], "same")  # the same second counts as before
+        gh, _, _ = self.no_record([self.LABELED, self.commit("old", "08:00:00"), {"event": "committed", "committer": {"date": "2026-10-20T09:59:00Z"}}])
+        self.assertEqual(gh.owned[0], "old")  # an event without a sha cannot be a bound head
+        # a later `labeled` of ANOTHER label does not move the label's time
+        other = {"event": "labeled", "label": {"name": "gate/review-passed"}, "created_at": "2026-10-20T10:10:00Z"}
+        gh, _, _ = self.no_record([self.LABELED, self.commit("c0", "09:00:00"), self.commit("c1", "10:05:00"), other])
+        self.assertEqual(gh.owned[0], "c0")
+        # of this label twice: the newest decides
+        again = {**self.LABELED, "created_at": "2026-10-20T10:07:00Z"}
+        gh, _, _ = self.no_record([self.LABELED, again, self.commit("c0", "09:00:00"), self.commit("c1", "10:05:00")])
+        self.assertEqual(gh.owned[0], "c1")
+
+    def test_a_label_without_a_record_and_a_commit_as_old_as_itself_is_removed(self):
+        gh, code, out = self.no_record([self.LABELED, self.commit("late", "10:05:00")])  # force-push after, nothing older usable
+        self.assertEqual((gh.removed, gh.owned, code), ([self.NA], None, 1))
+        self.assertIn("is unknown", out)
+        gh, _, _ = self.no_record([self.LABELED, {"event": "head_ref_force_pushed", "created_at": "2026-10-20T10:05:00Z"}])
+        self.assertEqual(gh.removed, [self.NA])  # a force-push only: the commit the label was set on is gone
+
+    def test_a_date_tie_goes_to_the_later_event_not_to_the_sha(self):
+        # a rebase: the head's sha sorts lower than its parent's, both dated in the same second
+        gh, _, _ = self.no_record([self.LABELED, self.commit("zzz-parent", "09:00:00"), self.commit("aaa-head", "09:00:00")])
+        self.assertEqual(gh.owned[0], "aaa-head")
+
+    def test_the_latest_date_wins_over_the_timeline_order(self):
+        gh, _, _ = self.no_record([self.LABELED, self.commit("newer", "09:30:00"), self.commit("older", "09:00:00")])
+        self.assertEqual(gh.owned[0], "newer")  # events out of date order: the date decides first
+
+    def test_a_lagging_timeline_without_the_labeled_event_waits(self):
+        gh, code, out = self.no_record([self.commit("c0", "09:00:00")])
+        self.assertEqual((gh.removed, code), ([], 1))
+        self.assertIn("its `labeled` event is not on the timeline yet", out)
+        self.assertTrue(all(mg.HAND_NA not in w for w in gh.written))
+
+    def test_an_unreadable_timeline_waits_unbound(self):
+        gh, code, out = self.no_record(RuntimeError("HTTP 502"))
+        self.assertEqual((gh.removed, code), ([], 1))
+        self.assertIn("timeline unreadable, RuntimeError: HTTP 502", out)
+        self.assertTrue(all(mg.HAND_NA not in w for w in gh.written))
+        gh, code, out = self.no_record(ValueError("Expecting value"))  # a body that is not JSON
+        self.assertEqual((gh.removed, code), ([], 1))
+        self.assertIn("timeline unreadable, ValueError: Expecting value", out)
+        self.assertIn("— re-run the gate.", out)
+
+    def test_the_real_timeline_reads_the_timeline_endpoint_and_flattens_its_pages(self):
+        gh = mg.GitHub("o/r", "1")
+        with mock.patch.object(mg, "gh_json", return_value=[[{"event": "committed"}], [{"event": "labeled"}]]) as call:
+            self.assertEqual(gh.timeline(), [{"event": "committed"}, {"event": "labeled"}])
+        self.assertTrue(call.call_args.args[0].endswith("/issues/1/timeline"))
+        self.assertIn("--paginate", call.call_args.args)
+
+    def test_dependabots_label_is_not_watched(self):
+        p = pull([self.NA, "gate/review-passed"], sha="head2", author="dependabot[bot]")
+        gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="dependabot[bot]")], state={mg.HAND_NA: "head1"})
+        gh.matrix_free_list, gh.own = self.LIST, ["src/a.ts"]
+        code, _ = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 0))
+        gh, code, _ = self.no_record([self.LABELED, {"event": "head_ref_force_pushed", "created_at": "2026-10-21T10:00:00Z"}],
+                                     author="app/dependabot")
+        self.assertEqual(gh.removed, [])
+
+    def test_a_pr_without_a_base_sha_is_a_note_and_keeps_it(self):
+        p = pull([self.NA, "gate/review-passed"], sha="head2")
+        p["base"]["sha"] = ""
+        gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="Nemo")], state={mg.HAND_NA: "head1"})
+        gh.own = ["src/a.ts"]
+        code, out = verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual((gh.removed, gh.owned, code), ([], None, 1))  # red: nothing could be checked
+        self.assertIn("(the PR has no base sha) — set the label again on this head.", out)
+
+    def test_the_list_is_read_at_the_base_sha(self):
+        p = pull([self.NA, "gate/review-passed"], sha="head2")
+        gh = Recorder(p, events=REVIEW_OK + [labeled(self.NA, actor="Nemo")], state={mg.HAND_NA: "head1"})
+        gh.matrix_free_list, gh.own = self.LIST, ["README.md"]
+        seen = []
+        real = gh.file_text
+        gh.file_text = lambda repo, path, ref, token=None: (seen.append(ref), real(repo, path, ref))[1]
+        verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(seen, ["base1"])
+
+    def test_template_copies_are_not_bound(self):
+        p = pull([self.NA], head="sync/templates-1", sha="head2")
+        gh = Recorder(p, events=[labeled(self.NA, actor="Nemo")], state={mg.HAND_NA: "head1"})
+        gh.own = ["src/a.ts"]
+        verdict(gh, lambda: mg.run(gh, gh.pull()))
+        self.assertEqual(gh.removed, [])
+
+
+class OwnPaths(unittest.TestCase):
+    """GitHub.own_paths over a fake REST graph that pages like the real API (100 files / commits a page)."""
+    PAGE = 100
+
+    @staticmethod
+    def entry(f):
+        """A file as a name or as (name, patch) or as a dict."""
+        if isinstance(f, dict): return f
+        if isinstance(f, tuple): return {"filename": f[0], "patch": f[1]}
+        return {"filename": f, "patch": "+x"}
+
+    def chunks(self, items):
+        return [items[i:i + self.PAGE] for i in range(0, len(items), self.PAGE)] or [[]]
+
+    def api(self, commits, files, compares):
+        """commits: {sha: [parents]}, files: {sha: [file]}, compares: {"a...b": (status, [file], [commit shas])}."""
+        def fake(path, *args, **kw):
+            path = path.split("/", 3)[3]
+            if path.startswith("commits/"):
+                sha = path[8:]
+                fs = [self.entry(f) for f in files[sha]]
+                return [{"sha": sha, "parents": [{"sha": p} for p in commits[sha]], "files": ch} for ch in self.chunks(fs)]
+            if path.startswith("compare/"):
+                key = path[8:]
+                if key not in compares:
+                    raise RuntimeError("HTTP 404")
+                st, fs, shas = compares[key]
+                fch, cch = self.chunks([self.entry(f) for f in fs]), self.chunks(shas)
+                return [{"status": st, "files": fch[i] if i < len(fch) else [],
+                         "commits": [{"sha": s, "parents": [{"sha": p} for p in commits[s]]} for s in (cch[i] if i < len(cch) else [])]}
+                        for i in range(max(len(fch), len(cch)))]
+            raise AssertionError(path)
+        return fake
+
+    def run_it(self, commits, files, compares, base_tip="tip"):
+        compares = {"B...tip": ("ahead", [], []), **compares}
+        gh = mg.GitHub("o/r", "1")
+        gh.base_tip = lambda ref: base_tip
+        with mock.patch.object(mg, "gh_json", self.api(commits, files, compares)):
+            return gh.own_paths("B", "H", "dev")
+
+    def test_own_commits_count_with_their_files(self):
+        c = {"c1": ["B"], "c2": ["c1"]}
+        out = self.run_it(c, {"c1": ["a.ts"], "c2": ["b.md", "a.ts"]}, {"B...H": ("ahead", [], ["c1", "c2"])})
+        self.assertEqual(out, ["a.ts", "b.md"])
+
+    def test_a_rename_counts_with_both_names(self):
+        f = {"filename": "docs/a.md", "previous_filename": "src/a.ts", "patch": "+x"}
+        self.assertEqual(self.run_it({"c1": ["B"]}, {"c1": [f]}, {"B...H": ("ahead", [], ["c1"])}), ["docs/a.md", "src/a.ts"])
+
+    def test_the_files_of_every_page_count(self):
+        many = [f"d{i}.md" for i in range(150)] + ["package.json"]  # the non-free one is on page 2
+        out = self.run_it({"c1": ["B"]}, {"c1": many}, {"B...H": ("ahead", [], ["c1"])})
+        self.assertIn("package.json", out)
+        self.assertEqual(len(out), 151)
+
+    def test_the_commits_of_every_page_count(self):
+        shas = [f"c{i}" for i in range(120)]  # the PR's last commit is on page 2 of the compare
+        c = {s: ["B"] for s in shas}
+        out = self.run_it(c, {s: ["a.md"] for s in shas[:-1]} | {"c119": ["package.json"]}, {"B...H": ("ahead", [], shas)})
+        self.assertIn("package.json", out)
+        base = [f"b{i}" for i in range(120)]  # and the base's commits of the tip compare span two pages as well
+        c2 = {"m": ["B"], **{b: ["B"] for b in base}}
+        out = self.run_it(c2, {"m": ["a.md"], **{b: ["src/x.ts"] for b in base}},
+                          {"B...H": ("ahead", [], ["m", *base]), "B...tip": ("ahead", [], base)})
+        self.assertEqual(out, ["a.md"])  # b119 is on the second page of `theirs`
+
+    def merge(self, merge_files, diff, incoming, **extra):
+        c = {"m": ["B", "x"]}
+        compares = {"B...H": ("ahead", [], ["m"]), "tip...x": ("behind", [], []), "x...m": ("ahead", diff, []),
+                    "B...x": ("ahead", incoming, []), **extra}
+        return self.run_it(c, {"m": merge_files}, compares)
+
+    def test_a_merge_of_the_base_counts_only_what_the_base_did_not_bring(self):
+        out = self.merge(["from-base.ts", "conflict.ts", "own.md"], diff=["conflict.ts", "own.md"],
+                         incoming=[("from-base.ts", "+b"), ("conflict.ts", "+b")])
+        self.assertEqual(out, ["conflict.ts", "own.md"])  # from-base.ts equals the base's content at m
+
+    def test_a_clean_base_merge_has_no_own_paths(self):
+        self.assertEqual(self.merge(["a.ts", "b.ts"], diff=["old-pr-file.ts"], incoming=["a.ts"]), [])
+
+    def test_a_file_both_sides_edited_merged_cleanly_is_the_bases(self):
+        patch = "@@ -1,3 +1,4 @@\n ctx\n+\"dep\": \"2\"\n ctx"
+        shifted = "@@ -7,3 +7,4 @@\n other ctx\n+\"dep\": \"2\"\n more ctx"  # the same change, other hunk header and context
+        out = self.merge([("package.json", shifted)], diff=["package.json"], incoming=[("package.json", patch)])
+        self.assertEqual(out, [])
+        out = self.merge([("package.json", shifted + "\n+\"evil\": 1")], diff=["package.json"], incoming=[("package.json", patch)])
+        self.assertEqual(out, ["package.json"])  # a resolution adds a line
+        out = self.merge([("package.json", None)], diff=["package.json"], incoming=[("package.json", patch)])
+        self.assertEqual(out, ["package.json"])  # no patch to compare (binary, too large): the PR's
+
+    def test_a_cap_on_a_merge_compare_is_unknown(self):
+        big = [f"f{i}.md" for i in range(mg.COMPARE_CAP)]
+        self.assertIsNone(self.merge(["a.md"], diff=big, incoming=["a.md"]))  # a cut list would let `&=` keep what the base brought
+
+    def test_an_unreadable_base_change_of_a_merge_is_unknown(self):
+        out = self.run_it({"m": ["B", "x"]}, {"m": ["a.md"]},
+                          {"B...H": ("ahead", [], ["m"]), "tip...x": ("behind", [], []), "x...m": ("ahead", ["a.md"], [])})
+        self.assertIsNone(out)  # `compare B...x` is a 404
+
+    def test_an_unreadable_diff_against_the_base_parent_is_unknown(self):
+        out = self.run_it({"m": ["B", "x"]}, {"m": ["a.md"]},
+                          {"B...H": ("ahead", [], ["m"]), "tip...x": ("behind", [], []), "B...x": ("ahead", ["a.md"], [])})
+        self.assertIsNone(out)  # `compare x...m` is a 404: an empty list would empty the merge's files
+
+    def test_an_unreadable_commit_is_unknown(self):
+        real = self.api({"c1": ["B"]}, {"c1": ["a.md"]}, {"B...H": ("ahead", [], ["c1"]), "B...tip": ("ahead", [], [])})
+        def fake(path, *args, **kw):
+            if "/commits/" in path:
+                raise RuntimeError("gh api: HTTP 404")
+            return real(path, *args, **kw)
+        gh = mg.GitHub("o/r", "1"); gh.base_tip = lambda ref: "tip"
+        with mock.patch.object(mg, "gh_json", fake):
+            self.assertIsNone(gh.own_paths("B", "H", "dev"))
+
+    def test_a_clean_merge_of_a_base_that_brought_many_files_is_not_unknown(self):
+        big = [f"f{i}.md" for i in range(260)]
+        self.assertEqual(self.merge(big, diff=["old.md"], incoming=big), [])  # the merge lists them all as changed vs P1; the base's list only takes files away
+
+    def test_a_binary_file_edited_on_both_sides_is_the_prs(self):
+        self.assertEqual(self.merge([("blob.bin", None)], diff=["blob.bin"], incoming=[("blob.bin", None)]), ["blob.bin"])
+    def test_an_octopus_merge_checks_every_extra_parent(self):
+        c = {"m": ["B", "x", "y"]}
+        compares = {"B...H": ("ahead", [], ["m"]), "tip...x": ("behind", [], []), "tip...y": ("identical", [], []),
+                    "x...m": ("ahead", ["a.md", "z.ts"], []), "y...m": ("ahead", ["z.ts"], []),
+                    "B...x": ("ahead", [], []), "B...y": ("ahead", [], [])}
+        self.assertEqual(self.run_it(c, {"m": ["a.md", "z.ts"]}, compares), ["z.ts"])  # a.md equals y's content: brought by y
+
+    def test_a_merge_of_something_else_counts_whole(self):
+        c = {"m": ["B", "x"]}
+        out = self.run_it(c, {"m": ["f.ts"]}, {"B...H": ("ahead", [], ["m"]), "tip...x": ("diverged", [], [])})
+        self.assertEqual(out, ["f.ts"])
+
+    def test_an_unavailable_base_side_counts_the_merge_whole(self):
+        c = {"m": ["B", "x"]}  # `compare tip...x` is a 404: unreadable is not the base
+        self.assertEqual(self.run_it(c, {"m": ["f.ts"]}, {"B...H": ("ahead", [], ["m"])}), ["f.ts"])
+
+    def test_a_base_merge_between_own_commits(self):
+        c = {"c1": ["B"], "m": ["c1", "x"], "c2": ["m"]}
+        out = self.run_it(c, {"c1": ["a.md"], "m": ["base.ts"], "c2": ["b.md"]},
+                          {"B...H": ("ahead", [], ["c1", "m", "c2"]), "tip...x": ("identical", [], []),
+                           "x...m": ("ahead", ["a.md"], []), "c1...x": ("ahead", ["base.ts"], [])})
+        self.assertEqual(out, ["a.md", "b.md"])
+
+    def test_the_bases_own_commits_in_the_range_are_not_the_prs(self):
+        c = {"b1": ["B"], "m": ["B", "b1"], "c2": ["m"]}
+        compares = {"B...H": ("ahead", [], ["b1", "m", "c2"]), "B...tip": ("ahead", [], ["b1"]),
+                    "tip...b1": ("behind", [], []), "b1...m": ("ahead", [], []), "B...b1": ("ahead", ["src/x.ts"], [])}
+        self.assertEqual(self.run_it(c, {"b1": ["src/x.ts"], "m": ["src/x.ts"], "c2": ["a.md"]}, compares), ["a.md"])
+        many = [f"b{i}" for i in range(mg.COMPARE_CAP)]  # the base's commits are not capped, the PR's own are
+        c3 = {"m1": ["B"], **{b: ["B"] for b in many}}
+        self.assertEqual(self.run_it(c3, {"m1": ["README.md"], **{b: [] for b in many}},
+                                     {"B...H": ("ahead", [], ["m1", *many]), "B...tip": ("ahead", [], many)}), ["README.md"])
+        gh = mg.GitHub("o/r", "1"); gh.base_tip = lambda ref: "tip"
+        del compares["B...tip"]
+        with mock.patch.object(mg, "gh_json", self.api(c, {"b1": ["src/x.ts"], "m": [], "c2": ["a.md"]}, compares)):
+            self.assertIsNone(gh.own_paths("B", "H", "dev"))  # the base's list unavailable: unknown
+
+    def test_an_unrelated_history_or_a_gone_commit_is_unknown(self):
+        for compares in ({"B...H": ("diverged", [], [])}, {"B...H": ("behind", [], [])}, {}):
+            self.assertIsNone(self.run_it({}, {}, compares))
+
+    def test_too_many_commits_or_files_is_unknown(self):
+        shas = [f"c{i}" for i in range(mg.COMPARE_CAP)]
+        c = {s: ["B"] for s in shas}
+        self.assertIsNone(self.run_it(c, {s: [] for s in shas}, {"B...H": ("ahead", [], shas)}))
+        self.assertIsNone(self.run_it({"c1": ["B"]}, {"c1": [f"{i}.md" for i in range(mg.FILES_CAP)]},
+                                      {"B...H": ("ahead", [], ["c1"])}))  # GitHub's own limit for one commit
+        out = self.run_it({"c1": ["B"]}, {"c1": [f"{i}.md" for i in range(mg.FILES_CAP - 1)]}, {"B...H": ("ahead", [], ["c1"])})
+        self.assertEqual(len(out), mg.FILES_CAP - 1)  # a big own commit below it is listed whole
+
+    def test_an_api_error_propagates(self):
+        gh = mg.GitHub("o/r", "1")
+        with mock.patch.object(mg, "gh_json", side_effect=RuntimeError("HTTP 502")):
+            with self.assertRaises(RuntimeError):
+                gh.own_paths("B", "H", "dev")
 
 
 class GitHubFiles(unittest.TestCase):

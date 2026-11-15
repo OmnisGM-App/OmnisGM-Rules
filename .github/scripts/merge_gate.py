@@ -235,6 +235,81 @@ class GitHub:
         files = [f["filename"] for page in pages for f in page.get("files", [])]
         return None if len(files) >= 300 else files  # compare lists at most 300 files — unknown beyond
 
+    def own_paths(self, bound: str, head: str, base_ref: str) -> list[str] | None:
+        """The paths the PR's OWN commits touched between `bound` and `head`; None when that cannot be told (the head is not
+        a descendant of `bound`; COMPARE_CAP or more own commits, FILES_CAP or more files in one commit, COMPARE_CAP or more
+        files in a merge's diff against its base parent). Walks the commits `bound..head` without
+        those the base has and `bound` has not. A commit with one parent counts with all its files (a rename with both
+        names). A merge whose second parent is in the base's history (`compare tip...parent` is `behind`/`identical`) counts
+        only with the files that (1) the merge changed against its first parent, (2) differ from the base parent's content
+        (`compare second-parent...merge`: what the base brought equals it there) and (3) when the base changed the file too
+        (`compare first-parent...second-parent`), whose +/- lines of the merge's own patch differ from the base's patch: a
+        clean merge of a file both sides edited shows the base's change again and is not the PR's, a resolution adds a line
+        and is. A patch that is missing (binary, too large) counts as the PR's. A merge of anything else, or whose base
+        side cannot be read, counts with all its files. A `get` lists every page (GitHub pages files and commits by 100);
+        an API error other than 404/422 propagates."""
+        def get(path: str):
+            try:
+                return gh_json(f"repos/{self.repo}/{path}", "--paginate")
+            except RuntimeError as e:
+                if "HTTP 404" in str(e) or "HTTP 422" in str(e):
+                    return None
+                raise
+        def files_of(pages, cap: int = COMPARE_CAP) -> list[dict] | None:
+            files = [f for page in pages for f in page.get("files", [])]
+            return None if len(files) >= cap else files
+        def names(files: list[dict]) -> set[str]:
+            return {p for f in files for p in (f["filename"], f.get("previous_filename")) if p}
+        def change(patch: str | None) -> list[str] | None:
+            # only the +/- lines, not where they sit: it survives a shift of the @@ headers, and a merge crafted to relocate
+            # the base's lines gives no new right (whoever can do that can set the label by hand)
+            return None if patch is None else [l for l in patch.splitlines() if l[:1] in ("+", "-")]
+        pages = get(f"compare/{bound}...{head}")
+        if not pages or pages[0].get("status") not in ("ahead", "identical"):
+            return None
+        commits = [c for page in pages for c in page.get("commits", [])]
+        tip = self.base_tip(base_ref)
+        # after a merge of the base `bound..head` also lists the base's own commits: `compare bound...tip` names those the
+        # base has and `bound` has not — they are the base's, not the PR's, and contribute nothing
+        theirs = get(f"compare/{bound}...{tip}")
+        if not theirs:
+            return None
+        # no cap on what is skipped, nor on the base's files below: they only take files away, a partial list is stricter
+        skip = {c["sha"] for page in theirs for c in page.get("commits", [])}
+        commits = [c for c in commits if c["sha"] not in skip]
+        if len(commits) >= COMPARE_CAP:
+            return None
+        out: set[str] = set()
+        for c in commits:
+            detail = get(f"commits/{c['sha']}")  # one document per page: the parents on each, the files split between them
+            own_files = files_of(detail or [], FILES_CAP)  # GitHub's own limit for a commit; a cut list would lose the PR's files
+            if own_files is None or not detail:
+                return None
+            parents = [p["sha"] for p in detail[0].get("parents", [])]
+            mine = names(own_files)
+            for p in parents[1:]:
+                side = get(f"compare/{tip}...{p}")
+                if not side or side[0].get("status") not in ("behind", "identical"):
+                    continue  # not the base's history (or unreadable): the merge's files are the PR's
+                diff = get(f"compare/{p}...{c['sha']}")
+                incoming = get(f"compare/{parents[0]}...{p}")
+                diff_files = files_of(diff or [])  # capped: a cut list would let `&=` keep files the base brought
+                if diff_files is None or not diff or not incoming:
+                    return None
+                in_files = [f for page in incoming for f in page.get("files", [])]
+                mine &= names(diff_files)
+                base_patch = {f["filename"]: f.get("patch") for f in in_files}
+                for f in own_files:
+                    theirs_change = change(base_patch.get(f["filename"])) if f["filename"] in base_patch else None
+                    if theirs_change is not None and theirs_change == change(f.get("patch")):
+                        mine.discard(f["filename"])  # the base's own edit of the file, merged cleanly
+            out |= mine
+        return sorted(out)
+
+    def timeline(self) -> list[dict]:
+        """The PR's timeline events (labeled, committed, head_ref_force_pushed …)."""
+        return [e for page in gh_json(f"repos/{self.repo}/issues/{self.pr}/timeline", "--paginate") for e in page]
+
     def file_text(self, repo: str, path: str, ref: str, token: str | None = None) -> str | None:
         """The text of `path` at `ref`; None when the file is not there (removed by the PR, no template)."""
         try:
@@ -388,8 +463,10 @@ def last_labeled_actor(events: list[dict], name: str) -> str | None:
 
 
 MATRIX_FREE = ".github/matrix-free-paths"   # per repo, not a template copy: one regex per line, `#` starts a comment
-AUTO_NA = "auto:" + LABEL_MATRIX_NA          # state key: the gate applied the label itself (a hand-set one is never touched)
-FILES_CAP = 3000                             # `pulls/{pr}/files` lists at most this many
+AUTO_NA = "auto:" + LABEL_MATRIX_NA          # state key: the gate applied the label itself (a hand-set one is only watched: hand_matrix)
+HAND_NA = "hand:" + LABEL_MATRIX_NA          # state key: the head a hand-set label is bound to (its `labeled` run; with no record, the last commit of the timeline dated at or before its `labeled`)
+COMPARE_CAP = 250                            # own_paths: unknown at this many own commits, or at this many files in a merge's diff against its base parent (FILES_CAP: in one commit)
+FILES_CAP = 3000                             # `pulls/{pr}/files` lists at most this many; `commits/{sha}` too (own_paths: unknown at this many files in one commit)
 
 
 def matrix_free(paths: list[str], spec: str | None) -> bool:
@@ -421,13 +498,82 @@ def gate_set_label(gh: GitHub, events: list[dict], name: str) -> bool:
     return got is None or got[0] == "unlabeled" or got[1] == WORKFLOW_ACTOR
 
 
+def hand_matrix(gh: GitHub, pull: dict, state: dict, comment_id: int | None, event: str, event_label: str,
+                event_head: str) -> tuple[dict, int | None, bool, str | None]:
+    """A `gate/matrix-not-needed` a person or an agent set (#89): bound to the head it was set on (HAND_NA in the state
+    comment: the payload head of its `labeled` run; with no record — a superseded `labeled` run, a label from before
+    the record — the sha of the last `committed` event of the timeline dated at or before the label's last `labeled`
+    event (a date tie goes to the later event of the timeline), then the usual check from there; no commit that old, or a lagging timeline: the head is not checked, the run
+    is red (waiting) until it can be). On a new head the label is removed when the PR's own commits since the bound head
+    touched a path outside MATRIX_FREE (read at the base, own_paths leaves out what a merge of the base brought), the paths
+    named in the note; when they touched only listed paths the label stays and is bound to the new head. Unreadable list
+    or an API error: the label and the binding stay and the run is red ("waiting": the head is not checked); a history
+    that cannot be compared (a force-push) removes it, as a matrix label bound to another head goes. Returns the shape of auto_matrix; the state is written by run()."""
+    head = pull["head"]["sha"]
+    if event == "labeled" and event_label == LABEL_MATRIX_NA:
+        state[HAND_NA] = event_head or head  # the head the person saw
+    bound = state.get(HAND_NA)
+    def waiting(why: str, way_out: str = "re-run the gate") -> tuple[dict, int | None, bool, str]:
+        return state, comment_id, False, (f"{WAIT}`{LABEL_MATRIX_NA}` (set by hand) not re-checked on this head ({why}) "
+                                          f"— {way_out}.")
+    def removed(why: str) -> tuple[dict, int | None, bool, str]:
+        gh.remove_label(LABEL_MATRIX_NA)
+        pull["labels"] = [l for l in pull.get("labels", []) if l["name"] != LABEL_MATRIX_NA]
+        state.pop(HAND_NA, None)
+        return state, comment_id, False, f"`{LABEL_MATRIX_NA}` (set by hand) removed by the gate: {why}. Run the matrix or set it again."
+    if not isinstance(bound, str) or not bound:
+        # no record: the commit the label was set on is the last `committed` event dated at or before its `labeled` (the
+        # events carry the commit's own date: a commit made before the label and pushed after reads as before it)
+        try:
+            events = gh.timeline()
+        except (RuntimeError, ValueError) as e:  # ValueError: a body that is not JSON
+            return waiting(f"timeline unreadable, {type(e).__name__}: {str(e)[:120]}")
+        at = max((e.get("created_at", "") for e in events if e.get("event") == "labeled"
+                  and (e.get("label") or {}).get("name") == LABEL_MATRIX_NA), default="")
+        if not at:
+            return waiting("its `labeled` event is not on the timeline yet")
+        # a rebase writes many commits in one second: a date tie goes to the later event of the timeline, never to the sha
+        olds = [((e.get("committer") or {}).get("date") or "", i, e["sha"]) for i, e in enumerate(events)
+                if e.get("event") == "committed" and e.get("sha") and ((e.get("committer") or {}).get("date") or "") <= at]
+        if not olds:
+            return removed("no commit on the timeline is as old as the label, so the head it was set on is unknown")
+        bound = state[HAND_NA] = max(olds)[2]
+    if bound == head:
+        return state, comment_id, False, None
+    base = pull.get("base") or {}
+    if not base.get("sha"):
+        return waiting("the PR has no base sha", "set the label again on this head")
+    try:
+        spec = gh.file_text(gh.repo, MATRIX_FREE, base["sha"])
+        tree = gh.tree(head)
+        if tree is not None and gh.tree(bound) == tree:  # a rebase onto the same files: nothing new, as for matrix-passed
+            state[HAND_NA] = head
+            return state, comment_id, False, None
+        own = gh.own_paths(bound, head, base.get("ref", ""))
+    except (RuntimeError, ValueError, TypeError, KeyError, re.error) as e:  # ValueError: a body that is not JSON
+        return waiting(f"{type(e).__name__}: {str(e)[:120]}")
+    if own is None:
+        return removed(f"the commits since {bound[:7]} cannot be compared (history rewritten, {COMPARE_CAP} or more own commits, "
+                       f"{FILES_CAP} or more files in one commit, or {COMPARE_CAP} or more files in a merge's diff against the base, or a part of it is unreadable)")
+    try:
+        outside = [p for p in own if not matrix_free([p], spec)]
+    except re.error as e:
+        return waiting(f"`{MATRIX_FREE}` unreadable: {e}", f"fix `{MATRIX_FREE}` on the base, or set the label again on this head")
+    if not outside:
+        state[HAND_NA] = head
+        return state, comment_id, False, None
+    return removed((f"`{MATRIX_FREE}` is missing at the base, so no path counts as free; " if spec is None else "")
+                   + f"the commits since {bound[:7]} touch paths outside `{MATRIX_FREE}`: {', '.join(map(repr, outside[:5]))}"
+                   + (f" and {len(outside) - 5} more" if len(outside) > 5 else ""))
+
+
 def auto_matrix(gh: GitHub, pull: dict, files: list[str], paths: list[str], events: list[dict], state: dict,
                 comment_id: int | None, event: str = "", event_label: str = "",
                 event_head: str = "") -> tuple[dict, int | None, bool, str | None]:
     """Sets `gate/matrix-not-needed` itself when every path the PR touches is in MATRIX_FREE, read at the PR's BASE
     (a PR cannot widen its own list), and removes the label it set once the diff leaves the list, the list cannot be
     read for a new head, or a `gate/matrix-passed` bound to this head replaces it; a label a person or an agent set is
-    theirs (its last `labeled` event is not the workflow's). Labels the gate applies with GITHUB_TOKEN start no workflow
+    theirs (its last `labeled` event is not the workflow's) — it is only watched, see hand_matrix. Labels the gate applies with GITHUB_TOKEN start no workflow
     run, so `pull` is updated in place for this run's verdict. Returns (new state, state comment id, whether the state
     was already written, a line for the summary or None)."""
     labels = {l["name"] for l in pull.get("labels", [])}
@@ -438,8 +584,12 @@ def auto_matrix(gh: GitHub, pull: dict, files: list[str], paths: list[str], even
             and gate_set_label(gh, events, LABEL_MATRIX_NA))
     if not auto:
         state.pop(AUTO_NA, None)
+    if LABEL_MATRIX_NA not in labels or auto:
+        state.pop(HAND_NA, None)  # a record of a label that is gone or became the gate's
     if LABEL_MATRIX_NA in labels and not auto:
-        return state, comment_id, False, None
+        if (pull.get("user") or {}).get("login") in BOT_LOGINS:
+            return state, comment_id, False, None  # Dependabot's label comes from dependabot.yml: nothing to bind
+        return hand_matrix(gh, pull, state, comment_id, event, event_label, event_head)
     matrix_ok = False
     if LABEL_MATRIX_OK in labels:  # bound the way evaluate() binds it
         seen = event_head or head  # a `labeled` run binds the payload head with its tree, as evaluate() records it
@@ -698,7 +848,9 @@ def run(gh: GitHub, pull: dict) -> int:
         gh.write_state(comment_id, new_state)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
     out = open(summary, "a") if summary else sys.stdout
-    if auto_note:
+    if auto_note and auto_note.startswith(WAIT):
+        fail.append(auto_note)  # a hand label that could not be checked on this head: red until a run can
+    elif auto_note:
         print(f"::notice::{auto_note}")
         print(auto_note + "\n", file=out)
     waiting, errors = split_outcome(fail)

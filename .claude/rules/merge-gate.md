@@ -11,18 +11,18 @@ The ruleset of the default branch requires the `Merge gate` check
 |---|---|---|---|
 | `gate/snapshots-approved` | the owner has looked at every changed screenshot baseline in the PR | **the owner only, by hand** | the gate once the PR's own baselines differ from the approved head; the owner |
 | `gate/matrix-passed` | the full Playwright matrix is green on the current head (`EXIT=0`, numbers in the PR body) | the agent or the owner, after the run on that head, with the head already pushed | the gate once the head differs from the one it was applied on |
-| `gate/matrix-not-needed` | the diff does not touch UI; the PR body or the gate's summary says so | the agent, the owner, or the gate per `.github/matrix-free-paths` | whoever adds UI; the gate drops its own |
+| `gate/matrix-not-needed` | the diff does not touch UI; the PR body or the gate's summary says so | the agent, the owner, or the gate per `.github/matrix-free-paths` | whoever adds UI; the gate: its own, and a hand-set one once later commits leave `matrix-free-paths` (not Dependabot's) |
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
 
 Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
-dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master` needs `gate/review-passed`; whether a `release/*`
-head is an empty commit whose parent is a `dev` commit is not checked yet); `gate/snapshots-approved` when
-the PR changes any `*-snapshots/` file (release PRs excepted: their baselines were approved in the
+dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master` needs `gate/review-passed`; a `release/*`
+head being an empty commit on `dev` is not checked); `gate/snapshots-approved` when
+the PR changes any `*-snapshots/` file (not release PRs: approved in
 feature PRs). Dependabot gets `gate/matrix-not-needed` from `dependabot.yml`. Head-bound labels are bound to the
-head they were applied on (the gate keeps a state comment on the PR): `gate/matrix-passed` applied on
+head they were applied on (the gate's state comment): `gate/matrix-passed` applied on
 another head is removed, and so is `gate/snapshots-approved` when the PR's own baselines differ
 between that head and the live one — unless the live head has the tree the label was given on: then both stay, re-bound. `gate/review-passed` counts only when the review workflow applied
-it — a hand-applied one is reported and ignored.
+it — a hand-set one is reported, ignored.
 
 **Template copies.** A `sync/templates-*` PR (label `plugin-copy`, opened by claude-plugins `sync-templates.yml`) needs no other label and gets no review round; never edit or push to it — change the template in claude-plugins and the next sync replaces the PR. The gate blocks it, with the reason, when a changed file is not a MODIFIED copy of a template (`.claude/rules/*.md` or a path of `WORKFLOW_COPIES` in `merge_gate.py`; the sync also ADDS a missing workflow copy, with the settings lines of the repo's `merge-gate.yml`) or differs from it outside the repo's settings lines (`runs-on`, `CI_CHECK`, the Node version); labels do not lift the block. A rule template a repo does not carry yet, a change of its settings lines and the wiring of a new test file into its CI go through an ordinary PR.
 
