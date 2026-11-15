@@ -65,20 +65,20 @@ so the verdict never waits for it. It runs `run_pr_checks.py` once per check gro
    **Not a reason to remove it:** a medium or a remark of the labelling round, fixed as its thread says in the files it names — one push, label kept (`review-response.md` step 6). Exceptions: the bullets above (the gate/review/CI/deploy/security bullet holds for recipe fixes too), a ❗, or new work the owner asked for in this PR.
 2b. **Matrix after review, not before.** The full matrix (and targeted e2e re-runs) wait until the auto-review
    and its fix rounds are done: one matrix on the final head. Before review — unit tests and the local CI script;
-   an early matrix is machine time thrown away by the first fix commit. A PR with changed `*-snapshots/` baselines waits for the owner's `gate/snapshots-approved` as well
-   before the matrix: a rejected frame is re-shot and
-   re-run, so a matrix taken before the owner's look is the same thrown-away machine time. Re-shooting the
+   an early matrix is machine time lost to the first fix commit. A PR with changed `*-snapshots/` baselines waits for the owner's `gate/snapshots-approved` as well
+   before the matrix: a rejected frame is re-shot and re-run, the same lost time. Re-shooting the
    baselines the PR itself touches is part of the change, not of the matrix: `authoring-e2e.md` rule 6.
-   **The matrix runs on the current base:** right before it, merge the live base branch
+   **Targeted run first:** `matrix_run.sh` runs the specs the PR adds or modifies alone, posts `## Targeted run`
+   (body, comment); red stops it: no full run, no label.
+   **The matrix runs on the current base:** right before it merge the live base
    into the PR. If another PR into the same base will land by itself (auto-merge on, a matrix label, not
    `DIRTY`), wait for it to land first, then merge the base and start the matrix: a matrix taken before that
-   merge is stale the moment the other PR lands. A PR armed before its own matrix is not waited for, so two
-   such PRs do not block each other; `--skip-automerge-wait` is only for a PR stuck with a matrix label (red
-   CI, a gate it will never pass), named in the PR body. A merge with conflicts stops the matrix until they are resolved by
-   hand. The skill `omnisgm-matrix` of the omnisgm plugin does it as the first step of the matrix (refuses while an
+   merge is stale once the other PR lands. A PR armed before its own matrix is not waited for, so two such PRs do not deadlock; `--skip-automerge-wait` is only for a PR stuck with a matrix label (red
+   CI, a gate it will never pass), named in the PR body. A merge with conflicts stops the matrix until resolved by
+   hand. The `omnisgm-matrix` skill does it as the first step (refuses while an
    auto-merge into the base is pending, merges and pushes the base, stops on a conflict; after a merge start it
-   again in about a minute, `authoring-e2e.md` rule 8); `matrix_run.sh <PR#> --sync-only` is the base sync alone.
-   Without `.claude/matrix.json` yet, the same steps by hand.
+   again in a minute, `authoring-e2e.md` rule 8); `matrix_run.sh <PR#> --sync-only` is the base sync alone.
+   Without `.claude/matrix.json`, by hand.
    Not for a release PR or a carried-over matrix (rule 3), nor for Dependabot (`gate/matrix-not-needed`).
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
    in the PR body, and only under "Failed and flaky tests" below; a partial or targeted run is not the matrix. `gate/matrix-not-needed` only when
