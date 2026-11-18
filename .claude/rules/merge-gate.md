@@ -76,8 +76,8 @@ so the verdict never waits for it. It runs `run_pr_checks.py` once per check gro
    merge is stale once the other PR lands. A PR armed before its own matrix is not waited for, so two such PRs do not deadlock; `--skip-automerge-wait` is only for a PR stuck with a matrix label (red
    CI, a gate it will never pass), named in the PR body. A merge with conflicts stops the matrix until resolved by
    hand. The `omnisgm-matrix` skill does it as the first step (refuses while an
-   auto-merge into the base is pending, merges and pushes the base, stops on a conflict; after a merge start it
-   again in a minute, `authoring-e2e.md` rule 8); `matrix_run.sh <PR#> --sync-only` is the base sync alone.
+   auto-merge into the base is pending, merges and pushes the base, stops on a conflict, then rebuilds and waits a minute,
+   `authoring-e2e.md` rule 8); `matrix_run.sh <PR#> --sync-only` is the base sync alone.
    Without `.claude/matrix.json`, by hand.
    Not for a release PR or a carried-over matrix (rule 3), nor for Dependabot (`gate/matrix-not-needed`).
 3. `gate/matrix-passed` only after the full matrix on the exact head you label, with the numbers
