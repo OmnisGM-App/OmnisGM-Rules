@@ -22,7 +22,8 @@ name: Merge gate
 #   gate/matrix-passed      — the full Playwright matrix is green on the current head;
 #   gate/matrix-not-needed  — the diff does not touch UI (say so in the PR body; the gate sets it per .github/matrix-free-paths);
 #                             exactly one of the two matrix labels is required.
-#   gate/review-passed      — set by claude-review.yml when a round ends with 0 ❗.
+#   gate/review-passed      — set by claude-review.yml when a round ends with 0 ❗;
+#                             not awaited while the Actions variable REVIEW_PAUSED is `true` (gate/review-skipped marks the PR).
 # Head-bound labels are bound to a HEAD SHA: the run of the `labeled` event records the head from its
 # payload in a state comment on the PR (`<!-- merge-gate-state … -->`), and every later run compares
 # it with the live head — `gate/matrix-passed` goes on any difference, `gate/snapshots-approved` only when
@@ -74,6 +75,7 @@ jobs:
       EVENT: ${{ github.event.action }}
       EVENT_LABEL: ${{ github.event.label.name }}
       EVENT_HEAD_SHA: ${{ github.event.pull_request.head.sha }}
+      REVIEW_PAUSED: ${{ vars.REVIEW_PAUSED }}
       # Org secret, contents:read on claude-plugins only: lets template-sync PRs prove their copies (merge_gate.py).
       TEMPLATES_TOKEN: ${{ secrets.TEMPLATES_READ_TOKEN }}
       # Regex over changed paths that counts as a screenshot baseline (Playwright default dir).

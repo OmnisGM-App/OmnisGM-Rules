@@ -185,7 +185,7 @@ concurrency:
   # (its CI completion) cancels the round running on the previous head.
   # unlabeled of any OTHER label must not enter the group (it would cancel a running round and end
   # skipped): such runs get a group of their own.
-  group: claude-review-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}${{ github.event.action == 'unlabeled' && github.event.label.name != 'gate/review-passed' && github.event.label.name != 'plugin-copy' && format('-noop-{0}', github.run_id) || '' }}
+  group: claude-review-${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}${{ github.event.action == 'unlabeled' && github.event.label.name != 'gate/review-passed' && github.event.label.name != 'plugin-copy' && github.event.label.name != 'gate/review-skipped' && format('-noop-{0}', github.run_id) || '' }}
   cancel-in-progress: true
 
 jobs:
@@ -205,7 +205,7 @@ jobs:
       github.event.workflow_run.pull_requests[0].number ) || (
       github.event_name == 'pull_request' && github.event.action == 'ready_for_review' ) || (
       github.event_name == 'pull_request' && github.event.action == 'unlabeled' &&
-      (github.event.label.name == 'gate/review-passed' || github.event.label.name == 'plugin-copy') )
+      (github.event.label.name == 'gate/review-passed' || github.event.label.name == 'plugin-copy' || github.event.label.name == 'gate/review-skipped') )
     runs-on: ubuntu-latest
     timeout-minutes: 5
     outputs:
@@ -253,6 +253,7 @@ jobs:
           PR: ${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
           REPO: ${{ github.repository }}
           DISPATCH: ${{ github.event_name == 'workflow_dispatch' && '1' || '' }}
+          REVIEW_PAUSED: ${{ vars.REVIEW_PAUSED }}
           # v2.52: the triggering CI run's id and head — its own job list does not lag, while the check-runs list
           # of a commit can lag the workflow_run event by more than a few seconds (Table#1283: 'none' 14 s after
           # the green CI).
@@ -274,6 +275,8 @@ jobs:
             [ "$base" != "master" ] || [ "${head#release/}" = "$head" ] || skip="release PR (exempt from gate/review-passed)"
             [ "$state" = "open" ] || skip="PR is not open"
             [ "$labelled" = "false" ] || skip="gate/review-passed is set — remove the label to request a round"
+            # the owner's switch (skill omnisgm-review-pause); turning it off removes gate/review-skipped, and that starts the round
+            [ "$REVIEW_PAUSED" != "true" ] || skip="review is paused (REVIEW_PAUSED)"
             # ready_for_review / unlabeled: CI did not re-run — require a green CI_CHECK on the head
             # (server-side filter by name: one page, no --paginate/--slurp).
             if [ -z "$skip" ]; then

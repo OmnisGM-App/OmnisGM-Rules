@@ -14,8 +14,9 @@ The ruleset of the default branch requires the `Merge gate` check
 | `gate/matrix-passed` | the full Playwright matrix is green on the current head (`EXIT=0`, numbers in the PR body) | the agent or the owner, after the run on that head, with the head already pushed | the gate once the head differs from the one it was applied on |
 | `gate/matrix-not-needed` | the diff does not touch UI; the PR body or the gate's summary says so | the agent, the owner, or the gate per `.github/matrix-free-paths` | whoever adds UI; the gate: its own, and a hand-set one once later commits leave `matrix-free-paths` (not Dependabot's) |
 | `gate/review-passed` | the last auto-review round ended with 0 ❗ | **claude-review.yml only** | claude-review.yml on a round with ❗; anyone who wants another round (removing it starts one after a green CI) |
+| `gate/review-skipped` | the owner paused the review (Actions variable `REVIEW_PAUSED` = `true`): no rounds, `gate/review-passed` is not awaited | the gate; `omnisgm-review-pause on` | `omnisgm-review-pause off` (starts a round); the gate when no pause holds (starts none) |
 
-Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the author is
+Required: the matrix pair (exactly one of the two) always; `gate/review-passed` unless the review is paused or the author is
 dependabot or the PR is a release (`release/*` → `master` only; `dev` → `master` needs `gate/review-passed`; a `release/*`
 head being an empty commit on `dev` is not checked); `gate/snapshots-approved` when
 the PR changes any `*-snapshots/` file (not release PRs: approved in
@@ -42,7 +43,7 @@ so the verdict never waits for it. It runs `run_pr_checks.py` once per check gro
    rule is procedural: new or changed baselines are reviewed by a human eye, and the agent's job ends
    at "baselines regenerated, here is what changed" in the PR body. The gate's message says the
    same: it waits for a human.
-2. **Never set `gate/review-passed`** — the review workflow owns it. To ask for another round, remove
+2. **Never set `gate/review-passed`** — the review workflow owns it. **Never touch `REVIEW_PAUSED`** without the owner's word for this repo. To ask for another round, remove
    the label (a round starts after a green CI) or push: a push without the label starts a round after CI by itself.
    **When to remove it yourself:** the label was earned by the head
    the clean round read; a push that changes behaviour after it would merge unreviewed. Remove the label
