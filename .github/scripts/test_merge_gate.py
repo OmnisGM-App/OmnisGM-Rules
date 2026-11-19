@@ -110,6 +110,64 @@ class Recorder(Fake):
         self.calls.append("add")
 
 
+class ReviewPause(unittest.TestCase):
+    SKIP = "gate/review-skipped"
+
+    def gate(self, labels, paused="true", **kw):
+        gh = Recorder(pull(["gate/matrix-not-needed", *labels], **kw))
+        with mock.patch.dict(os.environ, {"REVIEW_PAUSED": paused, "EVENT": "synchronize"}), contextlib.redirect_stdout(io.StringIO()) as out:
+            return gh, mg.run(gh, gh.pull()), out.getvalue()
+
+    def test_paused_opens_the_gate_and_marks_the_pr(self):
+        gh, code, _ = self.gate([])
+        self.assertEqual((code, gh.added), (0, (self.SKIP,)))
+
+    def test_only_the_exact_true_pauses(self):
+        for value in ("", "false", "1", "True", "true "):
+            gh, code, out = self.gate([], paused=value)
+            self.assertEqual((code, gh.added), (1, ()), value)
+            self.assertIn("waiting for `gate/review-passed`", out)
+
+    def test_a_hand_set_marker_opens_nothing_and_is_taken_off(self):
+        gh, code, _ = self.gate([self.SKIP], paused="")
+        self.assertEqual(code, 1)
+        self.assertEqual(gh.removed, [self.SKIP])
+
+    def test_the_marker_stays_without_a_write_during_the_pause(self):
+        gh, code, _ = self.gate([self.SKIP])
+        self.assertEqual((code, gh.added, gh.removed), (0, (), []))
+
+    def test_a_passed_review_needs_no_marker(self):
+        gh = Recorder(pull(["gate/matrix-not-needed", "gate/review-passed", self.SKIP]), events=REVIEW_OK)
+        with mock.patch.dict(os.environ, {"REVIEW_PAUSED": "true", "EVENT": "synchronize"}), contextlib.redirect_stdout(io.StringIO()):
+            self.assertEqual(mg.run(gh, gh.pull()), 0)
+        self.assertEqual((gh.added, gh.removed), ((), [self.SKIP]))
+
+    def test_a_hand_set_review_label_is_still_a_contradiction(self):
+        gh = Recorder(pull(["gate/matrix-not-needed", "gate/review-passed"]), events=[labeled("gate/review-passed", actor="Nemo")])
+        with mock.patch.dict(os.environ, {"REVIEW_PAUSED": "true", "EVENT": "synchronize"}), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(mg.run(gh, gh.pull()), 1)
+        self.assertIn("does not count", out.getvalue())
+
+    def test_exempt_prs_get_no_marker(self):
+        for kw in ({"author": "dependabot[bot]"}, {"head": "release/2026-11-19", "base": "master"}):
+            gh, code, _ = self.gate([], **kw)
+            self.assertEqual((code, gh.added), (0, ()), kw)
+
+    def test_the_other_labels_still_hold_during_a_pause(self):
+        gh = Recorder(pull([]))
+        with mock.patch.dict(os.environ, {"REVIEW_PAUSED": "true", "EVENT": "synchronize"}), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(mg.run(gh, gh.pull()), 1)
+        self.assertIn("exactly one of", out.getvalue())
+
+    def test_a_missing_label_is_a_notice_not_a_red_run(self):
+        gh = Recorder(pull(["gate/matrix-not-needed"]))
+        gh.add_label = mock.Mock(side_effect=subprocess.CalledProcessError(1, "gh"))
+        with mock.patch.dict(os.environ, {"REVIEW_PAUSED": "true", "EVENT": "synchronize"}), contextlib.redirect_stdout(io.StringIO()) as out:
+            self.assertEqual(mg.run(gh, gh.pull()), 0)
+        self.assertIn("does the label exist", out.getvalue())
+
+
 def touch(path):
     with open(path, "w") as fh:
         fh.write("# stub\n")
@@ -1112,6 +1170,9 @@ class CallerArgv(unittest.TestCase):
 class WorkflowContract(unittest.TestCase):
     """merge-gate.yml next to this file: the job IS the required context — nothing else reports a verdict."""
 
+    def test_the_gate_reads_the_review_pause_switch(self):
+        self.assertIn("REVIEW_PAUSED: ${{ vars.REVIEW_PAUSED }}", self._text())
+
     def _text(self, name="merge-gate.yml", here=None, optional_in_copy=False):
         here = here or os.path.dirname(os.path.abspath(__file__))
         for candidate in (os.path.join(here, name), os.path.join(here, "..", "workflows", name)):
@@ -2036,6 +2097,7 @@ class StackedPrs(unittest.TestCase):
         self.assertNotIn("DEFAULT_BRANCH", step)
         self.assertNotIn("default_branch", step)
         self.assertEqual(set(re.findall(r'skip="([^"]*)"', step)), {
+            "review is paused (REVIEW_PAUSED)",
             "", "draft", "dependabot", "template sync (merge gate checks the copies)",
             "plugin-copy (merge gate checks the copies)", "release PR (exempt from gate/review-passed)", "PR is not open",
             "gate/review-passed is set — remove the label to request a round",

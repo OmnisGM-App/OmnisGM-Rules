@@ -46,6 +46,11 @@ owner (to find PRs whose screenshots await a look) and strictly informational: n
 `gate/review-passed` counts only when its latest `labeled` event was made by github-actions[bot] (the
 review workflow), not by a hand; the events list can lag behind the label, so it is re-read with a backoff.
 
+Review pause (owner's switch, the Actions variable REVIEW_PAUSED = `true`, skill omnisgm-review-pause): no round runs and the
+gate stops waiting for `gate/review-passed`. `gate/review-skipped` is only the trace of that on the PR: the gate keeps it on
+while the pause holds for a PR without `gate/review-passed` and takes it off otherwise, and the verdict never reads it, so a
+hand-set one opens nothing. A `gate/review-passed` set by a hand is still a contradiction during a pause.
+
 Template copies (owner's decisions 2026-11-08 for rule files, 2026-11-10 for workflow copies, claude-plugins#45): a PR
 from a `sync/templates-*` branch or labelled `plugin-copy` (sync-templates.yml sets both) needs neither
 `gate/review-passed` nor a matrix label when it targets the default branch and the gate itself confirms that every
@@ -74,6 +79,7 @@ LABEL_SNAP_REVIEW = os.environ.get("LABEL_SNAP_REVIEW", "gate/snapshots-review-n
 LABEL_MATRIX_OK = os.environ.get("LABEL_MATRIX_OK", "gate/matrix-passed")
 LABEL_MATRIX_NA = os.environ.get("LABEL_MATRIX_NA", "gate/matrix-not-needed")
 LABEL_REVIEW = os.environ.get("LABEL_REVIEW", "gate/review-passed")
+LABEL_REVIEW_SKIPPED = os.environ.get("LABEL_REVIEW_SKIPPED", "gate/review-skipped")
 SNAPSHOT_RE = re.compile(os.environ.get("SNAPSHOT_RE", r"(^|/)[^/]+-snapshots/"))
 SYNC_PREFIX = "sync/templates-"
 LABEL_COPY = os.environ.get("LABEL_COPY", "plugin-copy")
@@ -675,6 +681,18 @@ def is_release(pull: dict) -> bool:
     return pull["base"]["ref"] == "master" and pull["head"]["ref"].startswith("release/")
 
 
+def review_paused() -> bool:
+    """The owner's repo switch: only the exact value `true` pauses the review, so a typo keeps the gate closed."""
+    return os.environ.get("REVIEW_PAUSED", "") == "true"
+
+
+def review_exempt(pull: dict) -> bool:
+    """Dependabot, a release PR and a template copy never wait for a review round."""
+    labels = {l["name"] for l in pull.get("labels", [])}
+    return (pull["user"]["login"] in BOT_LOGINS or is_release(pull) or pull["head"]["ref"].startswith(SYNC_PREFIX)
+            or LABEL_COPY in labels)
+
+
 def awaited_snapshots(pull: dict, files: list[str]) -> int:
     """How many screenshot baselines of the PR wait for the owner's `gate/snapshots-approved`: those the PR changes, none for a
     release (approved in the feature PRs). The one place of this rule: the WAIT line of evaluate() and the label
@@ -688,7 +706,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
     """Returns (labels to remove, failure messages, new state)."""
     labels = {l["name"] for l in pull.get("labels", [])}
     head_ref, head = pull["head"]["ref"], pull["head"]["sha"]
-    base_ref, author = pull["base"]["ref"], pull["user"]["login"]
+    base_ref = pull["base"]["ref"]
     state = normalize_state(state)
     remove: list[str] = []
     fail: list[str] = []
@@ -768,8 +786,6 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
             fail.append(f"`{LABEL_REVIEW}` was applied by `{actor}`, not by the review workflow — it does not count; "
                         "remove it and let a review round set it.")
 
-    release = is_release(pull)
-    bot = author in BOT_LOGINS
     sync_branch = head_ref.startswith(SYNC_PREFIX)
     copy_pr = sync_branch or LABEL_COPY in labels
     if copy_pr:
@@ -819,7 +835,7 @@ def evaluate(gh: GitHub, pull: dict, files: list[str], events: list[dict], state
         fail.append(f"{WAIT if n_matrix == 0 else ''}exactly one of `{LABEL_MATRIX_OK}` (full Playwright matrix green on "
                     f"head {head[:7]}) or `{LABEL_MATRIX_NA}` (diff does not touch UI — say so in the PR body) is required; "
                     f"found {n_matrix}.")
-    if not bot and not release and not copy_pr and not review_ok and not any(LABEL_REVIEW in f for f in fail):
+    if not review_exempt(pull) and not review_ok and not review_paused() and not any(LABEL_REVIEW in f for f in fail):
         fail.append(f"{WAIT}waiting for `{LABEL_REVIEW}` — claude-review.yml sets it when a round ends with zero ❗; "
                     "it runs after CI on every push of a non-draft PR while the label is absent (removing the label starts a round too).")
     return remove, fail, state
@@ -839,6 +855,19 @@ def snap_review_label(gh: GitHub, pull: dict, files: list[str], removed: list[st
         (gh.add_label if want else gh.remove_label)(LABEL_SNAP_REVIEW)
     except subprocess.CalledProcessError as e:  # e.g. the label does not exist in this repo
         print(f"::notice::`{LABEL_SNAP_REVIEW}` not {'added' if want else 'removed'} (exit {e.returncode}) — does the label exist in this repo?")
+
+
+def review_skip_label(gh: GitHub, pull: dict) -> None:
+    """`gate/review-skipped`: on while the review is paused and this PR would otherwise wait for a round, off otherwise. A trace
+    for the reader, never part of the verdict; a label the repo does not have is a notice, not a red run."""
+    labels = {l["name"] for l in pull.get("labels", [])}
+    want = review_paused() and LABEL_REVIEW not in labels and not review_exempt(pull)
+    if want == (LABEL_REVIEW_SKIPPED in labels):
+        return
+    try:
+        (gh.add_label if want else gh.remove_label)(LABEL_REVIEW_SKIPPED)
+    except subprocess.CalledProcessError as e:
+        print(f"::notice::`{LABEL_REVIEW_SKIPPED}` not {'added' if want else 'removed'} (exit {e.returncode}) — does the label exist in this repo?")
 
 
 def split_outcome(fail: list[str]) -> tuple[list[str], list[str]]:
@@ -935,6 +964,7 @@ def run(gh: GitHub, pull: dict) -> int:
         gh.remove_label(name)
         print(f"::notice::removed {name} by the gate")
     snap_review_label(gh, pull, files, remove)
+    review_skip_label(gh, pull)
     if new_state != state or (comment_id is None and new_state):
         gh.write_state(comment_id, new_state)
     summary = os.environ.get("GITHUB_STEP_SUMMARY")
