@@ -47,3 +47,22 @@ def parse_languages(text: str, lang: str, tables: dict[str, str]) -> list[dict]:
                 out.append({"slug": slugify(name) if lang == "en" else None, "name": name, "name_en": None,
                             "category": category})
     return out
+
+
+def parse_price_tables(text: str, lang: str, tables: list[dict]) -> list[dict]:
+    """Строки таблиц цен главы «Equipment»: `{title, category, columns, prefix}` на таблицу.
+
+    `columns` — ключи полей по позиции колонки (первая — `name`), прочерк в ячейке — None. Слаг — из
+    EN-имени с `prefix`; RU получает слаг и `name_en` по позиции строки (`align_positional_name_en`).
+    """
+    out = []
+    for table in tables:
+        for row in _table(text, table["title"]):
+            if len(row) != len(table["columns"]):
+                raise ValueError(f"table «{table['title']}»: {len(row)} cells, {len(table['columns'])} columns declared")
+            cells = dict(zip(table["columns"], row))
+            name = cells.pop("name")
+            slug = slugify(f"{table.get('prefix', '')} {name}") if lang == "en" else None
+            out.append({"slug": slug, "name": name, "name_en": None, "category": table["category"],
+                        **{key: None if value in ("—", "-", "") else value for key, value in cells.items()}})
+    return out
