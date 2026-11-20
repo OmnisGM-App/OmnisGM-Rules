@@ -21,9 +21,19 @@ def check(ok: bool, message: str) -> None:
         failures.append(message)
 
 
+UNITS = {"зм": "gp", "см": "sp", "мм": "cp", "день": "day", "милю": "mile", "фнт": "lb"}
+UNIT = re.compile(r"\d+|[½¼¾]|\b(?:gp|sp|cp|day|mile|lb|" + "|".join(UNITS) + r")\b")
+
+
 def numbers(entity: dict) -> list[str]:
-    values = " ".join(str(v) for k, v in entity.items() if k not in ("slug", "name", "name_en", "category") and v)
-    return re.findall(r"\d+|[½¼¾]", values.replace(",", ""))
+    """Числа и единицы строки (монета, «в день», «за милю») — одинаковые в EN и RU."""
+    values = " ".join(str(v) for k, v in entity.items() if k not in ("slug", "name", "name_en", "category", "availability") and v)
+    return [UNITS.get(token, token) for token in UNIT.findall(values.replace(",", "").lower())]
+
+
+def grouping(values: list) -> list[int]:
+    """Какие строки делят одно значение: «Town or city only» у тех же строк, что и его перевод."""
+    return [values.index(v) for v in values]
 
 
 def parsed(lang: str) -> dict[str, list[dict]]:
@@ -46,6 +56,8 @@ for resource, rows in en.items():
     for e, r in zip(rows, pairs):
         check(e["category"] == r["category"] and numbers(e) == numbers(r),
               f"{resource}: «{r['name']}» is not the row of «{e['name']}»: {numbers(r)} vs {numbers(e)}")
+    check(grouping([r.get("availability") for r in pairs]) == grouping([e.get("availability") for e in rows]),
+          f"{resource}: RU availability does not repeat where EN does")
 
 by_slug = {r["slug"]: r for rows in en.values() for r in rows}
 check(by_slug.get("warhorse", {}).get("carrying_capacity") == "540 lb.", "warhorse: carrying capacity")
