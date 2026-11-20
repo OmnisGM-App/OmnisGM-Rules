@@ -113,8 +113,12 @@ jobs:
       - name: Unit — группы снаряжения JSON API
         run: python3 .github/scripts/test_equipment_groups.py
 
+      - name: Unit — теги Rules Glossary JSON API
+        run: python3 .github/scripts/test_glossary_tags.py
+
       - name: Unit — таблицы цен главы «Equipment» JSON API
         run: python3 .github/scripts/test_price_tables.py
+||||||| 8a69bd34
 
       # Семейства магических предметов (#412): редкость предмета берётся из строки таблицы, из скобок
       # абзаца или из строки типа; пропавшая строка или RU не напротив EN должны ронять сборку.
