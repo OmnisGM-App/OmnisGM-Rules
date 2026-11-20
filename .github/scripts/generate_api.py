@@ -34,7 +34,7 @@ from parsers import (parse_spells, parse_monsters, parse_magic_items,
                      parse_ancestries, parse_communities, parse_domain_cards,
                      parse_adversaries, parse_environments, parse_dh_glossary,
                      parse_brp_skills, parse_brp_professions, parse_brp_spot_rules,
-                     parse_table_terms, parse_languages)
+                     parse_table_terms, parse_languages, parse_price_tables)
 from parsers.base import slugify
 from schemas import RESOURCE_SCHEMAS, SYSTEM_SCHEMA
 from choices import SCHOOLS, attach_choices, build_choice_lists
@@ -1089,6 +1089,9 @@ def main():
         elif entity_type == "languages":
             entities = parse_languages(text, lang, source["tables"])
             resource = "languages"
+        elif entity_type == "price_tables":
+            entities = parse_price_tables(text, lang, source["tables"])
+            resource = out_resource
         elif entity_type == "ancestry":
             entities = parse_ancestries(text, lang)
             resource = "ancestries"
@@ -1139,7 +1142,8 @@ def main():
         # RU-оружию/доспехам — name_en + канонический слаг (сверка стат-блоков EN↔RU).
         align_stat_table_name_en(all_data)
         # RU-свойствам/мастерствам оружия и действиям — name_en по позиции (порядок определений = EN).
-        align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms", "areas-of-effect"))
+        align_positional_name_en(all_data, ("weapon-properties", "masteries", "actions", "rules-terms", "areas-of-effect",
+                                            "mounts", "vehicles", "services"))
         # RU-заклинаниям — area (форма) по слагу из EN.
         backfill_spell_area(all_data)
 

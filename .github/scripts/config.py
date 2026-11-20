@@ -178,3 +178,26 @@ RESOURCE_DIR = {
     "feat": "feats",
     "race": "races",
 }
+
+# Ездовые животные, транспорт, еда и услуги (#547) — таблицы цен главы «Equipment». Заголовки EN и RU парны,
+# строки таблиц идут в одном порядке: RU получает слаг по позиции.
+_SHIP_COLUMNS = ["name", "speed", "crew", "passengers", "cargo_tons", "ac", "hp", "damage_threshold", "cost"]
+_PRICE_TABLES = {
+    "mounts": [("mount", "", ["name", "carrying_capacity", "cost"], "Mounts and Other Animals", "Ездовые и другие животные")],
+    "vehicles": [
+        ("tack-and-drawn", "", ["name", "weight", "cost"], "Tack, Harness, and Drawn Vehicles", "Упряжь и гужевой транспорт"),
+        ("ship", "", _SHIP_COLUMNS, "Airborne and Waterborne Vehicles", "Воздушные и водные транспортные средства"),
+    ],
+    "services": [
+        ("food-and-drink", "", ["name", "cost"], "Food, Drink", "Еда, питьё"),
+        ("lodging", "inn stay", ["name", "cost"], "Inn Stay per Day", "Проживание в таверне в день"),
+        ("hireling", "", ["name", "cost"], "Hirelings", "Наёмники"),
+        ("spellcasting", "spellcasting level", ["name", "availability", "cost"], "Spellcasting Services", "Услуги заклинателей"),
+    ],
+}
+SOURCES += [
+    {"ver": "srd52", "lang": lang, "type": "price_tables", "file": f"srd-5.2/{lang}/06_Equipment.md", "out": resource,
+     "tables": [{"title": en if lang == "en" else ru, "category": category, "prefix": prefix, "columns": columns}
+                for category, prefix, columns, en, ru in tables]}
+    for lang in ("ru", "en") for resource, tables in _PRICE_TABLES.items()
+]

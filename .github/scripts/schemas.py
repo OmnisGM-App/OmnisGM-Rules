@@ -1329,6 +1329,32 @@ CHOICE_LIST_SCHEMA = {
     "additionalProperties": False,
 }
 
+_PRICE_STRING = {"type": ["string", "null"]}
+
+
+def _price_table_schema(title: str, categories: list[str], fields: list[str]) -> dict:
+    """Строка таблицы цен главы «Equipment» (#547): значения — как напечатаны, прочерк — null."""
+    return {
+        "$schema": "http://json-schema.org/draft-07/schema#",
+        "title": title,
+        "type": "object",
+        "properties": {
+            "slug": {"type": "string"},
+            "name": {"type": "string", "minLength": 1},
+            "name_en": {"type": ["string", "null"]},
+            "category": {"type": "string", "enum": categories},
+            **{field: _PRICE_STRING for field in fields},
+        },
+        "required": ["slug", "name", "name_en", "category", "cost"],
+        "additionalProperties": False,
+    }
+
+
+MOUNT_SCHEMA = _price_table_schema("Mount", ["mount"], ["carrying_capacity", "cost"])
+VEHICLE_SCHEMA = _price_table_schema("Vehicle", ["tack-and-drawn", "ship"], [
+    "weight", "speed", "crew", "passengers", "cargo_tons", "ac", "hp", "damage_threshold", "cost"])
+SERVICE_SCHEMA = _price_table_schema("Service", ["food-and-drink", "lodging", "hireling", "spellcasting"], ["availability", "cost"])
+
 RESOURCE_SCHEMAS = {
     "spells": SPELL_SCHEMA,
     "monsters": MONSTER_SCHEMA,
@@ -1349,6 +1375,9 @@ RESOURCE_SCHEMAS = {
     "species-lineages": SPECIES_LINEAGE_SCHEMA,
     "languages": LANGUAGE_SCHEMA,
     "choice-lists": CHOICE_LIST_SCHEMA,
+    "mounts": MOUNT_SCHEMA,
+    "vehicles": VEHICLE_SCHEMA,
+    "services": SERVICE_SCHEMA,
     # Daggerheart (имена не пересекаются с D&D).
     "ancestries": DH_SECTION_SCHEMA,
     "communities": DH_SECTION_SCHEMA,
