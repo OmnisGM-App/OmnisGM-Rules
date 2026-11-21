@@ -124,6 +124,17 @@ def broken(lang, slug, old, new):
     return build_species_lineages(data)
 
 
+def swapped_ranges():
+    data = copy.deepcopy(pristine)
+    dwarf = next(s for s in data[("srd52", "ru", "species")] if s.get("name_en") == "Dwarf")
+    for old, new in (("тёмным зрением в радиусе 120 футов", "тёмным зрением в радиусе 60 футов"),
+                     ("чувство вибрации в радиусе 60 футов", "чувство вибрации в радиусе 120 футов")):
+        if old not in dwarf["description_md"]:
+            return [f"нет фрагмента {old!r}"]
+        dwarf["description_md"] = dwarf["description_md"].replace(old, new)
+    return build_species_lineages(data)
+
+
 eq("вид без скорости роняет сборку", broken("en", "dwarf", "**Speed:** 30 feet", ""),
    ["srd52: Dwarf: species facts lack ['Speed']"])
 eq("особенность-чувство с другой фразой роняет сборку",
@@ -138,7 +149,9 @@ eq("особенность названа одним чувством, фраз�
    ["srd52: Orc: sense trait 'Darkvision' not read: 'You have Truesight with a range of 120 feet.'"])
 eq("RU: дальность чувства расходится с EN — ошибка",
    broken("ru", "Orc", "тёмным зрением в радиусе 120 футов", "тёмным зрением в радиусе 60 футов"),
-   ["srd52/ru/orc: в особенностях нет дальности 120 из EN (darkvision)"])
+   ["srd52/ru/orc: в особенности «Тёмное зрение» нет дальности 120 из EN"])
+eq("RU: дальность сверяется в самой особенности-чувстве, а не в соседней",
+   swapped_ranges(), ["srd52/ru/dwarf: в особенности «Тёмное зрение» нет дальности 120 из EN"])
 eq("незнакомый размер роняет сборку", broken("en", "orc", "**Size:** Medium", "**Size:** Large"),
    ["srd52: Orc: size 'Large (about 6–7 feet tall)' or speed '30 feet' not read"])
 eq("особенность с наследиями переименована — сборка падает",
