@@ -412,8 +412,12 @@ def build_species_lineages(all_data: dict) -> list[str]:
                     (e["slug"], e["size"]["options"], e["speed"], len(e["traits"])):
                 errors.append(f"{ver}/ru/{r['slug']}: структура RU ≠ EN (вид, размер, скорость, число особенностей)")
                 continue
+            r["senses"] = [dict(sense) for sense in e["senses"]]
             for te, tr in zip(e["traits"], r["traits"]):
                 tr["level"] = te["level"]
+                sense = next((s for s in e["senses"] if s["kind"] == te["name"].lower()), None)
+                if sense and not re.search(rf"\b{sense['range']} фут", tr["description_md"]):
+                    errors.append(f"{ver}/ru/{r['slug']}: в особенности «{tr['name']}» нет дальности {sense['range']} из EN")
                 if te["level"] and not re.search(rf"\b{te['level']}-го уровня персонажа", tr["description_md"]):
                     errors.append(f"{ver}/ru/{r['slug']}: в особенности «{tr['name']}» нет уровня {te['level']} из EN")
         for e, r in zip(en_lineages, ru_lineages):

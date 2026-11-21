@@ -90,6 +90,9 @@ _RESISTANCE_FROM_TRAIT = re.compile(r"Resistance to the damage type determined b
 _DEALT_DAMAGE = re.compile(r"deal \d+d\d+ (\w+) damage")
 _DARKVISION = re.compile(r"Darkvision increases to (\d+) feet")
 _SPEED_AT_LEAST = re.compile(r"Speed increases to (\d+) feet")
+# Постоянное чувство вида (#551): особенность названа чувством и состоит из одной этой фразы.
+SENSE_KINDS = ("Darkvision", "Blindsight", "Tremorsense", "Truesight")
+_SENSE = re.compile(rf"You have ({'|'.join(SENSE_KINDS)}) with a range of (\d+) feet\.")
 _ITALIC = re.compile(r"(?<!\*)\*([^*]+)\*(?!\*)")
 _BARE_NAME = re.compile(r"[A-Z][\w' ]+")
 _LEVEL_LABEL = re.compile(r"Level (\d+)")
@@ -144,6 +147,18 @@ def _lineage_grants(species: str, variant: dict, owner_text: str) -> dict:
                 grants[key] = int(m.group(1))
     grants["_spell_uses"] = _uses(variant["description_md"] + "\n" + owner_text, SPELL_USES)
     return grants
+
+
+def _species_senses(species: str, traits: list[dict]) -> list[dict]:
+    senses = []
+    for trait in traits:
+        if trait["name"] not in SENSE_KINDS:
+            continue
+        form = _SENSE.fullmatch(trait["description_md"])
+        if not form or form.group(1) != trait["name"]:
+            raise ValueError(f"{species}: sense trait {trait['name']!r} not read: {trait['description_md']!r}")
+        senses.append({"kind": trait["name"].lower(), "range": int(form.group(2))})
+    return senses
 
 
 def structure_species(species: list[dict], lang: str, shape: list | None = None) -> tuple[list[dict], list]:
@@ -224,6 +239,7 @@ def structure_species(species: list[dict], lang: str, shape: list | None = None)
         if len(variants) != count:
             raise ValueError(f"{name}: {len(variants)} lineages, declared {count}")
         sp["traits"] = traits
+        sp["senses"] = _species_senses(name, traits) if en else None
         owner = paragraphs[owner_index]["name"] if owner_index is not None else None
         owner_text = " ".join(paragraphs[owner_index]["text"]) if owner_index is not None else ""
         resisted = en and owner is not None and any(

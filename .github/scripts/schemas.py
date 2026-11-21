@@ -1119,6 +1119,14 @@ SPECIES_SCHEMA = {
             "additionalProperties": False,
         },
         "speed": {"type": "integer", "minimum": 5},
+        # Постоянные чувства вида (#551): особенность-чувство с дальностью в футах; чувство на время сюда не входит.
+        "senses": {"type": "array", "items": {
+            "type": "object",
+            "properties": {"kind": {"type": "string", "enum": ["darkvision", "blindsight", "tremorsense", "truesight"]},
+                           "range": {"type": "integer", "minimum": 5}},
+            "required": ["kind", "range"],
+            "additionalProperties": False,
+        }},
         # Выбор самого вида: размер, когда их два.
         "choices": _CHOICES,
         "traits": {"type": "array", "minItems": 1, "items": {
@@ -1136,7 +1144,7 @@ SPECIES_SCHEMA = {
         }},
         "image": {"type": "string", "format": "uri"},
     },
-    "required": ["slug", "name", "name_en", "description_md", "creature_type", "size", "speed", "traits",
+    "required": ["slug", "name", "name_en", "description_md", "creature_type", "size", "speed", "senses", "traits",
                  "choices"],
     "additionalProperties": False,
 }
