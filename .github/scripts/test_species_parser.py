@@ -129,6 +129,10 @@ eq("вид без скорости роняет сборку", broken("en", "dwa
 eq("особенность-чувство с другой фразой роняет сборку",
    broken("en", "orc", "You have Darkvision with a range of 120 feet.", "You can see in the dark out to 120 feet."),
    ["srd52: Orc: sense trait 'Darkvision' not read: 'You can see in the dark out to 120 feet.'"])
+eq("фраза чувства с условием после неё не читается как постоянное чувство",
+   broken("en", "orc", "You have Darkvision with a range of 120 feet.",
+          "You have Darkvision with a range of 120 feet. It ends in sunlight."),
+   ["srd52: Orc: sense trait 'Darkvision' not read: 'You have Darkvision with a range of 120 feet. It ends in sunlight.'"])
 eq("особенность названа одним чувством, фраза о другом — сборка падает",
    broken("en", "orc", "You have Darkvision with a range of 120 feet.", "You have Truesight with a range of 120 feet."),
    ["srd52: Orc: sense trait 'Darkvision' not read: 'You have Truesight with a range of 120 feet.'"])
