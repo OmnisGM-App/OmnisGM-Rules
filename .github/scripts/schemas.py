@@ -1333,7 +1333,7 @@ _PRICE_STRING = {"type": ["string", "null"]}
 
 
 def _price_table_schema(title: str, categories: list[str], fields: list[str]) -> dict:
-    """Строка таблицы цен главы «Equipment» (#547): значения — как напечатаны, прочерк — null."""
+    """Строка таблицы цен главы «Equipment» (#547): значения — как напечатаны, прочерк — null; у услуг с заголовком в имени (`titled` в `config.py`) имя и цена собраны."""
     return {
         "$schema": "http://json-schema.org/draft-07/schema#",
         "title": title,

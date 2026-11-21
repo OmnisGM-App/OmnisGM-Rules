@@ -180,7 +180,8 @@ RESOURCE_DIR = {
 }
 
 # Ездовые животные, транспорт, еда и услуги (#547) — таблицы цен главы «Equipment». Заголовки EN и RU парны,
-# строки таблиц идут в одном порядке: RU получает слаг по позиции.
+# строки таблиц идут в одном порядке: RU получает слаг по позиции. Шестой элемент — имя с заголовком таблицы:
+# пара хвостов заголовка EN и RU, которые уходят в цену, или None.
 _SHIP_COLUMNS = ["name", "speed", "crew", "passengers", "cargo_tons", "ac", "hp", "damage_threshold", "cost"]
 _PRICE_TABLES = {
     "mounts": [("mount", "", ["name", "carrying_capacity", "cost"], "Mounts and Other Animals", "Ездовые и другие животные")],
@@ -190,14 +191,15 @@ _PRICE_TABLES = {
     ],
     "services": [
         ("food-and-drink", "", ["name", "cost"], "Food, Drink", "Еда, питьё"),
-        ("lodging", "inn stay", ["name", "cost"], "Inn Stay per Day", "Проживание в таверне в день"),
+        ("lodging", "inn stay", ["name", "cost"], "Inn Stay per Day", "Проживание в таверне в день", ("per Day", "в день")),
         ("hireling", "", ["name", "cost"], "Hirelings", "Наёмники"),
-        ("spellcasting", "spellcasting level", ["name", "availability", "cost"], "Spellcasting Services", "Услуги заклинателей"),
+        ("spellcasting", "spellcasting level", ["name", "availability", "cost"], "Spellcasting Services", "Услуги заклинателей", None),
     ],
 }
 SOURCES += [
     {"ver": "srd52", "lang": lang, "type": "price_tables", "file": f"srd-5.2/{lang}/06_Equipment.md", "out": resource,
-     "tables": [{"title": en if lang == "en" else ru, "category": category, "prefix": prefix, "columns": columns}
-                for category, prefix, columns, en, ru in tables]}
+     "tables": [{"title": en if lang == "en" else ru, "category": category, "prefix": prefix, "columns": columns,
+                 **({"titled": True, "unit": titled[0][lang == "ru"] if titled[0] else None} if titled else {})}
+                for category, prefix, columns, en, ru, *titled in tables]}
     for lang in ("ru", "en") for resource, tables in _PRICE_TABLES.items()
 ]
