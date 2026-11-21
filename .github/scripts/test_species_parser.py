@@ -53,7 +53,11 @@ eq("EN: факты и особенности девяти видов",
    {s["slug"]: (s["size"]["options"], s["speed"], [t["name"] + "*" * t["lineages"] for t in s["traits"]]) for s in en},
    SPECIES)
 eq("EN: тип существа", {s["creature_type"] for s in en}, {"Humanoid"})
+DARK = {"dragonborn": 60, "dwarf": 120, "elf": 60, "gnome": 60, "orc": 120, "tiefling": 60}
+SENSES = {slug: [{"kind": "darkvision", "range": DARK[slug]}] if slug in DARK else [] for slug in SPECIES}
+eq("EN: постоянные чувства вида; чувство на время (дварф) не входит", {s["slug"]: s["senses"] for s in en}, SENSES)
 ru = live[("srd52", "ru", "species")]
+eq("RU: чувства — структура EN", {s["slug"]: s["senses"] for s in ru}, SENSES)
 eq("RU: размеры и скорость — как у EN, число особенностей то же",
    {s["slug"]: (s["size"]["options"], s["speed"], len(s["traits"]), sum(t["lineages"] for t in s["traits"])) for s in ru},
    {slug: (sizes, speed, len(traits), sum(t.endswith("*") for t in traits)) for slug, (sizes, speed, traits) in SPECIES.items()})
@@ -122,6 +126,15 @@ def broken(lang, slug, old, new):
 
 eq("вид без скорости роняет сборку", broken("en", "dwarf", "**Speed:** 30 feet", ""),
    ["srd52: Dwarf: species facts lack ['Speed']"])
+eq("особенность-чувство с другой фразой роняет сборку",
+   broken("en", "orc", "You have Darkvision with a range of 120 feet.", "You can see in the dark out to 120 feet."),
+   ["srd52: Orc: sense trait 'Darkvision' not read: 'You can see in the dark out to 120 feet.'"])
+eq("особенность названа одним чувством, фраза о другом — сборка падает",
+   broken("en", "orc", "You have Darkvision with a range of 120 feet.", "You have Truesight with a range of 120 feet."),
+   ["srd52: Orc: sense trait 'Darkvision' not read: 'You have Truesight with a range of 120 feet.'"])
+eq("RU: дальность чувства расходится с EN — ошибка",
+   broken("ru", "Orc", "тёмным зрением в радиусе 120 футов", "тёмным зрением в радиусе 60 футов"),
+   ["srd52/ru/orc: в особенностях нет дальности 120 из EN (darkvision)"])
 eq("незнакомый размер роняет сборку", broken("en", "orc", "**Size:** Medium", "**Size:** Large"),
    ["srd52: Orc: size 'Large (about 6–7 feet tall)' or speed '30 feet' not read"])
 eq("особенность с наследиями переименована — сборка падает",
