@@ -62,7 +62,22 @@ for resource, rows in en.items():
 by_slug = {r["slug"]: r for rows in en.values() for r in rows}
 check(by_slug.get("warhorse", {}).get("carrying_capacity") == "540 lb.", "warhorse: carrying capacity")
 check(by_slug.get("rowboat", {}).get("damage_threshold", "") is None, "rowboat: a dash is null")
-check(by_slug.get("inn-stay-squalid", {}).get("cost") == "7 CP", "lodging: the slug carries the table prefix")
+check(by_slug.get("inn-stay-squalid", {}).get("cost") == "7 CP per day", "lodging: the unit of the table title goes into the cost")
+check(by_slug.get("inn-stay-squalid", {}).get("name") == "Inn Stay - Squalid", "lodging: the name carries the table title without its unit")
+check(by_slug.get("spellcasting-level-cantrip", {}).get("name") == "Spellcasting Services - Cantrip", "spellcasting: a word row keeps its cell")
+check(by_slug.get("spellcasting-level-4-5", {}).get("name") == "Spellcasting Services - Spell Level 4—5",
+      "spellcasting: a number row takes the column heading")
+ru_names = [r["name"] for r in ru["services"]]
+check("Проживание в таверне, убогое" in ru_names and "Услуги заклинателей, заговор" in ru_names
+      and "Услуги заклинателей, уровень заклинания 9" in ru_names, f"RU titled names: {ru_names}")
+check(all(r["cost"].endswith(" в день") for r in ru["services"] if r["category"] == "lodging"), "RU lodging: «в день» in the cost")
+SERVICE_SLUGS = (
+    "ale-mug bread-loaf cheese-wedge meal-squalid meal-poor meal-modest meal-comfortable meal-wealthy meal-aristocratic "
+    "wine-bottle-common wine-bottle-fine inn-stay-squalid inn-stay-poor inn-stay-modest inn-stay-comfortable inn-stay-wealthy "
+    "inn-stay-aristocratic skilled-hireling untrained-hireling messenger spellcasting-level-cantrip spellcasting-level-1 "
+    "spellcasting-level-2 spellcasting-level-3 spellcasting-level-4-5 spellcasting-level-6-8 spellcasting-level-9"
+).split()
+check([r["slug"] for r in en["services"]] == SERVICE_SLUGS, f"services: slugs moved: {[r['slug'] for r in en['services']]}")
 check(by_slug.get("meal-squalid", {}).get("cost") == "1 CP", "meal: its own slug next to the lodging of the same name")
 check(by_slug.get("spellcasting-level-9", {}).get("availability") == "City only", "spellcasting: availability")
 
@@ -76,6 +91,20 @@ check(parse_price_tables(SAMPLE, "ru", [table])[0]["slug"] is None, "sample: a R
 try:
     parse_price_tables(SAMPLE, "en", [{**table, "columns": ["name", "weight", "cost"]}])
     check(False, "sample: a column count mismatch must raise")
+except ValueError:
+    pass
+
+TITLED = "Table: Stay per Night\n\n| Room | Cost |\n|---|---|\n| Poor | 1 SP |\n| 2 | — |\n"
+titled = {"title": "Stay per Night", "category": "lodging", "columns": ["name", "cost"], "prefix": "stay", "titled": True, "unit": "per Night"}
+check(parse_price_tables(TITLED, "en", [titled]) == [
+    {"slug": "stay-poor", "name": "Stay - Poor", "name_en": None, "category": "lodging", "cost": "1 SP per night"},
+    {"slug": "stay-2", "name": "Stay - Room 2", "name_en": None, "category": "lodging", "cost": None},
+], f"titled sample: {parse_price_tables(TITLED, 'en', [titled])}")
+check(parse_price_tables(TITLED, "ru", [titled])[0]["name"] == "Stay, poor", "titled sample: the RU form is «title, cell» in lower case")
+check(parse_price_tables(TITLED, "en", [{**titled, "titled": False, "unit": None}])[0]["name"] == "Poor", "titled sample: off by default")
+try:
+    parse_price_tables(TITLED, "en", [{**titled, "unit": "per Day"}])
+    check(False, "titled sample: a title that does not end with the unit must raise")
 except ValueError:
     pass
 
