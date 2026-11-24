@@ -139,7 +139,7 @@ so the verdict never waits for it. It runs `run_pr_checks.py` once per check gro
   whose order the reviewer suggested, not "the next one" after "merge and take the next task" (that permits
   starting the task, not merging its PR), not an "if it goes green — merge" from an earlier exchange. A PR
   that is not ready is reported as not ready, never merged on a command alone (`--admin` is never used).
-- **Squash, never `--admin`.** `gh pr merge N --squash --delete-branch`, or `--auto --squash` so the
+- **Squash, never `--admin`.** `gh pr merge N --squash --delete-branch --match-head-commit <sha>`, or `--auto --squash` so the
   PR merges itself when the required checks (CI + `Merge gate`) go green. `--auto` is armed only once
   every review thread is answered and resolved and no round is running (`review-response.md`, merge
   readiness): the checks do not know about threads. An admin merge bypasses the gate and is reserved
