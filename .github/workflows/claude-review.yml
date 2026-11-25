@@ -7,6 +7,8 @@ name: Claude auto-review
 # replaced by a thin call `uses: …@master` + `secrets: inherit`.
 
 # Auto-review of PR commits (#443 process, skill omnisgm-review from the omnisgm plugin).
+# v2.65 (2026-11-25, claude-plugins#116): the review is published in English — the main-loop prompt and the body strings
+# of the `publish` job. Reviews posted before it stay Russian, so every reader of a body reads both languages.
 # v2.64 (2026-11-13, stacked PRs): a PR whose base is another PR's branch is reviewed like a PR into the default branch —
 # the `resolve` skip on the PR's base and its DEFAULT_BRANCH env are gone. Drafts stay skipped.
 # The review diff already used the PR's own base (`origin/${BASE}...HEAD`, the RECALC block), so a stacked PR is read
@@ -99,11 +101,11 @@ name: Claude auto-review
 # read with Read, not `git show` — up to 115 extra calls per run) and runs a baseline `tsc --noEmit`
 # per tsconfig → 06-runfacts.md; the dump chronicle is attributed per agent ([who]).
 # v2.40 (2026-09-22): header without "+N inlines" (owner's decision: how many of the findings
-# are inlines — irrelevant) and correct forms "1 среднее / 2 ремарки" (Russian plurals in the review body).
+# are inlines — irrelevant) and correct plural forms of the counts in the review body (Russian until v2.65).
 # v2.39 (2026-09-22): `force` input on the button — full pipeline even on an already reviewed head
 # (iter_state --force → mode=pipeline); needed for repeats and measurements on a live PR.
 # v2.38 (2026-09-22): DISPATCH ≠ REPLAY. The button on an OPEN PR — a real review round (the workflow
-# is manual since v2.34): the merge commit is recreated as before, but the "🔁 Реплей" (replay) mark and `--replay` for
+# is manual since v2.34): the merge commit is recreated as before, but the "🔁" replay mark and `--replay` for
 # iter_state — only when the PR is not OPEN (merged/closed). Run 35724815885 marked live review #630
 # as a replay.
 # v2.37 (2026-09-22): transcript dump counts per agent (parent_tool_use_id): tool calls,
@@ -549,7 +551,7 @@ jobs:
           # v2.35: iteration mode — from the last published review and git, not from the model
           # reading 02-pr-comments.md (stop rule, fix-diff, clean base merge — all there).
           # v2.59: REST — its `user.login`/`user.type` tell the bot from a person (H1: a hand-written
-          # «Голова `x`. Находок нет.» must not become the previous review). Wrapped as {"reviews": […]}, the document
+          # «Head `x`. No findings.» must not become the previous review). Wrapped as {"reviews": […]}, the document
           # shape iter_state.py of an older plugin_ref reads too. A failed read stays "no reviews" → full pipeline.
           gh api "repos/$REPO/pulls/$PR/reviews" --paginate \
             --jq '.[] | {body, submittedAt: .submitted_at, user: {login: .user.login, type: .user.type}}' > "$OUT/.reviews.lines" \
@@ -650,7 +652,8 @@ jobs:
             references/triage.md (agent composition and models) from the skill directory, plus
             INDEX.md, 00-pr.md, 04-files.txt and 06-runfacts.md from OUT (the RUN line). Agent prompts live in
             references/agents/ — the agent reads them ITSELF, you do not read or embed them.
-            The review is posted to the PR in Russian. Write in Russian.
+            The review is posted to the PR in English. Write in English: findings, the journal lines, every file of the
+            90-* and 95-* set.
 
             RUN: PR=#${{ github.event.pull_request.number || github.event.workflow_run.pull_requests[0].number || inputs.pr }}
             REPO=${{ github.repository }} BASE=${{ steps.prep.outputs.base }}
@@ -866,7 +869,8 @@ jobs:
           rd = os.environ["RUN_OUT"]
           # The review body is assembled DETERMINISTICALLY from 90-verdict.json — the model does not write the body
           # and cannot append anything to it (the "too much text" saga v2.8/2.12/2.16 is closed by the form).
-          # The body strings below are Russian on purpose: the review posted to the PR is in Russian.
+          # The body strings are English since v2.65; the readers of a body (iter_state.py, collect_findings.py,
+          # probe_replay.py) also read the Russian forms of the reviews posted before it.
           vf, bf = f"{rd}/90-verdict.json", f"{rd}/90-final-review.md"
           if os.path.exists(vf):
               v = json.load(open(vf))
@@ -877,27 +881,24 @@ jobs:
               total = major + med + rem
               if total == 0:
                   if mode == "fix-round":
-                      body = (f"Находок нет. Голова `{head}`, фикс-раунд после `{str(v.get('prev_head',''))[:7]}`: "
-                              f"закрыты все {v.get('prev_total', v.get('prev_closed', 0))} находок прошлого ревью.")
+                      body = (f"No findings. Head `{head}`, fix round after `{str(v.get('prev_head',''))[:7]}`: "
+                              f"findings of the previous review closed: {v.get('prev_total', v.get('prev_closed', 0))}.")
                   elif mode == "single":
-                      body = f"Находок нет. Голова `{head}`, одиночное ревью."
+                      body = f"No findings. Head `{head}`, single review."
                   else:
-                      body = f"Находок нет. Голова `{head}`, агентов: {v.get('agents', 0)}."
+                      body = f"No findings. Head `{head}`, agents: {v.get('agents', 0)}."
               else:
-                  def pl(n, one, few, many):
-                      n10, n100 = n % 10, n % 100
-                      return one if n10 == 1 and n100 != 11 else few if 2 <= n10 <= 4 and not 12 <= n100 <= 14 else many
-                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} {pl(med, 'среднее', 'средних', 'средних')}"] * (med > 0) + [f"{rem} {pl(rem, 'ремарка', 'ремарки', 'ремарок')}"] * (rem > 0)
-                  hdr = f"Голова `{head}`"
+                  parts = [f"{major} ❗"] * (major > 0) + [f"{med} medium"] * (med > 0) + [f"{rem} {'remark' if rem == 1 else 'remarks'}"] * (rem > 0)
+                  hdr = f"Head `{head}`"
                   if mode == "fix-round":
-                      hdr += f", фикс-раунд после `{str(v.get('prev_head',''))[:7]}`"
+                      hdr += f", fix round after `{str(v.get('prev_head',''))[:7]}`"
                   elif mode == "single":
-                      hdr += ", одиночное ревью"
+                      hdr += ", single review"
                   else:
-                      hdr += f", агентов: {v.get('agents', 0)}"
+                      hdr += f", agents: {v.get('agents', 0)}"
                       if v.get("triage_skips"):
-                          hdr += f" (триаж: {v['triage_skips']})"
-                  body = hdr + ". Находки: " + " / ".join(parts) + "."
+                          hdr += f" (triage: {v['triage_skips']})"
+                  body = hdr + ". Findings: " + " / ".join(parts) + "."
               # 90-body-findings.md is appended even with zero findings: it holds
               # the caveat line of the single-pass degradation (ci-pipeline contract).
               bff = f"{rd}/90-body-findings.md"
@@ -938,20 +939,20 @@ jobs:
           def as_body_list(items):
               return "\n".join(f"- `{c.get('path')}:{c.get('line')}` — {c.get('body','').strip()}" for c in items)
           if moved:
-              body += "\n\n---\nНаходки вне диапазонов диффа:\n" + as_body_list(moved)
+              body += "\n\n---\nFindings outside the diff ranges:\n" + as_body_list(moved)
           def post(payload):
               open(f"{rd}/payload.json", "w").write(json.dumps(payload))
               return subprocess.run([os.environ["GH_BIN"], "api", f"repos/{os.environ['REPO']}/pulls/{os.environ['PR']}/reviews",
                                      "-X", "POST", "--input", f"{rd}/payload.json"], capture_output=True, text=True)
           if os.environ.get("REPLAY"):
-              body = "🔁 Реплей-прогон (замер стоимости, workflow_dispatch) — не новый раунд ревью.\n\n" + body
+              body = "🔁 Replay run (cost measurement, workflow_dispatch) — not a new review round.\n\n" + body
           payload = {"event": "COMMENT", "body": body}
           if good:
               payload["comments"] = [{"path": c["path"], "line": c["line"], "side": c.get("side", "RIGHT"), "body": c["body"]} for c in good]
           r = post(payload)
           if r.returncode and good:
               print("::warning::POST with inlines failed, publishing everything in the body:", r.stderr[:500])
-              r = post({"event": "COMMENT", "body": body + "\n\n---\nИнлайны (fallback):\n" + as_body_list(good)})
+              r = post({"event": "COMMENT", "body": body + "\n\n---\nInlines (fallback):\n" + as_body_list(good)})
           if r.returncode:
               print("::error::review publication failed:", r.stderr[:1000]); sys.exit(1)
           print("review published")
