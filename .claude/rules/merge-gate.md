@@ -144,10 +144,10 @@ so the verdict never waits for it. It runs `run_pr_checks.py` once per check gro
   every review thread is answered and resolved and no round is running (`review-response.md`, merge
   readiness): the checks do not know about threads. An admin merge bypasses the gate and is reserved
   for the owner's own hand in an emergency.
-- **Stacked PRs.** A slice that does not ship alone goes as a GitHub stack (the `gh stack` CLI extension), never hand-made chained branches. Open the PRs in turn, bottom up; each is reviewed and gated like a PR into the default branch. One matrix runs on the top PR and `matrix_run.sh <top> --stack` copies it to every lower PR. Merge the stack only whole, with `gh stack merge <top> --yes --squash`; never `gh pr merge` a PR whose base is not the default branch. A retarget or rebase that only drops commits already in the base keeps `gate/review-passed` (`git range-diff`, named in the PR body).
+- **Stacked PRs.** A slice that does not ship alone goes as a `gh stack` stack, never hand-chained branches. Open PRs as drafts; mark ready one at a time, bottom up, the next once the one below has `gate/review-passed` or `gate/review-skipped`. Each is gated as usual. One matrix runs on the top PR, `matrix_run.sh <top> --stack` copies it down. Merge the stack only whole: `gh stack merge <top> --yes --squash`, never `gh pr merge` a PR whose base is not the default branch. A retarget or rebase that only drops commits already in the base keeps `gate/review-passed` (`git range-diff`, named in the PR body).
 - **`master` is the only branch merged without squash** (Table: the release PR `release/YYYY-MM-DD` →
   `master`, cut from the `dev` head, see CLAUDE.md "Release flow", is `--merge` so the history of `dev`
   is kept); everything else — squash.
   A repo without a release branch (Rules, News) squashes every PR.
 - **A PR that edits the gate itself** (`merge-gate.yml`, `merge_gate.py`, `claude-review.yml`) runs its own version of the check, so the gate's verdict on it is self-reported: it is merged under the ordinary readiness criteria (the agent itself), the author reading its own diff with that in mind.
-- A green check on an old head is not one: after a push wait for CI and the gate on the new head before merging.
+- A green check on an old head is not one: after a push wait for CI and the gate on the new head.

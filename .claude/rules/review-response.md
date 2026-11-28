@@ -34,7 +34,8 @@ The original defects run out by round three or four; after that review picks apa
    per `merge-gate.md`, with the deploy that merge triggers, is the agent's own.
 2a. **Re-walk the scenario ledger before the push** (`authoring-pitfalls.md` rule 22) and fix the twin of
    every fix (rule 21): a round that repairs only the named place and breaks a previous round's scenario is
-   the most expensive round of all.
+   the most expensive round of all. In a stack the twin is also looked for in the PRs above and fixed
+   there before their review.
 3. **Fix code, not prose.** The response to a finding is a code or test edit, or an argument in the thread.
    Do not add an explanatory comment to the code: every promise phrase ("a test guards this",
    "the only place", "guarantees", "cannot happen") is a candidate finding
